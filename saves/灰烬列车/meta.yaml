@@ -2,7 +2,7 @@ meta:
   save_name: 灰烬列车·第一日
   world_name: 灰烬列车
   created_at: '2026-07-30T22:06:15+02:00'
-  current_turn: 8
+  current_turn: 9
   game_day: 1
   time_of_day: 白天
   phase: 新手期
@@ -97,10 +97,11 @@ meta:
     - SOCIAL_RESOLVED
     - TRAVEL_COMPLETED
     - EXPLORATION_RESOLVED
+    - ATTRIBUTES_ALLOCATED
     recent_irreversible_changes: []
     current_arc:
-      last_event_type: EXPLORATION_RESOLVED
-      last_turn: 8
+      last_event_type: ATTRIBUTES_ALLOCATED
+      last_turn: 9
       location: rust_station
   pressure_level: 30
   last_payoff_turn: 0
@@ -113,36 +114,36 @@ meta:
   active_mystery_records:
   - id: 信号塔废墟的共鸣波从何而来？是自然现象还是人为操控？
     importance: 1
-    waiting_turns: 7
+    waiting_turns: 8
     reminder_count: 0
     visibility: 1
     progress: 0
   - id: 末日方舟系统的真正目的是什么？为什么选择第七扇区？
     importance: 1
-    waiting_turns: 7
+    waiting_turns: 8
     reminder_count: 0
     visibility: 1
     progress: 0
   - id: 共鸣晶体为何在靠近信号塔时会自动发热？
     importance: 1
-    waiting_turns: 7
+    waiting_turns: 8
     reminder_count: 0
     visibility: 1
     progress: 0
   - id: 老金似乎知道一些关于系统的事，他为什么不愿说？
     importance: 1
-    waiting_turns: 7
+    waiting_turns: 8
     reminder_count: 0
     visibility: 1
     progress: 0
   - id: 排行榜上偶尔出现又消失的玩家'影'是谁？
     importance: 1
-    waiting_turns: 7
+    waiting_turns: 8
     reminder_count: 0
     visibility: 1
     progress: 0
   foreshadowing_active: []
-  total_decisions: 1
+  total_decisions: 2
   total_combats: 0
   total_explorations: 1
   npcs_met: 0
@@ -168,7 +169,7 @@ meta:
     turn: 5
   pending_options:
     version: 1
-    state_turn: 8
+    state_turn: 9
     options:
       A:
         id: A
@@ -203,7 +204,7 @@ meta:
             resistance: 29.0
             K: 10.0
             probability: 0.167982
-            random_roll: 0.378626
+            random_roll: 0.400398
             severity: 0.0
             severity_band: 成功区
             death_fairness: 0.3808
@@ -312,7 +313,7 @@ meta:
               - major_action
               - requires_full_attention
           skill: null
-        state_turn: 8
+        state_turn: 9
       B:
         id: B
         label: 返回基地
@@ -352,7 +353,7 @@ meta:
               mental_cost: 0.0
               tags: []
           skill: null
-        state_turn: 8
+        state_turn: 9
       C:
         id: C
         label: 前往信号塔废墟
@@ -424,5 +425,5 @@ meta:
               mental_cost: 0.0
               tags: []
           skill: null
-        state_turn: 8
-  pending_options_state_turn: 8
+        state_turn: 9
+  pending_options_state_turn: 9

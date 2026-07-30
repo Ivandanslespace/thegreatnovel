@@ -10,8 +10,8 @@ player:
     strength: 5
     constitution: 5
     agility: 5
-    spirit: 5
-  free_points: 4
+    spirit: 9
+  free_points: 0
   hp: 50
   max_hp: 50
   status_effects: []

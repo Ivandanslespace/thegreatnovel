@@ -50,6 +50,18 @@ world:
         name: ""
         opening_strategy: ""
         visible_edge: ""
+    # 全民推进由本局合同决定，不能使用跨世界固定的死亡率、积分或排名速度。
+    competition:
+      initial_percentile: null
+      outcome_scores: {}
+      location_discovery_bonus: null
+      knowledge_bonus: null
+      positive_resource_bonus_cap: null
+      percentile_per_score: null
+      loss_roll_threshold: null
+      losses_per_trigger: null
+      rank_season_end_turn: null
+      active_rival_count: null
 
   # 世界规则
   rules:
@@ -81,34 +93,26 @@ world:
     world_creator: "llm"
     generated_fields: []
 
-  # LLM 的原创世界蓝图。名称、敌人、NPC、势力、物件和模块不应引用预设库。
-  # Python 只从此蓝图派生成本、行动约束和 SQLite 注册表。
+  # LLM 的完整原创首日世界包。Python 只校验、索引与登记，绝不补默认数值或内容。
+  # 每一条记录均须给出自己可执行的数值、成本、限制和状态效果。
   world_blueprint:
-    opening_area:
-      id: ""
-      name: ""
-      description: ""
-      danger_hint: ""
-      primary_attribute: ""
-    opening_enemy:
-      id: ""
-      name: ""
-      description: ""
-      knowledge_hint: ""
-    investigation_site: null
-    starting_npc: null
-    starting_faction: null
-    base_modules: []
-    starter_kit:
-      main_weapon:
-        id: ""
-        name: ""
-        attack_type: ""
+    starting_location: ""
+    locations: []             # id/name/safe/discovered/往返与撤离成本
+    enemies: []               # id/name/属性/掉落/所在地点；不得省略数值
+    areas: []                 # 区域生态、敌群、采集表现与撤离规则
+    modules: []               # 模块的空间、建造、维护与实际效果
+    recipes: []               # 配方成本、时间与产出逻辑
+    npcs: []                  # NPC 地点、日程、目标、自主产出与效用
+    factions: []              # 势力地点、目标、财政、税率与效用
+    relationships: []         # 与已注册 NPC 的初始关系
+    action_targets: []        # 每个可行动目标的行动类型、难度、地点、效果分支
+    starting_inventory:       # 起始资源、装备和物品；全部由本世界定义
+      resources: {}
+      equipment: {}
       items: []
-    starter_recipe:
-      id: ""
-      name: ""
-      description: ""
+    disasters: []             # 灾难类型、周期与预警
+    event_pool: []            # 至少三个原创后续事件；不得按主题名回填
+    creative_slots: {}        # 本局事件频率预算
 
   # 主题编译器生成的可执行世界注册表
   generation_bundle: {}
@@ -140,15 +144,6 @@ world:
   mysteries: []
   phases: []
 
-  # 创意槽位（控制主题编译器生成各类创意元素的数量）
-  creative_slots:
-    signature_anomalies: 5
-    living_resources: 3
-    taboo_rules: 4
-    macro_crises: 3
-    forced_convergences: 2
-    hidden_civilizations: 2
-    system_irregularities: 3
   motifs: []
   taboo_domains: []
 

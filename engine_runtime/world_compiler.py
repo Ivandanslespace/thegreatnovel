@@ -1,8 +1,7 @@
-"""将 LLM 创作的世界蓝图编译为可执行的世界注册表。
+"""将 LLM 创作的完整世界包登记为可执行注册表。
 
-内容创作属于世界创建阶段：地点、敌人、NPC、势力、职业、母题和禁忌都由
-本次世界蓝图给出。编译器只负责把这些语义内容接入稳定的行动、成本和状态
-投影结构；它不根据主题关键词替换成预置世界内容。
+编译器不创作、补全或按主题推断任何地点、敌人、NPC、物品、行动、数值或事件。
+世界包缺少任一首日可执行要素时，创建应失败，而不是被一套通用荒野求生参数掩盖。
 """
 
 from __future__ import annotations
@@ -11,7 +10,12 @@ from copy import deepcopy
 from typing import Any, Dict, Mapping, Sequence
 
 
-COMPILER_VERSION = "1.4"
+COMPILER_VERSION = "2.0"
+PRIMARY_ATTRIBUTES = {"strength", "constitution", "agility", "spirit"}
+EVENT_FAMILIES = {
+    "rule_anomaly", "macro_crisis", "forced_convergence", "living_resource",
+    "system_irregularity", "hidden_civilization",
+}
 
 
 def _mapping(value: Any, label: str) -> Dict[str, Any]:
@@ -27,12 +31,46 @@ def _text(record: Mapping[str, Any], key: str, label: str) -> str:
     return value
 
 
-def _record_id(record: Mapping[str, Any], label: str) -> str:
-    return _text(record, "id", label)
+def _records(value: Any, label: str, required: Sequence[str]) -> list[Dict[str, Any]]:
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"world_blueprint.{label} 至少需要一条记录")
+    records = []
+    ids = set()
+    for index, raw in enumerate(value):
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"world_blueprint.{label}[{index}] 必须是对象")
+        record = deepcopy(dict(raw))
+        for field in required:
+            if field not in record or record[field] in (None, ""):
+                raise ValueError(f"world_blueprint.{label}[{index}].{field} 不能为空")
+        record_id = str(record.get("id", "")).strip()
+        if not record_id:
+            raise ValueError(f"world_blueprint.{label}[{index}].id 不能为空")
+        if record_id in ids:
+            raise ValueError(f"world_blueprint.{label} 的 id 不能重复：{record_id}")
+        ids.add(record_id)
+        record["id"] = record_id
+        records.append(record)
+    return records
+
+
+def _registry(records: Sequence[Mapping[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    return {str(record["id"]): deepcopy(dict(record)) for record in records}
+
+
+def _require_number(record: Mapping[str, Any], field: str, label: str, *, minimum: float = 0.0) -> None:
+    if field not in record or isinstance(record[field], bool):
+        raise ValueError(f"world_blueprint.{label}.{field} 必须是数值")
+    try:
+        value = float(record[field])
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"world_blueprint.{label}.{field} 必须是数值") from exc
+    if value < minimum:
+        raise ValueError(f"world_blueprint.{label}.{field} 不能小于 {minimum}")
 
 
 def _profession_definitions(raw_professions: Any) -> Dict[str, Dict[str, Any]]:
-    """职业仅接受本次世界包的原创定义，不存在全局职业白名单。"""
+    """职业只接受当前世界包定义，不存在跨世界职业注册表。"""
     if isinstance(raw_professions, Mapping):
         definitions = {
             str(profession_id): deepcopy(dict(definition))
@@ -46,38 +84,110 @@ def _profession_definitions(raw_professions: Any) -> Dict[str, Dict[str, Any]]:
             if isinstance(definition, Mapping) and definition.get("id")
         }
     elif raw_professions in (None, {}):
-        definitions = {}
+        return {}
     else:
         raise ValueError("professions 必须是对象或列表")
 
     for profession_id, definition in definitions.items():
-        definition.setdefault("id", profession_id)
-        if str(definition["id"]) != profession_id:
+        definition["id"] = str(definition.get("id") or profession_id)
+        if definition["id"] != profession_id:
             raise ValueError(f"profession {profession_id} 的 id 必须与注册键一致")
         _text(definition, "name", f"professions.{profession_id}")
-        if "attribute_bonuses" in definition:
-            raise ValueError(f"profession {profession_id} 不能提交 attribute_bonuses；请使用 attribute_focus")
-        attribute_focus = str(definition.get("attribute_focus") or "").strip()
-        if attribute_focus:
-            if attribute_focus not in {"strength", "constitution", "agility", "spirit"}:
-                raise ValueError(f"profession {profession_id}.attribute_focus 不受支持")
-            definition["attribute_bonuses"] = {attribute_focus: 2}
+        focus = str(definition.get("attribute_focus") or "").strip()
+        if focus and focus not in PRIMARY_ATTRIBUTES:
+            raise ValueError(f"profession {profession_id}.attribute_focus 不受支持")
+        if "consequence_radius" in definition:
+            _require_number(definition, "consequence_radius", f"professions.{profession_id}", minimum=0.0)
+            if float(definition["consequence_radius"]) > 1:
+                raise ValueError(f"profession {profession_id}.consequence_radius 不能大于 1")
     return definitions
 
 
-def _base_action_constraints(exclusive_group: str, commitment_axis: str, commitment_value: str, *, limited_to_daylight: bool) -> Dict[str, Any]:
-    constraints = {
-        "system_tags": ["major_action", "requires_full_attention"],
-        "exclusive_group": exclusive_group,
-        "window_ids": ["白天", "黄昏"],
-        "window_capacity": 1,
-        "commitment_axis": commitment_axis,
-        "commitment_value": commitment_value,
-    }
-    if limited_to_daylight:
-        constraints["availability"] = {"allowed_periods": ["白天", "黄昏"]}
-        constraints["reservation"] = {"exclusive_group": exclusive_group, "window_id": "current_period", "capacity": 1}
-    return constraints
+def _validate_locations(records: Sequence[Mapping[str, Any]]) -> None:
+    for record in records:
+        label = f"locations.{record['id']}"
+        for field in ("safe", "discovered", "travel_minutes_from_base", "travel_stamina_from_base", "extraction_minutes", "extraction_stamina_cost"):
+            if field not in record:
+                raise ValueError(f"world_blueprint.{label}.{field} 不能为空")
+        for field in ("travel_minutes_from_base", "travel_stamina_from_base", "extraction_minutes", "extraction_stamina_cost"):
+            _require_number(record, field, label)
+
+
+def _validate_enemies(records: Sequence[Mapping[str, Any]], location_ids: set[str], resource_names: set[str]) -> None:
+    for record in records:
+        label = f"enemies.{record['id']}"
+        for field in ("level", "quality", "hp", "max_hp", "attack", "accuracy", "defense_skill", "armor", "attributes", "drops", "location_id"):
+            if field not in record or record[field] in (None, ""):
+                raise ValueError(f"world_blueprint.{label}.{field} 不能为空")
+        for field in ("level", "hp", "max_hp", "attack", "accuracy", "defense_skill", "armor"):
+            _require_number(record, field, label, minimum=0.0)
+        if float(record["hp"]) > float(record["max_hp"]):
+            raise ValueError(f"world_blueprint.{label}.hp 不能大于 max_hp")
+        if str(record["location_id"]) not in location_ids:
+            raise ValueError(f"world_blueprint.{label}.location_id 未注册")
+        if not isinstance(record["attributes"], Mapping) or not isinstance(record["drops"], Mapping):
+            raise ValueError(f"world_blueprint.{label}.attributes 与 drops 必须是对象")
+        unknown = set(map(str, record["drops"].keys())) - resource_names
+        if unknown:
+            raise ValueError(f"world_blueprint.{label}.drops 引用了未注册资源：{', '.join(sorted(unknown))}")
+
+
+def _validate_action_targets(records: Sequence[Mapping[str, Any]], location_ids: set[str]) -> None:
+    for record in records:
+        label = f"action_targets.{record['id']}"
+        for field in ("name", "action_type", "location_id", "primary_attribute", "target_difficulty", "effects"):
+            if field not in record or record[field] in (None, ""):
+                raise ValueError(f"world_blueprint.{label}.{field} 不能为空")
+        if str(record["location_id"]) not in location_ids:
+            raise ValueError(f"world_blueprint.{label}.location_id 未注册")
+        if str(record["primary_attribute"]) not in PRIMARY_ATTRIBUTES:
+            raise ValueError(f"world_blueprint.{label}.primary_attribute 不受支持")
+        _require_number(record, "target_difficulty", label)
+        if not isinstance(record["effects"], Mapping) or not any(record["effects"].get(branch) for branch in ("success", "partial_failure", "failure")):
+            raise ValueError(f"world_blueprint.{label}.effects 至少需要一个有实际状态效果的结果分支")
+
+
+def _validate_modules(records: Sequence[Mapping[str, Any]], resource_names: set[str]) -> None:
+    for record in records:
+        label = f"modules.{record['id']}"
+        for field in ("description", "space_cost", "build_time", "build_cost", "maintenance", "effects"):
+            if field not in record or record[field] in (None, ""):
+                raise ValueError(f"world_blueprint.{label}.{field} 不能为空")
+        _require_number(record, "space_cost", label)
+        _require_number(record, "build_time", label)
+        if not isinstance(record["build_cost"], Mapping) or not isinstance(record["maintenance"], Mapping) or not isinstance(record["effects"], Mapping):
+            raise ValueError(f"world_blueprint.{label} 的成本、维护和效果必须是对象")
+        unknown = set(map(str, record["build_cost"].keys())) | set(map(str, record["maintenance"].keys()))
+        unknown -= resource_names
+        if unknown:
+            raise ValueError(f"world_blueprint.{label} 引用了未注册资源：{', '.join(sorted(unknown))}")
+
+
+def _validate_recipes(records: Sequence[Mapping[str, Any]], resource_names: set[str]) -> None:
+    for record in records:
+        label = f"recipes.{record['id']}"
+        for field in ("description", "cost", "time_minutes"):
+            if field not in record or record[field] in (None, ""):
+                raise ValueError(f"world_blueprint.{label}.{field} 不能为空")
+        _require_number(record, "time_minutes", label)
+        if not isinstance(record["cost"], Mapping):
+            raise ValueError(f"world_blueprint.{label}.cost 必须是对象")
+        unknown = set(map(str, record["cost"].keys())) - resource_names
+        if unknown:
+            raise ValueError(f"world_blueprint.{label}.cost 引用了未注册资源：{', '.join(sorted(unknown))}")
+
+
+def _validate_events(records: Sequence[Mapping[str, Any]]) -> None:
+    for record in records:
+        label = f"event_pool.{record['id']}"
+        for field in ("family", "tier", "phases", "hook", "premise", "rules", "effects"):
+            if field not in record or record[field] in (None, ""):
+                raise ValueError(f"world_blueprint.{label}.{field} 不能为空")
+        if str(record["family"]) not in EVENT_FAMILIES:
+            raise ValueError(f"world_blueprint.{label}.family 不受支持")
+        _require_number(record, "phases", label, minimum=1.0)
+        if not isinstance(record["rules"], list) or not isinstance(record["effects"], Mapping):
+            raise ValueError(f"world_blueprint.{label}.rules 必须是列表且 effects 必须是对象")
 
 
 def compile_world_bundle(
@@ -88,299 +198,106 @@ def compile_world_bundle(
     primary_resources: Sequence[str],
     genre_contract: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
-    """将创意蓝图编译成可执行注册表。
-
-    ``world_blueprint`` 是 LLM 在创建该世界时一次性创作的语义事实。它决定
-    名称、危险、NPC、势力、模块和初始物件；数值成本和行动约束仍由这里统一
-    派生，以避免叙述绕过规则引擎。
-    """
+    """校验并登记 LLM 已完整创作的世界首日与后续事件池。"""
     if not isinstance(mechanics, Mapping):
         raise ValueError("mechanics 必须是对象")
     blueprint = _mapping(mechanics.get("world_blueprint"), "")
-    opening_area = _mapping(blueprint.get("opening_area"), "opening_area")
-    area_id = _record_id(opening_area, "opening_area")
-    area_name = _text(opening_area, "name", "opening_area")
-    area_description = _text(opening_area, "description", "opening_area")
-    danger_hint = _text(opening_area, "danger_hint", "opening_area")
-
-    enemy = _mapping(blueprint.get("opening_enemy"), "opening_enemy")
-    enemy_id = _record_id(enemy, "opening_enemy")
-    enemy_name = _text(enemy, "name", "opening_enemy")
-    enemy_hint = _text(enemy, "knowledge_hint", "opening_enemy")
-
-    raw_modules = blueprint.get("base_modules")
-    if not isinstance(raw_modules, list) or not raw_modules:
-        raise ValueError("world_blueprint.base_modules 至少需要一个模块")
-    module_specs = [_mapping(module, "base_modules") for module in raw_modules]
-    module_ids = [_record_id(module, "base_modules") for module in module_specs]
-    if len(set(module_ids)) != len(module_ids):
-        raise ValueError("world_blueprint.base_modules 的 id 不能重复")
-    for module in module_specs:
-        _text(module, "name", "base_modules")
-        _text(module, "description", "base_modules")
-
-    starter_kit = _mapping(blueprint.get("starter_kit"), "starter_kit")
-    main_weapon = _mapping(starter_kit.get("main_weapon"), "starter_kit.main_weapon")
-    _record_id(main_weapon, "starter_kit.main_weapon")
-    _text(main_weapon, "name", "starter_kit.main_weapon")
-    starter_items = starter_kit.get("items", [])
-    if not isinstance(starter_items, list):
-        raise ValueError("world_blueprint.starter_kit.items 必须是列表")
-    for item in starter_items:
-        item_record = _mapping(item, "starter_kit.items")
-        _record_id(item_record, "starter_kit.items")
-        _text(item_record, "name", "starter_kit.items")
-
-    recipe = _mapping(blueprint.get("starter_recipe"), "starter_recipe")
-    recipe_id = _record_id(recipe, "starter_recipe")
-    recipe_name = _text(recipe, "name", "starter_recipe")
-    professions = _profession_definitions(mechanics.get("professions", {}))
-    resources = [str(item).strip() for item in primary_resources if str(item).strip()]
-    if not resources:
+    resource_names = {str(item).strip() for item in primary_resources if str(item).strip()}
+    if not resource_names:
         raise ValueError("primary_resources 至少需要一种资源")
-    primary_resource = resources[0]
-    secondary_resource = resources[1] if len(resources) > 1 else primary_resource
-    rare_resource = resources[2] if len(resources) > 2 else secondary_resource
 
-    enemy_definition = {
-        "id": enemy_id,
-        "definition_id": enemy_id,
-        "name": enemy_name,
-        "description": str(enemy.get("description", "")).strip(),
-        "level": 1,
-        "quality": "普通",
-        "hp": 30,
-        "max_hp": 30,
-        "attack": 6,
-        "accuracy": 5,
-        "defense_skill": 2,
-        "armor": 1,
-        "attributes": {"strength": 4, "constitution": 3, "agility": 4, "spirit": 2},
-        "drops": {primary_resource: 2, secondary_resource: 1},
-        "knowledge_hint": enemy_hint,
-        "status": "definition",
-        "location_id": area_id,
-    }
-    area = {
-        "id": area_id,
-        "name": area_name,
-        "description": area_description,
-        "location_id": area_id,
-        "monster_density_per_hour": 4,
-        "monster_population": 50,
-        "alertness": 0,
-        "monster_adaptation": 0,
-        "route_coverage": 80,
-        "search_efficiency": 80,
-        "monster_alertness_modifier": 100,
-        "kill_success_rate": 0.75,
-        "ammo_per_kill": 1,
-        "weapon_rate_per_hour": 6,
-        "recovery_efficiency": 0.9,
-        "backpack_capacity_modifier": 1.0,
-        "enemy_groups": [{"level": 1, "quality": "普通", "weight": 1, "drops": deepcopy(enemy_definition["drops"])}],
-        "farmability_components": {"combat_advantage": 50, "enemy_information": 35, "kill_stability": 55, "sustainability": 50, "route_familiarity": 25, "extraction_ability": 70, "unknown_danger_penalty": 20, "noise_exposure": 35, "fatigue_risk": 35, "injury_risk": 25, "area_alertness": 25, "daylight_change": 15, "monster_adaptation": 10},
-        "extraction_rule": {"return_to": "camp_core", "deadline_minutes": 120, "requires_discovered_location": True},
-        "encounter_target_ids": [enemy_id],
-    }
-    action_targets: Dict[str, Dict[str, Any]] = {
-        area_id: {
-            "id": area_id,
-            "location_id": area_id,
-            "action_type": "EXPLORATION",
-            "primary_attribute": str(opening_area.get("primary_attribute") or "agility"),
-            "target_difficulty": 14,
-            "environment_penalty": 3,
-            "unknown_risk": 5,
-            "risk_warning": 0.7,
-            "causal_chain": 0.85,
-            "avoidable": 0.8,
-            "rule_consistency": 1.0,
-            "player_responsibility": 0.8,
-            "effects": {
-                "success": {"discover_locations": [area_id], "resource_changes": {primary_resource: 3}, "knowledge_additions": [f"{enemy_id}_behavior"]},
-                "partial_failure": {"resource_changes": {primary_resource: 1}, "knowledge_additions": [f"{enemy_id}_behavior"]},
-            },
-            "encounter_target_ids": [enemy_id],
-            "requirements": {"location": area_id},
-            "constraints": _base_action_constraints("field_exploration", "route_commitment", area_id, limited_to_daylight=True),
-        },
-        "camp_core": {"id": "camp_core", "target_difficulty": 0, "effects": {}},
-    }
-    locations = [
-        {"id": "camp_core", "name": safe_base, "safe": True, "discovered": True, "travel_minutes_from_base": 0, "travel_stamina_from_base": 0, "extraction_minutes": 0, "extraction_stamina_cost": 0},
-        {"id": area_id, "name": area_name, "description": area_description, "safe": False, "discovered": False, "travel_minutes_from_base": 30, "travel_stamina_from_base": 5, "extraction_minutes": 30, "extraction_stamina_cost": 5, "extraction_mental_cost": 0, "extraction_rule": deepcopy(area["extraction_rule"])},
-    ]
+    locations = _records(blueprint.get("locations"), "locations", ("id", "name"))
+    _validate_locations(locations)
+    location_ids = {str(record["id"]) for record in locations}
+    starting_location = _text(blueprint, "starting_location", "")
+    if starting_location not in location_ids:
+        raise ValueError("world_blueprint.starting_location 未注册")
+    start = next(record for record in locations if record["id"] == starting_location)
+    if not bool(start.get("safe")) or not bool(start.get("discovered")):
+        raise ValueError("world_blueprint.starting_location 必须是已发现的安全地点")
+    if safe_base and str(start.get("name")) != str(safe_base):
+        raise ValueError("安全基地名称必须与 world_blueprint.starting_location 一致")
 
-    investigation = blueprint.get("investigation_site")
-    if investigation is not None:
-        investigation = _mapping(investigation, "investigation_site")
-        investigation_id = _record_id(investigation, "investigation_site")
-        investigation_name = _text(investigation, "name", "investigation_site")
-        investigation_description = _text(investigation, "description", "investigation_site")
-        locations.append({"id": investigation_id, "name": investigation_name, "description": investigation_description, "safe": False, "discovered": False, "travel_minutes_from_base": 45, "travel_stamina_from_base": 8, "extraction_minutes": 45, "extraction_stamina_cost": 8, "extraction_mental_cost": 1})
-        action_targets[investigation_id] = {
-            "id": investigation_id,
-            "location_id": investigation_id,
-            "action_type": "RESEARCH",
-            "primary_attribute": str(investigation.get("primary_attribute") or "spirit"),
-            "target_difficulty": 20,
-            "environment_penalty": 5,
-            "unknown_risk": 10,
-            "risk_warning": 0.8,
-            "causal_chain": 0.85,
-            "avoidable": 0.7,
-            "rule_consistency": 1.0,
-            "player_responsibility": 0.8,
-            "effects": {"success": {"knowledge_additions": [f"{investigation_id}_principle"], "resource_changes": {rare_resource: 2}}},
-            "requirements": {"location": investigation_id},
-            "constraints": _base_action_constraints("research_window", "research_focus", investigation_id, limited_to_daylight=False),
-        }
+    enemies = _records(blueprint.get("enemies"), "enemies", ("id", "name"))
+    _validate_enemies(enemies, location_ids, resource_names)
+    areas = _records(blueprint.get("areas"), "areas", ("id", "name", "location_id", "enemy_groups", "farmability_components", "extraction_rule"))
+    for area in areas:
+        if str(area["location_id"]) not in location_ids:
+            raise ValueError(f"world_blueprint.areas.{area['id']}.location_id 未注册")
+    modules = _records(blueprint.get("modules"), "modules", ("id", "name"))
+    _validate_modules(modules, resource_names)
+    recipes = _records(blueprint.get("recipes"), "recipes", ("id", "name"))
+    _validate_recipes(recipes, resource_names)
+    action_targets = _records(blueprint.get("action_targets"), "action_targets", ("id",))
+    _validate_action_targets(action_targets, location_ids)
 
-    starting_npcs = []
-    starting_relationships = []
-    npc = blueprint.get("starting_npc")
-    if npc is not None:
-        npc = _mapping(npc, "starting_npc")
-        npc_id = _record_id(npc, "starting_npc")
-        npc_name = _text(npc, "name", "starting_npc")
-        npc_goal = _text(npc, "goal", "starting_npc")
-        npc_profession = str(npc.get("profession") or "").strip()
-        if npc_profession and npc_profession not in professions:
-            raise ValueError("starting_npc.profession 必须是本世界 professions 中由 LLM 定义的职业")
-        npc_record = {
-            "id": npc_id,
-            "name": npc_name,
-            "status": "alive",
-            "location": "camp_core",
-            "goal": npc_goal,
-            "schedule": deepcopy(npc.get("schedule", {"清晨": "base_maintenance", "白天": "resource_search", "黄昏": "return_to_base", "夜晚": "rest"})),
-            "autonomous_yield": {primary_resource: 1},
-            "utility_profile": {"goal_fit": 70, "survival_benefit": 70, "resource_benefit": 55, "relationship_impact": 30, "value_alignment": 60, "risk": 25, "cost": 20},
-        }
-        if npc_profession:
-            npc_record["profession"] = npc_profession
-        starting_npcs.append(npc_record)
-        starting_relationships.append({"npc_id": npc_id, "trust": 0, "respect": 0, "affection": 0, "fear": 0, "dependency": 0})
-        action_targets[npc_id] = {
-            "id": npc_id,
-            "location_id": "camp_core",
-            "action_type": "SOCIAL_INTERACTION",
-            "is_npc": True,
-            "primary_attribute": "spirit",
-            "target_difficulty": 6,
-            "risk_warning": 1.0,
-            "causal_chain": 1.0,
-            "avoidable": 0.9,
-            "rule_consistency": 1.0,
-            "player_responsibility": 0.7,
-            "effects": {"success": {"relationship_changes": {npc_id: {"trust": 3, "respect": 1}}, "knowledge_additions": [f"{npc_id}_goal", f"{npc_id}_routine"]}},
-            "requirements": {"location": "camp_core", "npc_available": npc_id},
-            "constraints": {"system_tags": ["short_action"], "commitment_axis": "social_relationship", "commitment_value": npc_id},
-        }
+    professions = _profession_definitions(mechanics.get("professions", {}))
+    npcs = _records(blueprint.get("npcs"), "npcs", ("id", "name", "status", "location", "goal", "schedule", "autonomous_yield", "utility_profile"))
+    for npc in npcs:
+        if str(npc["location"]) not in location_ids:
+            raise ValueError(f"world_blueprint.npcs.{npc['id']}.location 未注册")
+        profession = str(npc.get("profession") or "").strip()
+        if profession and profession not in professions:
+            raise ValueError(f"world_blueprint.npcs.{npc['id']}.profession 未注册")
+    factions = _records(blueprint.get("factions"), "factions", ("id", "name", "status", "location", "goal", "schedule", "treasury", "tax_rate", "influence", "utility_profile"))
+    for faction in factions:
+        if str(faction["location"]) not in location_ids:
+            raise ValueError(f"world_blueprint.factions.{faction['id']}.location 未注册")
+    relationships = blueprint.get("relationships")
+    if not isinstance(relationships, list):
+        raise ValueError("world_blueprint.relationships 必须是列表")
+    npc_ids = {str(npc["id"]) for npc in npcs}
+    for index, relation in enumerate(relationships):
+        if not isinstance(relation, Mapping) or str(relation.get("npc_id") or "") not in npc_ids:
+            raise ValueError(f"world_blueprint.relationships[{index}] 必须引用已注册 NPC")
 
-    modules = {}
-    for index, module in enumerate(module_specs):
-        module_id = _record_id(module, "base_modules")
-        modules[module_id] = {
-            "id": module_id,
-            "name": _text(module, "name", "base_modules"),
-            "description": _text(module, "description", "base_modules"),
-            "space_cost": 1,
-            "build_time": 60 + index * 30,
-            "build_cost": {primary_resource: 1 + index, secondary_resource: 1},
-            "maintenance": {primary_resource: 1},
-            "effects": {"base_defense": index + 1},
-        }
+    inventory = _mapping(blueprint.get("starting_inventory"), "starting_inventory")
+    for field in ("resources", "equipment", "items"):
+        if field not in inventory:
+            raise ValueError(f"world_blueprint.starting_inventory.{field} 不能为空")
+    if not isinstance(inventory["resources"], Mapping) or not isinstance(inventory["equipment"], Mapping) or not isinstance(inventory["items"], list):
+        raise ValueError("world_blueprint.starting_inventory 必须包含 resources/equipment/items")
+    unknown_inventory = set(map(str, inventory["resources"].keys())) - resource_names
+    if unknown_inventory:
+        raise ValueError(f"world_blueprint.starting_inventory 引用了未注册资源：{', '.join(sorted(unknown_inventory))}")
 
-    starting_factions = []
-    faction = blueprint.get("starting_faction")
-    if faction is not None:
-        faction = _mapping(faction, "starting_faction")
-        faction_id = _record_id(faction, "starting_faction")
-        starting_factions.append({
-            "id": faction_id,
-            "name": _text(faction, "name", "starting_faction"),
-            "status": str(faction.get("status") or "neutral"),
-            "location": "camp_core",
-            "goal": _text(faction, "goal", "starting_faction"),
-            "schedule": deepcopy(faction.get("schedule", {})),
-            "treasury": {primary_resource: 3},
-            "tax_rate": {},
-            "influence": 10,
-            "utility_profile": {"goal_fit": 75, "survival_benefit": 65, "resource_benefit": 60, "relationship_impact": 25, "value_alignment": 55, "risk": 20, "cost": 15},
-        })
+    disasters = _records(blueprint.get("disasters"), "disasters", ("id", "type", "cycle_days", "warning"))
+    for disaster in disasters:
+        _require_number(disaster, "cycle_days", f"disasters.{disaster['id']}", minimum=1.0)
+    event_pool = _records(blueprint.get("event_pool"), "event_pool", ("id",))
+    if len(event_pool) < 3:
+        raise ValueError("world_blueprint.event_pool 至少需要3个原创后续事件")
+    _validate_events(event_pool)
+    creative_slots = _mapping(blueprint.get("creative_slots"), "creative_slots")
 
-    for profession_id, profession in professions.items():
-        exclusive_actions = profession.get("exclusive_actions", [])
-        if not isinstance(exclusive_actions, list):
-            raise ValueError(f"profession {profession_id}.exclusive_actions 必须是列表")
-        for action_definition in exclusive_actions:
-            if not isinstance(action_definition, Mapping):
-                raise ValueError(f"profession {profession_id} 的专属行动必须是对象")
-            action_key = str(action_definition.get("action_type", "")).strip()
-            if not action_key:
-                raise ValueError(f"profession {profession_id} 的专属行动缺少 action_type")
-            target_id = f"profession:{profession_id}:{action_key}"
-            completion_key = f"{target_id}:completed"
-            action_targets[target_id] = {
-                "id": target_id,
-                "name": str(action_definition.get("name") or action_key),
-                "location_id": str(action_definition.get("location_id") or "camp_core"),
-                "action_type": "PROFESSION_ACTION",
-                "target_difficulty": 15.0,
-                "time_minutes": 30.0,
-                "stamina_cost": 2.0,
-                "mental_cost": 2.0,
-                "primary_attribute": str(action_definition.get("primary_attribute") or "spirit"),
-                "requirements": {
-                    **(deepcopy(dict(action_definition.get("requirements", {}))) if isinstance(action_definition.get("requirements", {}), Mapping) else {}),
-                    "profession": profession_id,
-                    "location": str(action_definition.get("location_id") or "camp_core"),
-                    "knowledge_absent": [completion_key],
-                },
-                "constraints": {"system_tags": ["short_action"]},
-                "effects": {"success": {"knowledge_additions": [completion_key]}},
-            }
-
-    main_weapon = deepcopy(main_weapon)
-    main_weapon.setdefault("attack", 18)
-    main_weapon.setdefault("accuracy", 8)
-    main_weapon.setdefault("durability", 12)
-    main_weapon.setdefault("attack_type", "melee")
-    main_weapon.setdefault("rarity", "G")
-    starter_items = [deepcopy(dict(item)) for item in starter_items if isinstance(item, Mapping)]
-    for item in starter_items:
-        # 世界蓝图可省略通用品级；创建器补齐最低评级，避免有效的原创起始物
-        # 品在存档校验阶段被拒绝，也不改变其名称、效果或世界语义。
-        item.setdefault("rarity", "G")
-    result = {
+    # 这里只保留登记与索引；不得写入任何主题、职业、数值或叙事默认值。
+    return {
         "compiler_version": COMPILER_VERSION,
         "theme": str(theme),
+        "language": str(language),
         "profile": "llm_generated",
-        "starting_location": "camp_core",
+        "starting_location": starting_location,
         "locations": locations,
-        "enemies": [enemy_definition],
+        "enemies": enemies,
         "targets": {},
-        "enemy_definitions": {enemy_id: enemy_definition},
+        "enemy_definitions": _registry(enemies),
         "encounter_entities": {},
         "combat_targets": {},
-        "areas": {area_id: area},
-        "farm_areas": {area_id: area},
-        "build_catalog": modules,
-        "modules": modules,
-        "recipes": [{"id": recipe_id, "name": recipe_name, "description": str(recipe.get("description", "")).strip(), "cost": {primary_resource: 1}, "time_minutes": 30}],
-        "disasters": [{"id": "disaster_001", "type": str(mechanics.get("disaster_type", "")).strip(), "cycle_days": int(mechanics.get("disaster_cycle_days", 0)), "warning": True}],
-        "action_targets": action_targets,
+        "areas": _registry(areas),
+        "farm_areas": _registry(areas),
+        "build_catalog": _registry(modules),
+        "modules": _registry(modules),
+        "recipes": recipes,
+        "disasters": disasters,
+        "action_targets": _registry(action_targets),
         "professions": professions,
-        "starting_inventory": {"resources": {resource: 2 for resource in resources}, "equipment": {"main_weapon": main_weapon}, "items": starter_items},
-        "starting_npcs": starting_npcs,
-        "starting_factions": starting_factions,
-        "starting_relationships": starting_relationships,
-        "creative_slots": deepcopy(dict(mechanics.get("creative_slots", {}))) if isinstance(mechanics.get("creative_slots", {}), Mapping) else {},
+        "starting_inventory": inventory,
+        "starting_npcs": npcs,
+        "starting_factions": factions,
+        "starting_relationships": deepcopy(relationships),
+        "event_pool": event_pool,
+        "creative_slots": creative_slots,
         "motifs": list(mechanics.get("motifs", [])) if isinstance(mechanics.get("motifs", []), list) else [],
         "taboo_domains": list(mechanics.get("taboo_domains", [])) if isinstance(mechanics.get("taboo_domains", []), list) else [],
+        "genre_contract": deepcopy(genre_contract) if isinstance(genre_contract, Mapping) else {},
     }
-    if not result["disasters"][0]["type"] or result["disasters"][0]["cycle_days"] < 1:
-        raise ValueError("灾难类型和灾难周期必须由世界包提供")
-    return result

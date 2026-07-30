@@ -2,7 +2,7 @@ meta:
   save_name: 锈铁方舟·第一日
   world_name: 锈铁方舟
   created_at: '2026-07-30T22:07:27+02:00'
-  current_turn: 11
+  current_turn: 12
   game_day: 2
   time_of_day: 清晨
   phase: 新手期
@@ -109,10 +109,11 @@ meta:
     - TRAVEL_COMPLETED
     - RETURN_TO_BASE_COMPLETED
     - WAIT_COMPLETED
+    - ATTRIBUTES_ALLOCATED
     recent_irreversible_changes: []
     current_arc:
-      last_event_type: WAIT_COMPLETED
-      last_turn: 11
+      last_event_type: ATTRIBUTES_ALLOCATED
+      last_turn: 12
       location: camp_core
   pressure_level: 30
   last_payoff_turn: 0
@@ -125,41 +126,41 @@ meta:
   active_mystery_records:
   - id: 信号塔废墟的共鸣波从何而来？是自然现象还是人为操控？
     importance: 1
-    waiting_turns: 10
+    waiting_turns: 11
     reminder_count: 0
     visibility: 1
     progress: 0
   - id: 末日方舟系统的真正目的是什么？为什么选择第七扇区？
     importance: 1
-    waiting_turns: 10
+    waiting_turns: 11
     reminder_count: 0
     visibility: 1
     progress: 0
   - id: 共鸣晶体为何在靠近信号塔时会自动发热？
     importance: 1
-    waiting_turns: 10
+    waiting_turns: 11
     reminder_count: 0
     visibility: 1
     progress: 0
   - id: 老金似乎知道一些关于系统的事，他为什么不愿说？
     importance: 1
-    waiting_turns: 10
+    waiting_turns: 11
     reminder_count: 0
     visibility: 1
     progress: 0
   - id: 排行榜上偶尔出现又消失的玩家'影'是谁？
     importance: 1
-    waiting_turns: 10
+    waiting_turns: 11
     reminder_count: 0
     visibility: 1
     progress: 0
   foreshadowing_active: []
-  total_decisions: 1
+  total_decisions: 2
   total_combats: 0
   total_explorations: 1
   npcs_met: 0
   factions_encountered: 0
-  last_played: Day 1 夜晚
+  last_played: Day 2 清晨
   last_session_turns: 0
   recap_needed: false
   social_state:
@@ -198,7 +199,7 @@ meta:
     turn: 11
   pending_options:
     version: 1
-    state_turn: 11
+    state_turn: 12
     options:
       B:
         id: B
@@ -215,7 +216,7 @@ meta:
             formula_version: '1.0'
             action_id: auto-rest
             advantage_components:
-              ability_match: 10.0
+              ability_match: 18.0
               equipment_advantage: 0.0
               preparation: 0.0
               intelligence: 0.0
@@ -228,15 +229,15 @@ meta:
               fatigue: 10.6
               time_pressure: 0.0
               unknown_risk: 0.0
-            advantage: 10.0
+            advantage: 18.0
             resistance: 10.6
             K: 10.0
-            probability: 0.485004
-            random_roll: 0.45991
+            probability: 0.676996
+            random_roll: 0.442697
             severity: 0.0
             severity_band: 成功区
             death_fairness: 0.0
-            outcome: 成功但付出代价
+            outcome: 普通成功
             death_allowed: false
             components:
               severity:
@@ -247,7 +248,7 @@ meta:
                 time_pressure: 0.0
                 continuous_errors: 0.0
                 preparation: 0.0
-                ability_match: 10.0
+                ability_match: 18.0
                 teammate_support: 0.0
                 survival_assets: 0.0
               death_fairness_inputs:
@@ -257,11 +258,11 @@ meta:
                 rule_consistency: 1.0
                 player_responsibility: 0.0
               outcome_thresholds:
-                critical: 0.0388
-                normal: 0.378303
-                costly: 0.485004
-                partial_failure: 0.794002
-                severe_failure: 0.97425
+                critical: 0.05416
+                normal: 0.528057
+                costly: 0.676996
+                partial_failure: 0.870798
+                severe_failure: 0.98385
           target_profile:
             id: camp_core
             target_difficulty: 0
@@ -286,7 +287,7 @@ meta:
               tags:
               - major_action
           skill: null
-        state_turn: 11
+        state_turn: 12
       C:
         id: C
         label: 前往锈蚀车站
@@ -375,5 +376,5 @@ meta:
               mental_cost: 0.0
               tags: []
           skill: null
-        state_turn: 11
-  pending_options_state_turn: 11
+        state_turn: 12
+  pending_options_state_turn: 12

@@ -258,7 +258,7 @@ world:
       name: 简易滤水器
       description: 用废铁和布料制作的基础过滤装置，每天产出1单位净水
   generation_bundle:
-    compiler_version: '1.4'
+    compiler_version: '2.0'
     theme: 废土列车
     profile: llm_generated
     starting_location: camp_core

@@ -7566,3 +7566,315 @@
   }
 ]
 ```
+---
+## Turn 12 | Day 2 清晨
+```json
+[
+  {
+    "event_id": "evt_0012_001",
+    "type": "ATTRIBUTES_ALLOCATED",
+    "actor": "player",
+    "target": "player",
+    "data": {
+      "action": {
+        "action_id": "attr_001",
+        "type": "ATTRIBUTE_ALLOCATION"
+      },
+      "action_ledger": {
+        "available_time_minutes": 720.0,
+        "available_stamina": 47.0,
+        "available_mental": 30.0,
+        "actions": [
+          {
+            "type": "ATTRIBUTE_ALLOCATION",
+            "target": null,
+            "time_minutes": 0.0,
+            "stamina_cost": 0.0,
+            "mental_cost": 0.0,
+            "tags": [
+              "progression",
+              "zero_time"
+            ]
+          }
+        ]
+      },
+      "resolution": {
+        "formula_version": "attribute_allocation_v1",
+        "action_type": "ATTRIBUTE_ALLOCATION",
+        "outcome": "属性点分配完成",
+        "allocation_success": true,
+        "allocations": {
+          "spirit": 4
+        },
+        "points_before": 4,
+        "points_spent": 4,
+        "points_after": 0
+      },
+      "attribute_allocations": {
+        "spirit": 4
+      },
+      "player_delta": {
+        "attributes": {
+          "spirit": 4
+        },
+        "free_points": -4
+      },
+      "time_cost": 0.0,
+      "proposed_events": [
+        {
+          "type": "ATTRIBUTES_ALLOCATED",
+          "target": "player",
+          "allocations": {
+            "spirit": 4
+          }
+        }
+      ]
+    },
+    "turn": 12,
+    "timestamp": "Day 2 清晨"
+  }
+]
+```
+---
+## Turn 12 | Day 2 清晨
+```json
+[
+  {
+    "event_id": "evt_0012_options_3cb33cb9",
+    "type": "OPTIONS_PRESENTED",
+    "actor": "system",
+    "target": null,
+    "data": {
+      "pending_options": {
+        "version": 1,
+        "state_turn": 12,
+        "options": {
+          "B": {
+            "id": "B",
+            "label": "休息恢复",
+            "description": "",
+            "action": {
+              "action_id": "auto-rest",
+              "type": "REST",
+              "target": "camp_core"
+            },
+            "preview": {
+              "legal": true,
+              "errors": [],
+              "resolution": {
+                "formula_version": "1.0",
+                "action_id": "auto-rest",
+                "advantage_components": {
+                  "ability_match": 18.0,
+                  "equipment_advantage": 0.0,
+                  "preparation": 0.0,
+                  "intelligence": 0.0,
+                  "teammate_assistance": 0.0,
+                  "environment_advantage": 0.0
+                },
+                "resistance_components": {
+                  "target_difficulty": 0.0,
+                  "environment_penalty": 0.0,
+                  "injury": 0.0,
+                  "fatigue": 10.6,
+                  "time_pressure": 0.0,
+                  "unknown_risk": 0.0
+                },
+                "advantage": 18.0,
+                "resistance": 10.6,
+                "K": 10.0,
+                "probability": 0.676996,
+                "random_roll": 0.442697,
+                "severity": 0.0,
+                "severity_band": "成功区",
+                "death_fairness": 0.0,
+                "outcome": "普通成功",
+                "death_allowed": false,
+                "components": {
+                  "severity": {
+                    "difficulty": 0.0,
+                    "injury": 0.0,
+                    "resource_shortage": 0.0,
+                    "information_missing": 0.0,
+                    "time_pressure": 0.0,
+                    "continuous_errors": 0.0,
+                    "preparation": 0.0,
+                    "ability_match": 18.0,
+                    "teammate_support": 0.0,
+                    "survival_assets": 0.0
+                  },
+                  "death_fairness_inputs": {
+                    "risk_warning": 1.0,
+                    "causal_chain": 1.0,
+                    "avoidable": 0.0,
+                    "rule_consistency": 1.0,
+                    "player_responsibility": 0.0
+                  },
+                  "outcome_thresholds": {
+                    "critical": 0.05416,
+                    "normal": 0.528057,
+                    "costly": 0.676996,
+                    "partial_failure": 0.870798,
+                    "severe_failure": 0.98385
+                  }
+                }
+              },
+              "target_profile": {
+                "id": "camp_core",
+                "target_difficulty": 0,
+                "effects": {}
+              },
+              "system_constraints": {
+                "tags": [
+                  "major_action"
+                ],
+                "commitments": [],
+                "windows": [],
+                "allowed_periods": [],
+                "npc_unavailable": false
+              },
+              "action_ledger": {
+                "available_time_minutes": 720.0,
+                "available_stamina": 47.0,
+                "available_mental": 30.0,
+                "actions": [
+                  {
+                    "type": "REST",
+                    "target": "camp_core",
+                    "time_minutes": 360.0,
+                    "stamina_cost": 0.0,
+                    "mental_cost": 0.0,
+                    "tags": [
+                      "major_action"
+                    ]
+                  }
+                ]
+              },
+              "skill": null
+            },
+            "state_turn": 12
+          },
+          "C": {
+            "id": "C",
+            "label": "前往锈蚀车站",
+            "description": "",
+            "action": {
+              "action_id": "auto-travel-rust_station",
+              "type": "TRAVEL",
+              "target": "rust_station"
+            },
+            "preview": {
+              "legal": true,
+              "errors": [],
+              "resolution": {
+                "formula_version": "1.0",
+                "action_type": "TRAVEL",
+                "outcome": "普通成功",
+                "movement_success": true,
+                "probability": 1.0,
+                "risk_mode": "deterministic_route",
+                "time_cost": 30.0,
+                "stamina_cost": 5.0,
+                "mental_cost": 0.0
+              },
+              "target_profile": {
+                "id": "rust_station",
+                "location_id": "rust_station",
+                "action_type": "EXPLORATION",
+                "primary_attribute": "agility",
+                "target_difficulty": 14,
+                "environment_penalty": 3,
+                "unknown_risk": 5,
+                "risk_warning": 0.7,
+                "causal_chain": 0.85,
+                "avoidable": 0.8,
+                "rule_consistency": 1.0,
+                "player_responsibility": 0.8,
+                "effects": {
+                  "success": {
+                    "discover_locations": [
+                      "rust_station"
+                    ],
+                    "resource_changes": {
+                      "净水": 3
+                    },
+                    "knowledge_additions": [
+                      "rad_scorpion_behavior"
+                    ]
+                  },
+                  "partial_failure": {
+                    "resource_changes": {
+                      "净水": 1
+                    },
+                    "knowledge_additions": [
+                      "rad_scorpion_behavior"
+                    ]
+                  }
+                },
+                "encounter_target_ids": [
+                  "rad_scorpion"
+                ],
+                "requirements": {
+                  "location": "rust_station"
+                },
+                "constraints": {
+                  "system_tags": [
+                    "major_action",
+                    "requires_full_attention"
+                  ],
+                  "exclusive_group": "field_exploration",
+                  "window_ids": [
+                    "白天",
+                    "黄昏"
+                  ],
+                  "window_capacity": 1,
+                  "commitment_axis": "route_commitment",
+                  "commitment_value": "rust_station",
+                  "availability": {
+                    "allowed_periods": [
+                      "白天",
+                      "黄昏"
+                    ]
+                  },
+                  "reservation": {
+                    "exclusive_group": "field_exploration",
+                    "window_id": "current_period",
+                    "capacity": 1
+                  }
+                }
+              },
+              "system_constraints": {
+                "tags": [],
+                "commitments": [],
+                "windows": [],
+                "allowed_periods": [],
+                "npc_unavailable": false
+              },
+              "action_ledger": {
+                "available_time_minutes": 720.0,
+                "available_stamina": 47.0,
+                "available_mental": 30.0,
+                "actions": [
+                  {
+                    "type": "TRAVEL",
+                    "target": "rust_station",
+                    "time_minutes": 30.0,
+                    "stamina_cost": 5.0,
+                    "mental_cost": 0.0,
+                    "tags": []
+                  }
+                ]
+              },
+              "skill": null
+            },
+            "state_turn": 12
+          }
+        }
+      },
+      "state_turn": 12
+    },
+    "turn": 12,
+    "timestamp": "Day 2 清晨"
+  }
+]
+```
