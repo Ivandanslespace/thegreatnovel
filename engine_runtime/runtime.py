@@ -91,29 +91,83 @@ class GameEngine:
         return False
 
     def _active_encounter_allows(self, target_id: Any = None, location_id: Any = None) -> bool:
+        encounter = self._current_active_encounter()
+        if encounter is None:
+            return False
+        participants = set(encounter.get("participants", [])) | set(encounter.get("target_ids", []))
+        if target_id is not None and target_id in participants:
+            return True
+        return location_id is not None and encounter.get("location_id") == location_id
+
+    def _current_active_encounter(self) -> Optional[Mapping[str, Any]]:
         encounters = self.state.meta.get("active_encounters", [])
-        if not isinstance(encounters, list):
-            return False
         current_encounter_id = self.state.meta.get("current_encounter_id")
-        if not current_encounter_id:
-            return False
+        if not isinstance(encounters, list) or not current_encounter_id:
+            return None
+        current_location = self._current_location()
         for encounter in encounters:
-            if not isinstance(encounter, Mapping) or encounter.get("id") != current_encounter_id or encounter.get("status", "active") != "active":
+            if not isinstance(encounter, Mapping):
                 continue
-            if encounter.get("location_id") != self.state.meta.get("current_location"):
+            if encounter.get("id") != current_encounter_id or encounter.get("status", "active") != "active":
                 continue
-            participants = set(encounter.get("participants", [])) | set(encounter.get("target_ids", []))
-            if target_id is not None and target_id in participants:
-                return True
-            if location_id is not None and encounter.get("location_id") == location_id:
-                return True
-        return False
+            if str(encounter.get("location_id")) != str(current_location):
+                continue
+            return encounter
+        return None
+
+    def _timeline_minutes(self) -> float:
+        period_starts = {"清晨": 0.0, "白天": 120.0, "黄昏": 480.0, "夜晚": 600.0}
+        elapsed = self.state.meta.get("day_elapsed_minutes")
+        if elapsed is None:
+            elapsed = period_starts.get(str(self.state.meta.get("time_of_day", "清晨")), 0.0)
+        try:
+            return max(0.0, (float(self.state.meta.get("game_day", 1)) - 1.0) * 720.0 + float(elapsed))
+        except (TypeError, ValueError):
+            return max(0.0, (float(self.state.meta.get("game_day", 1)) - 1.0) * 720.0)
+
+    def _extraction_rule(self, location_id: Any) -> Mapping[str, Any]:
+        profile = self._location_profile(location_id) or {}
+        rule = profile.get("extraction_rule", {}) if isinstance(profile, Mapping) else {}
+        return rule if isinstance(rule, Mapping) else {}
+
+    def _extraction_errors(self, encounter: Optional[Mapping[str, Any]] = None) -> list[str]:
+        current_location = self._current_location()
+        encounter_rule = encounter.get("extraction_rule", {}) if isinstance(encounter, Mapping) else {}
+        rule = encounter_rule if isinstance(encounter_rule, Mapping) and encounter_rule else self._extraction_rule(current_location)
+        if not self._location_profile(current_location):
+            return [f"当前地点没有注册撤离路线：{current_location}"]
+        deadline_at = encounter.get("extraction_deadline_at_minutes") if isinstance(encounter, Mapping) else None
+        if deadline_at is not None:
+            extraction_finish = self._timeline_minutes() + float(self._derive_action_costs({"type": "EXTRACT", "action_id": "extraction-check"}).get("time_minutes", 0.0))
+            if self._timeline_minutes() > float(deadline_at):
+                return ["撤离截止时间已过，当前遭遇不能安全撤离"]
+            if extraction_finish > float(deadline_at):
+                return ["剩余时间不足以在撤离截止前返回基地"]
+        allowed_periods = rule.get("allowed_periods", rule.get("open_periods", []))
+        if isinstance(allowed_periods, list) and allowed_periods and str(self.state.meta.get("time_of_day", "清晨")) not in {str(item) for item in allowed_periods}:
+            return [f"当前时段不在撤离窗口：允许 {', '.join(str(item) for item in allowed_periods)}"]
+        required_item = rule.get("required_item", rule.get("extraction_key"))
+        if required_item and not self._has_item(str(required_item)):
+            return [f"缺少撤离所需物品：{required_item}"]
+        if rule.get("requires_discovered_location"):
+            discovered = self.state.player.get("discovered_locations", [])
+            if current_location not in discovered:
+                return ["尚未发现当前地点的撤离点"]
+        return []
 
     def _target_presence_errors(self, action: Mapping[str, Any]) -> list[str]:
         action_type = str(action.get("type"))
         current_location = self._current_location()
         base_location = self._base_location()
         movement_types = {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"}
+        target_profile = self._action_target_profile(action)
+        target_constraints = target_profile.get("constraints", {}) if isinstance(target_profile, Mapping) else {}
+        availability = target_constraints.get("availability", {}) if isinstance(target_constraints, Mapping) else {}
+        allowed_periods = availability.get("allowed_periods", target_constraints.get("allowed_periods", [])) if isinstance(availability, Mapping) else []
+        if action_type not in movement_types and not allowed_periods:
+            allowed_periods = self._system_action_constraints(action).get("allowed_periods", [])
+        if action_type not in movement_types and isinstance(allowed_periods, list) and allowed_periods and str(self.state.meta.get("time_of_day", "清晨")) not in {str(item) for item in allowed_periods}:
+            return [f"当前时段不可执行该行动：允许 {', '.join(str(item) for item in allowed_periods)}"]
         if action_type in movement_types:
             target = self._movement_target(action)
             if action_type in {"TRAVEL", "ENTER_LOCATION"}:
@@ -137,8 +191,9 @@ class GameEngine:
                     return ["当前已经在基地，不需要撤离"]
                 if action.get("target") and str(action.get("target")) != str(base_location):
                     return [f"EXTRACT 只能返回基地：{base_location}"]
-                if not self._active_encounter_allows(location_id=current_location):
-                    return ["当前地点没有可撤离的活动遭遇"]
+                extraction_errors = self._extraction_errors(self._current_active_encounter())
+                if extraction_errors:
+                    return extraction_errors
             elif action_type == "LEAVE_ENCOUNTER":
                 if not self._active_encounter_allows(location_id=current_location):
                     return ["当前没有可离开的活动遭遇"]
@@ -295,6 +350,20 @@ class GameEngine:
         costs["mental_cost"] = float(route.get(mental_key, route.get("travel_mental_from_base", costs["mental_cost"])))
         return costs
 
+    @staticmethod
+    def _deterministic_movement_resolution(action: Mapping[str, Any], costs: Mapping[str, float]) -> Dict[str, Any]:
+        return {
+            "formula_version": "1.0",
+            "action_type": str(action.get("type")),
+            "outcome": "普通成功",
+            "movement_success": True,
+            "probability": 1.0,
+            "risk_mode": "deterministic_route",
+            "time_cost": float(costs.get("time_minutes", 0.0)),
+            "stamina_cost": float(costs.get("stamina_cost", 0.0)),
+            "mental_cost": float(costs.get("mental_cost", 0.0)),
+        }
+
     def _system_action_constraints(self, action: Mapping[str, Any], preview: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
         """只从世界/NPC注册表派生计划硬约束；LLM tags 仅保留在叙事账本。"""
         profile = preview.get("target_profile", {}) if isinstance(preview, Mapping) else self._action_target_profile(action)
@@ -321,6 +390,20 @@ class GameEngine:
         for source in sources:
             if isinstance(source, Mapping):
                 constraints.update(deepcopy(dict(source)))
+        availability_definition = constraints.get("availability")
+        if isinstance(availability_definition, Mapping) and "allowed_periods" not in constraints:
+            constraints["allowed_periods"] = deepcopy(availability_definition.get("allowed_periods", []))
+        reservation = constraints.get("reservation")
+        if isinstance(reservation, Mapping):
+            for key in ("exclusive_group", "window_id", "window_ids", "capacity", "window_capacity"):
+                if key in reservation and key not in constraints:
+                    constraints[key] = deepcopy(reservation[key])
+        commitment = constraints.get("commitment")
+        if isinstance(commitment, Mapping):
+            if "commitment_axis" not in constraints and commitment.get("axis") is not None:
+                constraints["commitment_axis"] = commitment["axis"]
+            if "commitment_value" not in constraints and commitment.get("value") is not None:
+                constraints["commitment_value"] = commitment["value"]
         system_tags = set(str(tag).lower() for tag in constraints.get("system_tags", constraints.get("tags", [])) if tag)
         if action_type in {"EXPLORATION", "COMBAT", "BATCH_ACTION", "BUILD", "RESEARCH", "REST"}:
             system_tags.add("major_action")
@@ -337,6 +420,11 @@ class GameEngine:
             commitments.append((str(constraints["commitment_axis"]), str(constraints["commitment_value"])))
 
         windows = []
+        current_period = str(
+            preview.get("start_period", self.state.meta.get("time_of_day", "清晨"))
+            if isinstance(preview, Mapping)
+            else self.state.meta.get("time_of_day", "清晨")
+        )
         raw_windows = constraints.get("windows", [])
         if isinstance(raw_windows, list):
             for item in raw_windows:
@@ -344,25 +432,116 @@ class GameEngine:
                     window_ids = item.get("window_ids", item.get("window_id"))
                     if not isinstance(window_ids, list):
                         window_ids = [window_ids] if window_ids is not None else []
+                    if not window_ids or any(str(value) in {"current_period", "period"} for value in window_ids):
+                        window_ids = [current_period]
+                    elif current_period in {str(value) for value in window_ids}:
+                        window_ids = [current_period]
                     windows.append({"group": str(item.get("exclusive_group", item.get("group"))), "ids": sorted({str(value) for value in window_ids}), "capacity": int(item.get("capacity", item.get("window_capacity", 1)) or 1)})
         exclusive_group = constraints.get("exclusive_group")
         if exclusive_group:
             window_ids = constraints.get("window_ids", constraints.get("opportunity_windows", constraints.get("window_id")))
             if not isinstance(window_ids, list):
                 window_ids = [window_ids] if window_ids is not None else []
+            if not window_ids or any(str(value) in {"current_period", "period"} for value in window_ids):
+                window_ids = [current_period]
+            elif current_period in {str(value) for value in window_ids}:
+                window_ids = [current_period]
             windows.append({"group": str(exclusive_group), "ids": sorted({str(value) for value in window_ids}), "capacity": int(constraints.get("window_capacity", 1) or 1)})
 
         target_id = action.get("target")
         npc = next((candidate for candidate in self.state.data.get("npcs", []) if isinstance(candidate, Mapping) and candidate.get("id", candidate.get("name")) == target_id), None)
         if npc is not None:
             schedule = npc.get("schedule", {}) if isinstance(npc.get("schedule", {}), Mapping) else {}
-            period = str(self.state.meta.get("time_of_day", "清晨"))
+            period = current_period
             scheduled_action = schedule.get(period)
             if scheduled_action:
                 windows.append({"group": f"npc:{target_id}", "ids": [period], "capacity": 1})
                 if str(scheduled_action).lower() in {"rest", "休息", "unavailable", "不可用"}:
                     constraints["npc_unavailable"] = True
-        return {"tags": sorted(system_tags), "commitments": commitments, "windows": windows, "npc_unavailable": bool(constraints.get("npc_unavailable"))}
+        return {
+            "tags": sorted(system_tags),
+            "commitments": commitments,
+            "windows": windows,
+            "allowed_periods": [str(value) for value in constraints.get("allowed_periods", [])] if isinstance(constraints.get("allowed_periods", []), list) else [],
+            "npc_unavailable": bool(constraints.get("npc_unavailable")),
+        }
+
+    def _required_action_location(self, action: Mapping[str, Any]) -> Optional[str]:
+        """返回行动真正需要的地点；这里只读取注册表，不接受 LLM 自报地点。"""
+        def registered(location_id: Optional[str]) -> Optional[str]:
+            if not location_id:
+                return None
+            if location_id == self._base_location() or self._location_profile(location_id):
+                return location_id
+            return None
+
+        action_type = str(action.get("type"))
+        base_location = self._base_location()
+        if action_type in {"RETURN_TO_BASE", "EXTRACT", "REST", "BUILD", "BASE_MANAGEMENT"}:
+            return base_location
+        if action_type in {"TRAVEL", "ENTER_LOCATION"}:
+            target = self._movement_target(action)
+            return registered(target)
+        if action_type == "LEAVE_ENCOUNTER":
+            return self._current_location()
+
+        profile = self._action_target_profile(action)
+        requirements = profile.get("requirements", {}) if isinstance(profile, Mapping) else {}
+        if isinstance(requirements, Mapping) and requirements.get("location"):
+            return registered(str(requirements["location"]))
+        if isinstance(profile, Mapping) and profile.get("location_id"):
+            return registered(str(profile["location_id"]))
+
+        if action_type == "BATCH_ACTION":
+            area = self._registry_lookup(self.state.data.get("world", {}).get("areas", {}), action.get("target"))
+            area = area or self._registry_lookup(self.state.data.get("world", {}).get("farm_areas", {}), action.get("target"))
+            if isinstance(area, Mapping) and area.get("location_id"):
+                return registered(str(area["location_id"]))
+        if action_type == "COMBAT":
+            world = self.state.data.get("world", {}) if isinstance(self.state.data.get("world", {}), Mapping) else {}
+            for registry_name in ("encounter_entities", "targets", "combat_targets"):
+                target = self._registry_lookup(world.get(registry_name, {}), action.get("target"))
+                if isinstance(target, Mapping) and target.get("location_id"):
+                    return registered(str(target["location_id"]))
+        return None
+
+    @staticmethod
+    def _public_plan_step(step: Mapping[str, Any]) -> Dict[str, Any]:
+        return {key: deepcopy(value) for key, value in step.items() if not str(key).startswith("_")}
+
+    def _compile_action_plan_steps(self, steps: list[Dict[str, Any]], plan_id: str) -> list[Dict[str, Any]]:
+        """按模拟中的当前位置补齐必需的路线步骤，避免把空间规则交给 LLM。"""
+        compiled: list[Dict[str, Any]] = []
+        simulated_location = self._current_location()
+        for step in steps:
+            source_id = str(step["action_id"])
+            required_location = self._required_action_location(step)
+            if required_location and required_location != simulated_location:
+                if simulated_location != self._base_location():
+                    compiled.append({
+                        "action_id": f"{plan_id}-auto-extract-{len(compiled) + 1}",
+                        "type": "EXTRACT",
+                        "_source_action_id": source_id,
+                        "_auto_generated": True,
+                    })
+                    simulated_location = self._base_location()
+                if required_location != self._base_location():
+                    compiled.append({
+                        "action_id": f"{plan_id}-auto-travel-{len(compiled) + 1}",
+                        "type": "TRAVEL",
+                        "target": required_location,
+                        "_source_action_id": source_id,
+                        "_auto_generated": True,
+                    })
+                    simulated_location = required_location
+            compiled_step = deepcopy(step)
+            compiled_step["_source_action_id"] = source_id
+            compiled.append(compiled_step)
+            if str(step.get("type")) in {"TRAVEL", "ENTER_LOCATION"}:
+                simulated_location = self._movement_target(step)
+            elif str(step.get("type")) in {"RETURN_TO_BASE", "EXTRACT"}:
+                simulated_location = self._base_location()
+        return compiled
 
     def _spawn_exploration_encounter(self, action: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
         profile = self._action_target_profile(action)
@@ -376,6 +555,9 @@ class GameEngine:
         target_ids = []
         turn = self.state.current_turn + 1
         location_id = str(profile.get("location_id") or self._current_location())
+        extraction_rule = self._extraction_rule(location_id)
+        exploration_costs = self._derive_action_costs(action)
+        created_at_minutes = self._timeline_minutes() + float(exploration_costs.get("time_minutes", 0.0))
         for index, definition_id in enumerate(definition_ids, start=1):
             definition = self._registry_lookup(definitions, definition_id) or self._registry_lookup(legacy_definitions, definition_id)
             if not definition:
@@ -396,12 +578,16 @@ class GameEngine:
             "status": "active",
             "created_turn": turn,
             "expires_turn": turn + 3,
+            "extraction_rule": deepcopy(dict(extraction_rule)),
+            "extraction_deadline_at_minutes": created_at_minutes + float(extraction_rule.get("deadline_minutes", 0.0)) if extraction_rule.get("deadline_minutes") is not None else None,
             "entity_additions": entities,
         }
 
     def _domain_effects(self, action: Mapping[str, Any], resolution: Mapping[str, Any], dilution_multiplier: float = 1.0) -> Dict[str, Any]:
         action_type = str(action.get("type", ""))
         dilution_multiplier = max(0.25, min(1.0, float(dilution_multiplier)))
+        if action_type in {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"} and not bool(resolution.get("movement_success")):
+            raise ValueError("移动/撤离没有获得 Python 路线成功结果，拒绝修改地点状态")
         if action_type in {"TRAVEL", "ENTER_LOCATION"}:
             target = self._movement_target(action)
             return {
@@ -775,7 +961,11 @@ class GameEngine:
         errors: list[str] = []
         try:
             self.state.clear_pending()
-            for step in steps:
+            for raw_step in steps:
+                step = self._public_plan_step(raw_step)
+                source_action_id = str(raw_step.get("_source_action_id", step["action_id"]))
+                start_period = str(self.state.meta.get("time_of_day", "清晨"))
+                start_location = self._current_location()
                 try:
                     preview = self.preview_host_action(step, dilution_multiplier=dilution_multiplier)
                 except (TypeError, ValueError) as exc:
@@ -787,8 +977,15 @@ class GameEngine:
                         preview["legal"] = False
                         preview.setdefault("errors", []).append(str(exc))
                 step_errors = preview.get("errors", []) if isinstance(preview.get("errors", []), list) else []
-                errors.extend(f"{step['action_id']}：{error}" for error in step_errors)
-                previews.append({"action": step, "preview": preview})
+                errors.extend(f"{source_action_id}：{error}" for error in step_errors)
+                previews.append({
+                    "action": step,
+                    "preview": preview,
+                    "source_action_id": source_action_id,
+                    "start_period": start_period,
+                    "start_location": start_location,
+                    "auto_generated": bool(raw_step.get("_auto_generated")),
+                })
         finally:
             self.state.data = original_data
             self.state.pending_records = original_pending
@@ -808,23 +1005,29 @@ class GameEngine:
         opportunity_capacities: Dict[tuple[str, str], int] = {}
         npc_targets = []
         npc_schedule_factor = 1.0
+        auto_movement_present = False
         heavy_types = {"EXPLORATION", "COMBAT", "BATCH_ACTION", "BUILD", "RESEARCH", "REST"}
         for item in previews:
             step = item["action"]
+            auto_movement_present = auto_movement_present or bool(item.get("auto_generated"))
             ledger = item["preview"].get("action_ledger", {}) if isinstance(item["preview"].get("action_ledger", {}), Mapping) else {}
             row = ledger.get("actions", [{}])[0] if isinstance(ledger.get("actions", [{}]), list) else {}
             action_type = str(step.get("type"))
-            constraints = self._system_action_constraints(step, item["preview"])
+            constraints = self._system_action_constraints(
+                step,
+                {**item["preview"], "start_period": item.get("start_period", self.state.meta.get("time_of_day", "清晨"))},
+            )
             tags = {str(tag).lower() for tag in constraints.get("tags", []) if tag}
             if constraints.get("npc_unavailable"):
                 npc_schedule_factor = 0.0
             time_minutes = float(row.get("time_minutes", 0.0))
             mental_load += float(row.get("mental_cost", 0.0))
             is_major = time_minutes >= 60.0 or action_type in heavy_types or "major_action" in tags
-            if is_major:
-                major_count += 1
-            else:
-                short_count += 1
+            if not item.get("auto_generated"):
+                if is_major:
+                    major_count += 1
+                else:
+                    short_count += 1
             if "requires_full_attention" in tags or action_type in heavy_types:
                 attention_count += 1
             for axis, value in constraints.get("commitments", []):
@@ -858,7 +1061,7 @@ class GameEngine:
         if short_count > 2:
             slot_factor = min(slot_factor, 2.0 / short_count)
         attention_factor = 1.0
-        if attention_count and len(previews) > 1:
+        if attention_count >= 2:
             attention_factor = 0.60
         if mental_load > 16.0:
             attention_factor = min(attention_factor, 16.0 / mental_load)
@@ -884,13 +1087,14 @@ class GameEngine:
             "action_slot_compatibility": max(0.0, min(1.0, slot_factor)),
             "commitment_compatibility": commitment_factor,
             "opportunity_window_compatibility": opportunity_factor,
-            "movement_compatibility": 1.0 if len(locations) <= 1 else 0.8,
+            "movement_compatibility": 1.0 if auto_movement_present or len(locations) <= 1 else 0.8,
         }
 
     def preview_action_plan(self, action: Mapping[str, Any]) -> Dict[str, Any]:
         validate_host_action(action)
         plan_id = str(action.get("plan_id"))
-        steps = self._ordered_plan_steps(action)
+        original_steps = self._ordered_plan_steps(action)
+        steps = self._compile_action_plan_steps(original_steps, plan_id)
         available = float(self.state.meta.get("available_time_minutes", 720))
         provisional, provisional_errors = self._simulate_plan_steps(steps, 1.0)
         factors = self._plan_factors(provisional, available, provisional_errors)
@@ -901,13 +1105,15 @@ class GameEngine:
             if not action.get("priority_order"):
                 provisional_errors.append("可组合度低于20，必须提供 priority_order 并明确只执行一个步骤")
             else:
-                selected_steps = steps[:1]
+                selected_source = str(original_steps[0]["action_id"])
+                selected_steps = [step for step in steps if str(step.get("_source_action_id", step["action_id"])) == selected_source]
                 partial = True
         elif combinability < 50:
             if not action.get("priority_order"):
                 provisional_errors.append("可组合度为20-49，必须提供 priority_order 并只执行部分步骤")
             else:
-                selected_steps = steps[:1]
+                selected_source = str(original_steps[0]["action_id"])
+                selected_steps = [step for step in steps if str(step.get("_source_action_id", step["action_id"])) == selected_source]
                 partial = True
         elif combinability < 80 and not bool(action.get("accept_dilution")):
             provisional_errors.append("可组合度为50-79，必须明确 accept_dilution=true 才能执行")
@@ -933,7 +1139,11 @@ class GameEngine:
             "components": factors,
             "dilution_multiplier": dilution_multiplier,
             "partial": partial,
-            "deferred_steps": [step["action_id"] for step in steps if step not in selected_steps],
+            "deferred_steps": [
+                str(step["action_id"])
+                for step in original_steps
+                if str(step["action_id"]) not in {str(item.get("_source_action_id", item["action_id"])) for item in selected_steps}
+            ],
             "action_ledger": {"available_time_minutes": available, "available_stamina": max(0.0, 100.0 - float(self.state.player.get("fatigue", 0))), "available_mental": float(self.state.player.get("mental", 100)), "actions": [item["preview"].get("action_ledger", {}).get("actions", [{}])[0] for item in previews]},
             "steps": previews,
         }
@@ -963,9 +1173,13 @@ class GameEngine:
         validate_host_action(action)
         skill = self._find_skill(action)
         costs = self._derive_action_costs(action, skill)
-        context = self._build_action_context(action, costs)
-        resolution = resolve_action(self.state.player, context, self.state.inventory)
-        apply_action_dilution(resolution, dilution_multiplier)
+        movement_types = {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"}
+        if str(action.get("type")) in movement_types:
+            resolution = self._deterministic_movement_resolution(action, costs)
+        else:
+            context = self._build_action_context(action, costs)
+            resolution = resolve_action(self.state.player, context, self.state.inventory)
+            apply_action_dilution(resolution, dilution_multiplier)
         available_time = float(self.state.meta.get("available_time_minutes", 240))
         time_cost = float(costs["time_minutes"])
         stamina_cost = float(costs["stamina_cost"])
@@ -991,7 +1205,7 @@ class GameEngine:
         return {
             "legal": not legal_errors,
             "errors": legal_errors,
-            "resolution": resolution.to_dict(),
+            "resolution": resolution if isinstance(resolution, Mapping) else resolution.to_dict(),
             "target_profile": deepcopy(dict(self._action_target_profile(action))),
             "system_constraints": self._system_action_constraints(action, {"target_profile": self._action_target_profile(action)}),
             "action_ledger": {

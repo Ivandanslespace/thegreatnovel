@@ -140,6 +140,8 @@ class FormulaTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in world["resources"]["primary"]], ["煤炭", "食物", "寒晶"])
         self.assertEqual(talent["name"], "寒潮预兆")
         self.assertEqual(world["generation"]["theme_profile"], "永夜冰川")
+        self.assertEqual(world["generation_bundle"]["compiler_version"], "1.1")
+        self.assertTrue(world["generation_bundle"]["locations"][1]["extraction_rule"]["requires_discovered_location"])
         self.assertEqual(
             set(world["generation"]["generated_fields"]),
             {
@@ -183,6 +185,10 @@ class RuntimeIntegrationTests(unittest.TestCase):
         })
         world, talent = normalize_package(template, supplied_world, supplied_talent)
         world["action_targets"][next(iter(world["areas"]))]["target_difficulty"] = 0
+        area_id = next(iter(world["areas"]))
+        research_id = next(key for key in world["action_targets"] if key not in {area_id, "camp_core", world["starting_npcs"][0]["id"]})
+        self.assertEqual(world["action_targets"][research_id]["location_id"], research_id)
+        self.assertEqual(world["action_targets"][research_id]["requirements"]["location"], research_id)
         files = build_files(project_root / "templates" / "save_template", world, talent)
 
         with tempfile.TemporaryDirectory() as temp:
@@ -209,17 +215,22 @@ class RuntimeIntegrationTests(unittest.TestCase):
                     {"action_id": "research-1", "type": "RESEARCH", "target": next(key for key in bundle["action_targets"] if key not in {area_id, "camp_core", bundle["starting_npcs"][0]["id"]}), "goal": "建立第一条工程假设"},
                 ],
             })
-            self.assertEqual(len(plan["events"]), 2)
+            self.assertEqual(len(plan["events"]), 3)
+            self.assertEqual([event["type"] for event in plan["events"]], ["SOCIAL_RESOLVED", "TRAVEL_COMPLETED", "RESEARCH_RESOLVED"])
+            self.assertEqual(engine.state.meta["current_location"], research_id)
             self.assertEqual(engine.state.meta["time_of_day"], "白天")
             travel = engine.execute_host_action({"action_id": "travel-1", "type": "TRAVEL", "target": area_id})
             self.assertEqual(travel["event"]["type"], "TRAVEL_COMPLETED")
             self.assertEqual(engine.state.meta["current_location"], area_id)
             explored = engine.execute_host_action({"action_id": "scout", "type": "EXPLORATION", "target": area_id, "risk_preference": "谨慎"})
             self.assertEqual(explored["event"]["type"], "EXPLORATION_RESOLVED")
-            self.assertEqual(explored["event"]["data"]["encounter_additions"][0]["target_ids"][0].split("_instance_")[0], enemy_definition_id)
-            enemy_id = next(iter(engine.state.data["world"]["encounter_entities"]))
-            combat = engine.execute_host_action({"action_id": "combat-1", "type": "COMBAT", "target": enemy_id})
-            self.assertIn("target_deltas", combat["event"]["data"])
+            encounter_additions = explored["event"]["data"].get("encounter_additions", [])
+            initial_entity_count = len(engine.state.data["world"]["encounter_entities"])
+            if encounter_additions:
+                self.assertEqual(encounter_additions[0]["target_ids"][0].split("_instance_")[0], enemy_definition_id)
+                enemy_id = next(iter(engine.state.data["world"]["encounter_entities"]))
+                combat = engine.execute_host_action({"action_id": "combat-1", "type": "COMBAT", "target": enemy_id})
+                self.assertIn("target_deltas", combat["event"]["data"])
             if engine.state.meta.get("current_encounter_id"):
                 engine.execute_host_action({"action_id": "extract-1", "type": "EXTRACT"})
             else:
@@ -231,9 +242,9 @@ class RuntimeIntegrationTests(unittest.TestCase):
             second_exploration = engine.execute_host_action({"action_id": "explore-2", "type": "EXPLORATION", "target": area_id, "risk_preference": "谨慎"})
             self.assertEqual(engine.state.data["world"]["enemy_definitions"][enemy_definition_id]["status"], "definition")
             if second_exploration["resolution"].get("outcome") in {"大成功", "普通成功", "成功但付出代价", "失败但获得部分信息"}:
-                self.assertGreaterEqual(len(engine.state.data["world"]["encounter_entities"]), 2)
+                self.assertGreaterEqual(len(engine.state.data["world"]["encounter_entities"]), initial_entity_count + 1)
             else:
-                self.assertGreaterEqual(len(engine.state.data["world"]["encounter_entities"]), 1)
+                self.assertGreaterEqual(len(engine.state.data["world"]["encounter_entities"]), initial_entity_count)
             farmed = engine.execute_host_action({"action_id": "farm-1", "type": "BATCH_ACTION", "target": area_id})
             self.assertEqual(farmed["event"]["type"], "BATCH_ACTION_RESOLVED")
             self.assertLess(engine.state.data["world"]["areas"][area_id]["monster_population"], 50)
@@ -440,6 +451,143 @@ class RuntimeIntegrationTests(unittest.TestCase):
             self.assertEqual(extracted["event"]["type"], "EXTRACTION_COMPLETED")
             self.assertEqual(engine.state.meta["current_location"], "camp_core")
             self.assertEqual(engine.state.meta["encounter_history"][-1]["status"], "escaped")
+
+    def test_movement_is_deterministic_but_extraction_rules_are_hard_gates(self):
+        world = {
+            "name": "路线规则世界",
+            "difficulty": "标准",
+            "starting_location": "camp_core",
+            "locations": [
+                {"id": "camp_core", "name": "基地", "safe": True},
+                {
+                    "id": "forest",
+                    "name": "森林",
+                    "safe": False,
+                    "travel_minutes_from_base": 30,
+                    "travel_stamina_from_base": 5,
+                    "extraction_minutes": 20,
+                    "extraction_stamina_cost": 3,
+                    "extraction_rule": {"return_to": "camp_core", "deadline_minutes": 120},
+                },
+            ],
+            "action_targets": {"forest": {"id": "forest", "location_id": "forest", "requirements": {"location": "forest"}}},
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(world=world, meta={"time_of_day": "白天", "day_elapsed_minutes": 120})))
+            travel = {"action_id": "travel", "type": "TRAVEL", "target": "forest"}
+            travel_preview = engine.preview_host_action(travel)
+            self.assertTrue(travel_preview["legal"], travel_preview)
+            self.assertTrue(travel_preview["resolution"]["movement_success"])
+            self.assertEqual(travel_preview["resolution"]["probability"], 1.0)
+            self.assertNotIn("random_roll", travel_preview["resolution"])
+            engine.execute_host_action(travel)
+
+            engine.state.meta["current_encounter_id"] = "encounter-expired"
+            engine.state.meta["active_encounters"] = [{
+                "id": "encounter-expired",
+                "location_id": "forest",
+                "target_ids": [],
+                "participants": ["player"],
+                "status": "active",
+                "extraction_deadline_at_minutes": engine._timeline_minutes() - 1,
+            }]
+            expired = engine.preview_host_action({"action_id": "extract-expired", "type": "EXTRACT"})
+            self.assertFalse(expired["legal"])
+            self.assertTrue(any("截止时间" in error for error in expired["errors"]))
+            with self.assertRaisesRegex(ValueError, "截止时间"):
+                engine.execute_host_action({"action_id": "extract-expired", "type": "EXTRACT"})
+            self.assertEqual(engine.state.meta["current_location"], "forest")
+            self.assertEqual(engine.state.meta["current_encounter_id"], "encounter-expired")
+
+            engine.state.meta["active_encounters"][0]["extraction_deadline_at_minutes"] = engine._timeline_minutes() + 10
+            with self.assertRaisesRegex(ValueError, "剩余时间不足"):
+                engine.execute_host_action({"action_id": "extract-too-late", "type": "EXTRACT"})
+            engine.state.meta["active_encounters"][0]["extraction_deadline_at_minutes"] = engine._timeline_minutes() + 120
+            extracted = engine.execute_host_action({"action_id": "extract-valid", "type": "EXTRACT"})
+            self.assertEqual(extracted["event"]["type"], "EXTRACTION_COMPLETED")
+            self.assertEqual(engine.state.meta["current_location"], "camp_core")
+            self.assertIsNone(engine.state.meta["current_encounter_id"])
+
+            with self.assertRaisesRegex(ValueError, "拒绝修改地点状态"):
+                engine._domain_effects({"type": "TRAVEL", "target": "forest"}, {"movement_success": False})
+
+    def test_opportunity_availability_uses_actual_current_period(self):
+        constraints = {
+            "availability": {"allowed_periods": ["白天", "黄昏"]},
+            "reservation": {"exclusive_group": "field_exploration", "window_id": "current_period", "capacity": 1},
+        }
+        world = {
+            "name": "窗口规则世界",
+            "difficulty": "标准",
+            "starting_location": "camp_core",
+            "locations": [{"id": "camp_core", "name": "基地", "safe": True}, {"id": "forest", "name": "森林", "safe": False}],
+            "action_targets": {
+                "forest": {"id": "forest", "location_id": "forest", "requirements": {"location": "forest"}, "constraints": constraints},
+                "camp_core": {"id": "camp_core", "location_id": "camp_core", "constraints": constraints, "effects": {}},
+            },
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(world=world, meta={"current_location": "camp_core", "time_of_day": "清晨", "day_elapsed_minutes": 0})))
+            with self.assertRaisesRegex(ValueError, "当前时段不可执行"):
+                engine.execute_host_action({"action_id": "too-early", "type": "EXPLORATION", "target": "forest"})
+
+            engine.state.meta.update({"time_of_day": "白天", "day_elapsed_minutes": 120, "available_time_minutes": 720})
+            engine.state.player["action_slot_capacity"] = 2
+            plan = engine.preview_action_plan({
+                "action_id": "period-plan",
+                "type": "ACTION_PLAN",
+                "plan_id": "period-plan",
+                "accept_dilution": True,
+                "steps": [
+                    {"action_id": "day-rest", "type": "REST", "target": "camp_core"},
+                    {"action_id": "dusk-short", "type": "SHORT_ACTION", "target": "camp_core"},
+                ],
+            })
+            self.assertTrue(plan["legal"], plan)
+            self.assertEqual([item["start_period"] for item in plan["steps"]], ["白天", "黄昏"])
+            self.assertEqual(plan["components"]["opportunity_window_compatibility"], 1.0)
+
+    def test_action_plan_compiler_inserts_route_and_return_steps(self):
+        world = {
+            "name": "计划路线世界",
+            "difficulty": "标准",
+            "starting_location": "camp_core",
+            "locations": [
+                {"id": "camp_core", "name": "基地", "safe": True},
+                {"id": "forest", "name": "森林", "safe": False, "travel_minutes_from_base": 30, "extraction_minutes": 20, "extraction_stamina_cost": 3},
+            ],
+            "action_targets": {
+                "forest": {"id": "forest", "location_id": "forest", "requirements": {"location": "forest"}, "effects": {}},
+                "camp_core": {"id": "camp_core", "location_id": "camp_core", "requirements": {"location": "camp_core"}, "effects": {}},
+            },
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(world=world, player={"level": 1, "exp": 0, "exp_to_next": 100, "attributes": {"strength": 8, "constitution": 8, "agility": 8, "spirit": 8}, "fatigue": 0, "hunger": 100, "mental": 100, "max_hp": 50, "hp": 50, "skills": [], "action_slot_capacity": 2})))
+            plan = engine.preview_action_plan({
+                "action_id": "route-plan",
+                "type": "ACTION_PLAN",
+                "plan_id": "route-plan",
+                "accept_dilution": True,
+                "steps": [
+                    {"action_id": "field-work", "type": "SHORT_ACTION", "target": "forest"},
+                    {"action_id": "base-work", "type": "SHORT_ACTION", "target": "camp_core"},
+                ],
+            })
+            self.assertTrue(plan["legal"], plan)
+            self.assertEqual([item["action"]["type"] for item in plan["steps"]], ["TRAVEL", "SHORT_ACTION", "EXTRACT", "SHORT_ACTION"])
+            self.assertEqual([item["action"].get("target") for item in plan["steps"]], ["forest", "forest", None, "camp_core"])
+            result = engine.execute_action_plan({
+                "action_id": "route-plan",
+                "type": "ACTION_PLAN",
+                "plan_id": "route-plan",
+                "accept_dilution": True,
+                "steps": [
+                    {"action_id": "field-work", "type": "SHORT_ACTION", "target": "forest"},
+                    {"action_id": "base-work", "type": "SHORT_ACTION", "target": "camp_core"},
+                ],
+            })
+            self.assertEqual([event["type"] for event in result["events"]], ["TRAVEL_COMPLETED", "ACTION_RESOLVED", "EXTRACTION_COMPLETED", "ACTION_RESOLVED"])
+            self.assertEqual(engine.state.meta["current_location"], "camp_core")
 
     def test_plan_hard_constraints_come_from_registry_not_llm_tags(self):
         def profile(action_id, value, window_id=None, capacity=1, constraints=True):

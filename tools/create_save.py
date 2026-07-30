@@ -37,7 +37,7 @@ try:
 except ModuleNotFoundError:  # 支持从项目根目录 import tools.create_save
     from tools.validate_save import run_validation
 
-from engine_runtime.world_compiler import compile_world_bundle
+from engine_runtime.world_compiler import COMPILER_VERSION, compile_world_bundle
 from engine_runtime.state import load_game_state
 
 
@@ -496,7 +496,7 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
         auto_generated_fields.append("player_talent")
 
     supplied_bundle = world.get("generation_bundle")
-    if isinstance(supplied_bundle, dict) and supplied_bundle.get("compiler_version"):
+    if isinstance(supplied_bundle, dict) and supplied_bundle.get("compiler_version") == COMPILER_VERSION:
         bundle = copy.deepcopy(supplied_bundle)
     else:
         bundle = compile_world_bundle(

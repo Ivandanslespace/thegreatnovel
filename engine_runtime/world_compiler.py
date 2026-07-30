@@ -11,6 +11,9 @@ from copy import deepcopy
 from typing import Any, Dict, Mapping, Sequence
 
 
+COMPILER_VERSION = "1.1"
+
+
 PROFILE_CONTENT = {
     "永夜冰川": {
         "area": ("frost_moss_field", "霜苔荒野"),
@@ -113,7 +116,7 @@ def compile_world_bundle(
         "backpack_capacity_modifier": 1.0,
         "enemy_groups": [{"level": 1, "quality": "普通", "weight": 1, "drops": deepcopy(enemy["drops"])}],
         "farmability_components": {"combat_advantage": 50, "enemy_information": 35, "kill_stability": 55, "sustainability": 50, "route_familiarity": 25, "extraction_ability": 70, "unknown_danger_penalty": 20, "noise_exposure": 35, "fatigue_risk": 35, "injury_risk": 25, "area_alertness": 25, "daylight_change": 15, "monster_adaptation": 10},
-        "extraction_rule": {"return_to": "camp_core", "deadline_minutes": 120},
+        "extraction_rule": {"return_to": "camp_core", "deadline_minutes": 120, "requires_discovered_location": True},
         "encounter_target_ids": [enemy_id],
     }
     action_constraints = {
@@ -121,6 +124,8 @@ def compile_world_bundle(
         "exclusive_group": "field_exploration",
         "window_ids": ["白天", "黄昏"],
         "window_capacity": 1,
+        "availability": {"allowed_periods": ["白天", "黄昏"]},
+        "reservation": {"exclusive_group": "field_exploration", "window_id": "current_period", "capacity": 1},
         "commitment_axis": "route_commitment",
         "commitment_value": area_id,
     }
@@ -145,7 +150,7 @@ def compile_world_bundle(
         },
         research_id: {
             "id": research_id,
-            "location_id": "camp_core",
+            "location_id": research_id,
             "target_difficulty": 30,
             "environment_penalty": 8,
             "unknown_risk": 15,
@@ -184,6 +189,8 @@ def compile_world_bundle(
     for target_profile in action_targets.values():
         if target_profile.get("id") == area_id:
             target_profile["requirements"] = {"location": area_id}
+        elif target_profile.get("id") == research_id:
+            target_profile["requirements"] = {"location": research_id}
         elif target_profile.get("id") == npc_id:
             target_profile["requirements"] = {"location": "camp_core", "npc_available": npc_id}
         elif target_profile.get("id") != "camp_core":
@@ -229,7 +236,7 @@ def compile_world_bundle(
     }
     disaster_type = mechanics.get("disaster_type", "大型环境灾难")
     return {
-        "compiler_version": "1.0",
+        "compiler_version": COMPILER_VERSION,
         "theme": theme,
         "profile": profile,
         "starting_location": "camp_core",

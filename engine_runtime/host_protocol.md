@@ -36,10 +36,15 @@ LLM 只提交“玩家想做什么”。以下内容必须由 Python 计算，LL
 
 - `TRAVEL` / `ENTER_LOCATION`：从当前位置进入已注册地点；目标地点必须存在，且不能在活动遭遇中绕过 `EXTRACT` 或 `LEAVE_ENCOUNTER`。
 - `RETURN_TO_BASE`：离开非基地地点并返回基地；活动遭遇中必须改用 `EXTRACT`。
-- `EXTRACT`：从当前活动遭遇撤离到基地，关闭遭遇并写入遭遇历史。
+- `EXTRACT`：执行现场撤离路线并返回基地；有活动遭遇时检查其撤离截止时间、开放窗口、撤离钥匙和撤离点条件，成功后关闭遭遇并写入遭遇历史；没有活动遭遇时仍可作为已离开遭遇区的现场返程。
 - `LEAVE_ENCOUNTER`：放弃当前遭遇但留在原地点，关闭遭遇并保留后续重新探索的空间。
 - `REST`、`BUILD`、`BASE_MANAGEMENT`：只能在 `meta.current_location ==` 基地地点时执行。
 - `EXPLORATION`：只在当前地点结算，不再隐含移动；必须先用 `TRAVEL` 或 `ENTER_LOCATION` 到达目标地点。
+
+移动和撤离采用确定性路线模式：只要地点已注册、路线成本可由 Python 派生、时间/体力/精神足够且没有遭遇阻挡，
+路线就会成功；它们不会再调用普通行动的随机成功概率。路线上的危险、遭遇、撤离截止和撤离条件仍然是硬门槛，
+不能由叙述或 LLM 改写。Python 返回的移动结果带有 `movement_success=true`、`probability=1.0` 和
+`risk_mode=deterministic_route`，领域状态只有在该结果存在时才会修改。
 
 需要组合多个短行动时提交一个原子计划：
 
@@ -58,17 +63,24 @@ LLM 只提交“玩家想做什么”。以下内容必须由 Python 计算，LL
 ```
 
 计划步骤只能提交目标、方法和风险偏好；属性、成本、顺序可行性和稀释程度由 Python
-根据世界注册表计算。Python 会复制临时状态按顺序预览每一步，再恢复正式状态；因此前一步
+根据世界注册表计算。Python 会先比较模拟当前位置与每一步注册的所需地点，自动插入必要的
+`TRAVEL`、`EXTRACT`，再复制临时状态按顺序预览每一步；因此前一步
 消耗的资源、获得的知识和生成的遭遇会影响后一步预览。`priority_order` 用于 20-49 的计划，
 系统只执行最高优先级的可行步骤，其余步骤返回 `deferred_steps`。50-79 必须明确接受稀释：
 普通计划效果乘 0.75，同一时段三个以上主要行动乘 0.55；稀释会作用于成功率、资源/关系效果、
 研究信息完整度、建造质量和批量击杀效率。80以上才允许完整顺序完成。
 
-行动槽不是“只要时间塞得下就能全做”的容器：每个时段默认只有 1 个主要行动和 2 个短行动。
+行动槽不是“只要时间塞得下就能全做”的容器：每个时段默认只有 1 个主要行动和 2 个短行动；
+编译器自动补齐的路线步骤属于系统物流，不额外占用玩家的主要/短行动槽，但会照实计入时间、体力和精神成本。
 Python 还会计算专注负荷、注册表承诺轴冲突、结构化机会窗口、NPC 是否被重复占用、地点移动兼容度；
 这些因子会共同降低 Combinability，低于阈值时要求排序或接受稀释。行动 JSON 中的 `tags`
 只记录 LLM 对玩家意图的描述，不参与承诺轴、窗口容量或主要行动槽的硬判定；硬约束必须来自
 `world.action_targets[].constraints`、地点定义、NPC 日程和世界规则。
+
+机会约束分为两层：`availability.allowed_periods` 判断行动在当前真实时段是否合法；
+`reservation.exclusive_group`、`window_id`、`capacity` 判断同一真实时段能预留几项。
+计划预览和执行会按每一步实际开始时的 `time_of_day` 重新判断，不能把“白天/黄昏”当成当前时段之外的
+预先许可，也不会把尚未到达的窗口立即执行。
 
 `parameters` 和 `stop_conditions` 只能表达玩家意图或停止条件，不能藏入数值结算。
 协议会递归扫描 JSON；出现引擎字段或未知顶层字段时，入口直接拒绝，不产生事件。
@@ -142,9 +154,12 @@ python tools/audit_report.py saves/世界名 --field player.fatigue
 - `EXPLORATION`、`RESEARCH`、`SOCIAL_INTERACTION`、`REST`：行动效果来自 `world.action_targets`，
   Python生成发现地点、知识、资源、关系和休息恢复事件。
 - `TRAVEL`、`ENTER_LOCATION`、`RETURN_TO_BASE`、`EXTRACT`、`LEAVE_ENCOUNTER`：只接受已注册地点和当前遭遇状态；
-  路线时间/体力/精神成本来自 `world.locations`，不能通过 `target` 或 `parameters` 覆盖。
+  路线时间/体力/精神成本来自 `world.locations`，不能通过 `target` 或 `parameters` 覆盖。`EXTRACT` 还会执行
+  地点 `extraction_rule` 与遭遇实例上的 `extraction_deadline_at_minutes`。
+- 编译世界中的现场 `RESEARCH` 目标地点就是生成的研究地点；如果设计需要回基地分析，应另建一个基地分析行动，
+  不能把现场研究目标错误地绑定到 `camp_core`。
 - `REST`、`BUILD`、`BASE_MANAGEMENT`：基地位置是 Python 强制门槛，LLM 不能用 `requirements.location` 或标签伪造基地位置。
-- `ACTION_PLAN`：Python按顺序在临时状态中预览；确认后以同一稀释参数在 SQLite 事务中原子提交。
+- `ACTION_PLAN`：Python先编译并补齐路线，再按顺序在临时状态中预览；确认后以同一稀释参数在 SQLite 事务中原子提交。
 - `COMBAT`：怪物类型来自 `world.enemy_definitions`，具体目标必须来自
   `world.encounter_entities`；目标必须同时属于 `meta.current_encounter_id` 对应遭遇的
   `participants/target_ids`，且遭遇地点等于玩家当前地点。死亡或过期遭遇不可继续战斗。
