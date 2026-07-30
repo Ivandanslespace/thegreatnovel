@@ -1,0 +1,190 @@
+meta:
+  save_name: 废土列车·新游戏·第一日
+  world_name: 废土列车·新游戏
+  created_at: '2026-07-30T14:04:58+02:00'
+  current_turn: 12
+  game_day: 1
+  time_of_day: 夜晚
+  phase: 新手期
+  difficulty: 标准
+  death_mode: checkpoint
+  narrative_length: 5
+  language: 中文
+  event_format_version: 2
+  created_by: tools/create_save.py
+  rng_seed: 废土列车·新游戏
+  runtime_metrics:
+    pressure: 19.5
+    payoff_maturity: 30.5
+    payoff_impact: 12.5
+    payoff_score: 23.40625
+    narrative_debt:
+    - id: 这个世界是谁创造的？
+      score: 0.0
+    - id: 全民穿越的真正目的是什么？
+      score: 0.0
+    - id: 之前有没有其他批次的人？
+      score: 0.0
+    progress: 0.03
+    stagnation_rate: 1.0
+    repetition_fatigue:
+      max: 30.0
+      by_type:
+        SOCIAL_RESOLVED: 25.0
+        ATTRIBUTES_ALLOCATED: 0.0
+        TRAVEL_COMPLETED: 0.0
+        RETURN_TO_BASE_COMPLETED: 0.0
+        ACTION_RESOLVED: 30.0
+    agency: 0.112
+    uncertainty: 0.16
+    risk_credibility: 0.0
+    decision_value: 0.0
+    combinability: 20.0
+  checkpoints_used: 0
+  max_checkpoints: 3
+  current_location: camp_core
+  current_location_name: 不断行驶的废土列车
+  current_mode: base
+  in_combat: false
+  available_time_minutes: 90
+  day_elapsed_minutes: 630
+  next_disaster_day: 7
+  active_encounters: []
+  current_encounter_id: null
+  encounter_history: []
+  pending_reaction: {}
+  campaign_status: active
+  narrative_state:
+    pressure_components:
+      survival_threat: 0.0
+      resource_scarcity: 0.0
+      time_pressure: 87.5
+      information_unknown: 80.0
+      interpersonal_conflict: 0.0
+      failure_accumulation: 0.0
+    open_loops: []
+    payoff_history:
+    - turn: 2
+      score: 35.4375
+      event_type: SOCIAL_RESOLVED
+    - turn: 3
+      score: 32.3625
+      event_type: SOCIAL_RESOLVED
+    - turn: 5
+      score: 33.93
+      event_type: TRAVEL_COMPLETED
+    - turn: 6
+      score: 23.40625
+      event_type: RETURN_TO_BASE_COMPLETED
+    - turn: 7
+      score: 34.1625
+      event_type: SOCIAL_RESOLVED
+    - turn: 8
+      score: 22.08125
+      event_type: ACTION_RESOLVED
+    - turn: 9
+      score: 32.2625
+      event_type: SOCIAL_RESOLVED
+    - turn: 10
+      score: 22.18125
+      event_type: ACTION_RESOLVED
+    - turn: 11
+      score: 22.23125
+      event_type: ACTION_RESOLVED
+    - turn: 12
+      score: 23.40625
+      event_type: ACTION_RESOLVED
+    event_pattern_history:
+    - SOCIAL_RESOLVED
+    - SOCIAL_RESOLVED
+    - ATTRIBUTES_ALLOCATED
+    - TRAVEL_COMPLETED
+    - RETURN_TO_BASE_COMPLETED
+    - SOCIAL_RESOLVED
+    - ACTION_RESOLVED
+    - SOCIAL_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    recent_irreversible_changes: []
+    current_arc:
+      last_event_type: ACTION_RESOLVED
+      last_turn: 12
+      location: camp_core
+  pressure_level: 30
+  last_payoff_turn: 0
+  active_mysteries:
+  - 这个世界是谁创造的？
+  - 全民穿越的真正目的是什么？
+  - 之前有没有其他批次的人？
+  active_mystery_records:
+  - id: 这个世界是谁创造的？
+    importance: 1
+    waiting_turns: 11
+    reminder_count: 0
+    visibility: 1
+    progress: 0
+  - id: 全民穿越的真正目的是什么？
+    importance: 1
+    waiting_turns: 11
+    reminder_count: 0
+    visibility: 1
+    progress: 0
+  - id: 之前有没有其他批次的人？
+    importance: 1
+    waiting_turns: 11
+    reminder_count: 0
+    visibility: 1
+    progress: 0
+  foreshadowing_active: []
+  total_decisions: 5
+  total_combats: 0
+  total_explorations: 0
+  npcs_met: 0
+  factions_encountered: 0
+  last_played: Day 1 白天
+  last_session_turns: 0
+  recap_needed: false
+  social_state:
+    promises: []
+    deceptions: []
+  system_event_history:
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: base_maintenance
+    utility_score: 240.0
+    time_of_day: 清晨
+    turn: 2
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: route_planning
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 清晨
+    turn: 2
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: resource_search
+    utility_score: 240.0
+    time_of_day: 白天
+    turn: 6
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: trade_patrol
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 白天
+    turn: 6
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: rest
+    utility_score: 240.0
+    time_of_day: 夜晚
+    turn: 12
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: rest
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 夜晚
+    turn: 12
