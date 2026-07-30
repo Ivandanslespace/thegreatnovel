@@ -1,0 +1,46 @@
+# 存档元数据模板
+meta:
+  save_name: ""
+  world_name: ""
+  created_at: ""              # ISO时间戳
+  
+  # 游戏进度
+  current_turn: 0
+  game_day: 1
+  time_of_day: "清晨"         # 清晨/白天/黄昏/夜晚
+  phase: "新手期"
+  
+  # 难度
+  difficulty: "标准"          # 休闲/标准/硬核
+  death_mode: "checkpoint"    # permanent/checkpoint/legacy
+  narrative_length: 7         # 叙述长度偏好(1-10)
+  language: "中文"            # 游戏语言
+  event_format_version: 2     # 新建存档从首回合使用标准事件格式
+  created_by: ""              # 生成器或GM入口
+  rng_seed: ""                # 引擎确定性随机种子
+  runtime_metrics: {}         # Python引擎最近一次计算的软指标
+  checkpoints_used: 0
+  max_checkpoints: 3          # 每篇章可用次数
+  
+  # 当前状态
+  current_location: ""
+  current_mode: "base"        # base/exploration/dungeon/defense/social
+  in_combat: false
+  
+  # 叙事状态
+  pressure_level: 30          # 当前压力值(0-100)
+  last_payoff_turn: 0         # 上次爽点回合
+  active_mysteries: []        # 当前活跃悬念
+  foreshadowing_active: []    # 活跃伏笔ID
+  
+  # 统计
+  total_decisions: 0
+  total_combats: 0
+  total_explorations: 0
+  npcs_met: 0
+  factions_encountered: 0
+  
+  # 上次游玩
+  last_played: ""
+  last_session_turns: 0
+  recap_needed: true

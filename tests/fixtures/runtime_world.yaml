@@ -1,0 +1,23 @@
+world:
+  name: "自动测试世界"
+  theme: "永夜冰川中的移动列车"
+  difficulty: "标准"
+  narrative_length: 5
+  language: "中文"
+  setting:
+    safe_base: "霜轨列车"
+    external_dangers: ["冰尸", "极寒", "燃料不足"]
+    exploration_method: "列车停车时下车搜索"
+    disaster_cycle: "每七天一次白夜风暴"
+    disaster_type: "白夜风暴"
+  resources:
+    primary: ["煤炭", "食物", "寒晶"]
+    currency: "冰铸券"
+
+player_talent:
+  name: "寒潮预兆"
+  description: "在灾害逼近前感知环境变化。"
+  type: "信息类"
+  trigger: "大型灾害前"
+  effect: "获得一条方向性预警"
+  limitations: "信息不完整，连续使用需要休息"

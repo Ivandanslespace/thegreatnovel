@@ -1,0 +1,35 @@
+# 基地状态模板
+base:
+  name: ""                    # 由世界主题决定
+  type: ""                    # cable_car/raft/train/beast/other
+  level: 1
+  durability: 100
+  max_durability: 100
+  defense: 10
+  space_total: 3              # 总槽位
+  space_used: 0               # 已用槽位
+
+  modules: []
+  # - id: ""
+  #   name: ""
+  #   type: ""               # core/defense/production/storage/living/research/movement/special
+  #   level: 1
+  #   space_cost: 1
+  #   status: active/damaged/building
+  #   effects: ""
+
+  special_properties: []      # 特殊性质（温度调节等）
+
+  # 同居者
+  cohabitants: []
+  # - npc_id: ""
+  #   name: ""
+  #   role: ""               # 同居者角色
+  #   since_turn: 0
+
+  # 防御记录
+  defense_log: []
+  # - turn: 0
+  #   attacker: ""
+  #   result: ""
+  #   damage_taken: 0

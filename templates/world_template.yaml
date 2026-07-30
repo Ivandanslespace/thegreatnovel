@@ -1,0 +1,93 @@
+# 世界创建模板
+# GM根据玩家10问回答填入此模板，生成 world.yaml
+
+world:
+  name: ""                    # 世界名称（玩家定义）
+  theme: ""                   # 主题描述
+  narrative_style: ""         # 叙述风格（冷酷/幽默/史诗/日常）
+  difficulty: ""              # 休闲/标准/硬核
+  narrative_length: 7         # 叙述长度偏好(1-10)，每轮约 length×100~120字
+  language: "中文"            # 游戏语言（任何语言，默认中文）
+
+  # 核心设定
+  setting:
+    safe_base: ""             # 安全基地是什么
+    external_dangers: []      # 外部主要危险（列表）
+    exploration_method: ""    # 探索方式
+    disaster_cycle: ""        # 灾难周期
+    disaster_type: ""         # 灾难类型
+
+  # 资源体系
+  resources:
+    primary: []               # 基础资源（3-5种）
+    secondary: []             # 中级资源
+    rare: []                  # 稀有资源
+    currency: ""              # 通用货币/交易媒介
+
+  # 世界规则
+  rules:
+    safe_zone:
+      description: "基地内部受到保护"
+      limitation: "基地核心被摧毁后保护失效"
+    exploration:
+      frequency: "每天一次"
+      return_rule: "找到撤离点才能返回"
+      night_modifier: "夜间危险×2"
+    death:
+      type: ""                # permanent/checkpoint/legacy
+      inventory_drop_rate: 0.7
+    disaster:
+      cycle_days: 7
+      first_event: ""
+      escalation: "每次灾难强度+10%"
+    pvp:
+      enabled: true
+      safe_zone_pvp: false
+    progression:
+      player_level: true
+      base_level: true
+      talent_per_level: true  # 每级三选一
+
+  # 怪物生态
+  monsters:
+    day_creatures: []         # 白天怪物类型
+    night_creatures: []       # 夜晚怪物类型
+    bosses: []                # 已知BOSS
+    ecology_notes: ""         # 生态关系说明
+
+  # 长期悬念
+  mysteries:
+    - question: "这个世界是谁创造的？"
+      status: hidden
+    - question: "全民穿越的真正目的是什么？"
+      status: hidden
+    - question: "之前有没有其他批次的人？"
+      status: hidden
+
+  # 阶段规划
+  phases:
+    - name: "新手期"
+      turns: "1-10"
+      focus: "学会基本生存"
+      threats: "Lv1-3怪物，资源匮乏"
+    - name: "成长期"
+      turns: "11-30"
+      focus: "建立稳定资源链，初步社交"
+      threats: "Lv3-6怪物，第一次灾难"
+    - name: "扩张期"
+      turns: "31-60"
+      focus: "势力形成，区域扩展"
+      threats: "Lv6-10，势力冲突"
+    - name: "真相期"
+      turns: "61-100"
+      focus: "世界真相逐渐揭露"
+      threats: "Lv10+，文明级事件"
+
+# 主角天赋（玩家定义）
+player_talent:
+  name: ""
+  description: ""
+  type: ""                    # 信息类/个人类/建设类/规则类
+  trigger: ""                 # 触发条件
+  effect: ""                  # 具体效果
+  limitations: ""             # 限制条件

@@ -1,0 +1,33 @@
+# 关系网络模板
+relationships: []
+# 每段关系结构：
+# - npc_id: "npc_001"
+#   # 多维关系值
+#   trust: 0                  # 信任
+#   respect: 0                # 尊重
+#   affection: 0              # 好感
+#   attraction: 0             # 吸引
+#   intimacy: 0               # 亲密
+#   dependency: 0             # 依赖
+#   resentment: 0             # 怨恨
+#   fear: 0                   # 恐惧
+#   
+#   # 关系状态
+#   status: stranger/acquaintance/ally/friend/close_friend/partner/rival/enemy
+#   romantic_status: none/crush/dating/committed/complicated/broken
+#   
+#   # 历史
+#   key_events: []
+#   # - turn: 0
+#   #   event: ""
+#   #   impact: ""
+#   
+#   # 债务
+#   debts:
+#     player_owes: []         # 玩家欠NPC的
+#     npc_owes: []            # NPC欠玩家的
+#   
+#   # 秘密
+#   shared_secrets: []        # 双方都知道的
+#   npc_secrets_known: []     # 玩家知道的NPC秘密
+#   player_secrets_known: []  # NPC知道的玩家秘密

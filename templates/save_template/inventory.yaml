@@ -1,0 +1,39 @@
+# 背包与装备模板
+inventory:
+  # 装备栏
+  equipment:
+    main_weapon: null
+    off_hand: null
+    helmet: null
+    chest: null
+    legs: null
+    boots: null
+    accessory_1: null
+    accessory_2: null
+
+  # 背包物品
+  items: []
+  # - id: ""
+  #   name: ""
+  #   category: weapon/armor/consumable/resource/material/key/special
+  #   rarity: white/green/blue/purple/yellow
+  #   quantity: 1
+  #   durability: null        # 装备类
+  #   properties: []
+  #   description: ""
+
+  # 资源（单独追踪，因为频繁变动）
+  resources: {}
+  # 示例：
+  # iron_ingot: 0
+  # food: 0
+  # water: 0
+  # fuel: 0
+  # crystal: 0               # 世界核心资源（名称由世界决定）
+
+  # 负重
+  weight_current: 0
+  weight_max: 50              # 力量×10
+
+  # 货币
+  currency: 0

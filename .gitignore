@@ -1,0 +1,13 @@
+# 游戏运行中的本地存档，不上传玩家世界状态
+saves/
+
+# Python运行缓存
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# 本地编辑器/系统文件
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini

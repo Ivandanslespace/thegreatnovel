@@ -1,0 +1,46 @@
+"""TheGreatNovel 可执行规则引擎 v1。"""
+
+from .calculators import (
+    FORMULA_VERSION,
+    advance_progression,
+    calculate_base_defense,
+    calculate_base_maintenance,
+    calculate_build,
+    calculate_combinability,
+    calculate_combat,
+    calculate_death_fairness,
+    calculate_experience,
+    calculate_farmability,
+    calculate_grind_net_value,
+    calculate_narrative_metrics,
+    calculate_npc_utility,
+    calculate_resource_pressure,
+    calculate_severity,
+    resolve_action,
+    simulate_batch_action,
+)
+from .runtime import GameEngine, load_game_state
+from .narrative_log import record_narrative_turn
+
+__all__ = [
+    "FORMULA_VERSION",
+    "GameEngine",
+    "advance_progression",
+    "calculate_base_defense",
+    "calculate_base_maintenance",
+    "calculate_build",
+    "calculate_combinability",
+    "calculate_combat",
+    "calculate_death_fairness",
+    "calculate_experience",
+    "calculate_farmability",
+    "calculate_grind_net_value",
+    "calculate_narrative_metrics",
+    "calculate_npc_utility",
+    "calculate_resource_pressure",
+    "calculate_severity",
+    "load_game_state",
+    "resolve_action",
+    "record_narrative_turn",
+    "simulate_batch_action",
+]

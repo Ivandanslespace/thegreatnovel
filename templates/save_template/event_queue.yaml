@@ -1,0 +1,38 @@
+# 延迟事件队列模板
+event_queue: []
+# 每个事件结构：
+# - id: "event_001"
+#   description: ""
+#   type: delayed/hidden/scheduled/opportunity
+#   
+#   # 触发条件
+#   trigger_conditions: []
+#   # - "player_enters_area_x"
+#   # - "npc_001_trust_below_30"
+#   # - "turn_greater_than_20"
+#   
+#   earliest_turn: 0
+#   latest_turn: 0
+#   
+#   # 机会窗口（→ engine/action_economy.md）
+#   opportunity_window:
+#     available_from: ""      # "day_X_HH:MM"
+#     expires_at: ""          # "day_X_HH:MM"
+#     competing_with: []      # 与之互斥的其他窗口ID
+#     consequence_if_missed: ""  # 错过后的后果
+#     recurrence: never       # never/delayed/altered
+#   
+#   # 后果
+#   consequences:
+#     immediate: ""
+#     resource_change: {}
+#     relationship_change: {}
+#     new_events: []
+#   
+#   # 状态
+#   status: pending/triggered/expired/cancelled
+#   triggered_turn: null
+#   
+#   # 叙事功能（用于主线适应）
+#   narrative_function: ""
+#   alternative_carriers: []  # 如果原载体失效，替代方案
