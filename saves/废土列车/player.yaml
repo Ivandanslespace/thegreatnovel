@@ -1,0 +1,50 @@
+player:
+  name: 未命名主角
+  gender: ''
+  age: ''
+  background: ''
+  level: 1
+  exp: 0
+  exp_to_next: 100
+  attributes:
+    strength: 7
+    constitution: 5
+    agility: 5
+    spirit: 7
+  free_points: 0
+  hp: 50
+  max_hp: 50
+  status_effects: []
+  hunger: 100
+  fatigue: 36
+  mental: 58
+  max_mental: 100
+  talents:
+  - name: 危险预兆
+    description: 能够从微弱的声音、气味和光线变化中识别附近危险。
+    type: 信息类
+    trigger: 进入未侦察的废土地点时
+    effect: 获得一次关于主要威胁方向的有限提示
+    limitations: 提示不能直接揭示敌人数量、战力或完整伏击方案
+    rarity: A
+    obtained_turn: 1
+  skills: []
+  class: null
+  second_class: null
+  personality:
+    caution: 50
+    ambition: 50
+    empathy: 50
+    honesty: 50
+    risk_tolerance: 50
+    collectivism: 50
+  achievements: []
+  stats:
+    kills: 0
+    deaths: 0
+    explorations: 0
+    crafts: 0
+    trades: 0
+  knowledge:
+  - npc_atai_goal
+  discovered_locations: []

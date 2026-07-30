@@ -1,0 +1,23 @@
+npcs:
+- id: npc_atai
+  name: 阿苔
+  status: alive
+  location: camp_core
+  goal: 寻找净水并维护列车路线
+  schedule:
+    清晨: base_maintenance
+    白天: resource_search
+    黄昏: return_to_base
+    夜晚: rest
+  autonomous_yield:
+    燃油: 1
+  utility_profile:
+    goal_fit: 70
+    survival_benefit: 70
+    resource_benefit: 55
+    relationship_impact: 30
+    value_alignment: 60
+    risk: 25
+    cost: 20
+  last_schedule_execution: 1:白天
+  last_autonomous_action: resource_search
