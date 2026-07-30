@@ -294,6 +294,7 @@ class GameEngine:
         # 消耗时间却不改变任何真实状态的幽灵行动。
         registered_domain_actions = {
             "TRADE", "TEAM_FORMATION", "MARKET_ORDER", "VEHICLE_UPGRADE", "REGIONAL_EVENT_ENTRY",
+            "PROFESSION_ACTION",
         }
         if action_type in registered_domain_actions:
             profile = self._action_target_profile(action)

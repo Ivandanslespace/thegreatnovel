@@ -350,6 +350,10 @@ def compile_world_bundle(
     main_weapon.setdefault("attack_type", "melee")
     main_weapon.setdefault("rarity", "G")
     starter_items = [deepcopy(dict(item)) for item in starter_items if isinstance(item, Mapping)]
+    for item in starter_items:
+        # 世界蓝图可省略通用品级；创建器补齐最低评级，避免有效的原创起始物
+        # 品在存档校验阶段被拒绝，也不改变其名称、效果或世界语义。
+        item.setdefault("rarity", "G")
     result = {
         "compiler_version": COMPILER_VERSION,
         "theme": str(theme),

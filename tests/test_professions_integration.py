@@ -31,16 +31,10 @@ def test_professions_integration():
             "description": "测试职业"
         }
     }
-    template["world"]["professions"] = test_professions
-    
-    # 准备问卷答案（模拟问答格式）
-    raw_answers = {
-        "theme": "废土列车",
-        "difficulty": "标准",
-        "language": "中文",
-        "narrative_length": 7,
-        "world_name": "测试世界",
-    }
+    # 使用完整原创世界包，避免把缺失的世界蓝图误当作职业系统故障。
+    from test_engine_runtime import creative_world_package
+    raw_answers = creative_world_package("职业测试世界")
+    raw_answers["world"]["professions"].update(test_professions)
     
     from tools.create_save import answers_to_package
     supplied_world, supplied_talent = answers_to_package(raw_answers)

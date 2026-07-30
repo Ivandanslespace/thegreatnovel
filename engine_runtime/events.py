@@ -509,6 +509,21 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
                 if key in allowed_projection_keys:
                     updated[key] = deepcopy(value)
         return updated
+
+    # 公共系统推进与主角行动分开落账：前者只能覆盖固定的群体投影，
+    # 不能借由事件变成任意状态写入入口。这样 SQLite 重放也能复原同区
+    # 人口、频道、排行榜和对比状态。
+    if event_type == "PUBLIC_SYSTEM_ADVANCED":
+        projection_state = payload.get("projection_state", {})
+        allowed_public_keys = {
+            "population_state", "public_system_state", "market_state",
+            "ranking_state", "comparative_state", "rival_state",
+        }
+        if isinstance(projection_state, Mapping):
+            for key, value in projection_state.items():
+                if key in allowed_public_keys and isinstance(value, Mapping):
+                    updated[key] = deepcopy(dict(value))
+        return updated
     
     # 视角切分事件处理
     if event_type == PERSPECTIVE_CUTAWAY_CREATED:

@@ -8,6 +8,7 @@ world:
   difficulty: ""              # 休闲/标准/硬核
   narrative_length: 7         # 叙述长度偏好(1-10)，每轮约 length×100~120字
   language: "中文"            # 游戏语言（任何语言，默认中文）
+  genre_contract: "1"         # 1=全民系统投放，2=百倍奖励，3=孤独生存；创建时会固化成合同对象
 
   # 职业系统（可选）：由本次 LLM 世界包原创；没有全局职业白名单或示例回填。
   professions: {}
@@ -27,6 +28,22 @@ world:
     secondary: []             # LLM 创作
     rare: []                  # LLM 创作
     currency: ""              # LLM 创作；无交易世界可为空
+
+  # 仅在全民类型中必填。所有文字由本次 LLM 原创，第一段叙述必须直接展示它们。
+  # 这样玩家在第一次选择前就知道：谁在同区、如何输赢、能在哪里竞争。
+  public_survival:
+    system_name: ""
+    region_name: ""
+    opening_announcement: ""
+    opening_rules: []          # 4-6 条；写成玩家立刻能执行或会受惩罚的直白规则
+    starting_channel_messages: # 3-5 条；每条都必须含 sender / message
+      - sender: ""
+        message: ""
+    initial_peers:             # 3-5 名；每人必须含 id / name / opening_strategy / visible_edge
+      - id: ""
+        name: ""
+        opening_strategy: ""
+        visible_edge: ""
 
   # 世界规则
   rules:
@@ -137,3 +154,10 @@ player_talent:
   trigger: ""                 # 触发条件
   effect: ""                  # 具体效果
   limitations: ""             # 限制条件
+  # 天赋意象与内容由 LLM 原创；作用域用于让 Python 把它落到真实结算，而不是只当文案。
+  mechanical_focus: ""        # exploration/research/combat/construction/social/survival 之一
+  opening_card:
+    advantage: ""             # 它为何明显强于普通玩家
+    first_use: ""             # 第一天立即怎样使用
+    comparison: ""            # 普通玩家做同类事时缺少什么
+    hard_limit: ""            # 不能做什么、代价或冷却

@@ -38,83 +38,22 @@ except ModuleNotFoundError:  # 支持从项目根目录 import tools.create_save
 
 from engine_runtime.world_compiler import COMPILER_VERSION, compile_world_bundle
 from engine_runtime.ratings import normalize_rating
+from engine_runtime.public_survival import initial_public_states
 from engine_runtime.state import load_game_state
 
 
 DIFFICULTIES = {"休闲", "标准", "硬核"}
 DEATH_MODES = {"permanent", "checkpoint", "legacy"}
+TALENT_MECHANICAL_FOCUSES = {
+    "exploration": {"EXPLORATION": {"preparation": 3, "unknown_risk": -2}},
+    "research": {"RESEARCH": {"intelligence": 4}},
+    "combat": {"COMBAT": {"preparation": 3}},
+    "construction": {"BUILD": {"preparation": 4}},
+    "social": {"SOCIAL_INTERACTION": {"intelligence": 3}},
+    "survival": {"EXPLORATION": {"environment_advantage": 2, "unknown_risk": -1}},
+}
 
 
-def get_default_genre_contract(theme: str) -> dict:
-    """根据主题返回默认的类型合同。
-    
-    废土列车、永夜冰川、巨兽背部、深渊裂隙等主题默认使用全民系统投放型求生。
-    """
-    # 所有主要主题都默认使用 mass_system_survival
-    mass_survival_themes = {"废土列车", "永夜冰川", "巨兽背部", "深渊裂隙"}
-    
-    if theme in mass_survival_themes:
-        return {
-            "id": "mass_system_survival",
-            "name": "全民系统投放型求生",
-            "collective_transmission": True,
-            "shared_start": True,
-            "region_size": 1000,
-            "global_count": 100000000,
-            "public_system": {
-                "regional_chat": True,
-                "private_chat": True,
-                "trading": True,
-                "rankings": True,
-                "achievements": True,
-                "announcements": True,
-            },
-            "protagonist_contract": {
-                "unique_mechanic_required": True,
-                "comparative_advantage_target": 0.60,
-                "automatic_success": False,
-                "tone": ["rational", "confident", "proactive"],
-            },
-            "population_distribution": {
-                "panicked_players": {"min": 0.15, "max": 0.20},
-                "ordinary_players": {"min": 0.45, "max": 0.55},
-                "skilled_players": {"min": 0.20, "max": 0.25},
-                "regional_elites": {"min": 0.05, "max": 0.08},
-                "special_rivals": {"min": 0.01, "max": 0.03},
-            },
-            "difficulty_calibration": {
-                "system_operations": {"resistance_min": 0, "resistance_max": 6},
-                "daily_talk": {"resistance_min": 4, "resistance_max": 8},
-                "newbie_exploration": {"resistance_min": 10, "resistance_max": 16},
-                "normal_danger": {"resistance_min": 18, "resistance_max": 24},
-                "high_risk": {"resistance_min": 28, "resistance_max": 38},
-            },
-            "failure_distribution": {
-                "critical_success_pct": {"min": 0.08, "max": 0.10},
-                "normal_success_pct": {"min": 0.70, "max": 0.75},
-                "costly_success_pct": {"min": 0.15, "max": 0.22},
-                "partial_failure_pct": {"min": 0.55, "max": 0.65},
-                "severe_failure_pct": {"min": 0.30, "max": 0.40},
-                "catastrophic_failure_pct": 0.05,
-            },
-        }
-    else:
-        # 其他主题默认使用 solo_survival
-        return {
-            "id": "solo_survival",
-            "name": "孤独生存",
-            "collective_transmission": False,
-            "shared_start": False,
-            "region_size": None,
-            "global_count": None,
-            "public_system": {},
-            "protagonist_contract": {
-                "unique_mechanic_required": False,
-                "comparative_advantage_target": None,
-                "automatic_success": False,
-                "tone": ["isolated", "cautious"],
-            },
-        }
 REQUIRED_QUESTIONS = (
     ("theme", "世界主题", "永夜冰川 / 巨兽背部 / 废土列车 / 深渊裂隙；也可自定义"),
     ("genre_contract", "世界类型", "1=全民系统投放型求生（推荐），2=全民求生：百倍奖励，3=孤独生存"),
@@ -312,6 +251,55 @@ def normalize_resource_items(items):
     return normalized
 
 
+def normalize_public_survival(world, collective):
+    """校验全民世界开局必须能让玩家一眼读懂的公开信息。"""
+    raw = world.get("public_survival", {})
+    if not collective:
+        world["public_survival"] = raw if isinstance(raw, dict) else {}
+        return
+    if not isinstance(raw, dict):
+        raise GeneratorError("全民求生世界必须提供 public_survival 对象")
+    public = copy.deepcopy(raw)
+    for field in ("system_name", "region_name", "opening_announcement"):
+        public[field] = str(public.get(field) or "").strip()
+    rules = public.get("opening_rules", [])
+    if not isinstance(rules, list):
+        rules = []
+    public["opening_rules"] = [str(rule).strip() for rule in rules if str(rule).strip()]
+    messages = public.get("starting_channel_messages", [])
+    public["starting_channel_messages"] = [
+        {"sender": str(item.get("sender") or "").strip(), "message": str(item.get("message") or "").strip()}
+        for item in messages if isinstance(item, dict)
+    ] if isinstance(messages, list) else []
+    peers = public.get("initial_peers", [])
+    public["initial_peers"] = [
+        {
+            "id": str(item.get("id") or "").strip(),
+            "name": str(item.get("name") or "").strip(),
+            "opening_strategy": str(item.get("opening_strategy") or "").strip(),
+            "visible_edge": str(item.get("visible_edge") or "").strip(),
+        }
+        for item in peers if isinstance(item, dict)
+    ] if isinstance(peers, list) else []
+    if not all(public[field] for field in ("system_name", "region_name", "opening_announcement")):
+        raise GeneratorError("全民求生世界必须给出系统名、区域名和开局公告")
+    if not 4 <= len(public["opening_rules"]) <= 6:
+        raise GeneratorError("全民求生开局必须有4到6条直白规则")
+    if not 3 <= len(public["starting_channel_messages"]) <= 5 or any(not item["sender"] or not item["message"] for item in public["starting_channel_messages"]):
+        raise GeneratorError("全民求生开局必须有3到5条带发送者的区域频道消息")
+    if not 3 <= len(public["initial_peers"]) <= 5 or any(not all(peer.values()) for peer in public["initial_peers"]):
+        raise GeneratorError("全民求生开局必须有3到5名可见对手，并说明其策略和优势")
+    if len({peer["id"] for peer in public["initial_peers"]}) != len(public["initial_peers"]):
+        raise GeneratorError("全民求生开局对手 id 不能重复")
+    world["public_survival"] = public
+
+
+def initial_talent_effects(talent):
+    """把天赋的抽象作用域编译成稳定、可审计的行动修正。"""
+    focus = str(talent.get("mechanical_focus") or "").strip()
+    return {"action_modifiers": copy.deepcopy(TALENT_MECHANICAL_FOCUSES.get(focus, {}))}
+
+
 def first_number(value):
     match = re.search(r"\d+", str(value or ""))
     return int(match.group(0)) if match else None
@@ -455,11 +443,20 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
         raise GeneratorError("rules.death.type 必须是 permanent/checkpoint/legacy")
 
     talent = talent or {}
-    for field in ("name", "description", "type", "trigger", "effect", "limitations"):
+    for field in ("name", "description", "type", "trigger", "effect", "limitations", "mechanical_focus"):
         talent[field] = str(talent.get(field) or "").strip()
+    opening_card = talent.get("opening_card", {})
+    opening_card = opening_card if isinstance(opening_card, dict) else {}
+    for field in ("advantage", "first_use", "comparison", "hard_limit"):
+        opening_card[field] = str(opening_card.get(field) or "").strip()
+    talent["opening_card"] = opening_card
     talent["rarity"] = normalize_rating(talent.get("rarity"), default="A")
-    if any(not talent[field] for field in ("name", "description", "type", "trigger", "effect", "limitations")):
-        raise GeneratorError("LLM 世界包必须完整定义主角天赋的 name/description/type/trigger/effect/limitations")
+    if any(not talent[field] for field in ("name", "description", "type", "trigger", "effect", "limitations", "mechanical_focus")):
+        raise GeneratorError("LLM 世界包必须完整定义主角天赋的 name/description/type/trigger/effect/limitations/mechanical_focus")
+    if talent["mechanical_focus"] not in TALENT_MECHANICAL_FOCUSES:
+        raise GeneratorError("player_talent.mechanical_focus 必须是 exploration/research/combat/construction/social/survival 之一")
+    if any(not opening_card[field] for field in ("advantage", "first_use", "comparison", "hard_limit")):
+        raise GeneratorError("LLM 世界包必须完整定义主角天赋 opening_card 的 advantage/first_use/comparison/hard_limit")
 
     profession_source = world.get("professions", {})
     genre_contract_choice = world.get("genre_contract", "1")
@@ -468,6 +465,8 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
         if isinstance(genre_contract_choice, dict)
         else parse_genre_contract_choice(genre_contract_choice, world["theme"])
     )
+    world["genre_contract"] = selected_genre_contract
+    normalize_public_survival(world, bool(selected_genre_contract.get("collective_transmission")))
     supplied_bundle = world.get("generation_bundle")
     if isinstance(supplied_bundle, dict) and supplied_bundle.get("compiler_version") == COMPILER_VERSION:
         bundle = copy.deepcopy(supplied_bundle)
@@ -524,6 +523,7 @@ def build_files(template_dir, world, talent):
         for item in world.get("mysteries", [])[:5]
     ]
     primary_resources = world["resources"]["primary"]
+    public_states = initial_public_states(world)
 
     files = {}
     files["world.yaml"] = {"world": world, "player_talent": talent}
@@ -546,6 +546,7 @@ def build_files(template_dir, world, talent):
             "mental": 100,
             "max_mental": 100,
             "talents": [{**talent, "obtained_turn": 1}],
+            "talent_effects": initial_talent_effects(talent),
             "profession": world.get("starting_profession"),
             "skills": [],
             "class": None,
@@ -651,6 +652,8 @@ def build_files(template_dir, world, talent):
             "safe_base": safe_base,
             "difficulty": world["difficulty"],
             "generation_source": world.get("generation", {}).get("mechanics_source", "llm_world_blueprint"),
+            "genre_contract_id": world.get("genre_contract", {}).get("id"),
+            "public_system_enabled": bool(public_states.get("public_system_state", {}).get("enabled")),
             "registry_counts": {key: len(bundle.get(key, {})) if isinstance(bundle.get(key), (dict, list)) else 0 for key in ("locations", "enemies", "areas", "build_catalog", "action_targets")},
         },
         "turn": 1,
@@ -665,6 +668,7 @@ def build_files(template_dir, world, talent):
         "",
         "## 关键事件",
         "Day 1：系统完成世界初始化，主角获得初始天赋，尚未进行第一次正式行动。",
+        *( [f"区域“{world['public_survival']['region_name']}”已开启公开频道与排行榜，所有人从同一规则起跑。"] if public_states.get("public_system_state", {}).get("enabled") else [] ),
         "",
         "## 未解悬念",
         *(f"- {mystery}" for mystery in mysteries),
@@ -692,66 +696,31 @@ def build_files(template_dir, world, talent):
             "regional_reputation": {}
         }
     }
-    files["population_state.yaml"] = {
-        "population_state": {
-            "populated_npcs": {},
-            "npc_faction_memberships": {},
-            "npc_location_history": {},
-            "population_cap_used": 0,
-            "population_cap_total": 10,
-            "settlement_count": 0
-        }
-    }
-    files["public_system_state.yaml"] = {
-        "public_system_state": {
-            "global_events_active": [],
-            "system_announcements": [],
-            "active_rules_modifiers": [],
-            "public_quest_line": [],
-            "achievements_unlocked": [],
-            "system_level_progression": {}
-        }
-    }
-    files["market_state.yaml"] = {
-        "market_state": {
-            "market_enabled": False,
-            "available_vendors": [],
-            "market_prices": {},
-            "player_inventory_listings": [],
-            "recent_transactions": [],
-            "market_trends": {}
-        }
-    }
-    files["ranking_state.yaml"] = {
-        "ranking_state": {
-            "player_rank_global": None,
-            "player_rank_regional": None,
-            "leaderboards": {},
-            "rank_season_current": 1,
-            "rank_season_end_turn": 100,
-            "prestige_points": 0
-        }
-    }
-    files["comparative_state.yaml"] = {
-        "comparative_state": {
-            "player_comparison_baseline": {},
-            "performance_metrics_history": [],
-            "best_performance_by_category": {},
-            "comparison_partners": [],
-            "comparison_last_updated": None
-        }
-    }
-    files["rival_state.yaml"] = {
-        "rival_state": {
-            "active_rivals": [],
-            "rival_relationships": {},
-            "rival_competitions_active": [],
-            "rival_score_current": 0,
-            "rival_score_target": 0,
-            "rivalry_win_rate": 0.0,
-            "last_rival_encounter": None
-        }
-    }
+    files["population_state.yaml"] = {"population_state": public_states["population_state"] or {
+        "populated_npcs": {}, "npc_faction_memberships": {}, "npc_location_history": {},
+        "population_cap_used": 0, "population_cap_total": 10, "settlement_count": 0,
+    }}
+    files["public_system_state.yaml"] = {"public_system_state": public_states["public_system_state"] or {
+        "global_events_active": [], "system_announcements": [], "active_rules_modifiers": [],
+        "public_quest_line": [], "achievements_unlocked": [], "system_level_progression": {},
+    }}
+    files["market_state.yaml"] = {"market_state": public_states["market_state"] or {
+        "market_enabled": False, "available_vendors": [], "market_prices": {},
+        "player_inventory_listings": [], "recent_transactions": [], "market_trends": {},
+    }}
+    files["ranking_state.yaml"] = {"ranking_state": public_states["ranking_state"] or {
+        "player_rank_global": None, "player_rank_regional": None, "leaderboards": {},
+        "rank_season_current": 1, "rank_season_end_turn": 100, "prestige_points": 0,
+    }}
+    files["comparative_state.yaml"] = {"comparative_state": public_states["comparative_state"] or {
+        "player_comparison_baseline": {}, "performance_metrics_history": [],
+        "best_performance_by_category": {}, "comparison_partners": [], "comparison_last_updated": None,
+    }}
+    files["rival_state.yaml"] = {"rival_state": public_states["rival_state"] or {
+        "active_rivals": [], "rival_relationships": {}, "rival_competitions_active": [],
+        "rival_score_current": 0, "rival_score_target": 0, "rivalry_win_rate": 0.0,
+        "last_rival_encounter": None,
+    }}
     return files
 
 

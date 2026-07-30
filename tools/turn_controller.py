@@ -37,9 +37,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from engine_runtime.events import TIME_PERIOD_STARTS
+from engine_runtime.events import TIME_PERIOD_STARTS, standard_event
 from engine_runtime.narrative_log import record_narrative_turn
 from engine_runtime.presentation import player_facing_result
+from engine_runtime.public_survival import advance_public_states, public_snapshot
 from engine_runtime.runtime import GameEngine
 from engine_runtime.state import load_game_state
 from tools.validate_save import assert_startable
@@ -128,6 +129,67 @@ def build_scene_context(engine: GameEngine) -> dict:
         "current_encounter_id": meta.get("current_encounter_id"),
         "pending_reaction": meta.get("pending_reaction"),
     }
+
+
+def build_opening_contract(engine: GameEngine) -> dict:
+    """交给主持器的开局事实：规则、天赋卡与公共求生界面。"""
+    world = engine.state.data.get("world", {}) if isinstance(engine.state.data.get("world", {}), dict) else {}
+    talent = engine.state.data.get("player_talent", {}) if isinstance(engine.state.data.get("player_talent", {}), dict) else {}
+    rules = world.get("rules", {}) if isinstance(world.get("rules", {}), dict) else {}
+    return {
+        "world_rules": {
+            "exploration": rules.get("exploration", {}),
+            "death": rules.get("death", {}),
+            "disaster": rules.get("disaster", {}),
+        },
+        "protagonist_talent_card": {
+            "name": talent.get("name", ""),
+            "description": talent.get("description", ""),
+            "trigger": talent.get("trigger", ""),
+            "effect": talent.get("effect", ""),
+            "opening_card": talent.get("opening_card", {}),
+        },
+        "public_survival": public_snapshot(engine.state.data),
+    }
+
+
+def _has_time_advancing_result(result: dict | None) -> bool:
+    """零时间的属性/天赋选择不推进同区玩家，真正行动才会。"""
+    if not isinstance(result, dict):
+        return False
+    events = []
+    event = result.get("event")
+    if isinstance(event, dict):
+        events.append(event)
+    events.extend(item for item in result.get("events", []) if isinstance(item, dict))
+    for record in events:
+        payload = record.get("data", {}) if isinstance(record.get("data", {}), dict) else {}
+        if float(payload.get("time_cost", 0) or 0) > 0:
+            return True
+    return False
+
+
+def advance_public_system(engine: GameEngine, execution_result: dict | None) -> dict | None:
+    """经由标准事件提交公共推进；不直接写入投影文件。"""
+    if not _has_time_advancing_result(execution_result):
+        return None
+    advanced = advance_public_states(engine.state.data, execution_result or {})
+    if advanced is None:
+        return None
+    projection_state, feedback = advanced
+    turn = engine.state.current_turn
+    record = standard_event(
+        event_id=f"evt_{turn:04d}_public",
+        event_type="PUBLIC_SYSTEM_ADVANCED",
+        actor="system",
+        target=None,
+        data={"projection_state": projection_state, "public_feedback": feedback},
+        turn=turn,
+        timestamp=f"Day {engine.state.meta.get('game_day', 1)} {engine.state.meta.get('time_of_day', '清晨')}",
+    )
+    engine.state.apply_and_append(record, persist=True)
+    engine.state.save()
+    return feedback
 
 
 # ─── 智能候选生成 ───────────────────────────────────────────────────
@@ -681,6 +743,7 @@ def resolve(engine: GameEngine, player_input: str, action_json: str | None = Non
     3. generate_options_only → 仅刷新选项
     """
     execution_result = None
+    public_feedback = None
     errors: list[str] = []
     input_mode = "unknown"
 
@@ -723,6 +786,8 @@ def resolve(engine: GameEngine, player_input: str, action_json: str | None = Non
                     "message": "没有待执行选项。请使用 --generate-options-only 生成选项，或提供 --action-json",
                     "input_mode": "no_options",
                 }
+
+    public_feedback = advance_public_system(engine, execution_result)
 
     # 生成下一回合候选并编译
     candidates = generate_smart_candidates(engine)
@@ -772,11 +837,14 @@ def resolve(engine: GameEngine, player_input: str, action_json: str | None = Non
         "visible_options": {},
         "option_labels": {},
         "free_action_available": True,
+        **build_opening_contract(engine),
     }
     if errors:
         package["errors"] = errors
     if execution_result:
         package["resolved"] = player_facing_result(execution_result)
+    if public_feedback:
+        package["public_feedback"] = public_feedback
 
     pending = engine.state.meta.get("pending_options", {})
     if isinstance(pending, dict) and pending.get("options"):

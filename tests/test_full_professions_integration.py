@@ -39,6 +39,28 @@ def creative_answers() -> dict:
                 "disaster_type": "失声巨潮",
             },
             "resources": {"primary": ["潮墨", "浮木音叉", "盐雾玻璃"]},
+            "genre_contract": "1",
+            "public_survival": {
+                "system_name": "潮汐投放系统",
+                "region_name": "回声海区-4",
+                "opening_announcement": "一千名幸存者被送入同一片会唱歌的海面；副歌结束前必须带回第一份可用资源。",
+                "opening_rules": [
+                    "所有人从潮汐邮亭出发，离开安全灯群后才开始计入排名。",
+                    "副歌石阶只在歌声持续时存在，错过副歌必须自行承担回程风险。",
+                    "频道公开死亡与区域成就，交易仅能交换已经带回邮亭的物资。",
+                    "失声巨潮每五天到来，未回到灯群的玩家不会获得检查点。",
+                ],
+                "starting_channel_messages": [
+                    {"sender": "盐锚", "message": "石阶已经露出一半了，有人愿意一起数拍子吗？"},
+                    {"sender": "玻璃瓶", "message": "别追盐鸥，它们会偷走你的声音。谁有耳塞可以换？"},
+                    {"sender": "潮汐账房", "message": "我记录交换价：一枚浮木音叉换两张可读潮图。"},
+                ],
+                "initial_peers": [
+                    {"id": "peer_salt_anchor", "name": "盐锚", "opening_strategy": "召集临时队伍，抢先通过第一段石阶。", "visible_edge": "带着能固定在石缝里的重锚。"},
+                    {"id": "peer_glass_bottle", "name": "玻璃瓶", "opening_strategy": "绕开盐鸥，先搜集安静区域的资源。", "visible_edge": "有一副能隔绝高频潮声的耳塞。"},
+                    {"id": "peer_tide_ledger", "name": "潮汐账房", "opening_strategy": "先做交易节点，再用情报换资源。", "visible_edge": "掌握三种潮图的辨认法。"},
+                ],
+            },
             "professions": {"tide_singer": profession},
             "motifs": ["潮歌", "被淹没的地址"],
             "taboo_domains": ["替亡者唱名"],
@@ -58,6 +80,13 @@ def creative_answers() -> dict:
             "trigger": "在潮水退去后聆听残留回声时",
             "effect": "得到一条不完整的过去线索。",
             "limitations": "每次借名都会使自己的声音变轻，不能用来直接判定真相。",
+            "mechanical_focus": "research",
+            "opening_card": {
+                "advantage": "你能从退潮后的余响里直接辨认哪些石阶通向资源，普通人只能逐段试错。",
+                "first_use": "第一次副歌结束后聆听石阶残留的节拍，挑出最可能安全的下一段航路。",
+                "comparison": "其他幸存者只能依赖队伍试探或频道碎片消息。",
+                "hard_limit": "余响只能提供不完整线索；借名会让自己的声音变轻，不能替代实际验证。",
+            },
         },
     }
 

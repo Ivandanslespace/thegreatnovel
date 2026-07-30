@@ -28,6 +28,7 @@ from engine_runtime.ratings import RATING_SCALE, normalize_rating, shift_rating
 from engine_runtime.runtime import GameEngine
 from engine_runtime.state import GameState, load_game_state
 from tools.create_save import GeneratorError, answers_to_package, build_files, normalize_package
+from tools.turn_controller import advance_public_system, resolve as resolve_turn
 from tools.validate_save import assert_startable
 
 
@@ -71,6 +72,28 @@ def creative_world_package(name="云海邮路"):
             "resources": {
                 "primary": ["余墨盐", "云皮纸", "鸣铜钉"],
                 "currency": "未投递的承诺",
+            },
+            "genre_contract": "1",
+            "public_survival": {
+                "system_name": "回邮系统",
+                "region_name": "云邮区-17",
+                "opening_announcement": "一千名投递者同时被送入云海；在第四次潮汐前交出一件可验证的生存成果。",
+                "opening_rules": [
+                    "每人从同一座安全邮局出发，离开前只能带走自己的初始物资。",
+                    "区域频道公开求助、死亡与里程碑，私藏情报不会阻止他人抵达同一地点。",
+                    "排行榜按已验证的探索、资源和生存成果更新，不按发言排序。",
+                    "无字暴潮每四天来临；潮前未回到安全邮局的人会失去本轮全部未封存收获。",
+                ],
+                "starting_channel_messages": [
+                    {"sender": "风绳-03", "message": "谁知道空白蛾群会不会追进邮局？我只带了一根钩针。"},
+                    {"sender": "钟塔见习生", "message": "榜单已经开了。先找到可投递的地址，应该比盲闯风洞稳。"},
+                    {"sender": "雨披商人", "message": "我愿意用两枚鸣铜钉换一段准确的航线消息。"},
+                ],
+                "initial_peers": [
+                    {"id": "peer_windrope", "name": "风绳-03", "opening_strategy": "先把邮局周边的撤离标记画完，再跟随别人探索。", "visible_edge": "带着一卷可固定云索的旧风绳。"},
+                    {"id": "peer_clocktower", "name": "钟塔见习生", "opening_strategy": "用钟表记录潮汐，抢先验证第一条稳定航线。", "visible_edge": "能从不同步的时钟里读出短暂的风向。"},
+                    {"id": "peer_raincoat", "name": "雨披商人", "opening_strategy": "低价收集零散资源，等待暴潮前的物资恐慌。", "visible_edge": "携带一只防静电的交易箱。"},
+                ],
             },
             "professions": {"storm_reader": profession},
             "starting_profession": "storm_reader",
@@ -120,6 +143,13 @@ def creative_world_package(name="云海邮路"):
             "trigger": "接触无主信件、失效承诺或被抹去的地址时",
             "effect": "获得一条与其原始去向有关但不完整的线索。",
             "limitations": "回响会混入寄件人的自我欺骗；每次使用都可能让一段自己的记忆变得模糊。",
+            "mechanical_focus": "research",
+            "opening_card": {
+                "advantage": "你能从别人看成废纸的退信里直接找出可验证的目的地线索。",
+                "first_use": "第一天检查邮局里无主的退信，就能决定该去断邮航线还是末班投递塔。",
+                "comparison": "其他人只能凭频道传闻或冒险试错判断航线。",
+                "hard_limit": "回响不是答案；寄件人的自我欺骗会把你引向错误地址，且每次使用会模糊一段私人记忆。",
+            },
             "rarity": "A",
         },
     }
@@ -662,6 +692,41 @@ class RuntimeIntegrationTests(unittest.TestCase):
             else:
                 self.assertGreaterEqual(len(engine.state.data["world"]["encounter_entities"]), initial_entity_count)
             self.assertTrue((root / "campaign.sqlite3").exists())
+            verification = engine.state.store.verify_projection(apply_event)
+            self.assertTrue(verification["ok"], verification)
+
+    def test_collective_opening_is_visible_and_public_progression_replays(self):
+        project_root = Path(__file__).resolve().parents[1]
+        template = yaml.safe_load((project_root / "templates" / "world_template.yaml").read_text(encoding="utf-8"))
+        supplied_world, supplied_talent = answers_to_package(creative_world_package("云海公共验收"))
+        world, talent = normalize_package(template, supplied_world, supplied_talent)
+        self.assertIsInstance(world["genre_contract"], dict)
+        self.assertTrue(world["genre_contract"]["collective_transmission"])
+        files = build_files(project_root / "templates" / "save_template", world, talent)
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for filename, content in files.items():
+                destination = root / filename
+                if filename.endswith((".yaml", ".yml")):
+                    destination.write_text(yaml.safe_dump(content, allow_unicode=True, sort_keys=False), encoding="utf-8")
+                else:
+                    destination.write_text(content, encoding="utf-8")
+            engine = GameEngine(load_game_state(root))
+            opening = resolve_turn(engine, "", generate_options_only=True)
+            self.assertEqual(opening["public_survival"]["region_name"], "云邮区-17")
+            self.assertEqual(len(opening["public_survival"]["opening_rules"]), 4)
+            self.assertEqual(len(opening["public_survival"]["channel_feed"]), 3)
+            self.assertEqual(opening["protagonist_talent_card"]["opening_card"]["first_use"], "第一天检查邮局里无主的退信，就能决定该去断邮航线还是末班投递塔。")
+            self.assertIn("RESEARCH", engine.state.player["talent_effects"]["action_modifiers"])
+
+            target = next(location["id"] for location in world["locations"] if location["id"] != "camp_core")
+            result = engine.execute_host_action({"action_id": "public-travel", "type": "TRAVEL", "target": target})
+            feedback = advance_public_system(engine, result)
+            self.assertIsNotNone(feedback)
+            self.assertEqual(engine.state.data["population_state"]["alive_count"], 1000)
+            self.assertEqual(len(engine.state.data["comparative_state"]["performance_metrics_history"]), 1)
+            self.assertTrue(any(record["type"] == "PUBLIC_SYSTEM_ADVANCED" for record in engine.state.store.events()))
             verification = engine.state.store.verify_projection(apply_event)
             self.assertTrue(verification["ok"], verification)
 
