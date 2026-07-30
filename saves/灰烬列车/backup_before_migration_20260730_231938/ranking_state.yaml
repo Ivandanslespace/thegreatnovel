@@ -1,0 +1,36 @@
+ranking_state:
+  ranking_state:
+    ranking_state:
+      ranking_state:
+        rankings_enabled: true
+        player_rank_global: null
+        player_rank_regional: 11
+        leaderboards:
+          regional:
+          - rank: 1
+            player_id: peer_marcus
+            name: 铁拳·马库斯
+            status: alive
+            visible_edge: 重型改装列车，装甲防御是普通列车的两倍
+          - rank: 2
+            player_id: peer_lena
+            name: 幽灵·蕾娜
+            status: alive
+            visible_edge: 拥有隐身模块原型，探索时不易被发现
+          - rank: 3
+            player_id: peer_chen
+            name: 教授·陈
+            status: alive
+            visible_edge: 前科研人员，拥有信号分析仪的蓝图
+          - rank: 4
+            player_id: peer_viper
+            name: 毒蛇·卡里姆
+            status: alive
+            visible_edge: 初始装备有突击步枪和弹药，战斗经验丰富
+          - rank: 11
+            player_id: player
+            name: 你
+            status: alive
+        rank_season_current: 1
+        rank_season_end_turn: 100
+        prestige_points: 0

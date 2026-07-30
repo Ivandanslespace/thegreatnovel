@@ -264,15 +264,16 @@ def normalize_public_survival(world, collective):
         for item in messages if isinstance(item, dict)
     ] if isinstance(messages, list) else []
     peers = public.get("initial_peers", [])
-    public["initial_peers"] = [
-        {
-            "id": str(item.get("id") or "").strip(),
-            "name": str(item.get("name") or "").strip(),
-            "opening_strategy": str(item.get("opening_strategy") or "").strip(),
-            "visible_edge": str(item.get("visible_edge") or "").strip(),
-        }
-        for item in peers if isinstance(item, dict)
-    ] if isinstance(peers, list) else []
+    normalized_peers = []
+    for item in peers if isinstance(peers, list) else []:
+        if not isinstance(item, dict):
+            continue
+        if not item.get("id") or not item.get("name"):
+            raise GeneratorError("每个 initial_peer 必须有 id 和 name")
+        if not item.get("opening_strategy") or not item.get("visible_edge"):
+            raise GeneratorError(f"peer {item['id']} 必须提供 opening_strategy 和 visible_edge")
+        normalized_peers.append(copy.deepcopy(item))
+    public["initial_peers"] = normalized_peers
     if not all(public[field] for field in ("system_name", "region_name", "opening_announcement")):
         raise GeneratorError("全民求生世界必须给出系统名、区域名和开局公告")
     if not 4 <= len(public["opening_rules"]) <= 6:
@@ -861,7 +862,56 @@ def create_save(args):
                     handle.write(content)
 
         # 新存档从第一天起就初始化 SQLite 事实源；YAML/Markdown 只是可读投影。
-        load_game_state(target).save()
+        game_state = load_game_state(target)
+        game_state.save()
+
+        # Generate and persist peer agents for public survival worlds
+        if world.get("genre_contract", {}).get("collective_transmission"):
+            from engine_runtime.world_compiler import _generate_peer_agents_from_public_survival
+            from engine_runtime.persistence import insert_peer_agent
+            import random
+
+            peers = _generate_peer_agents_from_public_survival(
+                world,
+                world.get("generation_bundle", {}),
+            )
+            
+            # Enhance peers with diverse personality profiles
+            for peer in peers:
+                # Generate diverse personality profile (not all 50s!)
+                peer.personality_traits = {
+                    "caution": round(random.uniform(20, 80), 1),
+                    "ambition": round(random.uniform(20, 80), 1),
+                    "empathy": round(random.uniform(20, 80), 1),
+                    "honesty": round(random.uniform(20, 80), 1),
+                    "openness": round(random.uniform(20, 80), 1),
+                    "collectivism": round(random.uniform(20, 80), 1),
+                }
+                
+                # Assign goal based on traits
+                ambition_level = peer.personality_traits.get("ambition", 50)
+                if ambition_level > 70:
+                    peer.primary_goal = "maximize_resources"
+                elif ambition_level < 30:
+                    peer.primary_goal = "survival"
+                else:
+                    peer.primary_goal = "balanced_growth"
+                
+                # Give some starting inventory
+                peer.inventory_resources = {
+                    "scrap": random.randint(10, 50),
+                    "fuel": random.randint(5, 20),
+                    "food": random.randint(10, 30),
+                }
+                
+                # Occasionally give equipment
+                if random.random() < 0.3:  # 30% chance
+                    equipment_types = ["basic_weapon", "toolkit", "medical_kit", "defense_gear"]
+                    peer.equipment["main_weapon"] = random.choice(equipment_types)
+            
+            for peer in peers:
+                insert_peer_agent(game_state, world["name"], peer)
+            print(f"已生成 {len(peers)} 个 PeerAgent 实体（包含多样人格和资源）")
 
         result = run_validation(str(target))
         if result != 0:

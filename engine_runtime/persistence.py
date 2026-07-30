@@ -561,3 +561,24 @@ class SQLiteEventStore:
         replayed = self.replay(apply_event)
         equal = replayed == snapshot
         return {"ok": equal, "applied_events": applied, "base_turn": base_turn, "snapshot_turn": snapshot.get("meta", {}).get("current_turn"), "difference_paths": _difference_paths(replayed, snapshot)[:20] if not equal else [], "replayed": replayed if not equal else None}
+
+
+def insert_peer_agent(state, campaign_id: str, peer):
+    """Write a peer agent to the entities table."""
+    with state.store.connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO entities (campaign_id, entity_type, entity_id, state_json) VALUES (?, ?, ?, ?)",
+            (campaign_id, "peer_players", peer.id, json.dumps(peer.to_dict(), ensure_ascii=False)),
+        )
+        conn.commit()
+
+
+def load_peer_agents(state, campaign_id: str):
+    """Load all peer agents for a campaign from SQLite."""
+    from engine_runtime.peer_agent import PeerAgent
+    with state.store.connect() as conn:
+        rows = conn.execute(
+            "SELECT state_json FROM entities WHERE campaign_id = ? AND entity_type = 'peer_players'",
+            (campaign_id,),
+        ).fetchall()
+    return [PeerAgent.from_dict(json.loads(row[0])) for row in rows]

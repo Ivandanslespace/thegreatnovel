@@ -1,0 +1,40 @@
+inventory:
+  inventory:
+    inventory:
+      equipment:
+        main_weapon:
+          id: pipe_wrench
+          name: 管钳
+          attack_type: melee
+          attack: 18
+          accuracy: 8
+          durability: 12
+          rarity: G
+        off_hand: null
+        helmet: null
+        chest: null
+        legs: null
+        boots: null
+        accessory_1: null
+        accessory_2: null
+      items:
+      - id: clean_water
+        name: 净水
+        quantity: 5
+        rarity: G
+      - id: canned_food
+        name: 食物罐头
+        quantity: 3
+        rarity: G
+      - id: first_aid_kit
+        name: 急救包
+        quantity: 1
+        rarity: G
+      resources:
+        净水: 3
+        废铁: 2
+        燃料棒: 2
+        食物罐头: 2
+      weight_current: 0
+      weight_max: 50
+      currency: 0

@@ -8,11 +8,12 @@ rival_state:
     name: 幽灵·蕾娜
     opening_strategy: 隐蔽行动，独自探索高价值废墟后迅速撤离
     visible_edge: 拥有隐身模块原型，探索时不易被发现
-  rival_relationships:
-    peer_marcus: unknown
-    peer_lena: unknown
+  last_rival_encounter:
+    status: none_yet
   rival_competitions_active: []
-  rival_score_current: 0
+  rival_relationships:
+    peer_lena: unknown
+    peer_marcus: unknown
+  rival_score_current: 64
   rival_score_target: 0
   rivalry_win_rate: 0.0
-  last_rival_encounter: null

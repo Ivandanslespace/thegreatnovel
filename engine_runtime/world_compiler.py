@@ -317,3 +317,22 @@ def compile_world_bundle(
         "taboo_domains": list(mechanics.get("taboo_domains", [])) if isinstance(mechanics.get("taboo_domains", []), list) else [],
         "genre_contract": deepcopy(genre_contract) if isinstance(genre_contract, Mapping) else {},
     }
+
+
+def _generate_peer_agents_from_public_survival(world_data, world_blueprint):
+    """Build minimal PeerAgent objects from public_survival.initial_peers."""
+    from engine_runtime.peer_agent import PeerAgent
+
+    initial_peers = world_data.get("public_survival", {}).get("initial_peers", [])
+    starting_location = world_blueprint.get("starting_location", "starting_area")
+
+    agents = []
+    for peer_data in initial_peers:
+        agents.append(PeerAgent(
+            id=peer_data["id"],
+            name=peer_data["name"],
+            profession=peer_data.get("profession", "survivor"),
+            level=1,
+            location_id=starting_location,
+        ))
+    return agents
