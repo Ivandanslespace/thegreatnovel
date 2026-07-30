@@ -1533,6 +1533,66 @@ class GameEngine:
         result["selected_option"] = review["option_id"]
         return result
 
+    def generate_candidates(self) -> list[Dict[str, Any]]:
+        """从世界注册表自动生成当前状态下合理的候选行动列表。"""
+        candidates: list[Dict[str, Any]] = []
+        current_location = self._current_location()
+        base_location = self._base_location()
+        world = self.state.data.get("world", {}) if isinstance(self.state.data.get("world", {}), Mapping) else {}
+        action_targets = world.get("action_targets", {}) if isinstance(world.get("action_targets", {}), Mapping) else {}
+        index = 0
+        for target_id, profile in action_targets.items():
+            if not isinstance(profile, Mapping):
+                continue
+            location_id = str(profile.get("location_id", ""))
+            if location_id != current_location:
+                continue
+            constraints = profile.get("constraints", {}) if isinstance(profile.get("constraints", {}), Mapping) else {}
+            availability = constraints.get("availability", {}) if isinstance(constraints.get("availability", {}), Mapping) else {}
+            allowed_periods = availability.get("allowed_periods", [])
+            time_of_day = str(self.state.meta.get("time_of_day", "清晨"))
+            if allowed_periods and time_of_day not in {str(p) for p in allowed_periods}:
+                continue
+            target_type = str(profile.get("action_type", "EXPLORATION"))
+            index += 1
+            candidates.append({
+                "id": chr(64 + index),
+                "label": str(profile.get("label") or profile.get("name") or target_id),
+                "action": {"action_id": f"auto-{target_id}", "type": target_type, "target": target_id, "goal": str(profile.get("goal") or profile.get("label") or f"调查{target_id}")},
+            })
+        if current_location != base_location:
+            index += 1
+            candidates.append({
+                "id": chr(64 + index),
+                "label": "返回基地",
+                "action": {"action_id": "auto-return", "type": "RETURN_TO_BASE"},
+            })
+        if current_location == base_location:
+            index += 1
+            candidates.append({
+                "id": chr(64 + index),
+                "label": "休息恢复",
+                "action": {"action_id": "auto-rest", "type": "REST", "target": base_location},
+            })
+        locations = world.get("locations", []) if isinstance(world.get("locations", []), list) else []
+        for loc in locations:
+            if not isinstance(loc, Mapping):
+                continue
+            loc_id = str(loc.get("id", ""))
+            if loc_id == current_location or not loc_id:
+                continue
+            if loc.get("safe") and loc_id == base_location:
+                continue
+            index += 1
+            candidates.append({
+                "id": chr(64 + index) if index <= 26 else f"X{index}",
+                "label": f"前往{loc.get('name', loc_id)}",
+                "action": {"action_id": f"auto-travel-{loc_id}", "type": "TRAVEL", "target": loc_id},
+            })
+            if index >= 8:
+                break
+        return candidates
+
     def execute_action(self, action: Mapping[str, Any], persist: bool = True, dilution_multiplier: float = 1.0) -> Dict[str, Any]:
         preview = self.preview_action(action, dilution_multiplier=dilution_multiplier)
         if not preview["legal"]:

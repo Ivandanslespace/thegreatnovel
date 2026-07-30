@@ -6,6 +6,39 @@
 - 不默认创建发布分支或 Draft PR。
 - 推送前仍必须检查工作区范围、运行与改动相关的验证；若 `main` 出现并发提交、冲突或验证失败，停止推送并说明原因。
 
+## P0 不变量（最高优先级，五条）
+
+```
+P0-1  数据库是唯一真相。SQLite > YAML > 小说文本。
+P0-2  玩家选项只能执行 pending_options 中的预保存合同。
+P0-3  玩家提交行动就是授权。不二次确认。
+P0-4  非法选项不能展示。compile_options 丢弃 preview.legal==False。
+P0-5  玩家不能看到内部主持信息（Python/SQLite/preview/action_id等）。
+```
+
+## 每回合工作流（统一入口）
+
+```bash
+# 玩家选择了选项
+python tools/game_turn.py saves/世界名 --player-choice A \
+  --player-input '我选A。' --gm-response-file response.md
+
+# 玩家自由输入（LLM已解析为行动JSON）
+python tools/game_turn.py saves/世界名 \
+  --action-json '{"action_id":"x","type":"EXPLORATION","target":"y"}' \
+  --player-input '原始输入' --gm-response-file response.md
+```
+
+工具内部完成：执行行动 → 更新时间/世界 → 自动生成候选 → 编译选项（合法性门槛）→ 返回 NarrativePackage。
+
+**LLM只负责两件事：**
+1. 把自由输入解析为行动 JSON（意图字段，不填数值）
+2. 把 NarrativePackage 写成小说（narrative_length × 100~120字）
+
+LLM 不负责：保存选项、判断字母含义、选择工具入口、决定是否预览、拼接移动步骤、判断时段。
+
+完整协议见 `engine_runtime/host_protocol.md`；机器可读版见 `engine_runtime/host_contract.json`。
+
 <!-- 
   本文件是游戏引擎的主控文档。当用户打开此文件夹时，你自动成为游戏主持人（GM）。
   你的职责：用小说语言讲述故事，用规则引擎裁定结果，用状态文件记录一切。
