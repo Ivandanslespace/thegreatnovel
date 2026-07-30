@@ -460,6 +460,32 @@ class RuntimeIntegrationTests(unittest.TestCase):
                     "parameters": {"allocations": {"luck": 1}},
                 })
 
+    def test_attribute_allocation_is_allowed_before_required_talent_choice(self):
+        player = {
+            "attributes": {"strength": 5, "constitution": 5, "agility": 5, "spirit": 5},
+            "free_points": 2,
+            "fatigue": 0,
+            "mental": 100,
+            "skills": [],
+            "pending_decision": {
+                "type": "TALENT_CHOICE",
+                "options": [{"id": "level_2_field_sense", "name": "野外感知"}],
+                "must_resolve_before_continue": True,
+            },
+        }
+        action = {
+            "action_id": "allocate-before-talent-choice",
+            "type": "ATTRIBUTE_ALLOCATION",
+            "parameters": {"allocations": {"力量": 2}},
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(player=player)))
+            self.assertTrue(engine.preview_host_action(action)["legal"])
+            engine.execute_host_action(action)
+            self.assertEqual(engine.state.player["attributes"]["strength"], 7)
+            self.assertEqual(engine.state.player["free_points"], 0)
+            self.assertEqual(engine.state.player["pending_decision"]["type"], "TALENT_CHOICE")
+
     def test_attribute_allocation_option_is_executable_without_second_confirmation(self):
         player = {
             "attributes": {"strength": 5, "constitution": 5, "agility": 5, "spirit": 5},
@@ -1455,6 +1481,27 @@ class ProfessionSystemTests(unittest.TestCase):
 
 
 class MechanismClosureTests(unittest.TestCase):
+    def test_controller_presents_pending_talent_choices_as_executable_options(self):
+        from tools.turn_controller import resolve
+
+        player = minimal_state()["player"]
+        player["pending_decision"] = {
+            "type": "TALENT_CHOICE",
+            "options": [
+                {"id": "talent_info", "category": "信息类", "name": "听风", "description": "发现远处线索"},
+                {"id": "talent_personal", "category": "个人类", "name": "耐寒", "description": "降低寒冷影响"},
+                {"id": "talent_build", "category": "建设类", "name": "修补", "description": "提高维修稳定性"},
+            ],
+            "must_resolve_before_continue": True,
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(player=player)))
+            package = resolve(engine, "", generate_options_only=True)
+            self.assertEqual(set(package["visible_options"]), {"A", "B", "C"})
+            contracts = engine.state.meta["pending_options"]["options"]
+            self.assertTrue(all(item["action"]["type"] == "TALENT_CHOICE" for item in contracts.values()))
+            self.assertEqual(contracts["A"]["action"]["target"], "talent_info")
+
     def test_controller_uses_wait_when_all_regular_candidates_are_effectless(self):
         from tools.turn_controller import resolve
 

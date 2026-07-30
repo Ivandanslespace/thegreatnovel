@@ -287,6 +287,26 @@ def _area_enemy_level(area: dict) -> int:
 def generate_smart_candidates(engine: GameEngine) -> list[dict]:
     """从世界注册表生成智能候选：正确类型、渐进发现、生成WAIT计划、基地建造。"""
     candidates: list[dict] = []
+    pending_decision = engine.state.player.get("pending_decision", {})
+    if isinstance(pending_decision, dict) and pending_decision.get("type") == "TALENT_CHOICE":
+        # 升级三选一不是叙述建议，而是必须执行的已注册行动。先把它们编译为
+        # 玩家可直接输入 A/B/C 的合同；属性点仍可由玩家的自由输入零时间分配。
+        for option in pending_decision.get("options", []):
+            if not isinstance(option, dict) or not option.get("id"):
+                continue
+            category = str(option.get("category", "天赋"))
+            name = str(option.get("name", option["id"]))
+            candidates.append({
+                "label": f"觉醒{category}天赋：{name}",
+                "description": str(option.get("description", "")),
+                "action": {
+                    "action_id": f"auto-talent-{option['id']}",
+                    "type": "TALENT_CHOICE",
+                    "target": str(option["id"]),
+                },
+            })
+        return candidates
+
     current_location = engine._current_location()
     base_location = engine._base_location()
     world = engine.state.data.get("world", {}) if isinstance(engine.state.data.get("world", {}), dict) else {}

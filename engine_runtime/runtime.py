@@ -284,7 +284,9 @@ class GameEngine:
         if (self.state.meta.get("campaign_status") == "ended" or self.state.player.get("status") == "dead") and action_type not in {"ENDING", "RESTART", "CHECKPOINT", "LEGACY_CREATE"}:
             errors.append("本局已经结束，只允许查看结局、重开、检查点或创建传承角色")
         pending = self.state.player.get("pending_decision")
-        if pending and action_type != "TALENT_CHOICE":
+        # 升级选择会阻止会推进世界的普通行动；属性点分配同样是升级流程
+        # 中的零时间操作，必须允许玩家先分配属性、再选择天赋。
+        if pending and action_type not in {"TALENT_CHOICE", "ATTRIBUTE_ALLOCATION"}:
             errors.append("必须先完成升级三选一")
         errors.extend(self._target_presence_errors(action))
         # 这些社会/经济动作需要世界注册表提供对手、成本和状态效果。协议层

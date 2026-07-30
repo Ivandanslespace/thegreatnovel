@@ -454,10 +454,11 @@ Lv.X → Lv.Y
 ```
 
 属性点分配是一个独立的零时间行动，不应被当作普通探索或社交行动的附带叙述：
-玩家说“力量 +2、精神 +2”时，LLM 必须提交
-`{"type":"ATTRIBUTE_ALLOCATION","parameters":{"allocations":{"strength":2,"spirit":2}}}`，
-再由 Python 校验余额并写入 `ATTRIBUTES_ALLOCATED` 事件。不能直接修改 `player.yaml`，也不能
-在普通行动结算失败时把属性分配当成已完成。
+玩家说“力量 +2、精神 +2”时，LLM 自动补一个仅供审计的 `action_id`，并直接提交最小行动
+`{"action_id":"attribute-allocation-本回合唯一编号","type":"ATTRIBUTE_ALLOCATION","parameters":{"allocations":{"strength":2,"spirit":2}}}`，
+再由 Python 校验余额并写入 `ATTRIBUTES_ALLOCATED` 事件。不能要求玩家填写 JSON、补充
+`strategy` / `goal` / `target`，不能追加确认，也不能直接修改 `player.yaml`。升级天赋三选一
+待处理时，属性分配仍可先执行；普通行动则必须等待玩家从已展示的 A/B/C 天赋合同中选定一项。
 
 ### 空间与基地硬约束
 
