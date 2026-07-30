@@ -1,0 +1,379 @@
+meta:
+  save_name: 锈铁方舟·第一日
+  world_name: 锈铁方舟
+  created_at: '2026-07-30T22:07:27+02:00'
+  current_turn: 11
+  game_day: 2
+  time_of_day: 清晨
+  phase: 新手期
+  difficulty: 标准
+  death_mode: checkpoint
+  narrative_length: 3
+  language: 中文
+  event_format_version: 2
+  created_by: tools/create_save.py
+  rng_seed: 锈铁方舟
+  runtime_metrics:
+    pressure: 29.6875
+    payoff_maturity: 37.5
+    payoff_impact: 10.0
+    payoff_score: 21.63125
+    narrative_debt:
+    - id: 信号塔废墟的共鸣波从何而来？是自然现象还是人为操控？
+      score: 0.0
+    - id: 末日方舟系统的真正目的是什么？为什么选择第七扇区？
+      score: 0.0
+    - id: 共鸣晶体为何在靠近信号塔时会自动发热？
+      score: 0.0
+    - id: 老金似乎知道一些关于系统的事，他为什么不愿说？
+      score: 0.0
+    - id: 排行榜上偶尔出现又消失的玩家'影'是谁？
+      score: 0.0
+    progress: 0.03
+    stagnation_rate: 1.0
+    repetition_fatigue:
+      max: 15.0
+      by_type:
+        PUBLIC_SYSTEM_ADVANCED: 15.0
+        RESEARCH_RESOLVED: 0.0
+        OPTIONS_PRESENTED: 15.0
+        TRAVEL_COMPLETED: 0.0
+        RETURN_TO_BASE_COMPLETED: 0.0
+    agency: 0.14
+    uncertainty: 0.16
+    risk_credibility: 0.0
+    decision_value: 0.0
+    combinability: 0.0
+  checkpoints_used: 0
+  max_checkpoints: 3
+  current_location: camp_core
+  current_location_name: 灰烬号列车
+  current_mode: base
+  in_combat: false
+  available_time_minutes: 720
+  day_elapsed_minutes: 0
+  next_disaster_day: 7
+  active_encounters: []
+  current_encounter_id: null
+  encounter_history: []
+  pending_reaction: {}
+  campaign_status: active
+  narrative_state:
+    pressure_components:
+      survival_threat: 0.0
+      resource_scarcity: 0.0
+      time_pressure: 0.0
+      information_unknown: 100.0
+      interpersonal_conflict: 0.0
+      failure_accumulation: 0.0
+    open_loops: []
+    payoff_history:
+    - turn: 2
+      score: 33.19675
+      event_type: TRAVEL_COMPLETED
+    - turn: 3
+      score: 24.43125
+      event_type: WAIT_COMPLETED
+    - turn: 4
+      score: 32.69675
+      event_type: EXPLORATION_RESOLVED
+    - turn: 5
+      score: 31.94975
+      event_type: TRAVEL_COMPLETED
+    - turn: 6
+      score: 30.958083
+      event_type: RESEARCH_RESOLVED
+    - turn: 7
+      score: 30.708083
+      event_type: RESEARCH_RESOLVED
+    - turn: 8
+      score: 28.458083
+      event_type: RESEARCH_RESOLVED
+    - turn: 9
+      score: 30.64675
+      event_type: TRAVEL_COMPLETED
+    - turn: 10
+      score: 21.88125
+      event_type: RETURN_TO_BASE_COMPLETED
+    - turn: 11
+      score: 21.63125
+      event_type: WAIT_COMPLETED
+    event_pattern_history:
+    - TRAVEL_COMPLETED
+    - WAIT_COMPLETED
+    - EXPLORATION_RESOLVED
+    - TRAVEL_COMPLETED
+    - RESEARCH_RESOLVED
+    - RESEARCH_RESOLVED
+    - RESEARCH_RESOLVED
+    - TRAVEL_COMPLETED
+    - RETURN_TO_BASE_COMPLETED
+    - WAIT_COMPLETED
+    recent_irreversible_changes: []
+    current_arc:
+      last_event_type: WAIT_COMPLETED
+      last_turn: 11
+      location: camp_core
+  pressure_level: 30
+  last_payoff_turn: 0
+  active_mysteries:
+  - 信号塔废墟的共鸣波从何而来？是自然现象还是人为操控？
+  - 末日方舟系统的真正目的是什么？为什么选择第七扇区？
+  - 共鸣晶体为何在靠近信号塔时会自动发热？
+  - 老金似乎知道一些关于系统的事，他为什么不愿说？
+  - 排行榜上偶尔出现又消失的玩家'影'是谁？
+  active_mystery_records:
+  - id: 信号塔废墟的共鸣波从何而来？是自然现象还是人为操控？
+    importance: 1
+    waiting_turns: 10
+    reminder_count: 0
+    visibility: 1
+    progress: 0
+  - id: 末日方舟系统的真正目的是什么？为什么选择第七扇区？
+    importance: 1
+    waiting_turns: 10
+    reminder_count: 0
+    visibility: 1
+    progress: 0
+  - id: 共鸣晶体为何在靠近信号塔时会自动发热？
+    importance: 1
+    waiting_turns: 10
+    reminder_count: 0
+    visibility: 1
+    progress: 0
+  - id: 老金似乎知道一些关于系统的事，他为什么不愿说？
+    importance: 1
+    waiting_turns: 10
+    reminder_count: 0
+    visibility: 1
+    progress: 0
+  - id: 排行榜上偶尔出现又消失的玩家'影'是谁？
+    importance: 1
+    waiting_turns: 10
+    reminder_count: 0
+    visibility: 1
+    progress: 0
+  foreshadowing_active: []
+  total_decisions: 1
+  total_combats: 0
+  total_explorations: 1
+  npcs_met: 0
+  factions_encountered: 0
+  last_played: Day 1 夜晚
+  last_session_turns: 0
+  recap_needed: false
+  social_state:
+    promises: []
+    deceptions: []
+  system_event_history:
+  - type: NPC_AUTONOMOUS_ACTION
+    target: old_jin
+    action: base_maintenance
+    utility_score: 240.0
+    time_of_day: 清晨
+    turn: 2
+  - type: NPC_AUTONOMOUS_ACTION
+    target: old_jin
+    action: resource_search
+    utility_score: 240.0
+    time_of_day: 白天
+    turn: 3
+  - type: NPC_AUTONOMOUS_ACTION
+    target: old_jin
+    action: return_to_base
+    utility_score: 240.0
+    time_of_day: 黄昏
+    turn: 7
+  - type: NPC_AUTONOMOUS_ACTION
+    target: old_jin
+    action: rest
+    utility_score: 240.0
+    time_of_day: 夜晚
+    turn: 8
+  - type: NPC_AUTONOMOUS_ACTION
+    target: old_jin
+    action: base_maintenance
+    utility_score: 240.0
+    time_of_day: 清晨
+    turn: 11
+  pending_options:
+    version: 1
+    state_turn: 11
+    options:
+      B:
+        id: B
+        label: 休息恢复
+        description: ''
+        action:
+          action_id: auto-rest
+          type: REST
+          target: camp_core
+        preview:
+          legal: true
+          errors: []
+          resolution:
+            formula_version: '1.0'
+            action_id: auto-rest
+            advantage_components:
+              ability_match: 10.0
+              equipment_advantage: 0.0
+              preparation: 0.0
+              intelligence: 0.0
+              teammate_assistance: 0.0
+              environment_advantage: 0.0
+            resistance_components:
+              target_difficulty: 0.0
+              environment_penalty: 0.0
+              injury: 0.0
+              fatigue: 10.6
+              time_pressure: 0.0
+              unknown_risk: 0.0
+            advantage: 10.0
+            resistance: 10.6
+            K: 10.0
+            probability: 0.485004
+            random_roll: 0.45991
+            severity: 0.0
+            severity_band: 成功区
+            death_fairness: 0.0
+            outcome: 成功但付出代价
+            death_allowed: false
+            components:
+              severity:
+                difficulty: 0.0
+                injury: 0.0
+                resource_shortage: 0.0
+                information_missing: 0.0
+                time_pressure: 0.0
+                continuous_errors: 0.0
+                preparation: 0.0
+                ability_match: 10.0
+                teammate_support: 0.0
+                survival_assets: 0.0
+              death_fairness_inputs:
+                risk_warning: 1.0
+                causal_chain: 1.0
+                avoidable: 0.0
+                rule_consistency: 1.0
+                player_responsibility: 0.0
+              outcome_thresholds:
+                critical: 0.0388
+                normal: 0.378303
+                costly: 0.485004
+                partial_failure: 0.794002
+                severe_failure: 0.97425
+          target_profile:
+            id: camp_core
+            target_difficulty: 0
+            effects: {}
+          system_constraints:
+            tags:
+            - major_action
+            commitments: []
+            windows: []
+            allowed_periods: []
+            npc_unavailable: false
+          action_ledger:
+            available_time_minutes: 720.0
+            available_stamina: 47.0
+            available_mental: 30.0
+            actions:
+            - type: REST
+              target: camp_core
+              time_minutes: 360.0
+              stamina_cost: 0.0
+              mental_cost: 0.0
+              tags:
+              - major_action
+          skill: null
+        state_turn: 11
+      C:
+        id: C
+        label: 前往锈蚀车站
+        description: ''
+        action:
+          action_id: auto-travel-rust_station
+          type: TRAVEL
+          target: rust_station
+        preview:
+          legal: true
+          errors: []
+          resolution:
+            formula_version: '1.0'
+            action_type: TRAVEL
+            outcome: 普通成功
+            movement_success: true
+            probability: 1.0
+            risk_mode: deterministic_route
+            time_cost: 30.0
+            stamina_cost: 5.0
+            mental_cost: 0.0
+          target_profile:
+            id: rust_station
+            location_id: rust_station
+            action_type: EXPLORATION
+            primary_attribute: agility
+            target_difficulty: 14
+            environment_penalty: 3
+            unknown_risk: 5
+            risk_warning: 0.7
+            causal_chain: 0.85
+            avoidable: 0.8
+            rule_consistency: 1.0
+            player_responsibility: 0.8
+            effects:
+              success:
+                discover_locations:
+                - rust_station
+                resource_changes:
+                  净水: 3
+                knowledge_additions:
+                - rad_scorpion_behavior
+              partial_failure:
+                resource_changes:
+                  净水: 1
+                knowledge_additions:
+                - rad_scorpion_behavior
+            encounter_target_ids:
+            - rad_scorpion
+            requirements:
+              location: rust_station
+            constraints:
+              system_tags:
+              - major_action
+              - requires_full_attention
+              exclusive_group: field_exploration
+              window_ids:
+              - 白天
+              - 黄昏
+              window_capacity: 1
+              commitment_axis: route_commitment
+              commitment_value: rust_station
+              availability:
+                allowed_periods:
+                - 白天
+                - 黄昏
+              reservation:
+                exclusive_group: field_exploration
+                window_id: current_period
+                capacity: 1
+          system_constraints:
+            tags: []
+            commitments: []
+            windows: []
+            allowed_periods: []
+            npc_unavailable: false
+          action_ledger:
+            available_time_minutes: 720.0
+            available_stamina: 47.0
+            available_mental: 30.0
+            actions:
+            - type: TRAVEL
+              target: rust_station
+              time_minutes: 30.0
+              stamina_cost: 5.0
+              mental_cost: 0.0
+              tags: []
+          skill: null
+        state_turn: 11
+  pending_options_state_turn: 11

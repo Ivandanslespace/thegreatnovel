@@ -3,11 +3,11 @@ schema_version: 1
 locale: zh-CN
 branch: main
 nodes_managed: true
-exported_at: "2026-07-30T14:42:58Z"
+exported_at: "2026-07-30T17:53:09Z"
 modules:
     "":
-        dir_name: TheGreatNovel 系统流互动小说引擎
-        title: TheGreatNovel 系统流互动小说引擎
+        dir_name: TheGreatNovel 叙事驱动文字游戏项目根
+        title: TheGreatNovel 叙事驱动文字游戏项目根
         scope:
             - AGENTS.md
             - answers_new_game.yaml
@@ -32,7 +32,6 @@ modules:
         children: []
         depends_on: []
         related_to:
-            - path: engine_runtime/calculation_core
             - path: saves_and_templates
     engine_runtime:
         dir_name: TheGreatNovel 可执行规则引擎
@@ -46,7 +45,8 @@ modules:
             - engine_runtime/presentation_narrative
             - engine_runtime/state_management
         depends_on: []
-        related_to: []
+        related_to:
+            - path: tools
     engine_runtime/calculation_core:
         dir_name: 确定性计算核心与事件投影
         title: 确定性计算核心与事件投影
@@ -58,7 +58,7 @@ modules:
         children: []
         depends_on: []
         related_to:
-            - path: engine
+            - path: engine_runtime/persistence_world
             - path: engine_runtime/state_management
     engine_runtime/persistence_world:
         dir_name: 持久化存储、世界编译与运行时引擎
@@ -71,9 +71,9 @@ modules:
         children: []
         depends_on: []
         related_to:
-            - path: engine_runtime/presentation_narrative
+            - path: engine_runtime/calculation_core
             - path: engine_runtime/state_management
-            - path: tools
+            - path: saves_and_templates
     engine_runtime/presentation_narrative:
         dir_name: 玩家可见结果呈现与叙事存档
         title: 玩家可见结果呈现与叙事存档
@@ -85,8 +85,7 @@ modules:
         children: []
         depends_on: []
         related_to:
-            - path: engine_runtime/persistence_world
-            - path: tools
+            - path: engine_runtime/state_management
     engine_runtime/state_management:
         dir_name: 游戏状态管理与运行时模型
         title: 游戏状态管理与运行时模型
@@ -100,10 +99,10 @@ modules:
         related_to:
             - path: engine_runtime/calculation_core
             - path: engine_runtime/persistence_world
-            - path: tools
+            - path: engine_runtime/presentation_narrative
     saves_and_templates:
-        dir_name: 存档与世界模板定义
-        title: 存档与世界模板定义
+        dir_name: 游戏存档与世界模板定义
+        title: 游戏存档与世界模板定义
         scope:
             - templates/
         source_files: []
@@ -111,17 +110,16 @@ modules:
         depends_on: []
         related_to:
             - path: engine
+            - path: engine_runtime/persistence_world
             - path: tools
     tools:
-        dir_name: 游戏工具集：存档创建、回合控制与校验审计
-        title: 游戏工具集：存档创建、回合控制与校验审计
+        dir_name: TheGreatNovel 引擎命令行工具集
+        title: TheGreatNovel 引擎命令行工具集
         scope:
             - tools/
         source_files: []
         children: []
         depends_on: []
         related_to:
-            - path: engine_runtime/persistence_world
-            - path: engine_runtime/presentation_narrative
-            - path: engine_runtime/state_management
+            - path: engine_runtime
             - path: saves_and_templates

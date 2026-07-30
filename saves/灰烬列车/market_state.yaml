@@ -1,0 +1,7 @@
+market_state:
+  market_enabled: true
+  available_vendors: []
+  market_prices: {}
+  player_inventory_listings: []
+  recent_transactions: []
+  market_trends: {}

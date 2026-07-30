@@ -1,0 +1,47 @@
+comparative_state:
+  player_comparison_baseline:
+    percentile: 99
+    summary: 本回合表现已计入区域排名
+  performance_metrics_history:
+  - turn: 2
+    action_score: 15
+    cumulative_score: 15
+    percentile: 80
+    regional_rank: 201
+  - turn: 3
+    action_score: 15
+    cumulative_score: 30
+    percentile: 99
+    regional_rank: 11
+  - turn: 4
+    action_score: 15
+    cumulative_score: 45
+    percentile: 99
+    regional_rank: 11
+  - turn: 5
+    action_score: 12
+    cumulative_score: 57
+    percentile: 99
+    regional_rank: 11
+  - turn: 6
+    action_score: 3
+    cumulative_score: 60
+    percentile: 99
+    regional_rank: 11
+  - turn: 7
+    action_score: 15
+    cumulative_score: 75
+    percentile: 99
+    regional_rank: 11
+  - turn: 8
+    action_score: -6
+    cumulative_score: 69
+    percentile: 99
+    regional_rank: 11
+  best_performance_by_category: {}
+  comparison_partners:
+  - peer_marcus
+  - peer_lena
+  - peer_chen
+  - peer_viper
+  comparison_last_updated: 8

@@ -1,7 +1,0 @@
-relationships:
-- npc_id: npc_atai
-  trust: 3
-  respect: 1
-  affection: 0
-  fear: 0
-  dependency: 0

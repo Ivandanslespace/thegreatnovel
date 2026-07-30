@@ -1,0 +1,14 @@
+base:
+  name: 废土列车·铁蛇号
+  type: train
+  level: 1
+  durability: 100
+  max_durability: 100
+  defense: 10
+  space_total: 3
+  space_used: 0
+  modules: []
+  special_properties:
+  - 安全基地：废土列车·铁蛇号
+  cohabitants: []
+  defense_log: []

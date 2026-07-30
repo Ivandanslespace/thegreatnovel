@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: ""
+title: TheGreatNovel 叙事驱动文字游戏项目根
+scope:
+    - AGENTS.md
+    - answers_new_game.yaml
+    - turn_response.md
+    - .gitignore
+    - opening_response.md
+    - 分支_小说上瘾机制分析_完整对话.md
+source_files: []
+depends_on: []
+related_to: []
