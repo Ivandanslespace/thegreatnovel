@@ -1,0 +1,90 @@
+# 玩家状态
+player:
+  name: "待定"
+  gender: "男"
+  age: "26"
+  background: "脊营边缘的拾荒者，父母在一次蚀雾大潮中失踪。独自生活在营地外围，靠捡拾别人不要的皮褶残渣为生。"
+
+  # 基础属性
+  level: 2
+  exp: 105
+  exp_to_next: 200
+  attributes:
+    strength: 6
+    constitution: 6
+    agility: 8
+    spirit: 9
+  free_points: 0
+
+  # 生命与状态
+  hp: 60
+  max_hp: 60
+  status_effects: []
+  hunger: 65
+  fatigue: 35
+
+  # 天赋
+  talents:
+    - name: "脉感"
+      type: "信息类"
+      rarity: "紫色"
+      effect: "感知渊驮心跳与情绪。蚀雾潮汐前2h预感；蜕震前1轮警告；大型寄兽50m内心跳提示。可主动「静心感知」获取区域隐藏信息。"
+      obtained_turn: 1
+      active_uses_remaining: 3
+    - name: "雾读"
+      type: "信息类"
+      rarity: "绿色"
+      effect: "被动。读取蚀雾微观流动模式，比常人提前30分钟预判雾潮涨落。探索时雾潮撤离窗口延长。精神9→预判精度极高。"
+      obtained_turn: 9
+
+  # 技能
+  skills:
+    - id: "sk_scavenge"
+      name: "拾荒"
+      level: 1
+      cooldown_remaining: 0
+    - id: "sk_climb"
+      name: "毛丛攀爬"
+      level: 1
+      cooldown_remaining: 0
+
+  # 职业
+  class: null
+  second_class: null
+
+  # 人格
+  personality:
+    caution: 55
+    ambition: 60
+    empathy: 45
+    honesty: 50
+    risk_tolerance: 50
+    collectivism: 35
+
+  # 成就
+  achievements:
+    - id: "ach_first_water"
+      name: "第一滴水"
+      description: "用自己的方法解决了一次生存问题"
+      obtained_turn: 6
+    - id: "ach_enter_beast"
+      name: "入兽"
+      description: "进入了一头活着的巨兽体内并活着出来"
+      obtained_turn: 7
+    - id: "ach_pile_mender"
+      name: "修桩人"
+      description: "用骨泪修复了锚桩裂纹。脊营的命，你接住了。"
+      obtained_turn: 13
+    - id: "ach_quake_stand"
+      name: "震中立"
+      description: "在蜕震中保持站立，以双天赋完成完整观测。所有人都在抱桩，你在听。"
+      obtained_turn: 16
+
+  # 统计
+  stats:
+    kills: 0
+    deaths: 0
+    explorations: 1
+    crafts: 0
+    trades: 0
+    creature_encounters: 1

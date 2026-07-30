@@ -1,0 +1,143 @@
+# NPC状态
+npcs:
+  - id: "npc_001"
+    name: "焦叔"
+    gender: "男"
+    age: "52"
+    role: "脊营锚桩看守人"
+    personality: ["沉默", "务实", "护短"]
+    level: 5
+    combat_power: 45
+
+    status: alive
+    location: "脊营·锚桩塔"
+    current_activity: "检查蜕震后锚桩状态"
+
+    # 日程
+    schedule:
+      dawn: "锚桩塔——检查锚桩和固定索"
+      day: "锚桩塔周边——维护、巡逻、指导新人"
+      dusk: "外围——检查索具和居民固定情况"
+      night: "锚桩塔——守夜（蜕震/雾潮期间通宵）"
+    schedule_exceptions: ["灾难日：全天守锚桩塔", "紧急召集：随时到锚桩塔"]
+    availability_notes: "几乎永远在锚桩塔30米范围内，除非紧急事务"
+
+    goals:
+      short_term: "确认蜕震后锚桩无新损伤"
+      long_term: "守住脊营，让这里的人活下去"
+    fears: ["锚桩断裂", "蚀雾大潮", "主角再一个人冒险"]
+    bottom_line: "不会为了任何人放弃锚桩"
+
+    knowledge: ["蚀雾潮汐精确时间", "锚桩结构", "脊营历史（部分）", "骨泪=旧人修锚桩材料（师父口传）", "锚桩排异机制（主角告知）"]
+    secrets: ["他知道锚桩在被渊驮排出", "他知道骨泪可能能修锚桩但从未见过实物"]
+
+    resources:
+      bone_coin: 120
+      tallow: 40
+      chitin_plate: 15
+
+    attitude_to_player: friendly
+
+    current_plan: "蜕震后全面检查锚桩和外围索具"
+    next_action: "确认骨泪修复处状态，评估是否需要二次加固"
+
+    romance:
+      orientation: "hetero"
+      available: false
+      current_partner: null
+      deal_breakers: []
+
+  - id: "npc_002"
+    name: "阿苔"
+    gender: "女"
+    age: "19"
+    role: "苔田采集工"
+    personality: ["话多", "好奇", "胆小", "善良"]
+    level: 2
+    combat_power: 12
+
+    status: alive
+    location: "脊营·南侧苔田"
+    current_activity: "蜕震后检查苔田损毁情况"
+
+    # 日程
+    schedule:
+      dawn: "自家窝棚——照顾妹妹、准备工具"
+      day: "南侧苔田——采集苔粮（跟随采集队排班）"
+      dusk: "窝棚区——照顾妹妹、整理当日收获"
+      night: "自家窝棚——休息（蜕震/雾潮时固定在索扣旁）"
+    schedule_exceptions: ["采集队南移/北移日：位置随队变动", "恐惧时：可能跑去锚桩塔附近找焦叔"]
+    availability_notes: "白天基本在苔田，黄昏后回窝棚区。夜间不外出。"
+
+    goals:
+      short_term: "确认苔田蜕震损毁程度，补种"
+      long_term: "找到失踪的姐姐"
+    fears: ["寄兽", "被赶出营地", "蜕震"]
+    bottom_line: "不会抛下受伤的人不管"
+
+    knowledge: ["苔田分布", "皮褶浅层路线", "营地八卦", "南面净露收集法", "姐姐有记录数据的习惯"]
+    secrets: ["她姐姐可能没死，而是去了上游营地", "姐姐的笔记/记录可能包含骨泪相关信息"]
+
+    resources:
+      bone_coin: 8
+      moss_grain: 20
+      pure_dew: 5
+
+    attitude_to_player: friendly
+
+    current_plan: "检查苔田，补种被蜕震震落的苔苗"
+    next_action: "如果主角来找，会主动问蜕震时的观测结果"
+
+    romance:
+      orientation: "hetero"
+      available: true
+      current_partner: null
+      deal_breakers: ["暴力倾向", "自私"]
+
+  - id: "npc_003"
+    name: "铆钉"
+    gender: "男"
+    age: "34"
+    role: "拾荒队小头目"
+    personality: ["精明", "贪婪", "讲义气（对小弟）", "欺软怕硬"]
+    level: 4
+    combat_power: 35
+
+    status: alive
+    location: "脊营·外围拾荒区"
+    current_activity: "清点蜕震后拾荒队伤亡和收获"
+
+    # 日程
+    schedule:
+      dawn: "外围营地——分配当日拾荒任务"
+      day: "外围拾荒区/皮褶入口——带队拾荒或监督"
+      dusk: "外围→脊营——回收队伍、清点物资、交易"
+      night: "外围营地——休息（蜕震夜带队巡逻击杀寄兽）"
+    schedule_exceptions: ["蜕震日：全天在外围击杀被震出的寄兽", "交易日：黄昏去公仓区"]
+    availability_notes: "黄昏后经常带队外出检查皮褶入口。夜间在外围，不在锚桩区。"
+
+    goals:
+      short_term: "清点蜕震收获（寄兽尸体=材料），垄断外围产出"
+      long_term: "攒够人手，去上游营地做交易"
+    fears: ["被更大的势力吞并", "蚀雾"]
+    bottom_line: "不杀自己人（但'自己人'的范围很小）"
+
+    knowledge: ["外围资源点分布", "黑市价格", "各营地势力范围（模糊）"]
+    secrets: ["他偷偷藏了一块髓晶没上交"]
+
+    resources:
+      bone_coin: 65
+      tallow: 20
+      chitin_plate: 8
+      marrow_crystal: 1
+
+    attitude_to_player: suspicious
+
+    current_plan: "利用蜕震后的寄兽尸体大赚一笔"
+    next_action: "可能找主角确认脂膏分成协议是否仍有效"
+
+    romance:
+      orientation: "hetero"
+      available: true
+      current_partner: null
+      deal_breakers: []

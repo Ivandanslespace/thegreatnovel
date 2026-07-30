@@ -1,0 +1,95 @@
+world:
+  name: صدع الهاوية
+  theme: صدع الهاوية
+  narrative_style: 冷酷
+  difficulty: 标准
+  narrative_length: 3
+  language: العربية
+  setting:
+    safe_base: 围绕主题建立的移动避难所
+    external_dangers:
+    - 未知生物
+    - 环境灾害
+    - 基础资源枯竭
+    exploration_method: 在安全窗口内离开基地搜索并按时撤回
+    disaster_cycle: 每七天一次大型灾难
+    disaster_type: 大型环境灾难
+  resources:
+    primary:
+    - name: 食物
+      description: ''
+    - name: 工具材料
+      description: ''
+    - name: 核心能源
+      description: ''
+    secondary: []
+    rare: []
+    currency: 交易筹码
+  rules:
+    safe_zone:
+      description: 基地内部受到保护
+      limitation: 基地核心被摧毁后保护失效
+    exploration:
+      frequency: 每天一次
+      return_rule: 找到撤离点才能返回
+      night_modifier: 夜间危险×2
+    death:
+      type: checkpoint
+      inventory_drop_rate: 0.7
+    disaster:
+      cycle_days: 7
+      first_event: 第7天
+      escalation: 每次灾难强度+10%
+    pvp:
+      enabled: true
+      safe_zone_pvp: false
+    progression:
+      player_level: true
+      base_level: true
+      talent_per_level: true
+  generation:
+    mechanics_source: theme_profile
+    theme_profile: generic
+    generated_fields:
+    - setting.safe_base
+    - setting.external_dangers
+    - setting.exploration_method
+    - setting.disaster_cycle
+    - resources.primary
+    - player_talent
+  monsters:
+    day_creatures: []
+    night_creatures: []
+    bosses: []
+    ecology_notes: ''
+  mysteries:
+  - question: 这个世界是谁创造的？
+    status: hidden
+  - question: 全民穿越的真正目的是什么？
+    status: hidden
+  - question: 之前有没有其他批次的人？
+    status: hidden
+  phases:
+  - name: 新手期
+    turns: 1-10
+    focus: 学会基本生存
+    threats: Lv1-3怪物，资源匮乏
+  - name: 成长期
+    turns: 11-30
+    focus: 建立稳定资源链，初步社交
+    threats: Lv3-6怪物，第一次灾难
+  - name: 扩张期
+    turns: 31-60
+    focus: 势力形成，区域扩展
+    threats: Lv6-10，势力冲突
+  - name: 真相期
+    turns: 61-100
+    focus: 世界真相逐渐揭露
+    threats: Lv10+，文明级事件
+player_talent:
+  name: 危险预兆
+  description: 能够感知附近环境中不寻常的变化。
+  type: 信息类
+  trigger: 进入新的未知区域时
+  effect: 获得一条有限的危险提示
+  limitations: 提示不完整，不能替代侦察和规则结算

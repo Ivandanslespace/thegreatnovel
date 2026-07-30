@@ -1,0 +1,88 @@
+# 关系网络
+relationships:
+  - npc_id: "npc_001"
+    trust: 40
+    respect: 35
+    affection: 20
+    attraction: 0
+    intimacy: 15
+    dependency: 10
+    resentment: 0
+    fear: 0
+
+    status: friend
+    romantic_status: none
+
+    key_events:
+      - turn: 2
+        event: "主角帮焦叔扶索检查锚桩，用脉感发现第三索扣下方微裂纹"
+        impact: "信任+10，尊重+5。焦叔邀请主角午餐。"
+      - turn: 5
+        event: "主角告知焦叔裂纹真相=生物排异。焦叔确认信任，交付通行牌+脂膏+月度监测委托。分享锚桩'旧人'来历。"
+        impact: "信任+15，尊重+10，依赖+5。关系质变：从帮忙的散人→锚桩监测者。"
+      - turn: 8
+        event: "主角深夜带伤来锚桩塔，分享免疫腔/髓晶发现。焦叔处理伤口、给食物、提供住所。透露'骨泪'=旧人修锚桩材料。"
+        impact: "信任+5，亲密+5。关系升级为friend。焦叔展现保护者角色。"
+    debts:
+      player_owes: ["焦叔的照顾（食物+住所+伤口处理）"]
+      npc_owes: ["主角发现了锚桩裂纹", "主角告知排异真相", "主角发现骨泪/免疫腔机制"]
+    shared_secrets: ["锚桩裂纹=渊驮生物排异", "锚桩是'旧人'所建", "免疫腔/髓晶/骨泪机制"]
+    npc_secrets_known: ["锚桩劣化（焦叔原以为是磨损）"]
+    player_secrets_known: []
+
+  - npc_id: "npc_002"
+    trust: 35
+    respect: 10
+    affection: 35
+    attraction: 0
+    intimacy: 15
+    dependency: 0
+    resentment: 0
+    fear: 0
+
+    status: acquaintance
+    romantic_status: none
+
+    key_events:
+      - turn: 0
+        event: "阿苔曾分给主角一块苔粮饼，没要骨币"
+        impact: "好感+10"
+      - turn: 4
+        event: "阿苔分享净露收集知识（南面毛尖）和南侧热洞信息，又给了一块苔粮饼"
+        impact: "好感+5，信任+5，亲密+5"
+      - turn: 9
+        event: "阿苔交出姐姐蓝的三卷笔记，透露姐姐8个月前去了上游（北）未归。分享骨泪时效性关键信息。"
+        impact: "信任+5，亲密+5。阿苔将姐姐的遗物托付给主角。"
+    debts:
+      player_owes: ["两块苔粮饼的人情", "阿苔托付姐姐笔记的信任"]
+      npc_owes: []
+    shared_secrets: ["南侧热洞", "骨泪采集法（笔记）", "阿苔姐姐蓝去了北面"]
+    npc_secrets_known: []
+    player_secrets_known: []
+
+  - npc_id: "npc_003"
+    trust: 10
+    respect: 5
+    affection: 0
+    attraction: 0
+    intimacy: 0
+    dependency: 0
+    resentment: 5
+    fear: 10
+
+    status: acquaintance
+    romantic_status: none
+
+    key_events:
+      - turn: 0
+        event: "铆钉曾要求主角加入拾荒队被拒，不太高兴"
+        impact: "怨恨+10"
+      - turn: 14
+        event: "主角主动找铆钉，给出半真半假的解释（热洞脂膏）。铆钉给了一把骨刀，换取脂膏分成。告知外围松索隐患。"
+        impact: "信任+5，怨恨-5。建立初步交易关系。"
+    debts:
+      player_owes: ["下次热洞脂膏分铆钉一罐"]
+      npc_owes: []
+    shared_secrets: ["南侧热洞有纯脂膏（半真）"]
+    npc_secrets_known: []
+    player_secrets_known: []

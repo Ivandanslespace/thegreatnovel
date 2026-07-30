@@ -1,0 +1,102 @@
+# 背包与装备
+inventory:
+  # 装备栏
+  equipment:
+    main_weapon:
+      id: "wpn_bone_knife"
+      name: "骨削刀"
+      category: weapon
+      rarity: white
+      durability: 30
+      max_durability: 30
+      properties: ["攻击力+3", "对甲壳类+1"]
+      description: "用渊驮碎骨磨制的短刀。从③号热洞底回收。"
+    off_hand: null
+    helmet: null
+    chest:
+      id: "arm_fur_vest"
+      name: "毛纤维背心"
+      category: armor
+      rarity: white
+      durability: 20
+      max_durability: 20
+      properties: ["防御+2", "轻微保暖"]
+      description: "兽毛编织的粗糙背心，聊胜于无。"
+    legs: null
+    boots: null
+    accessory_1:
+      id: "acc_anchor_pass"
+      name: "锚桩区通行牌"
+      category: key
+      rarity: green
+      durability: null
+      properties: ["自由出入锚桩核心区", "焦叔信任凭证"]
+      description: "打磨甲板制成的通行证，穿着毛纤维绳。焦叔亲手递的。"
+    accessory_2: null
+
+  # 背包物品
+  items:
+    - id: "item_rope_fiber"
+      name: "毛纤维绳（5米）"
+      category: material
+      rarity: white
+      quantity: 1
+      durability: null
+      properties: []
+      description: "兽毛搓成的绳索。"
+    - id: "wpn_rivet_knife"
+      name: "铆钉的骨刀"
+      category: weapon
+      rarity: green
+      quantity: 1
+      durability: 45
+      max_durability: 45
+      properties: ["攻击力+5", "对甲壳类+2", "柄缠纤维防滑"]
+      description: "铆钉给的。比你的骨削刀好三倍。刃口薄，柄防滑。"
+    - id: "item_rag_bundle"
+      name: "破布捆"
+      category: material
+      rarity: white
+      quantity: 1
+      durability: null
+      properties: []
+      description: "最后一块破布。"
+    - id: "item_tallow_jar_full"
+      name: "脂膏罐（满）"
+      category: consumable
+      rarity: white
+      quantity: 1
+      durability: null
+      properties: ["照明8小时", "可引火"]
+      description: "焦叔给的满罐脂膏。"
+    - id: "item_dew_jar"
+      name: "净露罐"
+      category: consumable
+      rarity: white
+      quantity: 1
+      durability: null
+      properties: ["饮用水，约3单位"]
+      description: "从南面毛尖收集的净露。"
+    - id: "item_marrow_shard"
+      name: "髓晶碎片"
+      category: special
+      rarity: blue
+      quantity: 1
+      durability: null
+      properties: ["蕴含浓缩生命能量", "升级/高级制造材料"]
+      description: "比米粒小的淡金色晶体碎片。从渊驮免疫修复腔壁上粘下来的。"
+
+  # 资源
+  resources:
+    tallow: 6
+    moss_grain: 5
+    pure_dew: 5
+    chitin_plate: 1
+    bone_coin: 4
+
+  # 负重
+  weight_current: 10
+  weight_max: 50
+
+  # 货币
+  currency: 4

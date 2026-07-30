@@ -1,0 +1,54 @@
+meta:
+  save_name: صدع الهاوية·第一日
+  world_name: صدع الهاوية
+  created_at: '2026-07-30T13:06:49+02:00'
+  current_turn: 3
+  game_day: 1
+  time_of_day: 清晨
+  phase: 新手期
+  difficulty: 标准
+  death_mode: checkpoint
+  narrative_length: 3
+  language: العربية
+  event_format_version: 2
+  created_by: tools/create_save.py
+  rng_seed: صدع الهاوية
+  runtime_metrics:
+    pressure: 0.0
+    payoff_maturity: 0.0
+    payoff_impact: 0.0
+    payoff_score: 15.0
+    narrative_debt: []
+    progress: 0.0
+    stagnation_rate: 1.0
+    repetition_fatigue:
+      max: 30.0
+      by_type:
+        WORLD_CREATED: 0.0
+        ACTION_RESOLVED: 30.0
+    agency: 0.0
+    uncertainty: 0.0
+    risk_credibility: 0.0
+    decision_value: 0.0
+    combinability: 0.0
+  checkpoints_used: 0
+  max_checkpoints: 3
+  current_location: 围绕主题建立的移动避难所
+  current_mode: base
+  in_combat: false
+  pressure_level: 30
+  last_payoff_turn: 0
+  active_mysteries:
+  - 这个世界是谁创造的？
+  - 全民穿越的真正目的是什么？
+  - 之前有没有其他批次的人？
+  foreshadowing_active: []
+  total_decisions: 0
+  total_combats: 0
+  total_explorations: 0
+  npcs_met: 0
+  factions_encountered: 0
+  last_played: '2026-07-30T13:15:19+02:00'
+  last_session_turns: 0
+  recap_needed: false
+  available_time_minutes: 0

@@ -1,0 +1,18 @@
+inventory:
+  equipment:
+    main_weapon: null
+    off_hand: null
+    helmet: null
+    chest: null
+    legs: null
+    boots: null
+    accessory_1: null
+    accessory_2: null
+  items: []
+  resources:
+    食物: 0
+    工具材料: 0
+    核心能源: 0
+  weight_current: 0
+  weight_max: 50
+  currency: 0

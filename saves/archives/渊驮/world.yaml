@@ -1,0 +1,138 @@
+# 世界定义 — 渊驮
+# 创建后不变（除非玩家主动修改世界规则）
+
+world:
+  name: "渊驮"
+  theme: "一头名为「渊驮」的 colossal 巨兽在无尽的蚀雾之海中永恒漫游。人类文明寄生于它的脊背，在钙化的椎骨嵴之间建立营地。雾海之下是死亡，脊背之上是生存。"
+  narrative_style: "史诗"
+  difficulty: "标准"
+
+  # 核心设定
+  setting:
+    safe_base: "脊营 — 建在渊驮第三椎骨嵴与第四椎骨嵴之间的凹陷处，以钙化骨板为墙，兽毛纤维为顶。核心是一根插入椎骨的「锚桩」，固定整个营地不被甩落。"
+    external_dangers:
+      - "蚀雾潮汐：渊驮呼吸时，雾海随之涨落。深呼吸时雾气漫上脊背边缘，腐蚀一切有机物。"
+      - "寄兽：寄生在渊驮皮下的甲壳生物，定期从毛囊和伤口中钻出。小型如犬，大型如车。"
+      - "孢子风暴：渊驮穿越菌林带时，背部苔藓和真菌同时释放孢子，吸入即感染。"
+      - "其他寄生文明：不止一个人类群体住在渊驮背上。有些并不友善。"
+    exploration_method: "沿兽毛森林向下攀降，进入皮褶沟壑、毛囊洞穴、旧伤口矿脉和寄生虫隧道采集资源。每次探索受蚀雾潮汐窗口限制。"
+    disaster_cycle: "每五天一次「蜕震」— 渊驮剧烈抖动身体甩落寄生虫。未固定的一切都会被抛飞。"
+    disaster_type: "蜕震（物理震荡+寄兽潮涌出）"
+
+  # 资源体系
+  resources:
+    primary:
+      - name: "脂膏"
+        description: "渊驮皮下脂肪层渗出的油脂，主要燃料和照明来源。"
+      - name: "苔粮"
+        description: "生长在兽毛根部的可食用苔藓，主食来源。"
+      - name: "净露"
+        description: "脊背高处凝结的纯净水珠，唯一安全饮用水。"
+      - name: "甲板"
+        description: "渊驮蜕下的角质鳞片，建筑和装备制造材料。"
+    secondary:
+      - name: "毛纤维"
+        description: "兽毛的韧性纤维，绳索和织物原料。"
+      - name: "骨粉"
+        description: "钙化骨板研磨的粉末，用于强化和修补。"
+      - name: "虫血"
+        description: "寄兽体液，有毒但可提炼为药剂和腐蚀剂。"
+    rare:
+      - name: "髓晶"
+        description: "渊驮深层伤口中凝结的晶体，蕴含生命能量。升级和高级制造必需品。"
+      - name: "雾核"
+        description: "蚀雾中偶尔凝结的固态核心，极度危险但能量密度极高。"
+    currency: "骨币（打磨成圆片的渊驮骨片，各营地通用）"
+
+  # 世界规则
+  rules:
+    safe_zone:
+      description: "锚桩半径30米内为安全区，寄兽不会主动靠近（锚桩散发渊驮本体气息）"
+      limitation: "蜕震时安全区保护减半；锚桩被破坏则完全失效"
+    exploration:
+      frequency: "每天一次（蚀雾退潮窗口约6小时）"
+      return_rule: "必须在雾潮回升前回到锚桩范围，否则被蚀雾吞噬"
+      night_modifier: "夜间寄兽活跃度×2，探索危险×2"
+    death:
+      type: "checkpoint"
+      inventory_drop_rate: 0.7
+    disaster:
+      cycle_days: 5
+      first_event: "第4天（因渊驮衰弱提前一天，正常周期应为第5天）"
+      escalation: "每次蜕震强度+10%，寄兽等级+1"
+    pvp:
+      enabled: true
+      safe_zone_pvp: false
+    progression:
+      player_level: true
+      base_level: true
+      talent_per_level: true
+
+  # 怪物生态
+  monsters:
+    day_creatures:
+      - name: "皮螨"
+        level_range: "1-2"
+        description: "犬大小的甲壳寄生虫，群居，从毛囊中钻出。单体弱，群体致命。"
+      - name: "褶蝎"
+        level_range: "2-4"
+        description: "藏在皮褶沟壑中的伏击者，尾刺含麻痹毒素。"
+      - name: "毛虱巨种"
+        level_range: "3-5"
+        description: "人形大小的巨型虱虫，以兽毛纤维筑巢，领地意识强。"
+    night_creatures:
+      - name: "雾触手"
+        level_range: "4-7"
+        description: "蚀雾中伸出的半透明触须，在雾潮边缘游弋，拖拽猎物入雾。"
+      - name: "脊影"
+        level_range: "5-8"
+        description: "只在夜间出现的黑色轮廓，沿椎骨嵴无声滑行。目击者多已死亡。"
+    bosses:
+      - name: "母螨"
+        level: 8
+        description: "皮螨巢穴深处的巨型母体，不断产卵。摧毁它是清除一片区域寄兽的唯一方法。"
+      - name: "旧伤守卫"
+        level: 12
+        description: "在渊驮古老伤口中结晶化的寄生体，与髓晶共生。极其强大。"
+    ecology_notes: "寄兽以渊驮体液为食，人类以寄兽和渊驮产出为食。渊驮似乎对背上的寄生者（包括人类）无感——或者说，尚未注意到。"
+
+  # 长期悬念
+  mysteries:
+    - question: "渊驮要去哪里？它有没有目的地？"
+      status: hidden
+    - question: "蚀雾之海下面是什么？有没有其他巨兽？"
+      status: hidden
+    - question: "人类是怎么来到渊驮背上的？是自然迁徙还是被放置？"
+      status: hidden
+    - question: "渊驮背上的「旧文明遗迹」是谁留下的？他们去了哪里？"
+      status: hidden
+    - question: "渊驮是否知道背上有人？它为什么容忍？"
+      status: hidden
+
+  # 阶段规划
+  phases:
+    - name: "新手期"
+      turns: "1-10"
+      focus: "学会在脊营生存，掌握蚀雾潮汐规律，第一次探索皮褶"
+      threats: "Lv1-3皮螨，资源匮乏，第一次蜕震"
+    - name: "成长期"
+      turns: "11-30"
+      focus: "建立稳定采集路线，接触其他幸存者，基地初步升级"
+      threats: "Lv3-6褶蝎和毛虱，第二次蜕震，资源竞争"
+    - name: "扩张期"
+      turns: "31-60"
+      focus: "发现其他营地，势力格局形成，深入旧伤口矿脉"
+      threats: "Lv6-10，势力冲突，母螨巢穴，孢子风暴季"
+    - name: "真相期"
+      turns: "61-100"
+      focus: "旧文明遗迹揭示世界真相，渊驮行为开始异常"
+      threats: "Lv10+，文明级事件，蚀雾之海的秘密"
+
+# 主角天赋
+player_talent:
+  name: "脉感"
+  description: "能感知渊驮的心跳节律和情绪波动。当巨兽不安时，你比任何人都早察觉危险。"
+  type: "信息类"
+  trigger: "被动常驻，无需主动触发"
+  effect: "每次蚀雾潮汐前2小时获得预感；蜕震前1轮获得警告；大型寄兽靠近50米内时心跳加速提示。探索时可选择「静心感知」获取当前区域隐藏信息。"
+  limitations: "信息模糊（只有感觉，没有画面）；连续使用3次后需要休息1轮（头痛）；无法感知人类敌人的意图。"

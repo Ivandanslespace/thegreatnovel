@@ -1,0 +1,53 @@
+# 存档元数据
+meta:
+  save_name: "渊驮·第一日"
+  world_name: "渊驮"
+  created_at: "2026-07-29T10:00:00+02:00"
+
+  # 游戏进度
+  current_turn: 16
+  game_day: 4
+  time_of_day: "清晨（蜕震后）"
+  phase: "新手期"
+
+  # 难度
+  difficulty: "标准"
+  death_mode: "checkpoint"
+  narrative_length: 7
+  language: "中文"
+  checkpoints_used: 0
+  max_checkpoints: 3
+
+  # 当前状态
+  current_location: "脊营·锚桩塔外围"
+  current_mode: "exploration"
+  in_combat: false
+
+  # 叙事状态
+  pressure_level: 45
+  last_payoff_turn: 13
+  active_mysteries:
+    - "父母在蚀雾大潮中失踪的真相"
+    - "渊驮在衰弱（雾潮降一成+体温下降+蜕震提前）——它还能走多久？"
+    - "旧人是谁？预知热洞+打锚桩+可能实现生物相容——然后去了哪里？"
+    - "阿苔姐姐蓝去了北面找第二根锚桩，8个月未归"
+    - "①号热洞Day5重开——上方旧人刻痕可能是验证假设的关键"
+  foreshadowing_active:
+    - "①号明天重开（比预期早一天）"
+    - "阿苔姐姐的下落（上游/北）"
+    - "旧人工程刻痕（①号+400m两处）"
+    - "铆钉藏有一块髓晶"
+    - "渊驮'感知'主角（贴合时心跳松弛）"
+
+  # 统计
+  total_decisions: 14
+  total_combats: 0
+  total_explorations: 1
+  npcs_met: 6
+  factions_encountered: 1
+  creature_encounters: 1
+
+  # 上次游玩
+  last_played: "2026-07-30T10:00:00+02:00"
+  last_session_turns: 16
+  recap_needed: false

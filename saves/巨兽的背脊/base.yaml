@@ -1,0 +1,14 @@
+base:
+  name: 巨兽背部的移动营地
+  type: beast
+  level: 1
+  durability: 100
+  max_durability: 100
+  defense: 10
+  space_total: 3
+  space_used: 0
+  modules: []
+  special_properties:
+  - 安全基地：巨兽背部的移动营地
+  cohabitants: []
+  defense_log: []

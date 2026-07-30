@@ -1,0 +1,100 @@
+# 延迟事件队列
+event_queue:
+  - id: "event_001"
+    description: "第一次蜕震"
+    type: scheduled
+
+    trigger_conditions:
+      - "game_day_equals_4（因渊驮衰弱提前一天）"
+
+    earliest_turn: 8
+    latest_turn: 15
+
+    consequences:
+      immediate: "渊驮剧烈抖动，未固定物品抛飞，皮褶中寄兽涌出"
+      resource_change: {}
+      relationship_change: {}
+      new_events: []
+
+    status: triggered
+    triggered_turn: 15
+
+    narrative_function: "新手期高潮，迫使玩家理解固定和准备的重要性"
+    alternative_carriers: []
+
+  - id: "event_002"
+    description: "锚桩微裂纹暴露"
+    type: delayed
+
+    trigger_conditions:
+      - "player_near_anchor_pile"
+
+    earliest_turn: 2
+    latest_turn: 20
+
+    consequences:
+      immediate: "锚桩出现可见裂纹，焦叔紧急召集人手"
+      resource_change: {}
+      relationship_change:
+        npc_001: "trust+10（玩家帮忙）"
+      new_events: []
+
+    status: triggered
+    triggered_turn: 2
+
+    narrative_function: "引入基地升级线和焦叔信任线"
+    alternative_carriers: []
+    resolution: "Turn 12骨泪修复完成，成就「修桩人」"
+
+  - id: "event_003"
+    description: "阿苔发现异常虫洞"
+    type: delayed
+
+    trigger_conditions:
+      - "turn_greater_than_6"
+      - "player_interacts_npc_002"
+
+    earliest_turn: 7
+    latest_turn: 12
+
+    consequences:
+      immediate: "阿苔在苔田边缘发现一个不寻常的大型虫洞，里面传出温热气流"
+      resource_change: {}
+      relationship_change: {}
+      new_events: []
+
+    status: expired
+    triggered_turn: null
+
+    narrative_function: "引导玩家进入第一次深层探索"
+    alternative_carriers: ["玩家通过蓝的笔记自主发现了热洞，替代触发"]
+    expiry_note: "玩家通过笔记自主发现③号热洞（Turn 8），无需阿苔引导"
+
+  - id: "event_004"
+    description: "①号热洞重开"
+    type: opportunity
+
+    trigger_conditions:
+      - "game_day_equals_5"
+
+    earliest_turn: 17
+    latest_turn: 22
+
+    opportunity_window:
+      available_from: "day_5_dawn"
+      expires_at: "day_6_dusk"
+      competing_with: []
+      consequence_if_missed: "①号免疫活动平复后再次封闭，需等下个周期"
+      recurrence: delayed
+
+    consequences:
+      immediate: "①号热洞重新开放，内部免疫活动剧烈，可采集髓晶但风险极高"
+      resource_change: {}
+      relationship_change: {}
+      new_events: []
+
+    status: pending
+    triggered_turn: null
+
+    narrative_function: "第二次深层探索机会，离锚桩仅80m"
+    alternative_carriers: []
