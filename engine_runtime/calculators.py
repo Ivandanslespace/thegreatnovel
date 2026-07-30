@@ -832,7 +832,7 @@ def calculate_consequence_radius(
     profession_id: str,
     action_resolution: Mapping[str, Any],
     region_info: Mapping[str, Any]
-) -> Dict[str, float]:
+) -> float:
     """计算职业行动的后果半径 (consequence radius)。
     
     Args:
@@ -1086,7 +1086,7 @@ def calculate_consequence_radius(
         region_info: 地区信息，包含 phase 和 region_size
     
     Returns:
-        包含后果半径、类型和影响人口的字典
+        0 到 1 之间的后果半径。
     """
     # 按职业稀有度/影响力的基础半径
     base_radii = {
@@ -1101,13 +1101,16 @@ def calculate_consequence_radius(
     # 计算行动影响规模
     action_impact_scale = 0.0
     if isinstance(action_resolution, Mapping):
-        outcome = str(action_resolution.get("outcome", ""))
-        if outcome in ["大成功", "普通成功"]:
-            action_impact_scale = 0.8
-        elif outcome in ["成功但付出代价"]:
-            action_impact_scale = 0.5
+        if action_resolution.get("impact_score") is not None:
+            action_impact_scale = clamp(number(action_resolution.get("impact_score")), 0.0, 1.0)
         else:
-            action_impact_scale = 0.2
+            outcome = str(action_resolution.get("outcome", ""))
+            if outcome in ["大成功", "普通成功"]:
+                action_impact_scale = 0.8
+            elif outcome in ["成功但付出代价"]:
+                action_impact_scale = 0.5
+            else:
+                action_impact_scale = 0.2
     
     # 地区阶段乘数（中期危机时影响更高）
     phase_multiplier = 1.0
@@ -1124,8 +1127,4 @@ def calculate_consequence_radius(
     final_radius = base_radius * (0.5 + action_impact_scale * 0.5) * phase_multiplier
     final_radius = max(0.0, min(1.0, final_radius))  # Clamp to 0-1
     
-    return {
-        "radius": round(final_radius, 2),
-        "type": "regional" if final_radius > 0.5 else "local" if final_radius > 0.2 else "personal",
-        "estimated_affected_population": int(region_info.get("region_size", 1000) * final_radius),
-    }
+    return round(final_radius, 2)

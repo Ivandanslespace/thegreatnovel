@@ -1,101 +1,82 @@
 #!/usr/bin/env python3
-"""完整测试 professions 集成功能 - 包括创建存档和检查 NPC 职业分配"""
+"""职业系统端到端测试：创建存档后，职业必须进入世界与初始 NPC。"""
 
+from __future__ import annotations
+
+import argparse
 import sys
-import shutil
+import tempfile
+from copy import deepcopy
 from pathlib import Path
 
-# 添加路径
+import yaml
+
+
 PROJECT_DIR = Path(__file__).parent.parent
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
-def test_professions_in_npc():
-    """测试创建存档时 starter NPC 是否正确分配了职业"""
-    
+
+def test_professions_in_npc() -> bool:
+    """创建隔离存档，检查职业注册和 NPC 分配两个投影出口。"""
+    from engine_runtime.world_compiler import PROFESSION_REGISTRY
     from tools.create_save import create_save
-    import argparse
-    
-    # 准备测试答案
-    answers_yaml = PROJECT_DIR / "tests" / "test_answers.yaml"
-    
-    # 创建测试用的 answers.yaml
-    answers_content = """
-theme: 废土列车
-difficulty: 标准
-language: 中文
-narrative_length: 7
-world_name: ProfessionsTestWorld
-"""
-    
-    with open(answers_yaml, "w", encoding="utf-8", newline="\n") as f:
-        f.write(answers_content)
-    
-    try:
-        # 创建临时保存目录
-        temp_save_root = PROJECT_DIR / "saves" / "temp_test"
-        if temp_save_root.exists():
-            shutil.rmtree(temp_save_root)
-        temp_save_root.mkdir(parents=True, exist_ok=True)
-        
-        # 创建存档
-        args = argparse.Namespace(
+
+    with tempfile.TemporaryDirectory(prefix="great_novel_professions_") as temp_dir:
+        temp_root = Path(temp_dir)
+        answers_yaml = temp_root / "answers.yaml"
+        answers = {
+            "world": {
+                "name": "ProfessionsTestWorld",
+                "theme": "废土列车",
+                "difficulty": "标准",
+                "narrative_length": 7,
+                "language": "中文",
+                "professions": {"mechanic": deepcopy(PROFESSION_REGISTRY["mechanic"])},
+            }
+        }
+        answers_yaml.write_text(yaml.safe_dump(answers, allow_unicode=True, sort_keys=False), encoding="utf-8")
+        result_path = create_save(argparse.Namespace(
             answers=str(answers_yaml),
             interactive=False,
             world_name=None,
-            save_root=str(temp_save_root),
-        )
-        
-        result_path = create_save(args)
-        print(f"\n✅ 存档已创建：{result_path}")
-        
-        # 读取 npcs.yaml 检查 NPC 是否有 profession
-        npc_file = result_path / "npcs.yaml"
-        if npc_file.exists():
-            import yaml
-            with open(npc_file, "r", encoding="utf-8") as f:
-                npc_data = yaml.safe_load(f)
-            
-            npcs = npc_data.get("npcs", [])
-            if npcs:
-                first_npc = npcs[0]
-                if "profession" in first_npc:
-                    print(f"\n✅ Starter NPC 已分配职业：{first_npc['profession']}")
-                    print(f"   NPC 信息：{first_npc.get('name', '未知')}")
-                    return True
-                else:
-                    print("\n⚠️  Starter NPC 未分配职业（可能是编译器尚未支持 professions）")
-                    print(f"   NPC 信息：{first_npc}")
-                    return False
-            else:
-                print("\n⚠️  存档中没有找到 starting NPCs")
-                return False
-        else:
-            print(f"\n❌ 未能读取 npcs.yaml 文件：{npc_file}")
+            save_root=str(temp_root / "saves"),
+        ))
+
+        world_data = yaml.safe_load((result_path / "world.yaml").read_text(encoding="utf-8")) or {}
+        professions = world_data.get("world", {}).get("professions", {})
+        if "mechanic" not in professions:
+            print("职业未写入 world.yaml")
             return False
-            
-    finally:
-        # 清理测试文件
-        if answers_yaml.exists():
-            answers_yaml.unlink()
-        
-        # 尝试删除 temp_save_root（如果正在使用则跳过）
-        try:
-            if temp_save_root.exists():
-                shutil.rmtree(temp_save_root)
-        except PermissionError:
-            print("\n⚠️  警告：无法删除临时存档（SQLite 文件可能被占用，手动清理）")
+
+        npc_data = yaml.safe_load((result_path / "npcs.yaml").read_text(encoding="utf-8")) or {}
+        npcs = npc_data.get("npcs", [])
+        if not npcs or not npcs[0].get("profession"):
+            print("初始 NPC 未获得职业")
+            return False
+        from engine_runtime.state import load_game_state
+        state = load_game_state(result_path)
+        auxiliary_keys = {
+            "region_state", "population_state", "public_system_state", "market_state",
+            "ranking_state", "comparative_state", "rival_state",
+        }
+        if not auxiliary_keys.issubset(state.data):
+            print("公共系统状态没有进入运行时快照")
+            return False
+        state.save()
+        snapshot = state.store.latest_snapshot() or {}
+        if not auxiliary_keys.issubset(snapshot):
+            print("公共系统状态没有进入 SQLite 快照")
+            return False
+        print(f"职业已注册；初始 NPC 职业：{npcs[0]['profession']}")
+        return True
+
 
 if __name__ == "__main__":
     try:
-        success = test_professions_in_npc()
-        if success:
-            print("\n✅ 完整集成测试通过！")
-        else:
-            print("\n⚠️  部分测试通过（compiler 可能尚未完全支持 professions）")
-        sys.exit(0 if success else 0)  # 即使未分配职业也不算失败
-    except Exception as e:
-        print(f"\n❌ 测试失败：{e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+        if not test_professions_in_npc():
+            sys.exit(1)
+        print("完整职业集成测试通过。")
+    except Exception as exc:
+        print(f"职业集成测试失败：{exc}")
+        raise

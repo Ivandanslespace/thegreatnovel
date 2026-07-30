@@ -702,11 +702,13 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
     if talent_was_incomplete:
         auto_generated_fields.append("player_talent")
 
-    # 从模板读取 professions（职业系统支持）
-    world_config = template.get("world", {})
-    
-    # 将 professions 传递给 compiler
-    profession_source = template.get("world", {}).get("professions", {})
+    # 高级世界包可以显式启用或关闭职业；显式空表同样是有效选择，不能被
+    # 模板中的职业表重新覆盖。
+    profession_source = (
+        world["professions"]
+        if "professions" in world
+        else template.get("world", {}).get("professions", {})
+    )
     
     # 获取玩家选择的类型合同
     genre_contract_choice = world.get("genre_contract", "1")  # 默认选项 1
@@ -731,7 +733,7 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
         )
         auto_generated_fields.append("generation_bundle")
     world["generation_bundle"] = bundle
-    for registry_name in ("locations", "targets", "combat_targets", "enemy_definitions", "encounter_entities", "areas", "farm_areas", "build_catalog", "modules", "recipes", "disasters", "action_targets", "starting_inventory", "starting_npcs", "starting_factions", "starting_relationships"):
+    for registry_name in ("locations", "targets", "combat_targets", "enemy_definitions", "encounter_entities", "areas", "farm_areas", "build_catalog", "modules", "recipes", "disasters", "action_targets", "professions", "starting_inventory", "starting_npcs", "starting_factions", "starting_relationships"):
         if not world.get(registry_name) and bundle.get(registry_name) is not None:
             world[registry_name] = copy.deepcopy(bundle[registry_name])
 
@@ -795,6 +797,7 @@ def build_files(template_dir, world, talent):
             "mental": 100,
             "max_mental": 100,
             "talents": [{**talent, "obtained_turn": 1}],
+            "profession": world.get("starting_profession"),
             "skills": [],
             "class": None,
             "second_class": None,

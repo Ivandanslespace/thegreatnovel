@@ -444,9 +444,27 @@ def _advance_npcs_and_scheduled_events(updated: Dict[str, Any]) -> None:
         first_event = str(disaster.get("first_event", ""))
         match = re.search(r"\d+", first_event)
         disaster_day = int(match.group(0)) if match else cycle
-    while disaster_day is not None and cycle > 0 and current_day >= int(disaster_day):
-        system_events.append({"type": "DISASTER_OCCURRED", "target": disaster_type, "day": int(disaster_day)})
-        disaster_day = int(disaster_day) + cycle
+    if disaster_day is not None and cycle > 0 and current_day >= int(disaster_day):
+        # 旧实现会按漏掉的每一个周期循环；损坏存档的超大日期会让一次
+        # 普通行动卡住。保留最近 50 次可见灾难，并以 O(1) 推进下次日期。
+        first_due_day = int(disaster_day)
+        missed_count = (current_day - first_due_day) // cycle + 1
+        visible_count = min(50, missed_count)
+        first_visible_day = first_due_day + (missed_count - visible_count) * cycle
+        if missed_count > visible_count:
+            system_events.append({
+                "type": "DISASTER_HISTORY_COMPACTED",
+                "target": disaster_type,
+                "skipped_count": missed_count - visible_count,
+                "from_day": first_due_day,
+                "to_day": first_visible_day - cycle,
+            })
+        for offset in range(visible_count):
+            system_events.append({
+                "type": "DISASTER_OCCURRED", "target": disaster_type,
+                "day": first_visible_day + offset * cycle,
+            })
+        disaster_day = first_due_day + missed_count * cycle
     if disaster_day is not None:
         meta["next_disaster_day"] = int(disaster_day)
     del system_events[:-50]
@@ -476,6 +494,20 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
         pending_options = payload.get("pending_options", {})
         meta["pending_options"] = deepcopy(dict(pending_options)) if isinstance(pending_options, Mapping) else {}
         meta["pending_options_state_turn"] = int(payload.get("state_turn", meta.get("current_turn", 0)))
+        return updated
+
+    # 存档格式升级也必须通过事件账本。只接受固定的投影根键，避免把迁移
+    # 事件变成任意状态写入通道。
+    if event_type == "PROJECTION_SCHEMA_MIGRATED":
+        projection_state = payload.get("projection_state", {})
+        allowed_projection_keys = {
+            "region_state", "population_state", "public_system_state", "market_state",
+            "ranking_state", "comparative_state", "rival_state", "player_talent",
+        }
+        if isinstance(projection_state, Mapping):
+            for key, value in projection_state.items():
+                if key in allowed_projection_keys:
+                    updated[key] = deepcopy(value)
         return updated
     
     # 视角切分事件处理

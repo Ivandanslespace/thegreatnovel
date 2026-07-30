@@ -1365,6 +1365,124 @@ class ProfessionSystemTests(unittest.TestCase):
         self.assertGreater(radius, 0.5)
         self.assertLess(radius, 1.0)
 
+    def test_profession_action_has_registered_entry_and_one_shot_exit(self):
+        from engine_runtime.world_compiler import PROFESSION_REGISTRY, compile_world_bundle
+
+        world = compile_world_bundle(
+            "废土列车", "中文",
+            {"profile": "generic", "professions": [PROFESSION_REGISTRY["mechanic"]]},
+            "测试基地", ["资源"],
+        )
+        player = minimal_state()["player"]
+        player["profession"] = "mechanic"
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(
+                world=world,
+                player=player,
+                meta={"current_location": "camp_core", "available_time_minutes": 720},
+            )))
+            action = {"action_id": "diagnose", "type": "DIAGNOSE_FAILURE", "target": "DIAGNOSE_FAILURE"}
+            compiled = engine.compile_options([{"label": "诊断故障", "action": action}], persist=False)
+            self.assertIn("A", compiled["contracts"])
+            engine.execute_player_choice("A", persist=False)
+            completion_key = "profession:mechanic:DIAGNOSE_FAILURE:completed"
+            self.assertIn(completion_key, engine.state.player["knowledge"])
+            self.assertFalse(engine.preview_host_action(action)["legal"])
+
+
+class MechanismClosureTests(unittest.TestCase):
+    def test_controller_uses_wait_when_all_regular_candidates_are_effectless(self):
+        from tools.turn_controller import resolve
+
+        world = {
+            "name": "保底出口测试",
+            "difficulty": "标准",
+            "locations": [{"id": "camp_core", "name": "基地", "safe": True}],
+            "action_targets": {},
+            "build_catalog": {},
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(
+                world=world,
+                meta={"current_location": "camp_core", "available_time_minutes": 30},
+            )))
+            package = resolve(engine, "", generate_options_only=True)
+            self.assertEqual(package["options_status"], "ok")
+            self.assertEqual(set(package["visible_options"]), {"A"})
+            self.assertEqual(engine.state.meta["pending_options"]["options"]["A"]["action"]["type"], "WAIT")
+
+    def test_disaster_catchup_is_bounded_for_large_time_gaps(self):
+        state = minimal_state(
+            world={"rules": {"disaster": {"cycle_days": 1}}, "setting": {"disaster_type": "测试灾难"}},
+            meta={"game_day": 1_000_000, "next_disaster_day": 1},
+        )
+        result = apply_event(state, standard_event(
+            "large-gap", "ACTION_RESOLVED", "player", None,
+            {"time_cost": 0}, 1, "Day 1000000 清晨",
+        ))
+        events = result["meta"]["system_event_history"]
+        self.assertLessEqual(len(events), 50)
+        self.assertEqual(result["meta"]["next_disaster_day"], 1_000_001)
+
+    def test_active_encounter_blocks_wait_and_offers_exits(self):
+        from tools.turn_controller import generate_smart_candidates
+
+        world = {
+            "name": "遭遇出口测试",
+            "difficulty": "标准",
+            "locations": [
+                {"id": "camp_core", "name": "基地", "safe": True},
+                {"id": "forest", "name": "森林", "safe": False},
+            ],
+            "encounter_entities": {
+                "wolf-1": {
+                    "id": "wolf-1", "name": "裂牙狼", "status": "alive", "location_id": "forest",
+                    "hp": 20, "max_hp": 20,
+                    "attributes": {"strength": 2, "constitution": 2, "agility": 2, "spirit": 2},
+                }
+            },
+        }
+        encounter = {
+            "id": "encounter-1", "location_id": "forest", "status": "active",
+            "target_ids": ["wolf-1"], "participants": ["player", "wolf-1"],
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(
+                world=world,
+                meta={"current_location": "forest", "current_encounter_id": "encounter-1", "active_encounters": [encounter]},
+            )))
+            wait = engine.preview_host_action({"action_id": "wait-through-danger", "type": "WAIT", "parameters": {"wait_minutes": 30}})
+            self.assertFalse(wait["legal"])
+            self.assertTrue(any("当前遭遇未处理" in error for error in wait["errors"]))
+            action_types = {item["action"]["type"] for item in generate_smart_candidates(engine)}
+            self.assertIn("COMBAT", action_types)
+            self.assertIn("LEAVE_ENCOUNTER", action_types)
+
+    def test_unregistered_social_economic_action_cannot_consume_a_turn(self):
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state()))
+            preview = engine.preview_host_action({
+                "action_id": "ghost-trade", "type": "TRADE", "target": "unregistered-trader",
+                "parameters": {"trade_items": [{"id": "wood", "quantity": 1}], "trade_counterparty": "unregistered-trader"},
+            })
+            self.assertFalse(preview["legal"])
+            self.assertTrue(any("尚未在当前世界注册目标" in error for error in preview["errors"]))
+
+    def test_legacy_snapshot_migrates_auxiliary_projection_via_event(self):
+        from engine_runtime.persistence import SQLiteEventStore
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            legacy = minimal_state(meta={"current_turn": 1})
+            SQLiteEventStore(root / "campaign.sqlite3").initialize(legacy)
+            migrated_source = deepcopy(legacy)
+            migrated_source["market_state"] = {"market_enabled": True, "market_prices": {"water": 3}}
+            state = GameState(root, migrated_source)
+            self.assertIn("market_state", state.projection_migration)
+            self.assertTrue(state.migrate_projection_schema())
+            self.assertEqual(state.data["market_state"]["market_prices"]["water"], 3)
+            self.assertTrue(state.store.verify_projection(apply_event)["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()

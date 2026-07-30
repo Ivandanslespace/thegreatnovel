@@ -296,7 +296,11 @@ def validate_world_package(save_dir, data):
                 if not projection.get("ok"):
                     findings.append(Finding("CRITICAL", "连续性", "SQLite 事件重放结果与最新投影不一致"))
                 snapshot = store.latest_snapshot() or {}
-                view_keys = ("world", "player", "base", "inventory", "npcs", "factions", "relationships", "event_queue", "meta", "player_talent")
+                view_keys = (
+                    "world", "player", "base", "inventory", "npcs", "factions", "relationships", "event_queue",
+                    "region_state", "population_state", "public_system_state", "market_state", "ranking_state",
+                    "comparative_state", "rival_state", "meta", "player_talent",
+                )
                 yaml_view = {key: data.get(key, {}) for key in view_keys}
                 sql_view = {key: snapshot.get(key, {}) for key in view_keys}
                 if yaml_view != sql_view:
@@ -1447,6 +1451,13 @@ def _load_validation_data(save_dir):
         "factions": (load_yaml(save_dir / "factions.yaml") or {}).get("factions", []),
         "relationships": (load_yaml(save_dir / "relationships.yaml") or {}).get("relationships", {}),
         "event_queue": (load_yaml(save_dir / "event_queue.yaml") or {}).get("event_queue", []),
+        "region_state": (load_yaml(save_dir / "region_state.yaml") or {}).get("region_state", {}),
+        "population_state": (load_yaml(save_dir / "population_state.yaml") or {}).get("population_state", {}),
+        "public_system_state": (load_yaml(save_dir / "public_system_state.yaml") or {}).get("public_system_state", {}),
+        "market_state": (load_yaml(save_dir / "market_state.yaml") or {}).get("market_state", {}),
+        "ranking_state": (load_yaml(save_dir / "ranking_state.yaml") or {}).get("ranking_state", {}),
+        "comparative_state": (load_yaml(save_dir / "comparative_state.yaml") or {}).get("comparative_state", {}),
+        "rival_state": (load_yaml(save_dir / "rival_state.yaml") or {}).get("rival_state", {}),
         "event_log_text": load_text(save_dir / "event_log.md"),
         "story_text": load_text(save_dir / "story.md"),
     }

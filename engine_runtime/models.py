@@ -31,6 +31,10 @@ class ActionContext:
     skill_bonus: float = 0.0
     equipment_bonus: Optional[float] = None
     ability_match: Optional[float] = None
+    strength: float = 5.0
+    constitution: float = 5.0
+    agility: float = 5.0
+    spirit: float = 5.0
     risk_warning: float = 0.0
     causal_chain: float = 0.0
     avoidable: float = 0.0
@@ -153,6 +157,10 @@ class ActionContext:
     skill_bonus: float = 0.0
     equipment_bonus: Optional[float] = None
     ability_match: Optional[float] = None
+    strength: float = 5.0
+    constitution: float = 5.0
+    agility: float = 5.0
+    spirit: float = 5.0
     risk_warning: float = 0.0
     causal_chain: float = 0.0
     avoidable: float = 0.0

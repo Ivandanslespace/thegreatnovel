@@ -299,6 +299,29 @@ def generate_smart_candidates(engine: GameEngine) -> list[dict]:
     player_known.add(base_location)
     player_known.add(current_location)
 
+    # 活动遭遇是一个封闭的风险状态：不能继续生成探索、建设或社交选项。
+    # 无论撤离是否满足条件，始终给出离开遭遇这一保底出口，防止玩家被
+    # 过期选项或时间窗锁死在地点中。
+    active_encounter = engine._current_active_encounter()
+    if active_encounter:
+        encounter_candidates: list[dict] = []
+        for target_id in active_encounter.get("target_ids", []) if isinstance(active_encounter.get("target_ids", []), list) else []:
+            try:
+                target = engine._lookup_target(target_id)
+            except ValueError:
+                # 损坏的历史遭遇不能反过来卡死回合；离开遭遇仍会由下方保留。
+                continue
+            if isinstance(target, dict) and target.get("status", "alive") not in {"dead", "destroyed"}:
+                encounter_candidates.append({
+                    "label": f"应战：{target.get('name', target_id)}",
+                    "action": {"action_id": f"encounter-combat-{target_id}", "type": "COMBAT", "target": target_id},
+                })
+        encounter_candidates.extend([
+            {"label": "撤回基地", "action": {"action_id": "encounter-extract", "type": "EXTRACT"}},
+            {"label": "脱离当前遭遇", "action": {"action_id": "encounter-leave", "type": "LEAVE_ENCOUNTER"}},
+        ])
+        return balance_options_by_category(encounter_candidates, max_output=MAX_VISIBLE_OPTIONS)
+
     period_locked: list[dict] = []
 
     for target_id, profile in action_targets.items():
@@ -444,29 +467,9 @@ def generate_smart_candidates(engine: GameEngine) -> list[dict]:
                 "action": {"action_id": f"auto-build-{build_id}", "type": "BUILD", "target": build_id},
             })
 
-    # ── 创意基地活动：当候选偏少时，提供有意义的短行动 ──
-    if current_location == base_location and len(candidates) < MAX_VISIBLE_OPTIONS:
-        # 检查装备耐久 — 只有在拥有武器时才有意义
-        items = engine.state.inventory.get("items", []) if isinstance(engine.state.inventory, dict) else []
-        equipment = engine.state.inventory.get("equipment", {}) if isinstance(engine.state.inventory, dict) else {}
-        has_weapon = bool(equipment.get("main_weapon")) if isinstance(equipment, dict) else False
-        if has_weapon:
-            candidates.append({
-                "label": "检修装备",
-                "action": {"action_id": "auto-inspect-gear", "type": "SHORT_ACTION", "target": current_location,
-                           "goal": "检查武器和工具的耐久状况，进行必要的维护"},
-            })
-        # 整理物资 — 总是有意义的基地管理行动
-        candidates.append({
-            "label": "整理物资",
-            "action": {"action_id": "auto-organize", "type": "BASE_MANAGEMENT", "target": current_location,
-                       "goal": "清点和整理基地内的物资储备"},
-        })
+    # 对话、维护等候选必须来自 world.action_targets。此前的硬编码 NPC
+    # 话题和“整理物资”没有注册状态效果，会制造无法结算的伪选项，故不再注入。
 
-    # P0-4: 添加 NPC 具体话题
-    npc_topics = _generate_npc_topics(engine)
-    candidates.extend(npc_topics)
-    
     # P0-5: 按类别平衡选择最终输出
     return balance_options_by_category(candidates, max_output=MAX_VISIBLE_OPTIONS)
 
@@ -640,7 +643,7 @@ def add_fallback_candidates(engine: GameEngine, candidates: list[dict]) -> list[
         if current_location != base_location:
             candidates.append({"label": "返回基地", "action": {"action_id": "fallback-return", "type": "RETURN_TO_BASE"}})
         if available_time >= 5:
-            candidates.append({"label": "观察周围环境", "action": {"action_id": "fallback-observe", "type": "SHORT_ACTION", "target": current_location, "goal": "仔细观察周围环境，寻找有用的线索"}})
+            candidates.append({"label": "等待并观察变化", "action": {"action_id": "fallback-wait", "type": "WAIT", "parameters": {"wait_minutes": min(30, int(available_time))}, "goal": "等待局势或时段发生变化"}})
         if current_location == base_location and available_time >= 360:
             candidates.append({"label": "休息", "action": {"action_id": "fallback-rest", "type": "REST", "target": base_location}})
     return candidates
@@ -710,8 +713,28 @@ def resolve(engine: GameEngine, player_input: str, action_json: str | None = Non
         try:
             engine.compile_options(candidates[:MAX_VISIBLE_OPTIONS + 1], persist=True)
         except ValueError as exc:
-            options_status = "NEEDS_FALLBACK_OPTIONS"
-            errors.append(f"选项编译失败：{exc}")
+            # 原候选可能都因库存、地点或一次性效果已完成而被过滤；此时
+            # 不能把玩家留在无选项状态。等待是唯一不依赖外部对象的合法出口。
+            available_time = float(engine.state.meta.get("available_time_minutes", 0))
+            if available_time >= 5:
+                fallback = [{
+                    "label": "等待并观察变化",
+                    "action": {
+                        "action_id": "compile-fallback-wait",
+                        "type": "WAIT",
+                        "parameters": {"wait_minutes": min(30, int(available_time))},
+                        "goal": "等待局势或时段发生变化",
+                    },
+                }]
+                try:
+                    engine.compile_options(fallback, persist=True)
+                    errors.append(f"原候选不可执行，已改为时间推进：{exc}")
+                except ValueError as fallback_exc:
+                    options_status = "NEEDS_FALLBACK_OPTIONS"
+                    errors.append(f"选项编译失败：{exc}；保底行动失败：{fallback_exc}")
+            else:
+                options_status = "NEEDS_FALLBACK_OPTIONS"
+                errors.append(f"选项编译失败：{exc}")
     else:
         options_status = "NEEDS_FALLBACK_OPTIONS"
         errors.append("无可用候选行动")
@@ -822,8 +845,11 @@ def main():
         print(json.dumps({"error": f"存档目录不存在：{save_dir}"}, ensure_ascii=False))
         sys.exit(1)
 
-    assert_startable(save_dir)
     state = load_game_state(save_dir)
+    # 旧存档若缺少后来加入的公共状态投影，先以可重放的系统事件迁移，
+    # 再执行启动门禁，避免正确的存档被格式升级本身卡死。
+    state.migrate_projection_schema()
+    assert_startable(save_dir)
     engine = GameEngine(state)
 
     if args.phase == "resolve":

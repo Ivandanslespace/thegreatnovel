@@ -658,6 +658,15 @@ def record_phase(engine: GameEngine, save_dir: Path, args) -> dict:
 
 
 def main():
+    # 本文件保留为历史原型和纯函数参考。它曾自行推进群体、市场、事件导演
+    # 并直接拼接候选，绕过唯一的合同编译/事件提交入口；继续作为 CLI 运行会
+    # 产生无法重放的状态。正式游戏只允许 tools/turn_controller.py。
+    print(json.dumps({
+        "error": "LEGACY_ENTRYPOINT_DISABLED",
+        "message": "game_turn.py 已停用；请使用 python tools/turn_controller.py。",
+    }, ensure_ascii=False))
+    sys.exit(2)
+
     parser = argparse.ArgumentParser(description="统一回合入口（三阶段，第十九轮对话改进版）")
     parser.add_argument("save_dir", type=str)
     parser.add_argument("phase", choices=["resolve", "record"], help="阶段：resolve=结算，record=记录叙述")

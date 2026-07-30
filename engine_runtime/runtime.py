@@ -45,10 +45,12 @@ class GameEngine:
             target_profile = {}
         runtime_context = self.state.meta.get("runtime_context", {}) if isinstance(self.state.meta.get("runtime_context", {}), Mapping) else {}
         seed = f"{self.state.meta.get('rng_seed', self.state.meta.get('world_name', 'world'))}|turn:{self.state.current_turn + 1}|action:{action.get('action_id')}"
+        attributes = self.state.player.get("attributes", {}) if isinstance(self.state.player.get("attributes", {}), Mapping) else {}
+        primary_attribute = str(target_profile.get("primary_attribute", "spirit"))
         defaults = {
             "seed": seed,
             "action_id": str(action.get("action_id") or f"turn-{self.state.current_turn + 1}"),
-            "target_difficulty": float(target_profile.get("target_difficulty", costs["target_difficulty"])),
+            "target_difficulty": float(target_profile.get("target_difficulty", costs.get("target_difficulty", 20.0))),
             "preparation": float(target_profile.get("preparation", 0.0)) + risk["preparation"],
             "intelligence": float(runtime_context.get("intelligence", 0.0)),
             "teammate_assistance": float(runtime_context.get("teammate_assistance", 0.0)),
@@ -61,14 +63,18 @@ class GameEngine:
             "avoidable": float(target_profile.get("avoidable", 0.0)),
             "rule_consistency": float(target_profile.get("rule_consistency", 1.0 if target_profile else 0.0)),
             "player_responsibility": float(target_profile.get("player_responsibility", 0.0)),
+            "difficulty_mode": str(self.state.meta.get("difficulty", "标准")),
         }
+        for attribute in ("strength", "constitution", "agility", "spirit"):
+            defaults[attribute] = float(attributes.get(attribute, 5.0))
+        defaults["ability_match"] = defaults.get(primary_attribute, 5.0) * 2.0
         talent_effects = self.state.player.get("talent_effects", {}) if isinstance(self.state.player.get("talent_effects", {}), Mapping) else {}
         action_modifiers = talent_effects.get("action_modifiers", {}) if isinstance(talent_effects.get("action_modifiers", {}), Mapping) else {}
         modifier = action_modifiers.get(str(action.get("type")), {}) if isinstance(action_modifiers.get(str(action.get("type")), {}), Mapping) else {}
         for key in ("intelligence", "teammate_assistance", "environment_advantage", "preparation", "environment_penalty", "time_pressure", "unknown_risk"):
             if key in modifier:
                 defaults[key] += float(modifier[key])
-        values = {**defaults, "primary_attribute": target_profile.get("primary_attribute", "spirit")}
+        values = {**defaults, "primary_attribute": primary_attribute}
         if action.get("skill_id"):
             skill = self._find_skill(action)
             values["skill_bonus"] = float(skill.get("level", 1)) * 2.0 if skill else 0.0
@@ -87,14 +93,15 @@ class GameEngine:
                             values[attr] = float(values.get(attr, 0.0)) + bonus * 0.5
         
         # Apply profession-based action modifiers for specific actions
-        if current_profession_id == "mechanic" and action_profile.get("action_type") in ["DIAGNOSE_FAILURE", "EMERGENCY_REPAIR"]:
+        action_type = str(action.get("type") or target_profile.get("action_type") or "")
+        if current_profession_id == "mechanic" and action_type == "DIAGNOSE_FAILURE":
             values["ability_match"] += 5
             values["preparation"] += 3
-        elif current_profession_id == "contract_signer" and action_profile.get("action_type") == "DRAFT_CONTRACT":
+        elif current_profession_id == "contract_signer" and action_type == "DRAFT_CONTRACT":
             values["intelligence"] += 5
             values["preparation"] += 2
-        elif current_profession_id == "logger" and action_profile.get("action_type") == "HARVEST_DATA":
-            values["spirit"] += 2
+        elif current_profession_id == "logger" and action_type == "HARVEST_DATA":
+            values["ability_match"] += 2
         
         allowed = ActionContext.__dataclass_fields__
         return ActionContext(**{key: values[key] for key in allowed if key in values})
@@ -202,6 +209,11 @@ class GameEngine:
         current_location = self._current_location()
         base_location = self._base_location()
         movement_types = {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"}
+        active_encounter = self._current_active_encounter()
+        # 遭遇一旦建立，玩家必须在同一条因果链内战斗、撤离或离开。允许
+        # WAIT/探索/社交会令遭遇在无代价下过期，既破坏风险也会累积孤儿遭遇。
+        if active_encounter and action_type not in {"COMBAT", "EXTRACT", "LEAVE_ENCOUNTER", "REACTION"}:
+            return ["当前遭遇未处理：只能战斗、撤离或离开遭遇"]
         if action_type == "WAIT":
             return []
         if action_type == "REACTION":
@@ -286,6 +298,23 @@ class GameEngine:
         if pending and action_type != "TALENT_CHOICE":
             errors.append("必须先完成升级三选一")
         errors.extend(self._target_presence_errors(action))
+        # 这些社会/经济动作需要世界注册表提供对手、成本和状态效果。协议层
+        # 只校验意图形状，不能把“语法通过”误当成机制已经实现；否则会出现
+        # 消耗时间却不改变任何真实状态的幽灵行动。
+        registered_domain_actions = {
+            "TRADE", "TEAM_FORMATION", "MARKET_ORDER", "VEHICLE_UPGRADE", "REGIONAL_EVENT_ENTRY",
+        }
+        if action_type in registered_domain_actions:
+            profile = self._action_target_profile(action)
+            effects = profile.get("effects", {}) if isinstance(profile, Mapping) else {}
+            has_effect = isinstance(effects, Mapping) and any(
+                isinstance(effects.get(branch), Mapping) and bool(effects.get(branch))
+                for branch in ("success", "partial_failure", "failure")
+            )
+            if not profile:
+                errors.append(f"{action_type} 尚未在当前世界注册目标")
+            elif not has_effect:
+                errors.append(f"{action_type} 的注册目标没有可提交的状态效果")
         registry_requirements = self._action_target_profile(action).get("requirements", {})
         requirements = dict(registry_requirements) if isinstance(registry_requirements, Mapping) else {}
         supplied_requirements = action.get("requirements", {}) if isinstance(action.get("requirements"), Mapping) else {}
@@ -321,8 +350,22 @@ class GameEngine:
         knowledge = requirements.get("knowledge")
         if knowledge:
             known = self.state.player.get("knowledge", [])
-            if knowledge not in known:
-                errors.append(f"未知信息：{knowledge}")
+            required_knowledge = knowledge if isinstance(knowledge, list) else [knowledge]
+            for item in required_knowledge:
+                if item not in known:
+                    errors.append(f"未知信息：{item}")
+        knowledge_absent = requirements.get("knowledge_absent", [])
+        if knowledge_absent:
+            known = self.state.player.get("knowledge", [])
+            blocked = knowledge_absent if isinstance(knowledge_absent, list) else [knowledge_absent]
+            for item in blocked:
+                if item in known:
+                    errors.append(f"该行动已经完成：{item}")
+        profession_ok, profession_error = self._check_profession_requirement(
+            self._action_target_profile(action), self.state
+        )
+        if not profession_ok:
+            errors.append(profession_error)
         skill = self._find_skill(action)
         if skill:
             errors.extend(check_skill_use(skill, self.state.player, self.state.inventory))
@@ -393,6 +436,11 @@ class GameEngine:
     def _derive_action_costs(self, action: Mapping[str, Any], skill: Optional[Mapping[str, Any]] = None) -> Dict[str, float]:
         costs = derive_action_costs(action, skill)
         action_type = str(action.get("type"))
+        profile = self._action_target_profile(action)
+        if isinstance(profile, Mapping):
+            for field in ("time_minutes", "stamina_cost", "mental_cost", "target_difficulty"):
+                if profile.get(field) is not None:
+                    costs[field] = float(profile[field])
         if action_type == "WAIT":
             parameters = action.get("parameters", {}) if isinstance(action.get("parameters", {}), Mapping) else {}
             wait_minutes = max(5.0, min(720.0, float(parameters.get("wait_minutes", 30.0))))

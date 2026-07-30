@@ -218,8 +218,23 @@ def compile_world_bundle(
             "protagonist_contract": {"automatic_success": False},
         }
     
-    # 提取 professions（如果传入）
-    professions = mechanics.get("professions") if isinstance(mechanics.get("professions"), dict) else {}
+    # 职业是可选的高级世界包内容。接受映射或列表两种输入；显式传入
+    # 空列表/空映射表示关闭职业机制，不能偷偷回退到默认职业表。
+    raw_professions = mechanics.get("professions", {})
+    if isinstance(raw_professions, Mapping):
+        professions = {
+            str(profession_id): deepcopy(dict(definition))
+            for profession_id, definition in raw_professions.items()
+            if isinstance(definition, Mapping)
+        }
+    elif isinstance(raw_professions, list):
+        professions = {
+            str(definition.get("id")): deepcopy(dict(definition))
+            for definition in raw_professions
+            if isinstance(definition, Mapping) and definition.get("id")
+        }
+    else:
+        professions = {}
     
     profile = str(mechanics.get("profile", "generic"))
     content = deepcopy(PROFILE_CONTENT.get(profile, PROFILE_CONTENT["generic"]))
@@ -357,6 +372,35 @@ def compile_world_bundle(
             target_profile["requirements"] = {"location": "camp_core", "npc_available": npc_id}
         elif target_profile.get("id") != "camp_core":
             target_profile["requirements"] = {"location": "camp_core"}
+
+    # 将职业专属行动编译成普通 action target。这样它们与探索、研究等
+    # 行动使用同一份合法性校验、成本派生和事件投影，而不是停留在职业描述里。
+    for profession_id, profession in professions.items():
+        for action_definition in profession.get("exclusive_actions", []) if isinstance(profession.get("exclusive_actions", []), list) else []:
+            if not isinstance(action_definition, Mapping):
+                continue
+            action_type = str(action_definition.get("action_type", "")).strip()
+            if not action_type:
+                continue
+            completion_key = f"profession:{profession_id}:{action_type}:completed"
+            action_targets[action_type] = {
+                "id": action_type,
+                "name": str(action_definition.get("name") or action_type),
+                "location_id": str(action_definition.get("location_id") or "camp_core"),
+                "action_type": action_type,
+                "target_difficulty": float(action_definition.get("difficulty", 15)),
+                "time_minutes": float(action_definition.get("time_minutes", 30)),
+                "stamina_cost": float(action_definition.get("stamina_cost", 0)),
+                "mental_cost": float(action_definition.get("mental_cost", 0)),
+                "primary_attribute": str(action_definition.get("primary_attribute") or "spirit"),
+                "requirements": {
+                    **(deepcopy(dict(action_definition.get("requirements", {}))) if isinstance(action_definition.get("requirements", {}), Mapping) else {}),
+                    "location": str(action_definition.get("location_id") or "camp_core"),
+                    "knowledge_absent": [completion_key],
+                },
+                "constraints": {"system_tags": ["short_action"]},
+                "effects": {"success": {"knowledge_additions": [completion_key]}},
+            }
     modules = {}
     for index, (module_id, module_name, description) in enumerate(content["modules"]):
         modules[module_id] = {
@@ -426,11 +470,7 @@ def compile_world_bundle(
     }
 
     # 添加 professions（如果已从 mechanics 传递）
-    if professions:
-        result["professions"] = professions
-    else:
-        # 默认使用 PROFESSION_REGISTRY（向后兼容）
-        result["professions"] = {pid: pdef.copy() for pid, pdef in PROFESSION_REGISTRY.items()}
+    result["professions"] = professions
 
     # Creative slots for EventDirector
     if genre_contract and isinstance(genre_contract, dict) and genre_contract.get("creative_slots"):
