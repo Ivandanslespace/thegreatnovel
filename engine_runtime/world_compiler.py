@@ -135,14 +135,15 @@ def _validate_enemies(records: Sequence[Mapping[str, Any]], location_ids: set[st
 def _validate_action_targets(records: Sequence[Mapping[str, Any]], location_ids: set[str]) -> None:
     for record in records:
         label = f"action_targets.{record['id']}"
-        for field in ("name", "action_type", "location_id", "primary_attribute", "target_difficulty", "effects"):
+        for field in ("name", "action_type", "location_id", "primary_attribute", "target_difficulty", "time_minutes", "stamina_cost", "mental_cost", "effects"):
             if field not in record or record[field] in (None, ""):
                 raise ValueError(f"world_blueprint.{label}.{field} 不能为空")
         if str(record["location_id"]) not in location_ids:
             raise ValueError(f"world_blueprint.{label}.location_id 未注册")
         if str(record["primary_attribute"]) not in PRIMARY_ATTRIBUTES:
             raise ValueError(f"world_blueprint.{label}.primary_attribute 不受支持")
-        _require_number(record, "target_difficulty", label)
+        for field in ("target_difficulty", "time_minutes", "stamina_cost", "mental_cost"):
+            _require_number(record, field, label)
         if not isinstance(record["effects"], Mapping) or not any(record["effects"].get(branch) for branch in ("success", "partial_failure", "failure")):
             raise ValueError(f"world_blueprint.{label}.effects 至少需要一个有实际状态效果的结果分支")
 
@@ -188,6 +189,21 @@ def _validate_events(records: Sequence[Mapping[str, Any]]) -> None:
         _require_number(record, "phases", label, minimum=1.0)
         if not isinstance(record["rules"], list) or not isinstance(record["effects"], Mapping):
             raise ValueError(f"world_blueprint.{label}.rules 必须是列表且 effects 必须是对象")
+        family = str(record["family"])
+        if family == "rule_anomaly" and not str(record.get("hidden_rule") or "").strip():
+            raise ValueError(f"world_blueprint.{label}.hidden_rule 不能为空")
+        if family in {"macro_crisis", "forced_convergence"}:
+            for field in ("event_scale", "affected_regions", "phases_desc"):
+                if field not in record or not record[field]:
+                    raise ValueError(f"world_blueprint.{label}.{field} 不能为空")
+            if not isinstance(record["affected_regions"], list) or not isinstance(record["phases_desc"], list):
+                raise ValueError(f"world_blueprint.{label}.affected_regions 与 phases_desc 必须是列表")
+        if family == "living_resource":
+            for field in ("growth_conditions", "harvest_conditions", "attracts_entities", "side_effects"):
+                if field not in record or not record[field]:
+                    raise ValueError(f"world_blueprint.{label}.{field} 不能为空")
+            if not isinstance(record["attracts_entities"], list) or not isinstance(record["side_effects"], list):
+                raise ValueError(f"world_blueprint.{label}.attracts_entities 与 side_effects 必须是列表")
 
 
 def compile_world_bundle(

@@ -397,183 +397,10 @@ class FrequencyGate:
 # ---------------------------------------------------------------------------
 
 class MechanismCollider:
-    """基于主题机制碰撞模板生成事件蓝图候选。
+    """只将本局 LLM 登记的 ``event_pool`` 转为事件蓝图。
 
-    每个模板定义参与碰撞的规则、异常类型和社会维度，
-    Collider 从中组合出完整的 EventBlueprint。
+    世界主题不再是模板选择键；Python 只负责稳定标识、并发过滤和状态接入。
     """
-
-    COLLISION_TEMPLATES: Dict[str, List[Dict[str, Any]]] = {
-        "废土列车": [
-            {
-                "rules": ["列车运行", "车厢所有权"],
-                "anomaly": "identity",
-                "social": "ranking",
-                "family": "rule_anomaly",
-                "tier": "anomaly",
-                "phases": 2,
-                "hook": "一节无主车厢突然亮起了灯",
-                "premise": "某节车厢的登记信息被篡改，车主身份指向一个已死之人。",
-                "hidden_rule": "车厢所有权变更需经过三次公开声明，否则在下一个停靠站被强制拍卖。",
-                "effects": {"relationships": True, "locations": True, "rankings": True},
-            },
-            {
-                "rules": ["燃料", "夜间异常"],
-                "anomaly": "invitation",
-                "social": "trading",
-                "family": "living_resource",
-                "tier": "variant",
-                "phases": 1,
-                "hook": "燃料舱里长出了什么",
-                "premise": "一种发光的菌类在燃料舱壁繁殖，吞噬柴油的同时散发出甜味。",
-                "growth_conditions": "每次夜间停靠且燃料>30%时增殖",
-                "harvest_conditions": "手动清除可回收为低级燃料；高温灼烧会释放有毒气体",
-                "attracts_entities": ["流浪商人", "药剂师"],
-                "side_effects": ["车厢气味改变", "邻近舱室温度升高"],
-                "effects": {"resources": True, "inventory": True, "npcs": True},
-            },
-            {
-                "rules": ["车厢战斗", "公共区域"],
-                "anomaly": "convergence",
-                "social": "conflict",
-                "family": "forced_convergence",
-                "tier": "regional_crisis",
-                "phases": 3,
-                "hook": "餐车里的对峙",
-                "premise": "两个势力同时宣称对餐车的管辖权，乘客被迫选边。",
-                "event_scale": "整列列车",
-                "affected_regions": ["餐车", "相邻车厢", "车顶"],
-                "phases_desc": ["紧张升级", "公开冲突", "强制仲裁"],
-                "effects": {"relationships": True, "factions": True, "resources": True, "locations": True},
-            },
-            {
-                "rules": ["列车时刻表", "世界边界"],
-                "anomaly": "cosmic",
-                "social": "belief",
-                "family": "macro_crisis",
-                "tier": "iconic",
-                "phases": 4,
-                "hook": "列车驶入了地图上不存在的一段",
-                "premise": "窗外出现了不该存在的城市轮廓，列车时刻表上多出一个从未标注的站点。",
-                "event_scale": "世界级别",
-                "affected_regions": ["车窗外景", "时刻表", "导航系统"],
-                "phases_desc": ["景观异常", "设备失灵", "旅客恐慌", "站点抵达"],
-                "effects": {"narrative": True, "locations": True, "progression": True, "time": True},
-            },
-            {
-                "rules": ["黑市交易", "车厢改装"],
-                "anomaly": "technology",
-                "social": "economy",
-                "family": "system_irregularity",
-                "tier": "variant",
-                "phases": 1,
-                "hook": "一个不存在的供应商出现在采购清单上",
-                "premise": "有人在内部采购系统中注册了一个虚假供应商，却能真实发货。",
-                "hidden_rule": "每接受一次发货，供应商权限就扩大一级，三级后获得车厢访问权。",
-                "effects": {"resources": True, "inventory": True, "base": True},
-            },
-        ],
-        "巨兽的背脊": [
-            {
-                "rules": ["巨兽迁徙", "定居点"],
-                "anomaly": "geological",
-                "social": "territory",
-                "family": "macro_crisis",
-                "tier": "regional_crisis",
-                "phases": 3,
-                "hook": "脚下的地面开始倾斜",
-                "premise": "巨兽改变迁徙路线，定居点面临滑落深渊的风险。",
-                "event_scale": "区域",
-                "affected_regions": ["定居点", "悬崖边缘", "水源地"],
-                "phases_desc": ["震动加剧", "地基开裂", "紧急迁移"],
-                "effects": {"locations": True, "resources": True, "npcs": True, "time": True},
-            },
-            {
-                "rules": ["寄生生态", "采集"],
-                "anomaly": "biological",
-                "social": "knowledge",
-                "family": "living_resource",
-                "tier": "anomaly",
-                "phases": 2,
-                "hook": "背脊上长出了一片从没见过的花",
-                "premise": "一种新寄生物种在巨兽背脊繁殖，既有药用价值也可能伤害宿主。",
-                "growth_conditions": "每 5 回合自动扩展一个区域",
-                "harvest_conditions": "采集需要生物学知识；过度采集会激怒巨兽",
-                "attracts_entities": ["草药师", "外来研究团"],
-                "side_effects": ["巨兽行为改变", "新区域解锁"],
-                "effects": {"resources": True, "locations": True, "progression": True},
-            },
-            {
-                "rules": ["部落联盟", "祭祀"],
-                "anomaly": "cultural",
-                "social": "diplomacy",
-                "family": "rule_anomaly",
-                "tier": "variant",
-                "phases": 1,
-                "hook": "祭祀仪式上出现了不属于任何部落的祭品",
-                "premise": "一个神秘祭品出现在共享祭坛上，各部落对其来源争执不休。",
-                "hidden_rule": "接受祭品的部落获得临时增益，但必须在三个回合内回献等价物。",
-                "effects": {"relationships": True, "factions": True, "rankings": True},
-            },
-            {
-                "rules": ["深渊回声", "记忆"],
-                "anomaly": "metaphysical",
-                "social": "identity",
-                "family": "forced_convergence",
-                "tier": "anomaly",
-                "phases": 2,
-                "hook": "你听到了自己还没说过的话",
-                "premise": "深渊回声开始预播未来对话片段，迫使相关者提前做出选择。",
-                "event_scale": "个人",
-                "affected_regions": ["意识空间", "对话场景"],
-                "phases_desc": ["片段回响", "选择锁定"],
-                "effects": {"narrative": True, "relationships": True, "time": True},
-            },
-        ],
-        "渊驮": [
-            {
-                "rules": ["深渊层阶", "重力异常"],
-                "anomaly": "spatial",
-                "social": "navigation",
-                "family": "macro_crisis",
-                "tier": "regional_crisis",
-                "phases": 3,
-                "hook": "脚下的阶梯开始向下延伸，没有尽头",
-                "premise": "某层阶的重力场崩溃，向下坍缩为一个无底通道。",
-                "event_scale": "多层阶",
-                "affected_regions": ["崩溃层阶", "相邻层阶", "深渊核心"],
-                "phases_desc": ["重力波动", "结构坍缩", "通道稳定"],
-                "effects": {"locations": True, "resources": True, "time": True},
-            },
-            {
-                "rules": ["驮兽契约", "深渊生物"],
-                "anomaly": "symbiosis",
-                "social": "bonding",
-                "family": "living_resource",
-                "tier": "variant",
-                "phases": 1,
-                "hook": "你的驮兽开始主动带你去你没要求的地方",
-                "premise": "驮兽感知到深渊中新出现的矿脉，试图引导主人前往。",
-                "growth_conditions": "每次成功引导后驮兽感知范围扩大",
-                "harvest_conditions": "跟随引导可获得稀有矿物；拒绝则驮兽忠诚度下降",
-                "attracts_entities": ["深渊猎人", "矿物商人"],
-                "side_effects": ["新区域发现", "驮兽疲劳"],
-                "effects": {"resources": True, "locations": True, "progression": True},
-            },
-            {
-                "rules": ["层阶归属", "深渊法则"],
-                "anomaly": "legal",
-                "social": "authority",
-                "family": "rule_anomaly",
-                "tier": "anomaly",
-                "phases": 2,
-                "hook": "这一层的规则变了——而且只有你注意到了",
-                "premise": "某层阶的渊驮法则被悄然改写，其他人浑然不觉。",
-                "hidden_rule": "知晓新法则的人在此层阶内获得优势，但每次使用会被标记。",
-                "effects": {"narrative": True, "locations": True, "achievements": True},
-            },
-        ],
-    }
 
     # -- public API ----------------------------------------------------------
 
@@ -584,9 +411,9 @@ class MechanismCollider:
         active_events: Sequence[Mapping[str, Any]],
         social_state: Mapping[str, Any],
     ) -> List[EventBlueprint]:
-        """生成 3-5 个事件蓝图候选。"""
+        """从本局后续事件池生成至多五个候选；空池没有兜底事件。"""
         theme = str(world.get("theme", ""))
-        templates = self.COLLISION_TEMPLATES.get(theme, self._generic_templates())
+        templates = [dict(item) for item in world.get("event_pool", []) if isinstance(item, Mapping)]
 
         # Filter out families that are already at capacity in active events
         active_families = [
@@ -595,30 +422,11 @@ class MechanismCollider:
             if isinstance(e, Mapping)
         ]
 
-        # Determine highest pressure component for relevance sorting
-        highest_pressure_key = ""
-        highest_pressure_val = 0.0
-        for k, v in (pressure if isinstance(pressure, Mapping) else {}).items():
-            val = number(v)
-            if val > highest_pressure_val:
-                highest_pressure_val = val
-                highest_pressure_key = k
-
         candidates: List[EventBlueprint] = []
         for tmpl in templates:
-            family = tmpl.get("family", "rule_anomaly")
             bp = self._build_blueprint(tmpl, theme, active_families)
             if bp is not None:
                 candidates.append(bp)
-
-        # If we got fewer than 3, pad with generic templates
-        if len(candidates) < 3:
-            for tmpl in self._generic_templates():
-                if len(candidates) >= 5:
-                    break
-                bp = self._build_blueprint(tmpl, theme, active_families)
-                if bp is not None:
-                    candidates.append(bp)
 
         return candidates[:5]
 
@@ -631,8 +439,8 @@ class MechanismCollider:
         active_families: Sequence[str],
     ) -> Optional[EventBlueprint]:
         """从模板构建 EventBlueprint，失败返回 None。"""
-        family = str(tmpl.get("family", "rule_anomaly"))
-        tier = str(tmpl.get("tier", "normal"))
+        family = str(tmpl.get("family", ""))
+        tier = str(tmpl.get("tier", ""))
         rules = tmpl.get("rules", [])
         if not isinstance(rules, list):
             rules = []
@@ -643,22 +451,22 @@ class MechanismCollider:
 
         # Build content_contract based on family
         contract: Dict[str, Any] = {
-            "visible_hook": tmpl.get("hook", f"{family} 事件"),
+            "visible_hook": tmpl.get("hook", ""),
             "premise": tmpl.get("premise", ""),
             "theme": theme,
         }
 
         if family == "rule_anomaly":
-            contract["hidden_rule"] = tmpl.get("hidden_rule", "")
+            contract["hidden_rule"] = tmpl["hidden_rule"]
         elif family in ("macro_crisis", "forced_convergence"):
-            contract["event_scale"] = tmpl.get("event_scale", "local")
-            contract["affected_regions"] = tmpl.get("affected_regions", [])
-            contract["phases"] = tmpl.get("phases_desc", [])
+            contract["event_scale"] = tmpl["event_scale"]
+            contract["affected_regions"] = tmpl["affected_regions"]
+            contract["phases"] = tmpl["phases_desc"]
         elif family == "living_resource":
-            contract["growth_conditions"] = tmpl.get("growth_conditions", "")
-            contract["harvest_conditions"] = tmpl.get("harvest_conditions", "")
-            contract["attracts_entities"] = tmpl.get("attracts_entities", [])
-            contract["side_effects"] = tmpl.get("side_effects", [])
+            contract["growth_conditions"] = tmpl["growth_conditions"]
+            contract["harvest_conditions"] = tmpl["harvest_conditions"]
+            contract["attracts_entities"] = tmpl["attracts_entities"]
+            contract["side_effects"] = tmpl["side_effects"]
 
         # Collect involved entities
         contract["involved_entities"] = tmpl.get("attracts_entities", [])
@@ -667,7 +475,7 @@ class MechanismCollider:
         if not isinstance(effects, Mapping):
             effects = {}
 
-        phase_count = int(tmpl.get("phases", 1))
+        phase_count = int(tmpl["phases"])
 
         return EventBlueprint(
             event_id=eid,
@@ -680,67 +488,6 @@ class MechanismCollider:
             mechanism_collision=list(rules),
             effects_summary=dict(effects),
         )
-
-    @staticmethod
-    def _generic_templates() -> List[Dict[str, Any]]:
-        """当主题无专属模板时的通用候选。"""
-        return [
-            {
-                "rules": ["资源分配", "社会秩序"],
-                "anomaly": "scarcity",
-                "social": "competition",
-                "family": "macro_crisis",
-                "tier": "variant",
-                "phases": 2,
-                "hook": "公共资源突然枯竭",
-                "premise": "一项被广泛依赖的公共资源毫无预兆地断供，各方势力开始争夺替代品。",
-                "event_scale": "区域",
-                "affected_regions": ["市场", "仓储区", "公共空间"],
-                "phases_desc": ["恐慌蔓延", "势力博弈"],
-                "effects": {"resources": True, "factions": True, "relationships": True},
-            },
-            {
-                "rules": ["信息流通", "信任"],
-                "anomaly": "deception",
-                "social": "trust",
-                "family": "rule_anomaly",
-                "tier": "anomaly",
-                "phases": 1,
-                "hook": "一条被所有人采信的消息，来源却是空的",
-                "premise": "一则无法追溯来源的传言开始影响群体决策。",
-                "hidden_rule": "每有一个 NPC 采信传言，其扩散范围翻倍；三次传播后变为既定事实。",
-                "effects": {"relationships": True, "narrative": True, "factions": True},
-            },
-            {
-                "rules": ["探索", "未知区域"],
-                "anomaly": "discovery",
-                "social": "expansion",
-                "family": "living_resource",
-                "tier": "normal",
-                "phases": 1,
-                "hook": "一片新区域自行显现",
-                "premise": "一个此前不存在的区域出现在已知地图边缘，似乎在缓慢生长。",
-                "growth_conditions": "每 8 回合扩展一次边界",
-                "harvest_conditions": "探索可获取独特资源；忽视则区域自行消退",
-                "attracts_entities": ["探险家", "制图师"],
-                "side_effects": ["地图更新", "新路径解锁"],
-                "effects": {"locations": True, "resources": True, "progression": True},
-            },
-            {
-                "rules": ["时间", "因果关系"],
-                "anomaly": "temporal",
-                "social": "urgency",
-                "family": "forced_convergence",
-                "tier": "regional_crisis",
-                "phases": 2,
-                "hook": "两件事不可能同时发生——但它们发生了",
-                "premise": "两个互斥事件在同一时间窗口内触发，迫使玩家做出取舍。",
-                "event_scale": "个人",
-                "affected_regions": ["决策空间"],
-                "phases_desc": ["冲突显现", "强制选择"],
-                "effects": {"time": True, "narrative": True, "relationships": True},
-            },
-        ]
 
 
 # ---------------------------------------------------------------------------

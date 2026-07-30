@@ -6,7 +6,7 @@ factions:
   goal: 控制锈铁荒原的净水资源，成为第七扇区最稳定的幸存者势力
   schedule: {}
   treasury:
-    净水: 3
+    净水：3
   tax_rate: {}
   influence: 10
   utility_profile:

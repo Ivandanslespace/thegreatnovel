@@ -164,6 +164,22 @@ world:
       name: 毒蛇·卡里姆
       opening_strategy: 武装列车，拦截其他投放者的物资运输线
       visible_edge: 初始装备有突击步枪和弹药，战斗经验丰富
+    competition:
+      initial_percentile: 0
+      outcome_scores:
+        普通成功: 15
+        大成功: 30
+        失败但获得部分信息: 5
+        严重失败: -6
+        失败: -3
+      location_discovery_bonus: 10
+      knowledge_bonus: 5
+      positive_resource_bonus_cap: 20
+      percentile_per_score: 0.5
+      loss_roll_threshold: 85
+      losses_per_trigger: 1
+      rank_season_end_turn: 100
+      active_rival_count: 2
   rules:
     safe_zone:
       description: 列车内部提供基础防护，抵挡轻度辐射和野兽

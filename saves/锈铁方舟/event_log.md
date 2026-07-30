@@ -7878,3 +7878,662 @@
   }
 ]
 ```
+---
+## Turn 13 | Day 2 清晨
+```json
+[
+  {
+    "event_id": "evt_0013_001",
+    "type": "TRAVEL_COMPLETED",
+    "actor": "player",
+    "target": "rust_station",
+    "data": {
+      "action": {
+        "action_id": "auto-travel-rust_station",
+        "type": "TRAVEL",
+        "target": "rust_station"
+      },
+      "action_ledger": {
+        "available_time_minutes": 720.0,
+        "available_stamina": 47.0,
+        "available_mental": 30.0,
+        "actions": [
+          {
+            "type": "TRAVEL",
+            "target": "rust_station",
+            "time_minutes": 30.0,
+            "stamina_cost": 5.0,
+            "mental_cost": 0.0,
+            "tags": []
+          }
+        ]
+      },
+      "system_constraints": {
+        "tags": [],
+        "commitments": [],
+        "windows": [],
+        "allowed_periods": [],
+        "npc_unavailable": false
+      },
+      "resolution": {
+        "formula_version": "1.0",
+        "action_type": "TRAVEL",
+        "outcome": "普通成功",
+        "movement_success": true,
+        "probability": 1.0,
+        "risk_mode": "deterministic_route",
+        "time_cost": 30.0,
+        "stamina_cost": 5.0,
+        "mental_cost": 0.0
+      },
+      "fatigue_delta": 5.0,
+      "mental_delta": -0.0,
+      "time_cost": 30.0,
+      "hunger_delta": 0.0,
+      "resource_changes": {},
+      "current_location": "rust_station",
+      "current_location_name": "锈蚀车站",
+      "current_encounter_id": null,
+      "movement": {
+        "from": "camp_core",
+        "to": "rust_station",
+        "mode": "TRAVEL"
+      },
+      "discover_locations": [
+        "rust_station"
+      ],
+      "proposed_events": [
+        {
+          "type": "LOCATION_ENTERED",
+          "target": "rust_station"
+        }
+      ],
+      "runtime_metrics": {
+        "pressure": 15.0,
+        "payoff_maturity": 39.5,
+        "payoff_impact": 23.5,
+        "payoff_score": 30.64675,
+        "narrative_debt": [
+          {
+            "id": "信号塔废墟的共鸣波从何而来？是自然现象还是人为操控？",
+            "score": 0.0
+          },
+          {
+            "id": "末日方舟系统的真正目的是什么？为什么选择第七扇区？",
+            "score": 0.0
+          },
+          {
+            "id": "共鸣晶体为何在靠近信号塔时会自动发热？",
+            "score": 0.0
+          },
+          {
+            "id": "老金似乎知道一些关于系统的事，他为什么不愿说？",
+            "score": 0.0
+          },
+          {
+            "id": "排行榜上偶尔出现又消失的玩家'影'是谁？",
+            "score": 0.0
+          }
+        ],
+        "progress": 0.165,
+        "stagnation_rate": 1.0,
+        "repetition_fatigue": {
+          "max": 15.0,
+          "by_type": {
+            "OPTIONS_PRESENTED": 15.0,
+            "PUBLIC_SYSTEM_ADVANCED": 15.0,
+            "RETURN_TO_BASE_COMPLETED": 0.0,
+            "WAIT_COMPLETED": 0.0,
+            "ATTRIBUTES_ALLOCATED": 0.0
+          }
+        },
+        "agency": 0.009722,
+        "uncertainty": 0.226667,
+        "risk_credibility": 0.079333,
+        "decision_value": 0.001556,
+        "combinability": 95.833333
+      },
+      "narrative_inputs": {
+        "decision": {
+          "consequence_difference": 0.8,
+          "opportunity_cost": 0.041666666666666664,
+          "irreversibility": 0.5,
+          "information_uncertainty": 0.16666666666666666,
+          "value_impact": 0.7,
+          "route_divergence": 0.8,
+          "option_balance": 0.7,
+          "information_sufficiency": 0.8333333333333334,
+          "long_term_impact": 0.5,
+          "uncertainty": {
+            "danger_unknown": 0.16666666666666666,
+            "rule_unknown": 0.1,
+            "motive_unknown": 0.3,
+            "world_unknown": 0.5,
+            "reward_unknown": 0.16666666666666666
+          },
+          "risk_credibility": {
+            "cost_fulfillment": 1.0,
+            "failure_clarity": 0.85,
+            "enemy_effectiveness": 0.7,
+            "information_incompleteness": 0.16666666666666666,
+            "limited_protection": 0.8
+          },
+          "combinability": {
+            "time_remaining": 0.9583333333333334,
+            "resource_compatibility": 1.0,
+            "location_proximity": 1.0,
+            "goal_compatibility": 1.0,
+            "npc_availability": 1.0
+          },
+          "permanent_growth": 0.0,
+          "world_change": 0.0,
+          "relationship_change": 0.0,
+          "information_change": 0.0,
+          "goal_progress": 0.7,
+          "new_playable_system": 0.6
+        },
+        "payoff": {
+          "scarcity_pressure": 0.0,
+          "setup_depth": 100.0,
+          "waiting_time": 60.0,
+          "cost_paid": 0.0,
+          "chapter_rhythm": 50.0,
+          "relative_gain": 40.0,
+          "restriction_removed": 50.0,
+          "behavior_change": 40.0,
+          "long_term_value": 50.0,
+          "social_feedback": 0.0,
+          "causal_chain": 0.85,
+          "rule_consistency": 1.0,
+          "reward_foreshadowed": 0.7,
+          "new_playable_system": 60.0,
+          "decision_change": 0.0,
+          "higher_resource_need": 30.0,
+          "social_market_effect": 0.0,
+          "fatigue": 53.0,
+          "story_damage": 0.0
+        }
+      }
+    },
+    "turn": 13,
+    "timestamp": "Day 2 清晨"
+  }
+]
+```
+---
+## Turn 13 | Day 2 清晨
+```json
+[
+  {
+    "event_id": "evt_0013_options_628322c0",
+    "type": "OPTIONS_PRESENTED",
+    "actor": "system",
+    "target": null,
+    "data": {
+      "pending_options": {
+        "version": 1,
+        "state_turn": 13,
+        "options": {
+          "A": {
+            "id": "A",
+            "label": "等待至白天并rust_station",
+            "description": "",
+            "action": {
+              "action_id": "auto-wait-rust_station",
+              "type": "ACTION_PLAN",
+              "plan_id": "auto-wait-rust_station",
+              "accept_dilution": true,
+              "steps": [
+                {
+                  "action_id": "wait-step",
+                  "type": "WAIT",
+                  "parameters": {
+                    "wait_minutes": 90
+                  },
+                  "goal": "等待进入白天"
+                },
+                {
+                  "action_id": "action-step",
+                  "type": "EXPLORATION",
+                  "target": "rust_station",
+                  "goal": "rust_station"
+                }
+              ]
+            },
+            "preview": {
+              "legal": true,
+              "errors": [],
+              "plan_id": "auto-wait-rust_station",
+              "combinability": 50.0,
+              "components": {
+                "time_compatibility": 1.0,
+                "buffer_ratio": 0.6956521739130435,
+                "resource_compatibility": 1.0,
+                "location_proximity": 1.0,
+                "goal_compatibility": 1.0,
+                "npc_availability": 1.0,
+                "attention_compatibility": 1.0,
+                "action_slot_compatibility": 0.5,
+                "commitment_compatibility": 1.0,
+                "opportunity_window_compatibility": 1.0,
+                "movement_compatibility": 1.0
+              },
+              "dilution_multiplier": 0.75,
+              "partial": false,
+              "deferred_steps": [],
+              "action_ledger": {
+                "available_time_minutes": 690.0,
+                "available_stamina": 42.0,
+                "available_mental": 30.0,
+                "actions": [
+                  {
+                    "type": "WAIT",
+                    "target": null,
+                    "time_minutes": 90.0,
+                    "stamina_cost": 0.0,
+                    "mental_cost": 0.0,
+                    "tags": []
+                  },
+                  {
+                    "type": "EXPLORATION",
+                    "target": "rust_station",
+                    "time_minutes": 120.0,
+                    "stamina_cost": 15.0,
+                    "mental_cost": 10.0,
+                    "tags": [
+                      "major_action",
+                      "requires_full_attention"
+                    ]
+                  }
+                ]
+              },
+              "steps": [
+                {
+                  "action": {
+                    "action_id": "wait-step",
+                    "type": "WAIT",
+                    "parameters": {
+                      "wait_minutes": 90
+                    },
+                    "goal": "等待进入白天"
+                  },
+                  "preview": {
+                    "legal": true,
+                    "errors": [],
+                    "resolution": {
+                      "formula_version": "1.0",
+                      "action_type": "WAIT",
+                      "outcome": "普通成功",
+                      "probability": 1.0,
+                      "risk_mode": "deterministic_wait",
+                      "time_cost": 90.0,
+                      "wait_minutes": 90.0
+                    },
+                    "target_profile": {},
+                    "system_constraints": {
+                      "tags": [],
+                      "commitments": [],
+                      "windows": [],
+                      "allowed_periods": [],
+                      "npc_unavailable": false
+                    },
+                    "action_ledger": {
+                      "available_time_minutes": 690.0,
+                      "available_stamina": 42.0,
+                      "available_mental": 30.0,
+                      "actions": [
+                        {
+                          "type": "WAIT",
+                          "target": null,
+                          "time_minutes": 90.0,
+                          "stamina_cost": 0.0,
+                          "mental_cost": 0.0,
+                          "tags": []
+                        }
+                      ]
+                    },
+                    "skill": null
+                  },
+                  "source_action_id": "wait-step",
+                  "start_period": "清晨",
+                  "start_location": "rust_station",
+                  "auto_generated": false
+                },
+                {
+                  "action": {
+                    "action_id": "action-step",
+                    "type": "EXPLORATION",
+                    "target": "rust_station",
+                    "goal": "rust_station"
+                  },
+                  "preview": {
+                    "legal": true,
+                    "errors": [],
+                    "resolution": {
+                      "formula_version": "1.0",
+                      "action_id": "action-step",
+                      "advantage_components": {
+                        "ability_match": 7.5,
+                        "equipment_advantage": 0.0,
+                        "preparation": 2.25,
+                        "intelligence": 0.0,
+                        "teammate_assistance": 0.0,
+                        "environment_advantage": 0.0
+                      },
+                      "resistance_components": {
+                        "target_difficulty": 14.0,
+                        "environment_penalty": 3.0,
+                        "injury": 0.0,
+                        "fatigue": 11.6,
+                        "time_pressure": 0.0,
+                        "unknown_risk": 3.0
+                      },
+                      "advantage": 9.75,
+                      "resistance": 31.6,
+                      "K": 10.0,
+                      "probability": 0.101106,
+                      "random_roll": 0.78793,
+                      "severity": 0.0,
+                      "severity_band": "成功区",
+                      "death_fairness": 0.3808,
+                      "outcome": "严重失败",
+                      "death_allowed": false,
+                      "components": {
+                        "severity": {
+                          "difficulty": 2.8,
+                          "injury": 0.0,
+                          "resource_shortage": 0.0,
+                          "information_missing": 2.0,
+                          "time_pressure": 0.0,
+                          "continuous_errors": 0.0,
+                          "preparation": 3.0,
+                          "ability_match": 10.0,
+                          "teammate_support": 0.0,
+                          "survival_assets": 0.0
+                        },
+                        "death_fairness_inputs": {
+                          "risk_warning": 0.7,
+                          "causal_chain": 0.85,
+                          "avoidable": 0.8,
+                          "rule_consistency": 1.0,
+                          "player_responsibility": 0.8
+                        },
+                        "outcome_thresholds": {
+                          "critical": 0.010111,
+                          "normal": 0.065719,
+                          "costly": 0.101106,
+                          "partial_failure": 0.325829,
+                          "severe_failure": 0.910111
+                        },
+                        "dilution_multiplier": 0.75
+                      }
+                    },
+                    "target_profile": {
+                      "id": "rust_station",
+                      "location_id": "rust_station",
+                      "action_type": "EXPLORATION",
+                      "primary_attribute": "agility",
+                      "target_difficulty": 14,
+                      "environment_penalty": 3,
+                      "unknown_risk": 5,
+                      "risk_warning": 0.7,
+                      "causal_chain": 0.85,
+                      "avoidable": 0.8,
+                      "rule_consistency": 1.0,
+                      "player_responsibility": 0.8,
+                      "effects": {
+                        "success": {
+                          "discover_locations": [
+                            "rust_station"
+                          ],
+                          "resource_changes": {
+                            "净水": 3
+                          },
+                          "knowledge_additions": [
+                            "rad_scorpion_behavior"
+                          ]
+                        },
+                        "partial_failure": {
+                          "resource_changes": {
+                            "净水": 1
+                          },
+                          "knowledge_additions": [
+                            "rad_scorpion_behavior"
+                          ]
+                        }
+                      },
+                      "encounter_target_ids": [
+                        "rad_scorpion"
+                      ],
+                      "requirements": {
+                        "location": "rust_station"
+                      },
+                      "constraints": {
+                        "system_tags": [
+                          "major_action",
+                          "requires_full_attention"
+                        ],
+                        "exclusive_group": "field_exploration",
+                        "window_ids": [
+                          "白天",
+                          "黄昏"
+                        ],
+                        "window_capacity": 1,
+                        "commitment_axis": "route_commitment",
+                        "commitment_value": "rust_station",
+                        "availability": {
+                          "allowed_periods": [
+                            "白天",
+                            "黄昏"
+                          ]
+                        },
+                        "reservation": {
+                          "exclusive_group": "field_exploration",
+                          "window_id": "current_period",
+                          "capacity": 1
+                        }
+                      }
+                    },
+                    "system_constraints": {
+                      "tags": [
+                        "major_action",
+                        "requires_full_attention"
+                      ],
+                      "commitments": [
+                        [
+                          "route_commitment",
+                          "rust_station"
+                        ]
+                      ],
+                      "windows": [
+                        {
+                          "group": "field_exploration",
+                          "ids": [
+                            "白天"
+                          ],
+                          "capacity": 1
+                        }
+                      ],
+                      "allowed_periods": [
+                        "白天",
+                        "黄昏"
+                      ],
+                      "npc_unavailable": false
+                    },
+                    "action_ledger": {
+                      "available_time_minutes": 600.0,
+                      "available_stamina": 42.0,
+                      "available_mental": 30.0,
+                      "actions": [
+                        {
+                          "type": "EXPLORATION",
+                          "target": "rust_station",
+                          "time_minutes": 120.0,
+                          "stamina_cost": 15.0,
+                          "mental_cost": 10.0,
+                          "tags": [
+                            "major_action",
+                            "requires_full_attention"
+                          ]
+                        }
+                      ]
+                    },
+                    "skill": null
+                  },
+                  "source_action_id": "action-step",
+                  "start_period": "白天",
+                  "start_location": "rust_station",
+                  "auto_generated": false
+                }
+              ]
+            },
+            "state_turn": 13
+          },
+          "B": {
+            "id": "B",
+            "label": "返回基地",
+            "description": "",
+            "action": {
+              "action_id": "auto-return",
+              "type": "RETURN_TO_BASE"
+            },
+            "preview": {
+              "legal": true,
+              "errors": [],
+              "resolution": {
+                "formula_version": "1.0",
+                "action_type": "RETURN_TO_BASE",
+                "outcome": "普通成功",
+                "movement_success": true,
+                "probability": 1.0,
+                "risk_mode": "deterministic_route",
+                "time_cost": 30.0,
+                "stamina_cost": 5.0,
+                "mental_cost": 0.0
+              },
+              "target_profile": {},
+              "system_constraints": {
+                "tags": [],
+                "commitments": [],
+                "windows": [],
+                "allowed_periods": [],
+                "npc_unavailable": false
+              },
+              "action_ledger": {
+                "available_time_minutes": 690.0,
+                "available_stamina": 42.0,
+                "available_mental": 30.0,
+                "actions": [
+                  {
+                    "type": "RETURN_TO_BASE",
+                    "target": null,
+                    "time_minutes": 30.0,
+                    "stamina_cost": 5.0,
+                    "mental_cost": 0.0,
+                    "tags": []
+                  }
+                ]
+              },
+              "skill": null
+            },
+            "state_turn": 13
+          },
+          "C": {
+            "id": "C",
+            "label": "前往信号塔废墟",
+            "description": "",
+            "action": {
+              "action_id": "auto-travel-signal_tower_ruins",
+              "type": "TRAVEL",
+              "target": "signal_tower_ruins"
+            },
+            "preview": {
+              "legal": true,
+              "errors": [],
+              "resolution": {
+                "formula_version": "1.0",
+                "action_type": "TRAVEL",
+                "outcome": "普通成功",
+                "movement_success": true,
+                "probability": 1.0,
+                "risk_mode": "deterministic_route",
+                "time_cost": 45.0,
+                "stamina_cost": 8.0,
+                "mental_cost": 0.0
+              },
+              "target_profile": {
+                "id": "signal_tower_ruins",
+                "location_id": "signal_tower_ruins",
+                "action_type": "RESEARCH",
+                "primary_attribute": "spirit",
+                "target_difficulty": 20,
+                "environment_penalty": 5,
+                "unknown_risk": 10,
+                "risk_warning": 0.8,
+                "causal_chain": 0.85,
+                "avoidable": 0.7,
+                "rule_consistency": 1.0,
+                "player_responsibility": 0.8,
+                "effects": {
+                  "success": {
+                    "knowledge_additions": [
+                      "signal_tower_ruins_principle"
+                    ],
+                    "resource_changes": {
+                      "燃料棒": 2
+                    }
+                  }
+                },
+                "requirements": {
+                  "location": "signal_tower_ruins"
+                },
+                "constraints": {
+                  "system_tags": [
+                    "major_action",
+                    "requires_full_attention"
+                  ],
+                  "exclusive_group": "research_window",
+                  "window_ids": [
+                    "白天",
+                    "黄昏"
+                  ],
+                  "window_capacity": 1,
+                  "commitment_axis": "research_focus",
+                  "commitment_value": "signal_tower_ruins"
+                }
+              },
+              "system_constraints": {
+                "tags": [],
+                "commitments": [],
+                "windows": [],
+                "allowed_periods": [],
+                "npc_unavailable": false
+              },
+              "action_ledger": {
+                "available_time_minutes": 690.0,
+                "available_stamina": 42.0,
+                "available_mental": 30.0,
+                "actions": [
+                  {
+                    "type": "TRAVEL",
+                    "target": "signal_tower_ruins",
+                    "time_minutes": 45.0,
+                    "stamina_cost": 8.0,
+                    "mental_cost": 0.0,
+                    "tags": []
+                  }
+                ]
+              },
+              "skill": null
+            },
+            "state_turn": 13
+          }
+        }
+      },
+      "state_turn": 13
+    },
+    "turn": 13,
+    "timestamp": "Day 2 清晨"
+  }
+]
+```

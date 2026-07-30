@@ -283,6 +283,54 @@ def normalize_public_survival(world, collective):
         raise GeneratorError("全民求生开局必须有3到5名可见对手，并说明其策略和优势")
     if len({peer["id"] for peer in public["initial_peers"]}) != len(public["initial_peers"]):
         raise GeneratorError("全民求生开局对手 id 不能重复")
+    competition = public.get("competition", {})
+    if not isinstance(competition, dict):
+        raise GeneratorError("全民求生世界必须提供 competition 对象")
+    competition = copy.deepcopy(competition)
+    numeric_fields = (
+        "initial_percentile", "location_discovery_bonus", "knowledge_bonus",
+        "positive_resource_bonus_cap", "percentile_per_score", "loss_roll_threshold",
+        "losses_per_trigger", "rank_season_end_turn", "active_rival_count",
+    )
+    for field in numeric_fields:
+        value = competition.get(field)
+        if isinstance(value, bool):
+            raise GeneratorError(f"public_survival.competition.{field} 必须是数值")
+        try:
+            competition[field] = float(value)
+        except (TypeError, ValueError) as exc:
+            raise GeneratorError(f"public_survival.competition.{field} 必须是数值") from exc
+    if not 1 <= competition["initial_percentile"] <= 99:
+        raise GeneratorError("public_survival.competition.initial_percentile 必须在1到99之间")
+    if not 0 <= competition["loss_roll_threshold"] <= 100:
+        raise GeneratorError("public_survival.competition.loss_roll_threshold 必须在0到100之间")
+    for field in ("location_discovery_bonus", "knowledge_bonus", "positive_resource_bonus_cap", "percentile_per_score", "losses_per_trigger"):
+        if competition[field] < 0:
+            raise GeneratorError(f"public_survival.competition.{field} 不能为负数")
+    if competition["rank_season_end_turn"] < 1:
+        raise GeneratorError("public_survival.competition.rank_season_end_turn 必须至少为1")
+    for field in ("losses_per_trigger", "rank_season_end_turn", "active_rival_count"):
+        if not competition[field].is_integer():
+            raise GeneratorError(f"public_survival.competition.{field} 必须是整数")
+    if not 1 <= competition["active_rival_count"] <= len(public["initial_peers"]):
+        raise GeneratorError("public_survival.competition.active_rival_count 必须介于1和可见竞争者数量之间")
+    raw_scores = competition.get("outcome_scores")
+    required_outcomes = ("大成功", "普通成功", "成功但付出代价", "失败但获得部分信息", "局部失败", "严重失败", "死亡")
+    if not isinstance(raw_scores, dict) or any(outcome not in raw_scores for outcome in required_outcomes):
+        raise GeneratorError("public_survival.competition.outcome_scores 必须定义全部正式行动结果")
+    scores = {}
+    for outcome in required_outcomes:
+        value = raw_scores[outcome]
+        if isinstance(value, bool):
+            raise GeneratorError(f"public_survival.competition.outcome_scores.{outcome} 必须是数值")
+        try:
+            scores[outcome] = float(value)
+        except (TypeError, ValueError) as exc:
+            raise GeneratorError(f"public_survival.competition.outcome_scores.{outcome} 必须是数值") from exc
+    competition["outcome_scores"] = scores
+    for field in ("losses_per_trigger", "rank_season_end_turn", "active_rival_count"):
+        competition[field] = int(competition[field])
+    public["competition"] = competition
     world["public_survival"] = public
 
 
@@ -533,7 +581,7 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
             raise GeneratorError(f"LLM 世界蓝图不完整或不可编译：{exc}") from exc
         mechanics_source = "llm_world_blueprint"
     world["generation_bundle"] = bundle
-    for registry_name in ("locations", "targets", "combat_targets", "enemy_definitions", "encounter_entities", "areas", "farm_areas", "build_catalog", "modules", "recipes", "disasters", "action_targets", "professions", "starting_inventory", "starting_npcs", "starting_factions", "starting_relationships"):
+    for registry_name in ("locations", "targets", "combat_targets", "enemy_definitions", "encounter_entities", "areas", "farm_areas", "build_catalog", "modules", "recipes", "disasters", "action_targets", "professions", "starting_inventory", "starting_npcs", "starting_factions", "starting_relationships", "event_pool", "creative_slots"):
         if not world.get(registry_name) and bundle.get(registry_name) is not None:
             world[registry_name] = copy.deepcopy(bundle[registry_name])
     for content_name in ("motifs", "taboo_domains"):
@@ -556,7 +604,10 @@ def build_files(template_dir, world, talent):
     setting = world["setting"]
     world_name = world["name"]
     safe_base = setting["safe_base"]
-    phase = (world.get("phases") or [{"name": "新手期"}])[0].get("name", "新手期")
+    phases = world.get("phases")
+    if not isinstance(phases, list) or not phases or not isinstance(phases[0], dict) or not str(phases[0].get("name") or "").strip():
+        raise GeneratorError("LLM 世界包必须提供首个阶段名称 world.phases[0].name")
+    phase = str(phases[0]["name"]).strip()
     bundle = world.get("generation_bundle", {}) if isinstance(world.get("generation_bundle", {}), dict) else {}
     mysteries = [
         item.get("question", str(item)) if isinstance(item, dict) else str(item)
@@ -660,7 +711,7 @@ def build_files(template_dir, world, talent):
             "runtime_metrics": {},
             "checkpoints_used": 0,
             "max_checkpoints": 3,
-            "current_location": bundle.get("starting_location", "camp_core"),
+            "current_location": bundle["starting_location"],
             "current_location_name": safe_base,
             "current_mode": "base",
             "in_combat": False,

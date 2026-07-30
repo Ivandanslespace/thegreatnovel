@@ -1,6 +1,9 @@
 region_state:
-  discovered_locations: []
-  explored_areas: {}
-  location_discovery_progress: {}
-  last_known_region: null
-  regional_reputation: {}
+  region_state:
+    region_state:
+      region_state:
+        discovered_locations: []
+        explored_areas: {}
+        location_discovery_progress: {}
+        last_known_region: null
+        regional_reputation: {}

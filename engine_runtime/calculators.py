@@ -807,66 +807,6 @@ def calculate_risk_credibility(values: Mapping[str, Any]) -> float:
     return rounded(result)
 
 
-def calculate_consequence_radius(
-    profession_id: str,
-    action_resolution: Mapping[str, Any],
-    region_info: Mapping[str, Any]
-) -> float:
-    """计算职业行动的后果半径 (consequence radius)。
-    
-    Args:
-        profession_id: 职业 ID (mechanic, contract_signer, logger, etc.)
-        action_resolution: 行动解析结果，包含 outcome 等字段
-        region_info: 区域信息，包含 phase 等字段
-    
-    Returns:
-        {radius: float, type: str, estimated_affected_population: int}
-    """
-    # 基础半径 by 职业稀有度/影响
-    base_radii = {
-        "mechanic": 0.6,      # Regional traffic impact
-        "contract_signer": 0.8,  # Trust system stability
-        "logger": 0.3,        # Local information gathering
-        "hunter": 0.4,        # Hunting area impact
-        "default": 0.2,       # Most professions
-    }
-    base_radius = base_radii.get(profession_id, base_radii["default"])
-    
-    # 计算行动影响规模
-    action_impact_scale = 0.0
-    if isinstance(action_resolution, Mapping):
-        outcome = str(action_resolution.get("outcome", ""))
-        if outcome in ["大成功", "普通成功"]:
-            action_impact_scale = 0.8
-        elif outcome in ["成功但付出代价"]:
-            action_impact_scale = 0.5
-        else:
-            action_impact_scale = 0.2
-    
-    # 地区阶段乘数 (higher impact in mid-game crises)
-    phase_multiplier = 1.0
-    if isinstance(region_info, Mapping):
-        phase = str(region_info.get("phase", ""))
-        if phase == "early_game":
-            phase_multiplier = 0.8
-        elif phase == "mid_game":
-            phase_multiplier = 1.2
-        elif phase == "late_game":
-            phase_multiplier = 1.5
-    
-    # 最终计算 with clamping
-    final_radius = base_radius * (0.5 + action_impact_scale * 0.5) * phase_multiplier
-    final_radius = max(0.0, min(1.0, final_radius))  # Clamp to 0-1
-    
-    # 估计受影响人口
-    estimated_population = int(number(region_info.get("region_size", 1000)) * final_radius)
-    
-    return {
-        "radius": rounded(final_radius),
-        "type": "regional" if final_radius > 0.5 else "local" if final_radius > 0.2 else "personal",
-        "estimated_affected_population": estimated_population,
-    }
-
 
 def calculate_narrative_metrics(state: Mapping[str, Any], event_history: Sequence[Mapping[str, Any]], payoff: Optional[Mapping[str, Any]] = None, decision: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     meta = state.get("meta", {}) if isinstance(state.get("meta"), Mapping) else {}
@@ -1053,57 +993,22 @@ def simulate_peer_population_advancement(region_info: Mapping[str, Any], turn: i
 
 
 def calculate_consequence_radius(
-    profession_id: str,
+    profession: Mapping[str, Any] | str,
     action_resolution: Mapping[str, Any],
-    region_info: Mapping[str, Any]
-) -> Dict[str, float]:
-    """计算基于职业的行动后果半径。
-    
-    Args:
-        profession_id: 职业 ID，如"mechanic"、"contract_signer"等
-        action_resolution: 行动结果，包含 outcome 字段
-        region_info: 地区信息，包含 phase 和 region_size
-    
-    Returns:
-        0 到 1 之间的后果半径。
-    """
-    # 按职业稀有度/影响力的基础半径
-    base_radii = {
-        "mechanic": 0.6,      # 区域交通影响
-        "contract_signer": 0.8,  # 信任体系稳定性
-        "logger": 0.3,        # 本地信息收集
-        "hunter": 0.4,        # 狩猎区域影响
-        "default": 0.2,       # 大多数职业
-    }
-    base_radius = base_radii.get(profession_id, base_radii["default"])
-    
-    # 计算行动影响规模
-    action_impact_scale = 0.0
-    if isinstance(action_resolution, Mapping):
-        if action_resolution.get("impact_score") is not None:
-            action_impact_scale = clamp(number(action_resolution.get("impact_score")), 0.0, 1.0)
-        else:
-            outcome = str(action_resolution.get("outcome", ""))
-            if outcome in ["大成功", "普通成功"]:
-                action_impact_scale = 0.8
-            elif outcome in ["成功但付出代价"]:
-                action_impact_scale = 0.5
-            else:
-                action_impact_scale = 0.2
-    
-    # 地区阶段乘数（中期危机时影响更高）
-    phase_multiplier = 1.0
-    if isinstance(region_info, Mapping):
-        phase = str(region_info.get("phase", ""))
-        if phase == "early_game":
-            phase_multiplier = 0.8
-        elif phase == "mid_game":
-            phase_multiplier = 1.2
-        elif phase == "late_game":
-            phase_multiplier = 1.5
-    
-    # 最终计算并限制在 0-1 范围内
-    final_radius = base_radius * (0.5 + action_impact_scale * 0.5) * phase_multiplier
-    final_radius = max(0.0, min(1.0, final_radius))  # Clamp to 0-1
-    
-    return round(final_radius, 2)
+    region_info: Mapping[str, Any],
+) -> float:
+    """按本世界声明的职业半径与竞争合同计算行动外溢，不识别职业名称。"""
+    definitions = region_info.get("professions", {}) if isinstance(region_info, Mapping) else {}
+    definition = profession if isinstance(profession, Mapping) else (
+        definitions.get(str(profession), {}) if isinstance(definitions, Mapping) else {}
+    )
+    base_radius = clamp(number(definition.get("consequence_radius")), 0.0, 1.0) if isinstance(definition, Mapping) else 0.0
+    if not isinstance(action_resolution, Mapping):
+        return 0.0
+    if action_resolution.get("impact_score") is not None:
+        impact = clamp(number(action_resolution.get("impact_score")), 0.0, 1.0)
+    else:
+        outcome_scores = region_info.get("outcome_impact_scores", {}) if isinstance(region_info, Mapping) else {}
+        impact = clamp(number(outcome_scores.get(str(action_resolution.get("outcome", "")))) if isinstance(outcome_scores, Mapping) else 0.0, 0.0, 1.0)
+    multiplier = clamp(number(region_info.get("consequence_radius_multiplier", 1.0)), 0.0, 10.0) if isinstance(region_info, Mapping) else 1.0
+    return rounded(clamp(base_radius * (0.5 + impact * 0.5) * multiplier, 0.0, 1.0))

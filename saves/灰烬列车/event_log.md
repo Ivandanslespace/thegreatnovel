@@ -6924,3 +6924,105 @@
   }
 ]
 ```
+---
+## Turn 0 | Day 1 清晨
+```json
+[
+  {
+    "event_id": "evt_schema_migrate_0000_aux_v1",
+    "type": "PROJECTION_SCHEMA_MIGRATED",
+    "actor": "system",
+    "target": null,
+    "data": {
+      "projection_state": {
+        "player_talent": {
+          "name": "共鸣感知",
+          "description": "主角的神经系统对共鸣波有异常敏感性，能感知普通人无法察觉的能量波动和危险信号",
+          "type": "信息类",
+          "trigger": "主动激活或遭遇共鸣波/高辐射区域时被动触发",
+          "effect": "激活后可感知半径50米内的隐藏物资、敌人位置和结构弱点，持续3分钟。被动触发时获得2秒危险预警",
+          "limitations": "每次激活消耗精神值10点；冷却时间30分钟；连续使用3次后进入精神过载状态，精神值恢复速度减半持续1小时",
+          "mechanical_focus": "exploration",
+          "opening_card": {
+            "advantage": "能在探索中感知隐藏物资和敌人，是普通投放者不具备的信息优势",
+            "first_use": "下车探索锈蚀车站前激活，立即发现散落的隐藏物资和辐射蝎的精确位置",
+            "comparison": "普通玩家只能靠肉眼搜索，容易遗漏隐藏物资，且经常被辐射蝎伏击",
+            "hard_limit": "精神值消耗大，不能无脑使用；精神过载后恢复缓慢，期间探索效率大幅下降"
+          },
+          "rarity": "A"
+        }
+      }
+    },
+    "turn": 0,
+    "timestamp": "Day 1 清晨"
+  }
+]
+```
+---
+## Turn 0 | Day 1 清晨
+```json
+[
+  {
+    "event_id": "evt_schema_migrate_0000_aux_v1",
+    "type": "PROJECTION_SCHEMA_MIGRATED",
+    "actor": "system",
+    "target": null,
+    "data": {
+      "projection_state": {
+        "player_talent": {
+          "name": "共鸣感知",
+          "description": "主角的神经系统对共鸣波有异常敏感性，能感知普通人无法察觉的能量波动和危险信号",
+          "type": "信息类",
+          "trigger": "主动激活或遭遇共鸣波/高辐射区域时被动触发",
+          "effect": "激活后可感知半径50米内的隐藏物资、敌人位置和结构弱点，持续3分钟。被动触发时获得2秒危险预警",
+          "limitations": "每次激活消耗精神值10点；冷却时间30分钟；连续使用3次后进入精神过载状态，精神值恢复速度减半持续1小时",
+          "mechanical_focus": "exploration",
+          "opening_card": {
+            "advantage": "能在探索中感知隐藏物资和敌人，是普通投放者不具备的信息优势",
+            "first_use": "下车探索锈蚀车站前激活，立即发现散落的隐藏物资和辐射蝎的精确位置",
+            "comparison": "普通玩家只能靠肉眼搜索，容易遗漏隐藏物资，且经常被辐射蝎伏击",
+            "hard_limit": "精神值消耗大，不能无脑使用；精神过载后恢复缓慢，期间探索效率大幅下降"
+          },
+          "rarity": "A"
+        }
+      }
+    },
+    "turn": 0,
+    "timestamp": "Day 1 清晨"
+  }
+]
+```
+---
+## Turn 0 | Day 1 清晨
+```json
+[
+  {
+    "event_id": "evt_schema_migrate_0000_aux_v1",
+    "type": "PROJECTION_SCHEMA_MIGRATED",
+    "actor": "system",
+    "target": null,
+    "data": {
+      "projection_state": {
+        "player_talent": {
+          "name": "共鸣感知",
+          "description": "主角的神经系统对共鸣波有异常敏感性，能感知普通人无法察觉的能量波动和危险信号",
+          "type": "信息类",
+          "trigger": "主动激活或遭遇共鸣波/高辐射区域时被动触发",
+          "effect": "激活后可感知半径50米内的隐藏物资、敌人位置和结构弱点，持续3分钟。被动触发时获得2秒危险预警",
+          "limitations": "每次激活消耗精神值10点；冷却时间30分钟；连续使用3次后进入精神过载状态，精神值恢复速度减半持续1小时",
+          "mechanical_focus": "exploration",
+          "opening_card": {
+            "advantage": "能在探索中感知隐藏物资和敌人，是普通投放者不具备的信息优势",
+            "first_use": "下车探索锈蚀车站前激活，立即发现散落的隐藏物资和辐射蝎的精确位置",
+            "comparison": "普通玩家只能靠肉眼搜索，容易遗漏隐藏物资，且经常被辐射蝎伏击",
+            "hard_limit": "精神值消耗大，不能无脑使用；精神过载后恢复缓慢，期间探索效率大幅下降"
+          },
+          "rarity": "A"
+        }
+      }
+    },
+    "turn": 0,
+    "timestamp": "Day 1 清晨"
+  }
+]
+```

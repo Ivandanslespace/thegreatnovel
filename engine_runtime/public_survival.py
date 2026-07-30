@@ -43,6 +43,12 @@ def _as_records(value: Any) -> list[dict[str, Any]]:
     return [deepcopy(dict(item)) for item in value if isinstance(item, Mapping)] if isinstance(value, list) else []
 
 
+def _competition(world: Mapping[str, Any]) -> dict[str, Any] | None:
+    """读取本局已固化的竞争推进合同；不为旧档补任何全局参数。"""
+    value = _public_blueprint(world).get("competition", {})
+    return deepcopy(dict(value)) if isinstance(value, Mapping) else None
+
+
 def _leaderboard_rows(peers: list[dict[str, Any]], player_rank: int) -> list[dict[str, Any]]:
     rows = []
     for index, peer in enumerate(peers, start=1):
@@ -67,9 +73,17 @@ def initial_public_states(world: Mapping[str, Any]) -> dict[str, dict[str, Any]]
         }
 
     blueprint = _public_blueprint(world)
+    competition = _competition(world)
+    if competition is None:
+        # 仅保护旧档不被半升级；新建全民世界已在创建时被严格拒绝。
+        return {
+            "population_state": {}, "public_system_state": {}, "market_state": {},
+            "ranking_state": {}, "comparative_state": {}, "rival_state": {},
+        }
     peers = _as_records(blueprint.get("initial_peers"))
     region_size = max(len(peers) + 1, int(contract.get("region_size") or 1000))
-    player_rank = region_size
+    initial_percentile = float(competition["initial_percentile"])
+    player_rank = max(1, min(region_size, region_size - round(region_size * initial_percentile / 100) + 1))
     public_system = contract.get("public_system", {}) if isinstance(contract.get("public_system", {}), Mapping) else {}
     initial_messages = _as_records(blueprint.get("starting_channel_messages"))
     for message in initial_messages:
@@ -109,19 +123,19 @@ def initial_public_states(world: Mapping[str, Any]) -> dict[str, dict[str, Any]]
             "player_rank_regional": player_rank,
             "leaderboards": {"regional": _leaderboard_rows(peers, player_rank)},
             "rank_season_current": 1,
-            "rank_season_end_turn": 100,
+            "rank_season_end_turn": int(competition["rank_season_end_turn"]),
             "prestige_points": 0,
         },
         "comparative_state": {
-            "player_comparison_baseline": {"percentile": 0, "summary": "尚未进行正式行动"},
+            "player_comparison_baseline": {"percentile": initial_percentile, "summary": "尚未进行正式行动"},
             "performance_metrics_history": [],
             "best_performance_by_category": {},
             "comparison_partners": [peer["id"] for peer in peers],
             "comparison_last_updated": 1,
         },
         "rival_state": {
-            "active_rivals": peers[:2],
-            "rival_relationships": {peer["id"]: "unknown" for peer in peers[:2]},
+            "active_rivals": peers[:int(competition["active_rival_count"])],
+            "rival_relationships": {peer["id"]: "unknown" for peer in peers[:int(competition["active_rival_count"])]},
             "rival_competitions_active": [],
             "rival_score_current": 0,
             "rival_score_target": 0,
@@ -131,25 +145,18 @@ def initial_public_states(world: Mapping[str, Any]) -> dict[str, dict[str, Any]]
     }
 
 
-def _action_score(result: Mapping[str, Any]) -> int:
+def _action_score(result: Mapping[str, Any], competition: Mapping[str, Any]) -> float:
     resolution = result.get("resolution", {}) if isinstance(result.get("resolution", {}), Mapping) else {}
     outcome = str(resolution.get("outcome", ""))
-    outcome_scores = {
-        "大成功": 18,
-        "普通成功": 12,
-        "成功但付出代价": 8,
-        "失败但获得部分信息": 3,
-        "局部失败": 0,
-        "严重失败": -6,
-        "死亡": -20,
-    }
-    score = outcome_scores.get(outcome, 4)
+    outcome_scores = competition["outcome_scores"]
+    score = float(outcome_scores.get(outcome, 0))
     event = result.get("event", {}) if isinstance(result.get("event", {}), Mapping) else {}
     payload = event.get("data", {}) if isinstance(event.get("data", {}), Mapping) else {}
-    score += 3 * len(payload.get("discover_locations", []) or [])
-    score += 2 * len(payload.get("knowledge_additions", []) or [])
+    score += float(competition["location_discovery_bonus"]) * len(payload.get("discover_locations", []) or [])
+    score += float(competition["knowledge_bonus"]) * len(payload.get("knowledge_additions", []) or [])
     changes = payload.get("resource_changes", {}) if isinstance(payload.get("resource_changes", {}), Mapping) else {}
-    score += min(6, sum(1 for value in changes.values() if isinstance(value, (int, float)) and value > 0))
+    positive_resources = sum(1 for value in changes.values() if isinstance(value, (int, float)) and value > 0)
+    score += min(float(competition["positive_resource_bonus_cap"]), positive_resources)
     return score
 
 
@@ -161,6 +168,9 @@ def advance_public_states(state_data: Mapping[str, Any], action_result: Mapping[
     """
     world = state_data.get("world", {}) if isinstance(state_data.get("world", {}), Mapping) else {}
     if not collective_contract(world):
+        return None
+    competition = _competition(world)
+    if competition is None:
         return None
 
     population = deepcopy(state_data.get("population_state", {}))
@@ -179,15 +189,16 @@ def advance_public_states(state_data: Mapping[str, Any], action_result: Mapping[
     alive_before = max(1, int(population.get("alive_count") or region_size))
     seed = f"{meta.get('rng_seed', meta.get('world_name', 'world'))}|public|{turn}"
     roll = int(hashlib.sha256(seed.encode("utf-8")).hexdigest()[:8], 16) % 100
-    losses = 1 if alive_before > 20 and roll >= 88 else 0
+    losses = int(competition["losses_per_trigger"]) if roll >= float(competition["loss_roll_threshold"]) else 0
+    losses = min(max(0, losses), max(0, alive_before - 1))
     alive_after = max(1, alive_before - losses)
 
-    action_score = _action_score(action_result)
+    action_score = _action_score(action_result, competition)
     history = comparative.setdefault("performance_metrics_history", [])
-    cumulative = int(history[-1].get("cumulative_score", 0)) if history and isinstance(history[-1], Mapping) else 0
+    cumulative = float(history[-1].get("cumulative_score", 0)) if history and isinstance(history[-1], Mapping) else 0.0
     cumulative += action_score
     # 开局所有人从同一规则起跑；排名来自本局已提交表现，而非叙述的主观宣称。
-    percentile = max(1, min(99, 50 + cumulative * 2))
+    percentile = max(1, min(99, float(competition["initial_percentile"]) + cumulative * float(competition["percentile_per_score"])))
     player_rank = max(1, min(alive_after, alive_after - round(alive_after * percentile / 100) + 1))
     metric = {"turn": turn, "action_score": action_score, "cumulative_score": cumulative, "percentile": percentile, "regional_rank": player_rank}
     history.append(metric)

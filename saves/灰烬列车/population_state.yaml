@@ -1,52 +1,55 @@
 population_state:
-  enabled: true
-  region_name: 第七扇区·铁锈荒原
-  region_size: 1000
-  alive_count: 1000
-  deaths_total: 0
-  visible_peers:
-  - id: peer_marcus
-    name: 铁拳·马库斯
-    opening_strategy: 快速加固列车装甲并招募盟友，建立小型车队
-    visible_edge: 重型改装列车，装甲防御是普通列车的两倍
-  - id: peer_lena
-    name: 幽灵·蕾娜
-    opening_strategy: 隐蔽行动，独自探索高价值废墟后迅速撤离
-    visible_edge: 拥有隐身模块原型，探索时不易被发现
-  - id: peer_chen
-    name: 教授·陈
-    opening_strategy: 研究信号塔废墟，试图理解共鸣波的规律以获取技术优势
-    visible_edge: 前科研人员，拥有信号分析仪的蓝图
-  - id: peer_viper
-    name: 毒蛇·卡里姆
-    opening_strategy: 武装列车，拦截其他投放者的物资运输线
-    visible_edge: 初始装备有突击步枪和弹药，战斗经验丰富
-  turn_history:
-  - turn: 2
-    alive_before: 1000
-    alive_after: 1000
-    deaths: 0
-  - turn: 3
-    alive_before: 1000
-    alive_after: 1000
-    deaths: 0
-  - turn: 4
-    alive_before: 1000
-    alive_after: 1000
-    deaths: 0
-  - turn: 5
-    alive_before: 1000
-    alive_after: 1000
-    deaths: 0
-  - turn: 6
-    alive_before: 1000
-    alive_after: 1000
-    deaths: 0
-  - turn: 7
-    alive_before: 1000
-    alive_after: 1000
-    deaths: 0
-  - turn: 8
-    alive_before: 1000
-    alive_after: 1000
-    deaths: 0
+  population_state:
+    population_state:
+      population_state:
+        enabled: true
+        region_name: 第七扇区·铁锈荒原
+        region_size: 1000
+        alive_count: 1000
+        deaths_total: 0
+        visible_peers:
+        - id: peer_marcus
+          name: 铁拳·马库斯
+          opening_strategy: 快速加固列车装甲并招募盟友，建立小型车队
+          visible_edge: 重型改装列车，装甲防御是普通列车的两倍
+        - id: peer_lena
+          name: 幽灵·蕾娜
+          opening_strategy: 隐蔽行动，独自探索高价值废墟后迅速撤离
+          visible_edge: 拥有隐身模块原型，探索时不易被发现
+        - id: peer_chen
+          name: 教授·陈
+          opening_strategy: 研究信号塔废墟，试图理解共鸣波的规律以获取技术优势
+          visible_edge: 前科研人员，拥有信号分析仪的蓝图
+        - id: peer_viper
+          name: 毒蛇·卡里姆
+          opening_strategy: 武装列车，拦截其他投放者的物资运输线
+          visible_edge: 初始装备有突击步枪和弹药，战斗经验丰富
+        turn_history:
+        - turn: 2
+          alive_before: 1000
+          alive_after: 1000
+          deaths: 0
+        - turn: 3
+          alive_before: 1000
+          alive_after: 1000
+          deaths: 0
+        - turn: 4
+          alive_before: 1000
+          alive_after: 1000
+          deaths: 0
+        - turn: 5
+          alive_before: 1000
+          alive_after: 1000
+          deaths: 0
+        - turn: 6
+          alive_before: 1000
+          alive_after: 1000
+          deaths: 0
+        - turn: 7
+          alive_before: 1000
+          alive_after: 1000
+          deaths: 0
+        - turn: 8
+          alive_before: 1000
+          alive_after: 1000
+          deaths: 0

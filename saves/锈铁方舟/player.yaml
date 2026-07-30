@@ -16,7 +16,7 @@ player:
   max_hp: 50
   status_effects: []
   hunger: 100
-  fatigue: 53
+  fatigue: 58
   mental: 30
   max_mental: 100
   talents:

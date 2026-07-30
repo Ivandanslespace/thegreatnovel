@@ -2,7 +2,7 @@ meta:
   save_name: 锈铁方舟·第一日
   world_name: 锈铁方舟
   created_at: '2026-07-30T22:07:27+02:00'
-  current_turn: 12
+  current_turn: 13
   game_day: 2
   time_of_day: 清晨
   phase: 新手期
@@ -14,10 +14,10 @@ meta:
   created_by: tools/create_save.py
   rng_seed: 锈铁方舟
   runtime_metrics:
-    pressure: 29.6875
-    payoff_maturity: 37.5
-    payoff_impact: 10.0
-    payoff_score: 21.63125
+    pressure: 15.0
+    payoff_maturity: 39.5
+    payoff_impact: 23.5
+    payoff_score: 30.64675
     narrative_debt:
     - id: 信号塔废墟的共鸣波从何而来？是自然现象还是人为操控？
       score: 0.0
@@ -29,29 +29,29 @@ meta:
       score: 0.0
     - id: 排行榜上偶尔出现又消失的玩家'影'是谁？
       score: 0.0
-    progress: 0.03
+    progress: 0.165
     stagnation_rate: 1.0
     repetition_fatigue:
       max: 15.0
       by_type:
-        PUBLIC_SYSTEM_ADVANCED: 15.0
-        RESEARCH_RESOLVED: 0.0
         OPTIONS_PRESENTED: 15.0
-        TRAVEL_COMPLETED: 0.0
+        PUBLIC_SYSTEM_ADVANCED: 15.0
         RETURN_TO_BASE_COMPLETED: 0.0
-    agency: 0.14
-    uncertainty: 0.16
-    risk_credibility: 0.0
-    decision_value: 0.0
-    combinability: 0.0
+        WAIT_COMPLETED: 0.0
+        ATTRIBUTES_ALLOCATED: 0.0
+    agency: 0.009722
+    uncertainty: 0.226667
+    risk_credibility: 0.079333
+    decision_value: 0.001556
+    combinability: 95.833333
   checkpoints_used: 0
   max_checkpoints: 3
-  current_location: camp_core
-  current_location_name: 灰烬号列车
+  current_location: rust_station
+  current_location_name: 锈蚀车站
   current_mode: base
   in_combat: false
-  available_time_minutes: 720
-  day_elapsed_minutes: 0
+  available_time_minutes: 690
+  day_elapsed_minutes: 30
   next_disaster_day: 7
   active_encounters: []
   current_encounter_id: null
@@ -62,7 +62,7 @@ meta:
     pressure_components:
       survival_threat: 0.0
       resource_scarcity: 0.0
-      time_pressure: 0.0
+      time_pressure: 4.1666666666666625
       information_unknown: 100.0
       interpersonal_conflict: 0.0
       failure_accumulation: 0.0
@@ -98,6 +98,9 @@ meta:
     - turn: 11
       score: 21.63125
       event_type: WAIT_COMPLETED
+    - turn: 13
+      score: 30.64675
+      event_type: TRAVEL_COMPLETED
     event_pattern_history:
     - TRAVEL_COMPLETED
     - WAIT_COMPLETED
@@ -110,11 +113,12 @@ meta:
     - RETURN_TO_BASE_COMPLETED
     - WAIT_COMPLETED
     - ATTRIBUTES_ALLOCATED
+    - TRAVEL_COMPLETED
     recent_irreversible_changes: []
     current_arc:
-      last_event_type: ATTRIBUTES_ALLOCATED
-      last_turn: 12
-      location: camp_core
+      last_event_type: TRAVEL_COMPLETED
+      last_turn: 13
+      location: rust_station
   pressure_level: 30
   last_payoff_turn: 0
   active_mysteries:
@@ -126,31 +130,31 @@ meta:
   active_mystery_records:
   - id: 信号塔废墟的共鸣波从何而来？是自然现象还是人为操控？
     importance: 1
-    waiting_turns: 11
+    waiting_turns: 12
     reminder_count: 0
     visibility: 1
     progress: 0
   - id: 末日方舟系统的真正目的是什么？为什么选择第七扇区？
     importance: 1
-    waiting_turns: 11
+    waiting_turns: 12
     reminder_count: 0
     visibility: 1
     progress: 0
   - id: 共鸣晶体为何在靠近信号塔时会自动发热？
     importance: 1
-    waiting_turns: 11
+    waiting_turns: 12
     reminder_count: 0
     visibility: 1
     progress: 0
   - id: 老金似乎知道一些关于系统的事，他为什么不愿说？
     importance: 1
-    waiting_turns: 11
+    waiting_turns: 12
     reminder_count: 0
     visibility: 1
     progress: 0
   - id: 排行榜上偶尔出现又消失的玩家'影'是谁？
     importance: 1
-    waiting_turns: 11
+    waiting_turns: 12
     reminder_count: 0
     visibility: 1
     progress: 0
@@ -199,103 +203,289 @@ meta:
     turn: 11
   pending_options:
     version: 1
-    state_turn: 12
+    state_turn: 13
     options:
-      B:
-        id: B
-        label: 休息恢复
+      A:
+        id: A
+        label: 等待至白天并rust_station
         description: ''
         action:
-          action_id: auto-rest
-          type: REST
-          target: camp_core
+          action_id: auto-wait-rust_station
+          type: ACTION_PLAN
+          plan_id: auto-wait-rust_station
+          accept_dilution: true
+          steps:
+          - action_id: wait-step
+            type: WAIT
+            parameters:
+              wait_minutes: 90
+            goal: 等待进入白天
+          - action_id: action-step
+            type: EXPLORATION
+            target: rust_station
+            goal: rust_station
+        preview:
+          legal: true
+          errors: []
+          plan_id: auto-wait-rust_station
+          combinability: 50.0
+          components:
+            time_compatibility: 1.0
+            buffer_ratio: 0.6956521739130435
+            resource_compatibility: 1.0
+            location_proximity: 1.0
+            goal_compatibility: 1.0
+            npc_availability: 1.0
+            attention_compatibility: 1.0
+            action_slot_compatibility: 0.5
+            commitment_compatibility: 1.0
+            opportunity_window_compatibility: 1.0
+            movement_compatibility: 1.0
+          dilution_multiplier: 0.75
+          partial: false
+          deferred_steps: []
+          action_ledger:
+            available_time_minutes: 690.0
+            available_stamina: 42.0
+            available_mental: 30.0
+            actions:
+            - &id001
+              type: WAIT
+              target: null
+              time_minutes: 90.0
+              stamina_cost: 0.0
+              mental_cost: 0.0
+              tags: []
+            - &id002
+              type: EXPLORATION
+              target: rust_station
+              time_minutes: 120.0
+              stamina_cost: 15.0
+              mental_cost: 10.0
+              tags:
+              - major_action
+              - requires_full_attention
+          steps:
+          - action:
+              action_id: wait-step
+              type: WAIT
+              parameters:
+                wait_minutes: 90
+              goal: 等待进入白天
+            preview:
+              legal: true
+              errors: []
+              resolution:
+                formula_version: '1.0'
+                action_type: WAIT
+                outcome: 普通成功
+                probability: 1.0
+                risk_mode: deterministic_wait
+                time_cost: 90.0
+                wait_minutes: 90.0
+              target_profile: {}
+              system_constraints:
+                tags: []
+                commitments: []
+                windows: []
+                allowed_periods: []
+                npc_unavailable: false
+              action_ledger:
+                available_time_minutes: 690.0
+                available_stamina: 42.0
+                available_mental: 30.0
+                actions:
+                - *id001
+              skill: null
+            source_action_id: wait-step
+            start_period: 清晨
+            start_location: rust_station
+            auto_generated: false
+          - action:
+              action_id: action-step
+              type: EXPLORATION
+              target: rust_station
+              goal: rust_station
+            preview:
+              legal: true
+              errors: []
+              resolution:
+                formula_version: '1.0'
+                action_id: action-step
+                advantage_components:
+                  ability_match: 7.5
+                  equipment_advantage: 0.0
+                  preparation: 2.25
+                  intelligence: 0.0
+                  teammate_assistance: 0.0
+                  environment_advantage: 0.0
+                resistance_components:
+                  target_difficulty: 14.0
+                  environment_penalty: 3.0
+                  injury: 0.0
+                  fatigue: 11.6
+                  time_pressure: 0.0
+                  unknown_risk: 3.0
+                advantage: 9.75
+                resistance: 31.6
+                K: 10.0
+                probability: 0.101106
+                random_roll: 0.78793
+                severity: 0.0
+                severity_band: 成功区
+                death_fairness: 0.3808
+                outcome: 严重失败
+                death_allowed: false
+                components:
+                  severity:
+                    difficulty: 2.8
+                    injury: 0.0
+                    resource_shortage: 0.0
+                    information_missing: 2.0
+                    time_pressure: 0.0
+                    continuous_errors: 0.0
+                    preparation: 3.0
+                    ability_match: 10.0
+                    teammate_support: 0.0
+                    survival_assets: 0.0
+                  death_fairness_inputs:
+                    risk_warning: 0.7
+                    causal_chain: 0.85
+                    avoidable: 0.8
+                    rule_consistency: 1.0
+                    player_responsibility: 0.8
+                  outcome_thresholds:
+                    critical: 0.010111
+                    normal: 0.065719
+                    costly: 0.101106
+                    partial_failure: 0.325829
+                    severe_failure: 0.910111
+                  dilution_multiplier: 0.75
+              target_profile:
+                id: rust_station
+                location_id: rust_station
+                action_type: EXPLORATION
+                primary_attribute: agility
+                target_difficulty: 14
+                environment_penalty: 3
+                unknown_risk: 5
+                risk_warning: 0.7
+                causal_chain: 0.85
+                avoidable: 0.8
+                rule_consistency: 1.0
+                player_responsibility: 0.8
+                effects:
+                  success:
+                    discover_locations:
+                    - rust_station
+                    resource_changes:
+                      净水: 3
+                    knowledge_additions:
+                    - rad_scorpion_behavior
+                  partial_failure:
+                    resource_changes:
+                      净水: 1
+                    knowledge_additions:
+                    - rad_scorpion_behavior
+                encounter_target_ids:
+                - rad_scorpion
+                requirements:
+                  location: rust_station
+                constraints:
+                  system_tags:
+                  - major_action
+                  - requires_full_attention
+                  exclusive_group: field_exploration
+                  window_ids:
+                  - 白天
+                  - 黄昏
+                  window_capacity: 1
+                  commitment_axis: route_commitment
+                  commitment_value: rust_station
+                  availability:
+                    allowed_periods:
+                    - 白天
+                    - 黄昏
+                  reservation:
+                    exclusive_group: field_exploration
+                    window_id: current_period
+                    capacity: 1
+              system_constraints:
+                tags:
+                - major_action
+                - requires_full_attention
+                commitments:
+                - - route_commitment
+                  - rust_station
+                windows:
+                - group: field_exploration
+                  ids:
+                  - 白天
+                  capacity: 1
+                allowed_periods:
+                - 白天
+                - 黄昏
+                npc_unavailable: false
+              action_ledger:
+                available_time_minutes: 600.0
+                available_stamina: 42.0
+                available_mental: 30.0
+                actions:
+                - *id002
+              skill: null
+            source_action_id: action-step
+            start_period: 白天
+            start_location: rust_station
+            auto_generated: false
+        state_turn: 13
+      B:
+        id: B
+        label: 返回基地
+        description: ''
+        action:
+          action_id: auto-return
+          type: RETURN_TO_BASE
         preview:
           legal: true
           errors: []
           resolution:
             formula_version: '1.0'
-            action_id: auto-rest
-            advantage_components:
-              ability_match: 18.0
-              equipment_advantage: 0.0
-              preparation: 0.0
-              intelligence: 0.0
-              teammate_assistance: 0.0
-              environment_advantage: 0.0
-            resistance_components:
-              target_difficulty: 0.0
-              environment_penalty: 0.0
-              injury: 0.0
-              fatigue: 10.6
-              time_pressure: 0.0
-              unknown_risk: 0.0
-            advantage: 18.0
-            resistance: 10.6
-            K: 10.0
-            probability: 0.676996
-            random_roll: 0.442697
-            severity: 0.0
-            severity_band: 成功区
-            death_fairness: 0.0
+            action_type: RETURN_TO_BASE
             outcome: 普通成功
-            death_allowed: false
-            components:
-              severity:
-                difficulty: 0.0
-                injury: 0.0
-                resource_shortage: 0.0
-                information_missing: 0.0
-                time_pressure: 0.0
-                continuous_errors: 0.0
-                preparation: 0.0
-                ability_match: 18.0
-                teammate_support: 0.0
-                survival_assets: 0.0
-              death_fairness_inputs:
-                risk_warning: 1.0
-                causal_chain: 1.0
-                avoidable: 0.0
-                rule_consistency: 1.0
-                player_responsibility: 0.0
-              outcome_thresholds:
-                critical: 0.05416
-                normal: 0.528057
-                costly: 0.676996
-                partial_failure: 0.870798
-                severe_failure: 0.98385
-          target_profile:
-            id: camp_core
-            target_difficulty: 0
-            effects: {}
+            movement_success: true
+            probability: 1.0
+            risk_mode: deterministic_route
+            time_cost: 30.0
+            stamina_cost: 5.0
+            mental_cost: 0.0
+          target_profile: {}
           system_constraints:
-            tags:
-            - major_action
+            tags: []
             commitments: []
             windows: []
             allowed_periods: []
             npc_unavailable: false
           action_ledger:
-            available_time_minutes: 720.0
-            available_stamina: 47.0
+            available_time_minutes: 690.0
+            available_stamina: 42.0
             available_mental: 30.0
             actions:
-            - type: REST
-              target: camp_core
-              time_minutes: 360.0
-              stamina_cost: 0.0
+            - type: RETURN_TO_BASE
+              target: null
+              time_minutes: 30.0
+              stamina_cost: 5.0
               mental_cost: 0.0
-              tags:
-              - major_action
+              tags: []
           skill: null
-        state_turn: 12
+        state_turn: 13
       C:
         id: C
-        label: 前往锈蚀车站
+        label: 前往信号塔废墟
         description: ''
         action:
-          action_id: auto-travel-rust_station
+          action_id: auto-travel-signal_tower_ruins
           type: TRAVEL
-          target: rust_station
+          target: signal_tower_ruins
         preview:
           legal: true
           errors: []
@@ -306,58 +496,41 @@ meta:
             movement_success: true
             probability: 1.0
             risk_mode: deterministic_route
-            time_cost: 30.0
-            stamina_cost: 5.0
+            time_cost: 45.0
+            stamina_cost: 8.0
             mental_cost: 0.0
           target_profile:
-            id: rust_station
-            location_id: rust_station
-            action_type: EXPLORATION
-            primary_attribute: agility
-            target_difficulty: 14
-            environment_penalty: 3
-            unknown_risk: 5
-            risk_warning: 0.7
+            id: signal_tower_ruins
+            location_id: signal_tower_ruins
+            action_type: RESEARCH
+            primary_attribute: spirit
+            target_difficulty: 20
+            environment_penalty: 5
+            unknown_risk: 10
+            risk_warning: 0.8
             causal_chain: 0.85
-            avoidable: 0.8
+            avoidable: 0.7
             rule_consistency: 1.0
             player_responsibility: 0.8
             effects:
               success:
-                discover_locations:
-                - rust_station
-                resource_changes:
-                  净水: 3
                 knowledge_additions:
-                - rad_scorpion_behavior
-              partial_failure:
+                - signal_tower_ruins_principle
                 resource_changes:
-                  净水: 1
-                knowledge_additions:
-                - rad_scorpion_behavior
-            encounter_target_ids:
-            - rad_scorpion
+                  燃料棒: 2
             requirements:
-              location: rust_station
+              location: signal_tower_ruins
             constraints:
               system_tags:
               - major_action
               - requires_full_attention
-              exclusive_group: field_exploration
+              exclusive_group: research_window
               window_ids:
               - 白天
               - 黄昏
               window_capacity: 1
-              commitment_axis: route_commitment
-              commitment_value: rust_station
-              availability:
-                allowed_periods:
-                - 白天
-                - 黄昏
-              reservation:
-                exclusive_group: field_exploration
-                window_id: current_period
-                capacity: 1
+              commitment_axis: research_focus
+              commitment_value: signal_tower_ruins
           system_constraints:
             tags: []
             commitments: []
@@ -365,16 +538,16 @@ meta:
             allowed_periods: []
             npc_unavailable: false
           action_ledger:
-            available_time_minutes: 720.0
-            available_stamina: 47.0
+            available_time_minutes: 690.0
+            available_stamina: 42.0
             available_mental: 30.0
             actions:
             - type: TRAVEL
-              target: rust_station
-              time_minutes: 30.0
-              stamina_cost: 5.0
+              target: signal_tower_ruins
+              time_minutes: 45.0
+              stamina_cost: 8.0
               mental_cost: 0.0
               tags: []
           skill: null
-        state_turn: 12
-  pending_options_state_turn: 12
+        state_turn: 13
+  pending_options_state_turn: 13

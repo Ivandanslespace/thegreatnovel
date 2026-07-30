@@ -276,7 +276,7 @@ def validate_world_package(save_dir, data):
         findings.append(Finding("CRITICAL", "连续性", f"meta.current_location 未注册：{current_location}"))
     if generation.get("mechanics_source") in {"theme_profile", "llm_world_blueprint", "llm_compiled_bundle"}:
         bundle = world.get("generation_bundle")
-        required_bundle = ("starting_location", "locations", "enemies", "areas", "build_catalog", "action_targets", "starting_inventory")
+        required_bundle = ("starting_location", "locations", "enemies", "areas", "build_catalog", "action_targets", "starting_inventory", "event_pool", "creative_slots")
         if not isinstance(bundle, dict):
             findings.append(Finding("CRITICAL", "规则", "创作世界缺少 generation_bundle"))
         else:

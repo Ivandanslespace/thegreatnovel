@@ -94,6 +94,18 @@ def creative_world_package(name="云海邮路"):
                     {"id": "peer_clocktower", "name": "钟塔见习生", "opening_strategy": "用钟表记录潮汐，抢先验证第一条稳定航线。", "visible_edge": "能从不同步的时钟里读出短暂的风向。"},
                     {"id": "peer_raincoat", "name": "雨披商人", "opening_strategy": "低价收集零散资源，等待暴潮前的物资恐慌。", "visible_edge": "携带一只防静电的交易箱。"},
                 ],
+                "competition": {
+                    "initial_percentile": 35,
+                    "outcome_scores": {"大成功": 15, "普通成功": 9, "成功但付出代价": 5, "失败但获得部分信息": 2, "局部失败": -1, "严重失败": -5, "死亡": -18},
+                    "location_discovery_bonus": 4,
+                    "knowledge_bonus": 2,
+                    "positive_resource_bonus_cap": 5,
+                    "percentile_per_score": 1.5,
+                    "loss_roll_threshold": 91,
+                    "losses_per_trigger": 2,
+                    "rank_season_end_turn": 80,
+                    "active_rival_count": 2,
+                },
             },
             "professions": {"storm_reader": profession},
             "starting_profession": "storm_reader",
@@ -123,41 +135,26 @@ def creative_world_package(name="云海邮路"):
             "motifs": ["被风改写的地址", "鲸鸣邮戳", "失效承诺"],
             "taboo_domains": ["替他人拆信", "伪造死亡通知"],
             "world_blueprint": {
-                "opening_area": {
-                    "id": "broken_post_route",
-                    "name": "断邮航线",
-                    "description": "漂浮在两座岛之间的旧邮袋被风暴拖成长桥。",
-                    "danger_hint": "风向忽然读不出地址时，航线会整体翻面。",
-                    "primary_attribute": "agility",
-                },
-                "opening_enemy": {
-                    "id": "blank_moth",
-                    "name": "空白蛾群",
-                    "description": "以未寄出的署名为食的半透明飞蛾。",
-                    "knowledge_hint": "它们聚集的地方，往往有被抹去的收件人。",
-                },
-                "investigation_site": {
-                    "id": "last_post_office",
-                    "name": "末班投递塔",
-                    "description": "塔内每层的时钟都指向不同的昨天。",
-                },
-                "starting_npc": {
-                    "id": "npc_ink",
-                    "name": "墨栖",
-                    "goal": "找回被暴潮改写的妹妹的最后一封信。",
-                    "profession": "storm_reader",
-                },
-                "starting_faction": {"id": "sealed_route_union", "name": "封航同盟", "goal": "垄断仍可读的航线。"},
-                "base_modules": [
-                    {"id": "seal_press", "name": "鲸骨封蜡机", "description": "为易碎信件压上能抵抗静电雨的封印。"},
-                    {"id": "wind_archive", "name": "逆风档案柜", "description": "收藏每次航线改变前的地址残片。"},
+                "starting_location": "camp_core",
+                "locations": [
+                    {"id": "camp_core", "name": "停泊在云鲸鳍侧的盲文邮局", "description": "云鲸鳍侧仍在营业的盲文邮局。", "safe": True, "discovered": True, "travel_minutes_from_base": 0, "travel_stamina_from_base": 0, "extraction_minutes": 0, "extraction_stamina_cost": 0},
+                    {"id": "broken_post_route", "name": "断邮航线", "description": "漂浮在两座岛之间的旧邮袋被风暴拖成长桥。", "safe": False, "discovered": False, "travel_minutes_from_base": 23, "travel_stamina_from_base": 4, "extraction_minutes": 18, "extraction_stamina_cost": 3, "extraction_mental_cost": 1, "extraction_rule": {"return_to": "camp_core", "deadline_minutes": 110, "requires_discovered_location": True}},
+                    {"id": "last_post_office", "name": "末班投递塔", "description": "塔内每层的时钟都指向不同的昨天。", "safe": False, "discovered": False, "travel_minutes_from_base": 37, "travel_stamina_from_base": 6, "extraction_minutes": 28, "extraction_stamina_cost": 4, "extraction_mental_cost": 2, "extraction_rule": {"return_to": "camp_core", "deadline_minutes": 150, "requires_discovered_location": True}},
                 ],
-                "starter_kit": {
-                    "main_weapon": {"id": "letter_hook", "name": "钩信短杖", "attack_type": "melee"},
-                    "items": [{"id": "unread_letter", "name": "一封没有收件人的信", "quantity": 1}],
-                },
-                "starter_recipe": {"id": "seal_patch", "name": "补写封蜡", "description": "临时补回被静电雨抹去的一个字。"},
+                "enemies": [{"id": "blank_moth", "name": "空白蛾群", "description": "以未寄出的署名为食的半透明飞蛾。", "level": 2, "quality": "异变", "hp": 24, "max_hp": 24, "attack": 5, "accuracy": 8, "defense_skill": 3, "armor": 0, "attributes": {"strength": 3, "constitution": 2, "agility": 7, "spirit": 4}, "drops": {"余墨盐": 2, "云皮纸": 1}, "knowledge_hint": "它们聚集的地方，往往有被抹去的收件人。", "status": "definition", "location_id": "broken_post_route"}],
+                "areas": [{"id": "broken_post_route_area", "name": "断邮航线生态", "description": "会翻面的旧邮袋桥。", "location_id": "broken_post_route", "monster_density_per_hour": 5, "monster_population": 31, "alertness": 18, "monster_adaptation": 5, "route_coverage": 68, "search_efficiency": 72, "monster_alertness_modifier": 115, "kill_success_rate": 0.66, "ammo_per_kill": 0, "weapon_rate_per_hour": 5, "recovery_efficiency": 0.82, "backpack_capacity_modifier": 0.9, "enemy_groups": [{"level": 2, "quality": "异变", "weight": 1, "drops": {"余墨盐": 2, "云皮纸": 1}}], "farmability_components": {"combat_advantage": 45, "enemy_information": 30, "kill_stability": 42, "sustainability": 54, "route_familiarity": 18, "extraction_ability": 62, "unknown_danger_penalty": 30, "noise_exposure": 42, "fatigue_risk": 36, "injury_risk": 32, "area_alertness": 18, "daylight_change": 20, "monster_adaptation": 5}, "extraction_rule": {"return_to": "camp_core", "deadline_minutes": 110, "requires_discovered_location": True}, "encounter_target_ids": ["blank_moth"]}],
+                "modules": [{"id": "seal_press", "name": "鲸骨封蜡机", "description": "为易碎信件压上能抵抗静电雨的封印。", "space_cost": 1, "build_time": 47, "build_cost": {"余墨盐": 2, "云皮纸": 1}, "maintenance": {"余墨盐": 1}, "effects": {"base_defense": 3}}, {"id": "wind_archive", "name": "逆风档案柜", "description": "收藏每次航线改变前的地址残片。", "space_cost": 1, "build_time": 73, "build_cost": {"云皮纸": 2, "鸣铜钉": 2}, "maintenance": {"云皮纸": 1}, "effects": {"research_preparation": 4}}],
+                "recipes": [{"id": "seal_patch", "name": "补写封蜡", "description": "临时补回被静电雨抹去的一个字。", "cost": {"余墨盐": 1, "云皮纸": 1}, "time_minutes": 19, "effects": {"item_additions": ["补写封蜡"]}}],
+                "npcs": [{"id": "npc_ink", "name": "墨栖", "status": "alive", "location": "camp_core", "goal": "找回被暴潮改写的妹妹的最后一封信。", "schedule": {"清晨": "分拣退信", "白天": "修补云索", "黄昏": "核对投递簿", "夜晚": "封存地址"}, "autonomous_yield": {"云皮纸": 1}, "utility_profile": {"goal_fit": 74, "survival_benefit": 62, "resource_benefit": 51, "relationship_impact": 38, "value_alignment": 68, "risk": 21, "cost": 18}, "profession": "storm_reader"}],
+                "factions": [{"id": "sealed_route_union", "name": "封航同盟", "status": "neutral", "location": "camp_core", "goal": "垄断仍可读的航线。", "schedule": {"清晨": "收购残片", "白天": "封锁航标"}, "treasury": {"余墨盐": 3}, "tax_rate": {"鸣铜钉": 0.1}, "influence": 14, "utility_profile": {"goal_fit": 72, "survival_benefit": 48, "resource_benefit": 67, "relationship_impact": 26, "value_alignment": 43, "risk": 44, "cost": 35}}],
+                "relationships": [{"npc_id": "npc_ink", "trust": 0, "respect": 0, "affection": 0, "fear": 0, "dependency": 0}],
+                "action_targets": [{"id": "survey_broken_route", "name": "勘测断邮航线", "action_type": "EXPLORATION", "location_id": "broken_post_route", "primary_attribute": "agility", "target_difficulty": 13, "time_minutes": 41, "stamina_cost": 5, "mental_cost": 1, "risk_warning": 0.76, "causal_chain": 0.86, "avoidable": 0.72, "rule_consistency": 1.0, "player_responsibility": 0.8, "effects": {"success": {"discover_locations": ["broken_post_route"], "resource_changes": {"余墨盐": 3}, "knowledge_additions": ["blank_moth_behavior"]}, "partial_failure": {"resource_changes": {"云皮纸": 1}, "knowledge_additions": ["blank_moth_behavior"]}}, "encounter_target_ids": ["blank_moth"], "requirements": {"location": "broken_post_route"}, "constraints": {"system_tags": ["major_action"], "commitment_axis": "route", "commitment_value": "broken_post_route"}}, {"id": "study_last_post", "name": "校对末班时钟", "action_type": "RESEARCH", "location_id": "last_post_office", "primary_attribute": "spirit", "target_difficulty": 17, "time_minutes": 52, "stamina_cost": 2, "mental_cost": 4, "effects": {"success": {"discover_locations": ["last_post_office"], "resource_changes": {"鸣铜钉": 2}, "knowledge_additions": ["last_post_office_principle"]}}, "requirements": {"location": "last_post_office"}, "constraints": {"system_tags": ["major_action"], "commitment_axis": "research", "commitment_value": "last_post_office"}}, {"id": "talk_to_ink", "name": "询问墨栖", "action_type": "SOCIAL_INTERACTION", "location_id": "camp_core", "primary_attribute": "spirit", "target_difficulty": 7, "time_minutes": 16, "stamina_cost": 0, "mental_cost": 1, "effects": {"success": {"relationship_changes": {"npc_ink": {"trust": 3}}, "knowledge_additions": ["npc_ink_goal"]}}, "requirements": {"location": "camp_core", "npc_available": "npc_ink"}, "constraints": {"system_tags": ["short_action"], "commitment_axis": "social", "commitment_value": "npc_ink"}}, {"id": "profession:storm_reader:READ_STORM_MAIL", "name": "解读风暴信", "action_type": "PROFESSION_ACTION", "location_id": "camp_core", "primary_attribute": "spirit", "target_difficulty": 14, "time_minutes": 27, "stamina_cost": 1, "mental_cost": 3, "effects": {"success": {"knowledge_additions": ["profession:storm_reader:READ_STORM_MAIL:completed"]}}, "requirements": {"profession": "storm_reader", "location": "camp_core", "knowledge_absent": ["profession:storm_reader:READ_STORM_MAIL:completed"]}, "constraints": {"system_tags": ["short_action"]}}],
+                "starting_inventory": {"resources": {"余墨盐": 2, "云皮纸": 2, "鸣铜钉": 1}, "equipment": {"main_weapon": {"id": "letter_hook", "name": "钩信短杖", "attack": 16, "accuracy": 9, "durability": 11, "attack_type": "melee", "rarity": "G"}}, "items": [{"id": "unread_letter", "name": "一封没有收件人的信", "quantity": 1, "rarity": "G"}]},
+                "disasters": [{"id": "unlettered_surge", "type": "无字暴潮", "cycle_days": 4, "warning": True}],
+                "event_pool": [{"id": "return_address_auction", "family": "rule_anomaly", "tier": "anomaly", "phases": 2, "hook": "一枚不存在的回程地址被挂牌", "premise": "频道中的回程地址开始要求竞价，并改写持有者的投递记录。", "rules": ["回程地址", "公开竞价"], "hidden_rule": "第三次出价后地址会绑定出价最高者最珍贵的一段记忆。", "effects": {"relationships": True, "rankings": True}}, {"id": "whale_breath_window", "family": "forced_convergence", "tier": "regional_crisis", "phases": 3, "hook": "云鲸换气把三条航线同时掀开", "premise": "云鲸的下一次换气只够一条队伍完成往返，所有投递者被迫选择路线或结盟。", "rules": ["云鲸换气", "航线窗口"], "event_scale": "区域", "affected_regions": ["断邮航线", "末班投递塔"], "phases_desc": ["窗口显现", "队伍争夺", "航线闭合"], "effects": {"locations": True, "resources": True, "factions": True}}, {"id": "living_postage_moss", "family": "living_resource", "tier": "variant", "phases": 1, "hook": "邮局墙缝长出会盖戳的苔藓", "premise": "苔藓能把无效地址临时盖成可投递状态，却会吸引空白蛾群。", "rules": ["苔藓增殖", "投递戳记"], "growth_conditions": "静电雨后的第一个清晨会沿云鲸鳍侧扩张。", "harvest_conditions": "用鸣铜钉切取，过量会使邮局失去一面防潮墙。", "attracts_entities": ["空白蛾群", "封航同盟"], "side_effects": ["获得临时地址", "基地防护下降"], "effects": {"resources": True, "base": True, "npcs": True}}],
+                "creative_slots": {"event_frequency_per_10_turns": 3, "max_concurrent_events": 2, "anomaly_ratio": 0.35, "regional_crisis_ratio": 0.2, "payoff_window_turns": 5},
             },
+            "phases": [{"name": "首日回邮期", "goal": "在暴潮前验证第一条可往返航线。"}],
         },
         "player_talent": {
             "name": "退信回响",
@@ -188,7 +185,7 @@ def creative_mechanics(professions=None):
     world = package["world"]
     blueprint = deepcopy(world["world_blueprint"])
     if professions is not None and not professions:
-        blueprint["starting_npc"].pop("profession", None)
+        blueprint["npcs"][0].pop("profession", None)
     return {
         "world_blueprint": blueprint,
         "professions": deepcopy(world["professions"] if professions is None else professions),
@@ -433,7 +430,7 @@ class FormulaTests(unittest.TestCase):
         self.assertEqual(talent["rarity"], "A")
         self.assertEqual(world["generation_bundle"]["starting_inventory"]["equipment"]["main_weapon"]["name"], "钩信短杖")
         self.assertEqual(world["generation"]["mechanics_source"], "llm_world_blueprint")
-        self.assertEqual(world["generation_bundle"]["compiler_version"], "1.4")
+        self.assertEqual(world["generation_bundle"]["compiler_version"], "2.0")
         self.assertIn("storm_reader", world["professions"])
         self.assertEqual(world["starting_npcs"][0]["profession"], "storm_reader")
         self.assertTrue(world["generation_bundle"]["locations"][1]["extraction_rule"]["requires_discovered_location"])
@@ -448,6 +445,14 @@ class FormulaTests(unittest.TestCase):
             "narrative_length": 7,
             "language": "中文",
         })
+        with self.assertRaises(GeneratorError):
+            normalize_package(template, supplied_world, supplied_talent)
+
+    def test_create_save_rejects_action_without_llm_costs(self):
+        template_path = Path(__file__).resolve().parents[1] / "templates" / "world_template.yaml"
+        template = yaml.safe_load(template_path.read_text(encoding="utf-8"))
+        supplied_world, supplied_talent = answers_to_package(creative_world_package())
+        supplied_world["world_blueprint"]["action_targets"][0].pop("time_minutes")
         with self.assertRaises(GeneratorError):
             normalize_package(template, supplied_world, supplied_talent)
 
@@ -676,11 +681,13 @@ class RuntimeIntegrationTests(unittest.TestCase):
         template = yaml.safe_load((project_root / "templates" / "world_template.yaml").read_text(encoding="utf-8"))
         supplied_world, supplied_talent = answers_to_package(creative_world_package("云海邮路验收"))
         world, talent = normalize_package(template, supplied_world, supplied_talent)
-        world["action_targets"][next(iter(world["areas"]))]["target_difficulty"] = 0
-        area_id = next(iter(world["areas"]))
-        research_id = next(key for key in world["action_targets"] if key not in {area_id, "camp_core", world["starting_npcs"][0]["id"]})
-        self.assertEqual(world["action_targets"][research_id]["location_id"], research_id)
-        self.assertEqual(world["action_targets"][research_id]["requirements"]["location"], research_id)
+        exploration_id = "survey_broken_route"
+        research_id = "study_last_post"
+        social_id = "talk_to_ink"
+        world["action_targets"][exploration_id]["target_difficulty"] = 0
+        area_id = world["areas"][next(iter(world["areas"]))]["location_id"]
+        self.assertEqual(world["action_targets"][research_id]["location_id"], "last_post_office")
+        self.assertEqual(world["action_targets"][research_id]["requirements"]["location"], "last_post_office")
         files = build_files(project_root / "templates" / "save_template", world, talent)
 
         with tempfile.TemporaryDirectory() as temp:
@@ -693,7 +700,7 @@ class RuntimeIntegrationTests(unittest.TestCase):
                     destination.write_text(content, encoding="utf-8")
             engine = GameEngine(load_game_state(root))
             bundle = engine.state.data["world"]["generation_bundle"]
-            area_id = next(iter(bundle["areas"]))
+            area_id = bundle["areas"][next(iter(bundle["areas"]))]["location_id"]
             enemy_definition_id = next(iter(bundle["enemy_definitions"]))
             module_id = next(iter(bundle["build_catalog"]))
 
@@ -703,18 +710,18 @@ class RuntimeIntegrationTests(unittest.TestCase):
                 "plan_id": "plan-1",
                 "accept_dilution": True,
                 "steps": [
-                    {"action_id": "social-1", "type": "SOCIAL_INTERACTION", "target": bundle["starting_npcs"][0]["id"], "goal": "确认基地目标"},
-                    {"action_id": "research-1", "type": "RESEARCH", "target": next(key for key in bundle["action_targets"] if key not in {area_id, "camp_core", bundle["starting_npcs"][0]["id"]}), "goal": "建立第一条工程假设"},
+                    {"action_id": "social-1", "type": "SOCIAL_INTERACTION", "target": social_id, "goal": "确认基地目标"},
+                    {"action_id": "research-1", "type": "RESEARCH", "target": research_id, "goal": "建立第一条工程假设"},
                 ],
             })
             self.assertEqual(len(plan["events"]), 3)
             self.assertEqual([event["type"] for event in plan["events"]], ["SOCIAL_RESOLVED", "TRAVEL_COMPLETED", "RESEARCH_RESOLVED"])
-            self.assertEqual(engine.state.meta["current_location"], research_id)
-            self.assertEqual(engine.state.meta["time_of_day"], "白天")
+            self.assertEqual(engine.state.meta["current_location"], "last_post_office")
+            self.assertEqual(engine.state.meta["time_of_day"], "清晨")
             travel = engine.execute_host_action({"action_id": "travel-1", "type": "TRAVEL", "target": area_id})
             self.assertEqual(travel["event"]["type"], "TRAVEL_COMPLETED")
             self.assertEqual(engine.state.meta["current_location"], area_id)
-            explored = engine.execute_host_action({"action_id": "scout", "type": "EXPLORATION", "target": area_id, "risk_preference": "谨慎"})
+            explored = engine.execute_host_action({"action_id": "scout", "type": "EXPLORATION", "target": exploration_id, "risk_preference": "谨慎"})
             self.assertEqual(explored["event"]["type"], "EXPLORATION_RESOLVED")
             encounter_additions = explored["event"]["data"].get("encounter_additions", [])
             initial_entity_count = len(engine.state.data["world"]["encounter_entities"])
@@ -731,7 +738,7 @@ class RuntimeIntegrationTests(unittest.TestCase):
             built = engine.execute_host_action({"action_id": "build-1", "type": "BUILD", "target": module_id})
             self.assertEqual(built["event"]["type"], "BUILDING_BUILT")
             engine.execute_host_action({"action_id": "travel-2", "type": "ENTER_LOCATION", "target": area_id})
-            second_exploration = engine.execute_host_action({"action_id": "explore-2", "type": "EXPLORATION", "target": area_id, "risk_preference": "谨慎"})
+            second_exploration = engine.execute_host_action({"action_id": "explore-2", "type": "EXPLORATION", "target": exploration_id, "risk_preference": "谨慎"})
             self.assertEqual(engine.state.data["world"]["enemy_definitions"][enemy_definition_id]["status"], "definition")
             if second_exploration["resolution"].get("outcome") in {"大成功", "普通成功", "成功但付出代价", "失败但获得部分信息"}:
                 self.assertGreaterEqual(len(engine.state.data["world"]["encounter_entities"]), initial_entity_count + 1)
@@ -763,6 +770,8 @@ class RuntimeIntegrationTests(unittest.TestCase):
             self.assertEqual(opening["public_survival"]["region_name"], "云邮区-17")
             self.assertEqual(len(opening["public_survival"]["opening_rules"]), 4)
             self.assertEqual(len(opening["public_survival"]["channel_feed"]), 3)
+            self.assertEqual(engine.state.data["ranking_state"]["rank_season_end_turn"], 80)
+            self.assertEqual(engine.state.data["comparative_state"]["player_comparison_baseline"]["percentile"], 35.0)
             self.assertEqual(opening["protagonist_talent_card"]["opening_card"]["first_use"], "第一天检查邮局里无主的退信，就能决定该去断邮航线还是末班投递塔。")
             self.assertIn("RESEARCH", engine.state.player["talent_effects"]["action_modifiers"])
 
@@ -1471,10 +1480,18 @@ class EventDirectorTests(unittest.TestCase):
         """MechanismCollider generates event candidates from world rules"""
         from engine_runtime.event_director import MechanismCollider
         collider = MechanismCollider()
-        world = {"motifs": ["铁轨", "车厢"], "taboo_domains": ["身份", "邀请"]}
+        world = {
+            "theme": "测试世界",
+            "event_pool": [
+                {"id": "signal_debt", "family": "rule_anomaly", "tier": "anomaly", "phases": 1, "hook": "信号债开始催收", "premise": "每次公开求助都会留下可兑现的债务。", "rules": ["公开求助", "债务"], "hidden_rule": "每次求助都会记录一笔需要公开偿还的债务。", "effects": {"relationships": True}},
+                {"id": "bridge_fall", "family": "forced_convergence", "tier": "regional_crisis", "phases": 2, "hook": "唯一的桥在黄昏断开", "premise": "两队人必须在桥断前决定谁先过。", "rules": ["桥", "黄昏"], "event_scale": "区域", "affected_regions": ["东桥", "西桥"], "phases_desc": ["桥面开裂", "队伍决断"], "effects": {"locations": True}},
+                {"id": "warm_ore", "family": "living_resource", "tier": "variant", "phases": 1, "hook": "矿石开始发热", "premise": "一批矿石会吸引地下生物。", "rules": ["矿石", "热量"], "growth_conditions": "夜间低温", "harvest_conditions": "使用绝缘钳", "attracts_entities": ["地下生物"], "side_effects": ["光照增加"], "effects": {"resources": True}},
+            ],
+        }
         pressure = {"survival_threat": 70, "resource_scarcity": 50}
         candidates = collider.generate_candidates(world, pressure, [], {})
         self.assertGreater(len(candidates), 0)
+        self.assertEqual({candidate.content_contract["visible_hook"] for candidate in candidates}, {"信号债开始催收", "唯一的桥在黄昏断开", "矿石开始发热"})
         for c in candidates:
             self.assertTrue(hasattr(c, 'event_id'))
             self.assertTrue(hasattr(c, 'family'))
@@ -1486,13 +1503,13 @@ class ProfessionSystemTests(unittest.TestCase):
     def test_llm_defined_profession_loads_from_world(self):
         from engine_runtime.world_compiler import compile_world_bundle
         mechanics = creative_mechanics()
-        world_bundle = compile_world_bundle("云海邮路", "中文", mechanics, "盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])
+        world_bundle = compile_world_bundle("云海邮路", "中文", mechanics, "停泊在云鲸鳍侧的盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])
         self.assertIn("storm_reader", world_bundle["professions"])
         self.assertEqual(world_bundle["professions"]["storm_reader"]["name"], "风暴读信人")
     
     def test_exclusive_actions_merged_into_action_targets(self):
         from engine_runtime.world_compiler import compile_world_bundle
-        world_bundle = compile_world_bundle("云海邮路", "中文", creative_mechanics(), "盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])
+        world_bundle = compile_world_bundle("云海邮路", "中文", creative_mechanics(), "停泊在云鲸鳍侧的盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])
         # Exclusive actions should be merged into action_targets
         target_id = "profession:storm_reader:READ_STORM_MAIL"
         self.assertIn(target_id, world_bundle["action_targets"])
@@ -1503,7 +1520,7 @@ class ProfessionSystemTests(unittest.TestCase):
         from engine_runtime.state import GameState
         from engine_runtime.world_compiler import compile_world_bundle
         from pathlib import Path
-        profession = compile_world_bundle("云海邮路", "中文", creative_mechanics(), "盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])["professions"]["storm_reader"]
+        profession = compile_world_bundle("云海邮路", "中文", creative_mechanics(), "停泊在云鲸鳍侧的盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])["professions"]["storm_reader"]
         
         state_dict = {
             "player": {"profession": "storm_reader"},
@@ -1534,7 +1551,7 @@ class ProfessionSystemTests(unittest.TestCase):
         from engine_runtime.state import GameState
         from engine_runtime.world_compiler import compile_world_bundle
         from pathlib import Path
-        profession = compile_world_bundle("云海邮路", "中文", creative_mechanics(), "盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])["professions"]["storm_reader"]
+        profession = compile_world_bundle("云海邮路", "中文", creative_mechanics(), "停泊在云鲸鳍侧的盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])["professions"]["storm_reader"]
         
         state_dict = {
             "player": {"profession": "storm_reader", "attributes": {"spirit": 5}},
@@ -1552,18 +1569,17 @@ class ProfessionSystemTests(unittest.TestCase):
             engine = GameEngine(state)
             context = engine._build_action_context({}, {})
 
-            # Spirit bonus +2 should be applied (capped at half for balance)
-            self.assertGreater(context.spirit, 5)
-            self.assertEqual(context.spirit, 6.0)  # 5 base + 1 (half of 2)
+            # 职业语义不再被编译器偷换成固定属性加成。
+            self.assertEqual(context.spirit, 5.0)
     
     def test_backward_compatibility_no_professions(self):
         from engine_runtime.world_compiler import compile_world_bundle
-        world_bundle = compile_world_bundle("云海邮路", "中文", creative_mechanics(professions=[]), "盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])
+        world_bundle = compile_world_bundle("云海邮路", "中文", creative_mechanics(professions=[]), "停泊在云鲸鳍侧的盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])
         self.assertEqual(world_bundle["professions"], {})
     
     def test_consequence_radius_calculation(self):
         from engine_runtime.calculators import calculate_consequence_radius
-        radius = calculate_consequence_radius("mechanic", {"impact_score": 0.8}, {})
+        radius = calculate_consequence_radius({"id": "storm_reader", "consequence_radius": 0.8}, {"impact_score": 0.8}, {})
         self.assertGreater(radius, 0.5)
         self.assertLess(radius, 1.0)
 
@@ -1572,7 +1588,7 @@ class ProfessionSystemTests(unittest.TestCase):
 
         world = compile_world_bundle(
             "云海邮路", "中文", creative_mechanics(),
-            "盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"],
+            "停泊在云鲸鳍侧的盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"],
         )
         player = minimal_state()["player"]
         player["profession"] = "storm_reader"
