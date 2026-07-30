@@ -143,7 +143,7 @@ class SQLiteEventStore:
 
     def _insert_event(self, connection: sqlite3.Connection, record: Mapping[str, Any]) -> None:
         connection.execute(
-            "INSERT OR IGNORE INTO events(event_id, campaign_id, turn, event_type, actor, target, timestamp, payload_json) VALUES(?,?,?,?,?,?,?,?)",
+            "INSERT INTO events(event_id, campaign_id, turn, event_type, actor, target, timestamp, payload_json) VALUES(?,?,?,?,?,?,?,?)",
             (
                 str(record.get("event_id")), self.campaign_id, int(record.get("turn", 0)), str(record.get("type", "")),
                 str(record.get("actor", "")), None if record.get("target") is None else str(record.get("target")),
@@ -239,6 +239,14 @@ class SQLiteEventStore:
     def latest_snapshot(self) -> Optional[Dict[str, Any]]:
         with self.connect() as connection:
             row = connection.execute("SELECT state_json FROM snapshots WHERE campaign_id=? ORDER BY turn DESC LIMIT 1", (self.campaign_id,)).fetchone()
+        return json.loads(row["state_json"]) if row else None
+
+    def snapshot_before(self, turn: int) -> Optional[Dict[str, Any]]:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT state_json FROM snapshots WHERE campaign_id=? AND turn < ? ORDER BY turn DESC LIMIT 1",
+                (self.campaign_id, int(turn)),
+            ).fetchone()
         return json.loads(row["state_json"]) if row else None
 
     def base_state(self) -> Optional[Dict[str, Any]]:

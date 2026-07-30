@@ -26,6 +26,10 @@ meta:
   current_location: ""
   current_mode: "base"        # base/exploration/dungeon/defense/social
   in_combat: false
+  campaign_status: "active"    # active/ended
+  ending_id: ""
+  ending_summary: {}
+  active_encounters: []
   
   # 叙事状态
   pressure_level: 30          # 当前压力值(0-100)

@@ -263,6 +263,60 @@ def resolve_action(player: Mapping[str, Any], context: ActionContext | Mapping[s
     )
 
 
+def apply_action_dilution(resolution: ActionResolution, multiplier: float) -> ActionResolution:
+    """将行动计划的稀释修正应用到优势、成功率和结果分支。"""
+    multiplier = clamp(number(multiplier, 1.0), 0.25, 1.0)
+    if multiplier >= 1.0:
+        return resolution
+    resolution.advantage_components = {
+        key: rounded(value * multiplier) for key, value in resolution.advantage_components.items()
+    }
+    resolution.advantage = rounded(sum(resolution.advantage_components.values()))
+    resolution.probability = rounded(sigmoid((resolution.advantage - resolution.resistance) / resolution.k))
+    critical_threshold = resolution.probability * 0.10
+    normal_threshold = resolution.probability * 0.65
+    costly_threshold = resolution.probability
+    partial_failure_threshold = resolution.probability + (1.0 - resolution.probability) * 0.25
+    severe_failure_threshold = resolution.probability + (1.0 - resolution.probability) * 0.90
+    if resolution.random_roll < critical_threshold:
+        resolution.outcome = "大成功"
+    elif resolution.random_roll < normal_threshold:
+        resolution.outcome = "普通成功"
+    elif resolution.random_roll < costly_threshold:
+        resolution.outcome = "成功但付出代价"
+    elif resolution.random_roll < partial_failure_threshold:
+        resolution.outcome = "失败但获得部分信息"
+    elif resolution.random_roll < severe_failure_threshold:
+        resolution.outcome = "严重失败"
+    elif resolution.death_allowed:
+        resolution.outcome = "死亡"
+    else:
+        resolution.outcome = "战败"
+    resolution.components = deepcopy(resolution.components)
+    resolution.components["dilution_multiplier"] = multiplier
+    resolution.components["outcome_thresholds"] = {
+        "critical": rounded(critical_threshold),
+        "normal": rounded(normal_threshold),
+        "costly": rounded(costly_threshold),
+        "partial_failure": rounded(partial_failure_threshold),
+        "severe_failure": rounded(severe_failure_threshold),
+    }
+    return resolution
+
+
+def apply_combat_dilution(resolution: CombatResolution, multiplier: float) -> CombatResolution:
+    """将行动计划稀释应用到命中率和伤害，保留同一随机数以便复盘。"""
+    multiplier = clamp(number(multiplier, 1.0), 0.25, 1.0)
+    if multiplier >= 1.0:
+        return resolution
+    resolution.hit_probability = rounded(resolution.hit_probability * multiplier)
+    resolution.hit = resolution.random_roll < resolution.hit_probability
+    resolution.damage = rounded(resolution.damage * multiplier) if resolution.hit else 0.0
+    resolution.components = deepcopy(resolution.components)
+    resolution.components["dilution_multiplier"] = multiplier
+    return resolution
+
+
 def _skill_modifier(skill: Optional[Mapping[str, Any]]) -> float:
     if not isinstance(skill, Mapping):
         return 1.0
@@ -704,7 +758,9 @@ def calculate_base_defense(base: Mapping[str, Any], player_power: float = 0.0, t
 
 
 def calculate_combinability(components: Mapping[str, Any]) -> float:
-    factors = [clamp(number(components.get(key)), 0.0, 1.0) for key in ("time_remaining", "resource_compatibility", "location_proximity", "goal_compatibility", "npc_availability")]
+    time_factor = components.get("time_compatibility", components.get("time_remaining"))
+    factors = [clamp(number(time_factor), 0.0, 1.0)]
+    factors.extend(clamp(number(components.get(key)), 0.0, 1.0) for key in ("resource_compatibility", "location_proximity", "goal_compatibility", "npc_availability"))
     return rounded(math.prod(factors) * 100.0)
 
 

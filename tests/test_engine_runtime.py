@@ -1,4 +1,5 @@
 import json
+import sqlite3
 import tempfile
 import unittest
 from copy import deepcopy
@@ -17,12 +18,27 @@ from engine_runtime.calculators import (
     resolve_action,
     simulate_batch_action,
 )
-from engine_runtime.events import apply_event, parse_events
+from engine_runtime.events import apply_event, parse_events, standard_event
 from engine_runtime.narrative_log import record_narrative_turn
+from engine_runtime.persistence import SQLiteEventStore
 from engine_runtime.protocol import ProtocolError, derive_action_costs, validate_host_action
 from engine_runtime.runtime import GameEngine
-from engine_runtime.state import load_game_state
+from engine_runtime.state import GameState, load_game_state
 from tools.create_save import answers_to_package, build_files, generate_world_mechanics, normalize_package
+
+
+def minimal_state(meta=None, world=None, player=None, inventory=None, npcs=None, factions=None):
+    return {
+        "world": world or {"name": "回归测试世界", "difficulty": "标准"},
+        "player": player or {"level": 1, "exp": 0, "exp_to_next": 100, "attributes": {"strength": 8, "constitution": 8, "agility": 8, "spirit": 8}, "fatigue": 0, "hunger": 100, "mental": 100, "max_hp": 50, "hp": 50, "skills": []},
+        "base": {"space_total": 3, "space_used": 0, "modules": []},
+        "inventory": inventory or {"resources": {"wood": 2, "ammo": 20}, "equipment": {"main_weapon": {"attack": 20, "accuracy": 10, "ammo_resource": "ammo", "ammo_cost": 1, "durability": 10}}},
+        "npcs": npcs or [],
+        "factions": factions or [],
+        "relationships": [],
+        "event_queue": [],
+        "meta": {"current_turn": 0, "game_day": 1, "time_of_day": "清晨", "day_elapsed_minutes": 0, "available_time_minutes": 720, "world_name": "回归测试世界", "difficulty": "标准", "campaign_status": "active", **(meta or {})},
+    }
 
 
 class FormulaTests(unittest.TestCase):
@@ -291,6 +307,148 @@ class RuntimeIntegrationTests(unittest.TestCase):
             self.assertEqual(events[0]["record"]["data"]["resolution"]["formula_version"], "1.0")
             stored_meta = yaml.safe_load((root / "meta.yaml").read_text(encoding="utf-8"))["meta"]
             self.assertEqual(stored_meta["current_turn"], 6)
+
+    def test_action_plan_sequential_preview_priority_and_dilution(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            world = {
+                "name": "计划回归世界",
+                "difficulty": "标准",
+                "action_targets": {
+                    "site-a": {"id": "site-a", "location_id": "site-a", "target_difficulty": 0, "effects": {"success": {"resource_changes": {"wood": 4}}}},
+                    "site-b": {"id": "site-b", "location_id": "site-b", "target_difficulty": 0, "effects": {"success": {"resource_changes": {"wood": 4}}}},
+                },
+                "build_catalog": {
+                    "module-a": {"id": "module-a", "space_cost": 1, "build_time": 120, "build_cost": {"wood": 2}},
+                    "module-b": {"id": "module-b", "space_cost": 1, "build_time": 120, "build_cost": {"wood": 2}},
+                },
+            }
+            engine = GameEngine(GameState(root, minimal_state(world=world)))
+            single = engine.preview_host_action({"action_id": "single", "type": "SHORT_ACTION", "target": "site-a"})
+            plan = {"action_id": "diluted", "type": "ACTION_PLAN", "plan_id": "diluted", "accept_dilution": True, "steps": [{"action_id": "a", "type": "SHORT_ACTION", "target": "site-a"}, {"action_id": "b", "type": "SHORT_ACTION", "target": "site-b"}]}
+            preview = engine.preview_action_plan(plan)
+            self.assertTrue(preview["legal"], preview)
+            self.assertEqual(preview["dilution_multiplier"], 0.75)
+            self.assertLess(preview["steps"][0]["preview"]["resolution"]["probability"], single["resolution"]["probability"])
+            self.assertEqual(engine.state.inventory["resources"]["wood"], 2)
+
+            sequential = {"action_id": "sequential", "type": "ACTION_PLAN", "plan_id": "sequential", "accept_dilution": True, "steps": [{"action_id": "m1", "type": "BUILD", "target": "module-a"}, {"action_id": "m2", "type": "BUILD", "target": "module-b"}]}
+            invalid_preview = engine.preview_action_plan(sequential)
+            self.assertFalse(invalid_preview["legal"])
+            self.assertTrue(any("m2：材料不足" in error for error in invalid_preview["errors"]))
+            self.assertEqual(engine.state.data["base"]["space_used"], 0)
+            prioritized = dict(sequential, priority_order=["m2", "m1"])
+            valid_partial = engine.preview_action_plan(prioritized)
+            self.assertTrue(valid_partial["legal"], valid_partial)
+            self.assertTrue(valid_partial["partial"])
+            self.assertEqual(valid_partial["deferred_steps"], ["m1"])
+            engine.execute_action_plan(prioritized)
+            self.assertEqual(engine.state.data["base"]["modules"][0]["id"], "module-b")
+            self.assertEqual(engine.state.inventory["resources"]["wood"], 0)
+
+    def test_death_is_terminal_and_dead_targets_are_not_reusable(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target = {"id": "dead-enemy", "status": "dead", "hp": 0, "attributes": {"strength": 2, "constitution": 2, "agility": 2, "spirit": 2}}
+            engine = GameEngine(GameState(root, minimal_state(meta={"death_mode": "checkpoint", "checkpoints_used": 0, "max_checkpoints": 1}, world={"name": "终局世界", "difficulty": "标准", "combat_targets": {"dead-enemy": target}})))
+            death = standard_event("death-1", "COMBAT_RESOLVED", "player", "enemy", {"player_died": True, "player_delta": {"hp": -50}, "death_reason": "回归测试死亡", "time_cost": 0}, 1, "Day 1 清晨")
+            engine.state.apply_and_append(death)
+            self.assertEqual(engine.state.player["status"], "dead")
+            self.assertEqual(engine.state.meta["campaign_status"], "ended")
+            self.assertIn("ending_id", engine.state.meta)
+            with self.assertRaises(ValueError):
+                engine.execute_host_action({"action_id": "after-death", "type": "SHORT_ACTION", "target": "nothing"})
+            ending = engine.execute_host_action({"action_id": "ending", "type": "ENDING"})
+            self.assertEqual(ending["terminal"]["ending_id"], engine.state.meta["ending_id"])
+            restarted = engine.execute_host_action({"action_id": "restart", "type": "RESTART"})
+            self.assertEqual(restarted["event"]["type"], "CAMPAIGN_RESTARTED")
+            self.assertEqual(engine.state.meta["campaign_status"], "active")
+            self.assertEqual(engine.state.player.get("status", "alive"), "alive")
+
+            with self.assertRaises(ValueError):
+                engine.execute_host_action({"action_id": "attack-dead", "type": "COMBAT", "target": "dead-enemy"})
+
+    def test_timeline_disaster_boundary_and_cross_day_budget(self):
+        disaster_world = {"name": "灾难边界", "setting": {"disaster_type": "边界灾难"}, "rules": {"disaster": {"cycle_days": 7}}}
+        state = minimal_state(world=disaster_world, meta={"game_day": 6, "day_elapsed_minutes": 0, "available_time_minutes": 720, "next_disaster_day": 7})
+        record = standard_event("day-7", "ACTION_RESOLVED", "player", None, {"time_cost": 720}, 1, "Day 6 清晨")
+        updated = apply_event(state, record)
+        self.assertEqual(updated["meta"]["game_day"], 7)
+        self.assertEqual(updated["meta"]["available_time_minutes"], 720)
+        self.assertEqual(updated["meta"]["next_disaster_day"], 14)
+        self.assertEqual([item["day"] for item in updated["meta"]["system_event_history"] if item["type"] == "DISASTER_OCCURRED"], [7])
+
+        cross_day = minimal_state(meta={"game_day": 1, "day_elapsed_minutes": 600, "available_time_minutes": 120})
+        crossed = apply_event(cross_day, standard_event("cross-day", "REST_COMPLETED", "player", None, {"time_cost": 360}, 1, "Day 1 夜晚"))
+        self.assertEqual(crossed["meta"]["game_day"], 2)
+        self.assertEqual(crossed["meta"]["day_elapsed_minutes"], 240)
+        self.assertEqual(crossed["meta"]["available_time_minutes"], 480)
+
+    def test_npc_and_faction_schedule_are_idempotent_per_period(self):
+        npc = {"id": "npc-1", "status": "alive", "location": "camp_core", "schedule": {"白天": "resource_search"}, "autonomous_yield": {"wood": 1}, "utility_profile": {}}
+        state = minimal_state(meta={"time_of_day": "白天", "day_elapsed_minutes": 120, "available_time_minutes": 600}, npcs=[npc], inventory={"resources": {"wood": 0}, "equipment": {}})
+        first = standard_event("npc-1", "ACTION_RESOLVED", "player", None, {"time_cost": 30}, 1, "Day 1 白天")
+        second = standard_event("npc-2", "ACTION_RESOLVED", "player", None, {"time_cost": 30}, 2, "Day 1 白天")
+        after_first = apply_event(state, first)
+        after_second = apply_event(after_first, second)
+        self.assertEqual(after_first["inventory"]["resources"]["wood"], 1)
+        self.assertEqual(after_second["inventory"]["resources"]["wood"], 1)
+
+        faction = {"id": "faction-1", "status": "neutral", "schedule": {"黄昏": "collect_tax"}, "tax_rate": {"wood": 1}, "treasury": {"wood": 0}, "utility_profile": {}}
+        faction_state = minimal_state(meta={"time_of_day": "黄昏", "day_elapsed_minutes": 480, "available_time_minutes": 240}, factions=[faction], inventory={"resources": {"wood": 3}, "equipment": {}})
+        taxed_once = apply_event(faction_state, standard_event("tax-1", "ACTION_RESOLVED", "player", None, {"time_cost": 30}, 1, "Day 1 黄昏"))
+        taxed_twice = apply_event(taxed_once, standard_event("tax-2", "ACTION_RESOLVED", "player", None, {"time_cost": 30}, 2, "Day 1 黄昏"))
+        self.assertEqual(taxed_once["factions"][0]["treasury"]["wood"], 1)
+        self.assertEqual(taxed_twice["factions"][0]["treasury"]["wood"], 1)
+
+    def test_duplicate_event_id_fails_atomically(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = SQLiteEventStore(root / "campaign.sqlite3")
+            state = minimal_state()
+            store.initialize(state)
+            record = standard_event("duplicate", "ACTION_RESOLVED", "player", None, {"time_cost": 0}, 1, "Day 1 清晨")
+            store.append_transaction(record, state)
+            with self.assertRaises(sqlite3.IntegrityError):
+                store.append_transaction(record, state)
+            self.assertEqual(len(store.events()), 1)
+
+    def test_combat_requires_current_presence_or_active_encounter(self):
+        target = {"id": "wolf", "status": "alive", "hp": 20, "max_hp": 20, "location_id": "forest", "attributes": {"strength": 2, "constitution": 2, "agility": 2, "spirit": 2}}
+        world = {"name": "地点世界", "difficulty": "标准", "combat_targets": {"wolf": target}}
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(world=world)))
+            with self.assertRaises(ValueError):
+                engine.execute_host_action({"action_id": "wrong-place", "type": "COMBAT", "target": "wolf"})
+            engine.state.meta["active_encounters"] = [{"id": "encounter-1", "location_id": "forest", "target_ids": ["wolf"], "status": "active"}]
+            preview = engine.preview_host_action({"action_id": "right-place", "type": "COMBAT", "target": "wolf"})
+            self.assertTrue(preview["legal"], preview)
+
+    def test_balanced_100_turn_simulation_has_no_projection_drift(self):
+        world = {
+            "name": "百回合回归世界",
+            "difficulty": "标准",
+            "setting": {"disaster_type": "周期灾难"},
+            "rules": {"disaster": {"cycle_days": 7}},
+            "action_targets": {"camp_core": {"id": "camp_core", "target_difficulty": 0, "effects": {}}},
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(world=world)))
+            for index in range(100):
+                available = float(engine.state.meta.get("available_time_minutes", 0))
+                fatigue = float(engine.state.player.get("fatigue", 0))
+                mental = float(engine.state.player.get("mental", 100))
+                if available >= 360 and (fatigue >= 20 or mental <= 40):
+                    action = {"action_id": f"rest-{index}", "type": "REST", "target": "camp_core"}
+                else:
+                    action = {"action_id": f"act-{index}", "type": "SHORT_ACTION", "target": "camp_core"}
+                engine.execute_host_action(action)
+            resources = engine.state.inventory.get("resources", {})
+            self.assertTrue(all(not isinstance(value, (int, float)) or value >= 0 for value in resources.values()))
+            self.assertEqual(engine.state.current_turn, 100)
+            self.assertEqual(engine.state.meta["campaign_status"], "active")
+            self.assertTrue(any(item.get("type") == "DISASTER_OCCURRED" for item in engine.state.meta.get("system_event_history", [])))
+            self.assertTrue(engine.state.store.verify_projection(apply_event)["ok"])
 
 
 if __name__ == "__main__":

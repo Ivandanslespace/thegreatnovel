@@ -92,6 +92,7 @@ def compile_world_bundle(
         "drops": {resource: 2, secondary_resource: 1},
         "knowledge_hint": enemy_hint,
         "status": "alive",
+        "location_id": area_id,
     }
     area = {
         "id": area_id,
@@ -112,6 +113,7 @@ def compile_world_bundle(
         "enemy_groups": [{"level": 1, "quality": "普通", "weight": 1, "drops": deepcopy(enemy["drops"])}],
         "farmability_components": {"combat_advantage": 50, "enemy_information": 35, "kill_stability": 55, "sustainability": 50, "route_familiarity": 25, "extraction_ability": 70, "unknown_danger_penalty": 20, "noise_exposure": 35, "fatigue_risk": 35, "injury_risk": 25, "area_alertness": 25, "daylight_change": 15, "monster_adaptation": 10},
         "extraction_rule": {"return_to": "camp_core", "deadline_minutes": 120},
+        "encounter_target_ids": [enemy_id],
     }
     action_targets = {
         area_id: {
@@ -128,6 +130,7 @@ def compile_world_bundle(
                 "success": {"discover_locations": [area_id], "resource_changes": {resource: 2}, "knowledge_additions": [f"{enemy_id}_behavior"]},
                 "partial_failure": {"knowledge_additions": [f"{enemy_id}_behavior"]},
             },
+            "encounter_target_ids": [enemy_id],
         },
         research_id: {
             "id": research_id,

@@ -40,6 +40,7 @@ LLM 只提交“玩家想做什么”。以下内容必须由 Python 计算，LL
   "type": "ACTION_PLAN",
   "plan_id": "plan-001",
   "accept_dilution": true,
+  "priority_order": ["step-1", "step-2"],
   "steps": [
     {"action_id": "step-1", "type": "SOCIAL_INTERACTION", "target": "npc-rivet", "goal": "确认路线"},
     {"action_id": "step-2", "type": "RESEARCH", "target": "anchor-tower", "goal": "形成工程假设"}
@@ -47,9 +48,12 @@ LLM 只提交“玩家想做什么”。以下内容必须由 Python 计算，LL
 }
 ```
 
-计划步骤只能提交目标、目标、方法和风险偏好；属性、成本、顺序可行性和稀释程度由
-Python根据世界注册表计算。预览低于20的计划拒绝执行，20-49只能部分执行，50-79必须
-明确接受稀释，80以上才允许完整顺序完成。
+计划步骤只能提交目标、方法和风险偏好；属性、成本、顺序可行性和稀释程度由 Python
+根据世界注册表计算。Python 会复制临时状态按顺序预览每一步，再恢复正式状态；因此前一步
+消耗的资源、获得的知识和生成的遭遇会影响后一步预览。`priority_order` 用于 20-49 的计划，
+系统只执行最高优先级的可行步骤，其余步骤返回 `deferred_steps`。50-79 必须明确接受稀释：
+普通计划效果乘 0.75，同一时段三个以上主要行动乘 0.55；稀释会作用于成功率、资源/关系效果、
+研究信息完整度、建造质量和批量击杀效率。80以上才允许完整顺序完成。
 
 `parameters` 和 `stop_conditions` 只能表达玩家意图或停止条件，不能藏入数值结算。
 协议会递归扫描 JSON；出现引擎字段或未知顶层字段时，入口直接拒绝，不产生事件。
@@ -122,8 +126,9 @@ python tools/audit_report.py saves/世界名 --field player.fatigue
 
 - `EXPLORATION`、`RESEARCH`、`SOCIAL_INTERACTION`、`REST`：行动效果来自 `world.action_targets`，
   Python生成发现地点、知识、资源、关系和休息恢复事件。
-- `ACTION_PLAN`：Python一次预览所有步骤，并在 SQLite 事务中原子提交。
-- `COMBAT`：目标必须存在于 `world.targets`、`world.combat_targets` 或 `npcs`；武器和弹药来自背包。
+- `ACTION_PLAN`：Python按顺序在临时状态中预览；确认后以同一稀释参数在 SQLite 事务中原子提交。
+- `COMBAT`：目标必须存在于 `world.targets`、`world.combat_targets` 或 `npcs`，且目标不能已死亡；
+  带地点的敌人还必须处于当前地点或有效遭遇实例中。武器和弹药来自背包。
 - `BUILD`：模块必须存在于 `world.build_catalog` 或 `world.modules`。
 - `BATCH_ACTION`：区域必须存在于 `world.areas` 或 `world.farm_areas`；敌群、密度、掉落、
   Farmability 参数来自区域注册表；Python按10分钟时间片更新击杀、弹药、耐久、区域人口、警戒和怪物适应，
@@ -131,6 +136,8 @@ python tools/audit_report.py saves/世界名 --field player.fatigue
 - `TALENT_CHOICE`：升级后只能从 `player.pending_decision.options` 中选择一个 Python 生成的候选，
   选择前其他行动全部拒绝；放弃项不会再次出现。
 - NPC与势力的日程、效用分数和自主资源变化由时间推进器写入状态，不由LLM补写。
+- 玩家死亡后写入 `campaign_status=ended`、`ending_id` 和死亡总结；普通行动全部拒绝，只允许
+  `ENDING`、`RESTART`、`CHECKPOINT`、`LEGACY_CREATE` 终局处理动作。
 - 其他行动：成本由行动类型、技能定义、世界目标配置和当前状态派生。
 
 LLM 不得把完整目标、模块或区域对象塞进 `parameters` 以绕过注册表。

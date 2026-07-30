@@ -14,6 +14,7 @@ import sys
 import os
 import json
 import re
+import sqlite3
 from pathlib import Path
 from datetime import datetime
 
@@ -553,6 +554,17 @@ def validate_narrative(save_dir, data):
     # 检查快照是否存在（每10轮应有快照）
     expected_snapshots = current_turn // 10
     actual_snapshots = len(re.findall(r"SNAPSHOT\s*\|\s*Turn\s+\d+", event_log))
+    campaign_path = save_dir / "campaign.sqlite3"
+    if campaign_path.exists():
+        try:
+            with sqlite3.connect(campaign_path) as connection:
+                actual_snapshots = connection.execute(
+                    "SELECT COUNT(*) FROM snapshots WHERE campaign_id=? AND turn > 0 AND turn % 10 = 0",
+                    (campaign_path.parent.name,),
+                ).fetchone()[0]
+        except sqlite3.Error:
+            # SQLite 连续性问题由专门的事件源校验报告；这里保留 Markdown 兼容回退。
+            pass
     if actual_snapshots < expected_snapshots:
         findings.append(Finding(
             "WARNING", "叙事",

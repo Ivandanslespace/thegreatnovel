@@ -9,6 +9,8 @@ from typing import Any, Dict, Mapping, Optional
 
 from .calculators import (
     ActionContext,
+    apply_action_dilution,
+    apply_combat_dilution,
     calculate_base_defense,
     calculate_base_maintenance,
     calculate_build,
@@ -89,11 +91,47 @@ class GameEngine:
                 return True
         return False
 
+    def _active_encounter_allows(self, target_id: Any = None, location_id: Any = None) -> bool:
+        encounters = self.state.meta.get("active_encounters", [])
+        if not isinstance(encounters, list):
+            return False
+        for encounter in encounters:
+            if not isinstance(encounter, Mapping) or encounter.get("status", "active") != "active":
+                continue
+            if target_id is not None and target_id in encounter.get("target_ids", []):
+                return True
+            if location_id is not None and encounter.get("location_id") == location_id:
+                return True
+        return False
+
+    def _target_presence_errors(self, action: Mapping[str, Any]) -> list[str]:
+        action_type = str(action.get("type"))
+        if action_type == "COMBAT":
+            target = self._registry_lookup(self.state.data.get("world", {}).get("targets"), action.get("target"))
+            target = target or self._registry_lookup(self.state.data.get("world", {}).get("combat_targets"), action.get("target"))
+            target = target or self._registry_lookup(self.state.data.get("npcs", []), action.get("target"))
+            if target and target.get("status") in {"dead", "destroyed"}:
+                return ["目标已经死亡或不可战斗"]
+            location_id = target.get("location_id") if isinstance(target, Mapping) else None
+            if location_id and self.state.meta.get("current_location") != location_id and not self._active_encounter_allows(action.get("target"), location_id):
+                return [f"目标不在当前地点：需要 {location_id} 或有效遭遇实例"]
+        if action_type == "BATCH_ACTION":
+            area = self._registry_lookup(self.state.data.get("world", {}).get("areas"), action.get("target"))
+            area = area or self._registry_lookup(self.state.data.get("world", {}).get("farm_areas"), action.get("target"))
+            location_id = area.get("location_id") if isinstance(area, Mapping) else None
+            if location_id and self.state.meta.get("current_location") != location_id and not self._active_encounter_allows(location_id=location_id):
+                return [f"刷怪区域不在当前地点：需要 {location_id} 或有效遭遇实例"]
+        return []
+
     def _check_requirements(self, action: Mapping[str, Any]) -> list[str]:
         errors: list[str] = []
+        action_type = str(action.get("type"))
+        if (self.state.meta.get("campaign_status") == "ended" or self.state.player.get("status") == "dead") and action_type not in {"ENDING", "RESTART", "CHECKPOINT", "LEGACY_CREATE"}:
+            errors.append("本局已经结束，只允许查看结局、重开、检查点或创建传承角色")
         pending = self.state.player.get("pending_decision")
-        if pending and str(action.get("type")) != "TALENT_CHOICE":
+        if pending and action_type != "TALENT_CHOICE":
             errors.append("必须先完成升级三选一")
+        errors.extend(self._target_presence_errors(action))
         registry_requirements = self._action_target_profile(action).get("requirements", {})
         requirements = dict(registry_requirements) if isinstance(registry_requirements, Mapping) else {}
         supplied_requirements = action.get("requirements", {}) if isinstance(action.get("requirements"), Mapping) else {}
@@ -133,8 +171,9 @@ class GameEngine:
         registry = self.state.data.get("world", {}).get("action_targets", {})
         return self._registry_lookup(registry, action.get("target")) or {}
 
-    def _domain_effects(self, action: Mapping[str, Any], resolution: Mapping[str, Any]) -> Dict[str, Any]:
+    def _domain_effects(self, action: Mapping[str, Any], resolution: Mapping[str, Any], dilution_multiplier: float = 1.0) -> Dict[str, Any]:
         action_type = str(action.get("type", ""))
+        dilution_multiplier = max(0.25, min(1.0, float(dilution_multiplier)))
         if action_type == "REST":
             return {
                 "fatigue_delta": -35.0,
@@ -152,17 +191,34 @@ class GameEngine:
         else:
             selected = effects.get("failure", {})
         selected = deepcopy(dict(selected)) if isinstance(selected, Mapping) else {}
+        if dilution_multiplier < 1.0:
+            selected["effect_multiplier"] = dilution_multiplier
+            if selected.get("resource_changes"):
+                selected["resource_changes"] = {key: float(value) * dilution_multiplier for key, value in selected["resource_changes"].items()}
+            if selected.get("relationship_changes"):
+                selected["relationship_changes"] = {
+                    relation_id: {key: float(value) * dilution_multiplier for key, value in changes.items()}
+                    for relation_id, changes in selected["relationship_changes"].items()
+                }
+            if selected.get("knowledge_additions"):
+                selected["information_completeness"] = dilution_multiplier
         parameters = action.get("parameters", {}) if isinstance(action.get("parameters", {}), Mapping) else {}
         relationship_intent = str(parameters.get("relationship_intent", "")).lower()
         if action_type == "SOCIAL_INTERACTION" and any(token in relationship_intent for token in ("promise", "承诺", "保证")):
             selected["promise_additions"] = [{"id": f"promise_{self.state.current_turn + 1}_{action.get('target')}", "npc_id": action.get("target"), "content": str(parameters.get("message") or action.get("goal") or action.get("approach") or "未注明承诺"), "created_turn": self.state.current_turn + 1, "due_turn": self.state.current_turn + 4, "status": "open"}]
         if action_type == "SOCIAL_INTERACTION" and any(token in relationship_intent for token in ("deceive", "欺骗", "隐瞒")):
             selected["deception_attempts"] = [{"id": f"deception_{self.state.current_turn + 1}_{action.get('target')}", "npc_id": action.get("target"), "content": str(parameters.get("message") or action.get("goal") or "未注明欺骗内容"), "detected": outcome not in {"大成功", "普通成功"}, "turn": self.state.current_turn + 1}]
+        if action_type == "EXPLORATION":
+            profile = self._action_target_profile(action)
+            target_ids = profile.get("encounter_target_ids", []) if isinstance(profile.get("encounter_target_ids", []), list) else []
+            if target_ids:
+                selected["encounter_additions"] = [{"id": f"encounter_{self.state.current_turn + 1}_{action.get('target')}", "location_id": action.get("target"), "target_ids": list(target_ids), "status": "active"}]
         proposed = []
         proposed.extend({"type": "AREA_DISCOVERED", "target": item} for item in selected.get("discover_locations", []))
         proposed.extend({"type": "KNOWLEDGE_GAINED", "target": item} for item in selected.get("knowledge_additions", []))
         proposed.extend({"type": "RESOURCE_CHANGED", "target": item, "quantity": quantity} for item, quantity in (selected.get("resource_changes", {}) or {}).items())
         proposed.extend({"type": "RELATIONSHIP_CHANGED", "target": item} for item in (selected.get("relationship_changes", {}) or {}))
+        proposed.extend({"type": "ENCOUNTER_CREATED", "target": item.get("id")} for item in selected.get("encounter_additions", []) if isinstance(item, Mapping))
         selected["proposed_events"] = proposed
         if action_type == "EXPLORATION":
             selected["event_type"] = "EXPLORATION_RESOLVED"
@@ -280,6 +336,8 @@ class GameEngine:
             target = self._registry_lookup(self.state.data.get("npcs", []), target_id)
         if target is None:
             raise ValueError(f"世界注册表中不存在战斗目标：{target_id}")
+        if target.get("status") in {"dead", "destroyed"}:
+            raise ValueError(f"战斗目标已经死亡：{target_id}")
         return target
 
     def _lookup_module(self, module_id: Any) -> Mapping[str, Any]:
@@ -356,13 +414,15 @@ class GameEngine:
         }
         return internal
 
-    def preview_host_action(self, action: Mapping[str, Any]) -> Dict[str, Any]:
+    def preview_host_action(self, action: Mapping[str, Any], dilution_multiplier: float = 1.0) -> Dict[str, Any]:
         """预览唯一主机协议；专用行动的参数全部来自世界注册表。"""
         validate_host_action(action)
         if str(action.get("type")) == "ACTION_PLAN":
             return self.preview_action_plan(action)
         if str(action.get("type")) == "TALENT_CHOICE":
             return self.preview_talent_choice(action)
+        if str(action.get("type")) in {"ENDING", "RESTART", "CHECKPOINT", "LEGACY_CREATE"}:
+            return {"legal": True, "errors": [], "resolution": self._terminal_resolution(action), "action_ledger": {"available_time_minutes": float(self.state.meta.get("available_time_minutes", 720)), "actions": [{"type": action.get("type"), "target": action.get("target"), "time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "tags": ["terminal"]}]}}
         skill = self._find_skill(action)
         costs = derive_action_costs(action, skill)
         errors = self._derived_budget_errors(action, costs)
@@ -372,21 +432,29 @@ class GameEngine:
             environment = self._combat_environment(target, costs)
             weapon = self._combat_weapon()
             resolution = calculate_combat(self.state.player, target, weapon=weapon, skill=skill, environment=environment, seed=self._host_seed(action))
+            apply_combat_dilution(resolution, dilution_multiplier)
             return {"legal": not errors, "errors": errors, "resolution": resolution.to_dict(), "action_ledger": {"available_time_minutes": environment["available_time_minutes"], "actions": [{"type": "COMBAT", "target": action.get("target"), "time_minutes": costs["time_minutes"], "stamina_cost": costs["stamina_cost"], "mental_cost": costs["mental_cost"], "tags": list(action.get("tags", []))}]}}
         if action_type == "BUILD":
             module = self._lookup_module(action.get("target"))
             available_minutes = min(float(self.state.meta.get("available_time_minutes", 240)), float(costs["time_minutes"]))
-            result = calculate_build(self.state.data.get("base", {}), module, self.state.inventory, available_minutes)
+            module_for_build = deepcopy(dict(module))
+            effects = module_for_build.get("effects", {})
+            normalized_dilution = max(0.25, min(1.0, float(dilution_multiplier)))
+            if normalized_dilution < 1.0 and isinstance(effects, Mapping):
+                module_for_build["effects"] = {key: float(value) * normalized_dilution if isinstance(value, (int, float)) else value for key, value in effects.items()}
+            module_for_build["quality_multiplier"] = normalized_dilution
+            result = calculate_build(self.state.data.get("base", {}), module_for_build, self.state.inventory, available_minutes)
+            result["quality_multiplier"] = normalized_dilution
             errors.extend(result.get("errors", []))
             return {"legal": not errors, "errors": errors, "resolution": result, "action_ledger": {"available_time_minutes": available_minutes, "actions": [{"type": "BUILD", "target": action.get("target"), "time_minutes": result.get("time_required", costs["time_minutes"]), "stamina_cost": costs["stamina_cost"], "mental_cost": costs["mental_cost"], "tags": list(action.get("tags", []))}]}}
         if action_type == "BATCH_ACTION":
             area = self._lookup_area(action.get("target"))
             internal = self._batch_internal_action(action, area, costs)
             result = simulate_batch_action(
-                area=internal["area"], player_level=int(self.state.player.get("level", 1)), minutes=internal["minutes"], kill_success_rate=internal["kill_success_rate"], ammo_available=internal["ammo_available"], ammo_per_kill=internal["ammo_per_kill"], weapon_rate_per_hour=internal["weapon_rate_per_hour"], recovery_efficiency=internal["recovery_efficiency"], backpack_capacity_modifier=internal["backpack_capacity_modifier"], enemy_groups=internal["enemy_groups"], farmability_components=internal["farmability_components"], stop_conditions=internal["stop_conditions"]
+                area=internal["area"], player_level=int(self.state.player.get("level", 1)), minutes=internal["minutes"], kill_success_rate=internal["kill_success_rate"] * max(0.25, min(1.0, dilution_multiplier)), ammo_available=internal["ammo_available"], ammo_per_kill=internal["ammo_per_kill"], weapon_rate_per_hour=internal["weapon_rate_per_hour"], recovery_efficiency=internal["recovery_efficiency"] * max(0.25, min(1.0, dilution_multiplier)), backpack_capacity_modifier=internal["backpack_capacity_modifier"], enemy_groups=internal["enemy_groups"], farmability_components=internal["farmability_components"], stop_conditions=internal["stop_conditions"]
             )
             return {"legal": not errors, "errors": errors, "resolution": result.to_dict(), "action_ledger": {"available_time_minutes": internal["available_time_minutes"], "actions": [{"type": "BATCH_ACTION", "target": action.get("target"), "time_minutes": costs["time_minutes"], "stamina_cost": costs["stamina_cost"], "mental_cost": costs["mental_cost"], "tags": list(action.get("tags", []))}]}}
-        return self.preview_action(action)
+        return self.preview_action(action, dilution_multiplier=dilution_multiplier)
 
     @staticmethod
     def _plan_step(step: Mapping[str, Any], plan_id: str, index: int) -> Dict[str, Any]:
@@ -398,48 +466,120 @@ class GameEngine:
                 parameters.setdefault("approach", step["approach"])
         return normalized
 
+    def _ordered_plan_steps(self, action: Mapping[str, Any]) -> list[Dict[str, Any]]:
+        plan_id = str(action.get("plan_id"))
+        steps = [self._plan_step(step, plan_id, index) for index, step in enumerate(action.get("steps", []), start=1)]
+        priority_order = action.get("priority_order")
+        if not isinstance(priority_order, list) or not priority_order:
+            return steps
+        by_id = {str(step["action_id"]): step for step in steps}
+        ordered: list[Dict[str, Any]] = []
+        used = set()
+        for priority in priority_order:
+            key = str(priority)
+            if key.isdigit() and 1 <= int(key) <= len(steps):
+                key = str(steps[int(key) - 1]["action_id"])
+            step = by_id.get(key)
+            if step is not None and key not in used:
+                ordered.append(step)
+                used.add(key)
+        ordered.extend(step for step in steps if str(step["action_id"]) not in used)
+        return ordered
+
+    def _simulate_plan_steps(self, steps: list[Dict[str, Any]], dilution_multiplier: float) -> tuple[list[Dict[str, Any]], list[str]]:
+        original_data = deepcopy(self.state.data)
+        original_pending = deepcopy(self.state.pending_records)
+        previews: list[Dict[str, Any]] = []
+        errors: list[str] = []
+        try:
+            self.state.clear_pending()
+            for step in steps:
+                try:
+                    preview = self.preview_host_action(step, dilution_multiplier=dilution_multiplier)
+                except (TypeError, ValueError) as exc:
+                    preview = {"legal": False, "errors": [str(exc)], "resolution": {}, "action_ledger": {"actions": []}}
+                if preview.get("legal"):
+                    try:
+                        self.execute_host_action(step, persist=False, dilution_multiplier=dilution_multiplier)
+                    except (TypeError, ValueError) as exc:
+                        preview["legal"] = False
+                        preview.setdefault("errors", []).append(str(exc))
+                step_errors = preview.get("errors", []) if isinstance(preview.get("errors", []), list) else []
+                errors.extend(f"{step['action_id']}：{error}" for error in step_errors)
+                previews.append({"action": step, "preview": preview})
+        finally:
+            self.state.data = original_data
+            self.state.pending_records = original_pending
+        return previews, errors
+
+    @staticmethod
+    def _plan_factors(previews: list[Dict[str, Any]], available: float, errors: list[str]) -> Dict[str, float]:
+        used_time = sum(float(item["preview"].get("action_ledger", {}).get("actions", [{}])[0].get("time_minutes", 0)) for item in previews)
+        time_compatibility = 1.0 if used_time <= available else available / max(used_time, 1.0)
+        resource_error = any(token in error for error in errors for token in ("资源不足", "材料不足", "弹药不足", "武器耐久归零"))
+        locations = set()
+        for item in previews:
+            step = item["action"]
+            requirements = step.get("requirements", {}) if isinstance(step.get("requirements", {}), Mapping) else {}
+            profile = item["preview"].get("target_profile", {}) if isinstance(item["preview"].get("target_profile", {}), Mapping) else {}
+            locations.add(str(requirements.get("location", profile.get("location_id", "camp_core"))))
+        action_types = {str(item["action"].get("type")) for item in previews}
+        return {
+            "time_compatibility": max(0.0, min(1.0, time_compatibility)),
+            "buffer_ratio": max(0.0, (available - used_time) / max(available, 1.0)),
+            "resource_compatibility": 0.0 if resource_error else 1.0,
+            "location_proximity": 1.0 if len(locations) <= 1 else 0.7,
+            "goal_compatibility": 1.0 if len(action_types) == len(previews) else 0.8,
+            "npc_availability": 1.0 if not any("NPC不可用" in error for error in errors) else 0.0,
+        }
+
     def preview_action_plan(self, action: Mapping[str, Any]) -> Dict[str, Any]:
         validate_host_action(action)
         plan_id = str(action.get("plan_id"))
-        steps = [self._plan_step(step, plan_id, index) for index, step in enumerate(action.get("steps", []), start=1)]
+        steps = self._ordered_plan_steps(action)
         available = float(self.state.meta.get("available_time_minutes", 720))
-        used_time = used_stamina = used_mental = 0.0
-        previews = []
-        errors = []
-        for step in steps:
-            preview = self.preview_host_action(step)
-            previews.append({"action": step, "preview": preview})
-            step_ledger = preview.get("action_ledger", {}).get("actions", [{}])[0]
-            used_time += float(step_ledger.get("time_minutes", 0))
-            used_stamina += float(step_ledger.get("stamina_cost", 0))
-            used_mental += float(step_ledger.get("mental_cost", 0))
-            errors.extend(f"{step['action_id']}：{error}" for error in preview.get("errors", []))
-        factors = {
-            "time_remaining": max(0.0, (available - used_time) / max(available, 1.0)),
-            "resource_compatibility": 1.0,
-            "location_proximity": 1.0 if len({str(item["action"].get("requirements", {}).get("location", "camp_core")) for item in previews}) <= 1 else 0.7,
-            "goal_compatibility": 1.0 if len({str(item["action"].get("type")) for item in previews}) == len(previews) else 0.8,
-            "npc_availability": 1.0 if not any("NPC不可用" in error for error in errors) else 0.0,
-        }
+        provisional, provisional_errors = self._simulate_plan_steps(steps, 1.0)
+        factors = self._plan_factors(provisional, available, provisional_errors)
         combinability = calculate_combinability(factors)
+        partial = False
+        selected_steps = steps
         if combinability < 20:
-            errors.append("可组合度低于20，只能明确放弃部分步骤")
+            if not action.get("priority_order"):
+                provisional_errors.append("可组合度低于20，必须提供 priority_order 并明确只执行一个步骤")
+            else:
+                selected_steps = steps[:1]
+                partial = True
         elif combinability < 50:
-            errors.append("可组合度为20-49，必须重新排序并只执行部分步骤")
+            if not action.get("priority_order"):
+                provisional_errors.append("可组合度为20-49，必须提供 priority_order 并只执行部分步骤")
+            else:
+                selected_steps = steps[:1]
+                partial = True
         elif combinability < 80 and not bool(action.get("accept_dilution")):
-            errors.append("可组合度为50-79，必须明确 accept_dilution=true 才能执行")
+            provisional_errors.append("可组合度为50-79，必须明确 accept_dilution=true 才能执行")
+        major_count = sum(1 for item in provisional if float(item["preview"].get("action_ledger", {}).get("actions", [{}])[0].get("time_minutes", 0)) >= 60)
+        dilution_multiplier = 1.0 if partial or combinability >= 80 else 0.55 if major_count >= 3 else 0.75
+        previews, errors = self._simulate_plan_steps(selected_steps, dilution_multiplier)
+        used_time = sum(float(item["preview"].get("action_ledger", {}).get("actions", [{}])[0].get("time_minutes", 0)) for item in previews)
+        used_stamina = sum(float(item["preview"].get("action_ledger", {}).get("actions", [{}])[0].get("stamina_cost", 0)) for item in previews)
+        used_mental = sum(float(item["preview"].get("action_ledger", {}).get("actions", [{}])[0].get("mental_cost", 0)) for item in previews)
         if used_time > available:
             errors.append("计划总时间超过当前行动窗口")
         if used_stamina + float(self.state.player.get("fatigue", 0)) > 100:
             errors.append("计划总消耗超过体力")
         if float(self.state.player.get("mental", 100)) - used_mental < 0:
             errors.append("计划总消耗超过精神")
+        if not partial:
+            errors.extend(provisional_errors)
         return {
             "legal": not errors,
             "errors": errors,
             "plan_id": plan_id,
             "combinability": combinability,
             "components": factors,
+            "dilution_multiplier": dilution_multiplier,
+            "partial": partial,
+            "deferred_steps": [step["action_id"] for step in steps if step not in selected_steps],
             "action_ledger": {"available_time_minutes": available, "available_stamina": max(0.0, 100.0 - float(self.state.player.get("fatigue", 0))), "available_mental": float(self.state.player.get("mental", 100)), "actions": [item["preview"].get("action_ledger", {}).get("actions", [{}])[0] for item in previews]},
             "steps": previews,
         }
@@ -453,7 +593,7 @@ class GameEngine:
         results = []
         try:
             for item in preview["steps"]:
-                results.append(self.execute_host_action(item["action"], persist=False))
+                results.append(self.execute_host_action(item["action"], persist=False, dilution_multiplier=float(preview.get("dilution_multiplier", 1.0))))
             if persist:
                 self.state.commit_pending()
                 self.state.save()
@@ -465,12 +605,13 @@ class GameEngine:
             raise
         return {"plan_id": preview["plan_id"], "combinability": preview["combinability"], "events": [item["event"] for item in results], "results": results, "state": self.state.data}
 
-    def preview_action(self, action: Mapping[str, Any]) -> Dict[str, Any]:
+    def preview_action(self, action: Mapping[str, Any], dilution_multiplier: float = 1.0) -> Dict[str, Any]:
         validate_host_action(action)
         skill = self._find_skill(action)
         costs = derive_action_costs(action, skill)
         context = self._build_action_context(action, costs)
         resolution = resolve_action(self.state.player, context, self.state.inventory)
+        apply_action_dilution(resolution, dilution_multiplier)
         available_time = float(self.state.meta.get("available_time_minutes", 240))
         time_cost = float(costs["time_minutes"])
         stamina_cost = float(costs["stamina_cost"])
@@ -492,6 +633,7 @@ class GameEngine:
             "legal": not legal_errors,
             "errors": legal_errors,
             "resolution": resolution.to_dict(),
+            "target_profile": deepcopy(dict(self._action_target_profile(action))),
             "action_ledger": {
                 "available_time_minutes": available_time,
                 "available_stamina": max(0.0, 100.0 - float(self.state.player.get("fatigue", 0))),
@@ -508,8 +650,8 @@ class GameEngine:
             "skill": skill,
         }
 
-    def execute_action(self, action: Mapping[str, Any], persist: bool = True) -> Dict[str, Any]:
-        preview = self.preview_action(action)
+    def execute_action(self, action: Mapping[str, Any], persist: bool = True, dilution_multiplier: float = 1.0) -> Dict[str, Any]:
+        preview = self.preview_action(action, dilution_multiplier=dilution_multiplier)
         if not preview["legal"]:
             raise ValueError("行动不合法：" + "、".join(preview["errors"]))
         turn = self.state.current_turn + 1
@@ -533,7 +675,7 @@ class GameEngine:
             "hunger_delta": 0.0,
             "resource_changes": {key: -float(value) for key, value in resource_costs.items()},
         }
-        domain_effects = self._domain_effects(action, preview["resolution"])
+        domain_effects = self._domain_effects(action, preview["resolution"], dilution_multiplier=dilution_multiplier)
         event_type = domain_effects.pop("event_type", "ACTION_RESOLVED")
         domain_resource_changes = domain_effects.pop("resource_changes", {})
         if isinstance(domain_resource_changes, Mapping):
@@ -570,12 +712,17 @@ class GameEngine:
             self.state.save()
         return {"event": event, "resolution": preview["resolution"], "metrics": metrics, "state": self.state.data}
 
-    def execute_host_action(self, action: Mapping[str, Any], persist: bool = True) -> Dict[str, Any]:
+    def execute_host_action(self, action: Mapping[str, Any], persist: bool = True, dilution_multiplier: float = 1.0) -> Dict[str, Any]:
         """执行唯一允许由 LLM 主持器调用的入口。"""
         validate_host_action(action)
-        if str(action.get("type")) == "ACTION_PLAN":
+        action_type = str(action.get("type"))
+        if (self.state.meta.get("campaign_status") == "ended" or self.state.player.get("status") == "dead") and action_type not in {"ENDING", "RESTART", "CHECKPOINT", "LEGACY_CREATE"}:
+            raise ValueError("本局已经结束，只允许查看结局、重开、检查点或创建传承角色")
+        if action_type in {"ENDING", "RESTART", "CHECKPOINT", "LEGACY_CREATE"}:
+            return self._execute_terminal_action(action, persist=persist)
+        if action_type == "ACTION_PLAN":
             return self.execute_action_plan(action, persist=persist)
-        if str(action.get("type")) == "TALENT_CHOICE":
+        if action_type == "TALENT_CHOICE":
             return self.execute_talent_choice(action, persist=persist)
         skill = self._find_skill(action)
         costs = derive_action_costs(action, skill)
@@ -592,15 +739,16 @@ class GameEngine:
                 environment=self._combat_environment(target, costs),
                 seed=self._host_seed(action),
                 persist=persist,
+                dilution_multiplier=dilution_multiplier,
             )
         if action_type == "BUILD":
             module = self._lookup_module(action.get("target"))
             available_minutes = min(float(self.state.meta.get("available_time_minutes", 240)), float(costs["time_minutes"]))
-            return self.execute_build(module, available_minutes, action_costs=costs, persist=persist)
+            return self.execute_build(module, available_minutes, action_costs=costs, persist=persist, dilution_multiplier=dilution_multiplier)
         if action_type == "BATCH_ACTION":
             area = self._lookup_area(action.get("target"))
-            return self.execute_batch_action(self._batch_internal_action(action, area, costs), persist=persist)
-        return self.execute_action(action, persist=persist)
+            return self.execute_batch_action(self._batch_internal_action(action, area, costs), persist=persist, dilution_multiplier=dilution_multiplier)
+        return self.execute_action(action, persist=persist, dilution_multiplier=dilution_multiplier)
 
     def _talent_choice_id(self, action: Mapping[str, Any]) -> str:
         parameters = action.get("parameters", {}) if isinstance(action.get("parameters", {}), Mapping) else {}
@@ -638,13 +786,63 @@ class GameEngine:
             self.state.save()
         return {"event": event, "resolution": preview["resolution"], "state": self.state.data}
 
-    def execute_combat(self, defender: Mapping[str, Any], weapon: Optional[Mapping[str, Any]] = None, skill: Optional[Mapping[str, Any]] = None, environment: Optional[Mapping[str, Any]] = None, seed: str = "", persist: bool = True) -> Dict[str, Any]:
+    def _terminal_resolution(self, action: Mapping[str, Any]) -> Dict[str, Any]:
+        action_type = str(action.get("type"))
+        if self.state.meta.get("campaign_status") != "ended" and self.state.player.get("status") != "dead" and action_type != "ENDING":
+            raise ValueError("只有本局结束后才能执行终局处理")
+        return {
+            "action_type": action_type,
+            "campaign_status": self.state.meta.get("campaign_status", "active"),
+            "ending_id": self.state.meta.get("ending_id"),
+            "summary": deepcopy(self.state.meta.get("ending_summary", {})),
+            "next_step": "需要由主持器创建新角色或传承存档" if action_type != "ENDING" else "仅查看结局",
+        }
+
+    def _execute_terminal_action(self, action: Mapping[str, Any], persist: bool = True) -> Dict[str, Any]:
+        action_type = str(action.get("type"))
+        terminal = self._terminal_resolution(action)
+        if action_type in {"ENDING", "CHECKPOINT", "LEGACY_CREATE"}:
+            if action_type == "CHECKPOINT":
+                terminal["checkpoint_available"] = self.state.store.snapshot_before(self.state.current_turn) is not None
+            if action_type == "LEGACY_CREATE":
+                terminal["inheritance_source"] = deepcopy(self.state.data)
+            return {"terminal": terminal, "state": self.state.data}
+        if self.state.meta.get("death_mode", "checkpoint") != "checkpoint":
+            raise ValueError("当前死亡模式不允许检查点重来")
+        checkpoints_used = int(self.state.meta.get("checkpoints_used", 0))
+        max_checkpoints = int(self.state.meta.get("max_checkpoints", 0))
+        if checkpoints_used >= max_checkpoints:
+            raise ValueError("本篇章的检查点次数已用尽")
+        restored = self.state.store.snapshot_before(self.state.current_turn)
+        if restored is None:
+            raise ValueError("没有可用的死亡前检查点")
+        turn = self.state.current_turn + 1
+        event = standard_event(
+            event_id=f"evt_{turn:04d}_restart",
+            event_type="CAMPAIGN_RESTARTED",
+            actor="player",
+            target="checkpoint",
+            data={"state_restore": restored, "checkpoint_turn": restored.get("meta", {}).get("current_turn", 0), "checkpoint_increment": 1, "time_cost": 0.0},
+            turn=turn,
+            timestamp=f"Day {self.state.meta.get('game_day', 1)} {self.state.meta.get('time_of_day', '清晨')}",
+        )
+        self.state.apply_and_append(event, persist=persist)
+        if persist:
+            self.state.save()
+        return {"event": event, "terminal": {"action_type": action_type, "checkpoint_turn": event["data"]["checkpoint_turn"]}, "state": self.state.data}
+
+    def execute_combat(self, defender: Mapping[str, Any], weapon: Optional[Mapping[str, Any]] = None, skill: Optional[Mapping[str, Any]] = None, environment: Optional[Mapping[str, Any]] = None, seed: str = "", persist: bool = True, dilution_multiplier: float = 1.0) -> Dict[str, Any]:
+        if defender.get("status") in {"dead", "destroyed"}:
+            raise ValueError("战斗目标已经死亡")
+        if self.state.meta.get("campaign_status") == "ended":
+            raise ValueError("本局已经结束")
         weapon = weapon or self._combat_weapon()
         if skill:
             skill_errors = check_skill_use(skill, self.state.player, self.state.inventory)
             if skill_errors:
                 raise ValueError("技能不可用：" + "、".join(skill_errors))
         resolution = calculate_combat(self.state.player, defender, weapon=weapon, skill=skill, environment=environment, seed=seed or str(self.state.meta.get("rng_seed", "combat")))
+        apply_combat_dilution(resolution, dilution_multiplier)
         if not resolution.ammo_sufficient:
             raise ValueError("弹药不足")
         if weapon.get("durability") is not None and float(weapon.get("durability", 0)) <= 0:
@@ -699,6 +897,7 @@ class GameEngine:
                 "target_deltas": target_deltas,
                 "target_died": target_died,
                 "player_died": player_died,
+                "death_reason": f"与 {target_id} 的战斗中生命归零" if player_died else None,
                 "player_delta": {"hp": -incoming_damage},
                 "experience_gain": experience_gain,
                 "proposed_events": proposed_events,
@@ -714,21 +913,23 @@ class GameEngine:
             self.state.save()
         return {"event": event, "resolution": resolution.to_dict(), "state": self.state.data}
 
-    def execute_batch_action(self, action: Mapping[str, Any], persist: bool = True) -> Dict[str, Any]:
+    def execute_batch_action(self, action: Mapping[str, Any], persist: bool = True, dilution_multiplier: float = 1.0) -> Dict[str, Any]:
+        dilution_multiplier = max(0.25, min(1.0, float(dilution_multiplier)))
         result = simulate_batch_action(
             area=action.get("area", {}),
             player_level=int(self.state.player.get("level", 1)),
             minutes=float(action.get("minutes", 0)),
-            kill_success_rate=float(action.get("kill_success_rate", 0)),
+            kill_success_rate=float(action.get("kill_success_rate", 0)) * dilution_multiplier,
             ammo_available=float(action.get("ammo_available", 0)),
             ammo_per_kill=float(action.get("ammo_per_kill", 1)),
             weapon_rate_per_hour=float(action.get("weapon_rate_per_hour", 0)),
-            recovery_efficiency=float(action.get("recovery_efficiency", 1)),
+            recovery_efficiency=float(action.get("recovery_efficiency", 1)) * dilution_multiplier,
             backpack_capacity_modifier=float(action.get("backpack_capacity_modifier", 1)),
             enemy_groups=action.get("enemy_groups", []),
             farmability_components=action.get("farmability_components", {}),
             stop_conditions=action.get("stop_conditions", {}),
         )
+        result.components["dilution_multiplier"] = dilution_multiplier
         turn = self.state.current_turn + 1
         resource_changes = dict(result.recovered_resources)
         ammo_resource = action.get("ammo_resource")
@@ -773,8 +974,15 @@ class GameEngine:
             self.state.save()
         return {"event": event, "resolution": result.to_dict(), "state": self.state.data}
 
-    def execute_build(self, module: Mapping[str, Any], available_minutes: float, action_costs: Optional[Mapping[str, float]] = None, persist: bool = True) -> Dict[str, Any]:
-        result = calculate_build(self.state.data.get("base", {}), module, self.state.inventory, available_minutes)
+    def execute_build(self, module: Mapping[str, Any], available_minutes: float, action_costs: Optional[Mapping[str, float]] = None, persist: bool = True, dilution_multiplier: float = 1.0) -> Dict[str, Any]:
+        dilution_multiplier = max(0.25, min(1.0, float(dilution_multiplier)))
+        module_for_build = deepcopy(dict(module))
+        effects = module_for_build.get("effects", {})
+        if dilution_multiplier < 1.0 and isinstance(effects, Mapping):
+            module_for_build["effects"] = {key: float(value) * dilution_multiplier if isinstance(value, (int, float)) else value for key, value in effects.items()}
+        module_for_build["quality_multiplier"] = dilution_multiplier
+        result = calculate_build(self.state.data.get("base", {}), module_for_build, self.state.inventory, available_minutes)
+        result["quality_multiplier"] = dilution_multiplier
         if not result["success"]:
             raise ValueError("建造不合法：" + "、".join(result["errors"]))
         turn = self.state.current_turn + 1
@@ -785,7 +993,7 @@ class GameEngine:
             event_type="BUILDING_BUILT",
             actor="player",
             target=module.get("id", module.get("name")),
-            data={"resolution": result, "action": {"action_id": module.get("id", module.get("name")), "type": "BUILD", "target": module.get("id", module.get("name"))}, "action_ledger": {"available_time_minutes": available_minutes, "available_stamina": max(0.0, 100.0 - float(self.state.player.get("fatigue", 0))), "available_mental": float(self.state.player.get("mental", 100)), "actions": [{"type": "BUILD", "target": module.get("id", module.get("name")), "time_minutes": result["time_required"], "stamina_cost": stamina_cost, "mental_cost": mental_cost, "tags": ["requires_full_attention"]}]}, "resource_changes": result["resource_changes"], "fatigue_delta": stamina_cost, "mental_delta": -mental_cost, "time_cost": float(result["time_required"]), "base_space_delta": result["space_cost"], "base_module": dict(module), "proposed_events": [{"type": "BASE_UPGRADED", "target": module.get("id", module.get("name"))}]},
+            data={"resolution": result, "action": {"action_id": module.get("id", module.get("name")), "type": "BUILD", "target": module.get("id", module.get("name"))}, "action_ledger": {"available_time_minutes": available_minutes, "available_stamina": max(0.0, 100.0 - float(self.state.player.get("fatigue", 0))), "available_mental": float(self.state.player.get("mental", 100)), "actions": [{"type": "BUILD", "target": module.get("id", module.get("name")), "time_minutes": result["time_required"], "stamina_cost": stamina_cost, "mental_cost": mental_cost, "tags": ["requires_full_attention"]}]}, "resource_changes": result["resource_changes"], "fatigue_delta": stamina_cost, "mental_delta": -mental_cost, "time_cost": float(result["time_required"]), "base_space_delta": result["space_cost"], "base_module": module_for_build, "proposed_events": [{"type": "BASE_UPGRADED", "target": module.get("id", module.get("name"))}]},
             turn=turn,
             timestamp=f"Day {self.state.meta.get('game_day', 1)} {self.state.meta.get('time_of_day', '清晨')}",
         )

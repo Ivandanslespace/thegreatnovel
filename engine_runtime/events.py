@@ -158,6 +158,20 @@ def _apply_area_deltas(world: Dict[str, Any], area_deltas: Any) -> None:
             registry[key] = updated_area
 
 
+def _apply_encounter_additions(meta: Dict[str, Any], additions: Any) -> None:
+    if not isinstance(additions, list):
+        return
+    encounters = meta.setdefault("active_encounters", [])
+    if not isinstance(encounters, list):
+        encounters = []
+        meta["active_encounters"] = encounters
+    for addition in additions:
+        if not isinstance(addition, Mapping) or not addition.get("id"):
+            continue
+        if not any(isinstance(item, Mapping) and item.get("id") == addition.get("id") for item in encounters):
+            encounters.append(deepcopy(dict(addition)))
+
+
 def _apply_relationship_changes(updated: Dict[str, Any], changes: Any) -> None:
     if not isinstance(changes, Mapping):
         return
@@ -206,6 +220,7 @@ def _advance_timeline(meta: Dict[str, Any], world: Mapping[str, Any], minutes: f
     if minutes <= 0:
         return
     time_of_day = str(meta.get("time_of_day", "清晨"))
+    legacy_window = bool(meta.get("time_window_mode") == "legacy" or ("day_elapsed_minutes" not in meta and float(meta.get("available_time_minutes", DAY_MINUTES)) < DAY_MINUTES))
     elapsed = meta.get("day_elapsed_minutes")
     if elapsed is None:
         elapsed = TIME_PERIOD_STARTS.get(time_of_day, 0)
@@ -221,23 +236,16 @@ def _advance_timeline(meta: Dict[str, Any], world: Mapping[str, Any], minutes: f
     meta["time_of_day"] = next(
         name for start, name in reversed(TIME_PERIODS) if elapsed >= start
     )
-    try:
+    # 新存档由当天已过分钟数直接推导。没有 day_elapsed_minutes 的旧存档保留
+    # 原有行动窗口语义，并在本次推进后写入兼容标记，避免改变旧存档的节奏。
+    if legacy_window:
+        meta["time_window_mode"] = "legacy"
         remaining = max(0.0, float(meta.get("available_time_minutes", DAY_MINUTES)) - float(minutes))
         if day_delta:
             remaining += DAY_MINUTES * day_delta
-        meta["available_time_minutes"] = int(remaining) if remaining.is_integer() else remaining
-    except (TypeError, ValueError):
-        pass
-
-    disaster = world.get("rules", {}).get("disaster", {}) if isinstance(world.get("rules", {}), Mapping) else {}
-    cycle_days = int(disaster.get("cycle_days", 0) or 0)
-    if cycle_days > 0:
-        first_event = str(disaster.get("first_event", ""))
-        match = re.search(r"\d+", first_event)
-        first_day = int(match.group(0)) if match else cycle_days
-        current_day = int(meta.get("game_day", 1))
-        next_day = first_day if current_day < first_day else first_day + ((current_day - first_day) // cycle_days + 1) * cycle_days
-        meta["next_disaster_day"] = next_day
+    else:
+        remaining = max(0.0, DAY_MINUTES - elapsed)
+    meta["available_time_minutes"] = int(remaining) if remaining.is_integer() else remaining
 
 
 def _update_narrative_state(meta: Dict[str, Any], player: Mapping[str, Any], inventory: Mapping[str, Any], record: Mapping[str, Any]) -> None:
@@ -293,6 +301,7 @@ def _advance_npcs_and_scheduled_events(updated: Dict[str, Any]) -> None:
     npcs = updated.get("npcs", [])
     from .calculators import calculate_npc_utility
 
+    schedule_slot = f"{int(meta.get('game_day', 1))}:{time_of_day}"
     if isinstance(npcs, list):
         for npc in npcs:
             if not isinstance(npc, dict) or npc.get("status", "alive") != "alive":
@@ -301,6 +310,9 @@ def _advance_npcs_and_scheduled_events(updated: Dict[str, Any]) -> None:
             action = schedule.get(time_of_day)
             if not action:
                 continue
+            if npc.get("last_schedule_execution") == schedule_slot:
+                continue
+            npc["last_schedule_execution"] = schedule_slot
             if action == "return_to_base":
                 npc["location"] = meta.get("current_location", npc.get("location"))
             npc["last_autonomous_action"] = action
@@ -319,6 +331,9 @@ def _advance_npcs_and_scheduled_events(updated: Dict[str, Any]) -> None:
             action = schedule.get(time_of_day)
             if not action:
                 continue
+            if faction.get("last_schedule_execution") == schedule_slot:
+                continue
+            faction["last_schedule_execution"] = schedule_slot
             if action == "collect_tax":
                 faction["last_tax_turn"] = meta.get("current_turn")
                 faction["treasury"] = deepcopy(faction.get("treasury", {}))
@@ -355,11 +370,19 @@ def _advance_npcs_and_scheduled_events(updated: Dict[str, Any]) -> None:
             _apply_relationship_changes(updated, {promise.get("npc_id"): {"trust": -10, "respect": -3}})
             system_events.append({"type": "PROMISE_BROKEN", "target": promise.get("npc_id"), "promise_id": promise.get("id"), "turn": current_turn})
     disaster_day = meta.get("next_disaster_day")
-    if disaster_day is not None and int(meta.get("game_day", 1)) >= int(disaster_day):
-        disaster_type = updated.get("world", {}).get("setting", {}).get("disaster_type", "大型灾难")
-        system_events.append({"type": "DISASTER_OCCURRED", "target": disaster_type, "day": int(meta.get("game_day", 1))})
-        cycle = int(updated.get("world", {}).get("rules", {}).get("disaster", {}).get("cycle_days", 7) or 7)
-        meta["next_disaster_day"] = int(disaster_day) + cycle
+    disaster = updated.get("world", {}).get("rules", {}).get("disaster", {}) if isinstance(updated.get("world", {}).get("rules", {}), Mapping) else {}
+    cycle = int(disaster.get("cycle_days", 7) or 7)
+    disaster_type = updated.get("world", {}).get("setting", {}).get("disaster_type", "大型灾难")
+    current_day = int(meta.get("game_day", 1))
+    if disaster_day is None and cycle > 0:
+        first_event = str(disaster.get("first_event", ""))
+        match = re.search(r"\d+", first_event)
+        disaster_day = int(match.group(0)) if match else cycle
+    while disaster_day is not None and cycle > 0 and current_day >= int(disaster_day):
+        system_events.append({"type": "DISASTER_OCCURRED", "target": disaster_type, "day": int(disaster_day)})
+        disaster_day = int(disaster_day) + cycle
+    if disaster_day is not None:
+        meta["next_disaster_day"] = int(disaster_day)
     del system_events[:-50]
 
 
@@ -373,6 +396,8 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
     payload = record.get("data", {})
     if not isinstance(payload, Mapping):
         payload = {}
+    if isinstance(payload.get("state_restore"), Mapping):
+        updated = deepcopy(dict(payload["state_restore"]))
     player = updated.setdefault("player", {})
     meta = updated.setdefault("meta", {})
     inventory = updated.setdefault("inventory", {})
@@ -429,9 +454,12 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
     _add_unique(player.setdefault("status_effects", []), payload.get("status_additions"))
     if payload.get("current_location"):
         meta["current_location"] = payload["current_location"]
+    if payload.get("information_completeness") is not None:
+        meta["last_information_completeness"] = float(payload["information_completeness"])
     _apply_target_deltas(world, payload.get("target_deltas"))
     _apply_actor_deltas(updated, payload.get("target_deltas"))
     _apply_area_deltas(world, payload.get("area_deltas"))
+    _apply_encounter_additions(meta, payload.get("encounter_additions"))
     _apply_relationship_changes(updated, payload.get("relationship_changes"))
     social_state = meta.setdefault("social_state", {"promises": [], "deceptions": []})
     if isinstance(social_state, dict):
@@ -504,6 +532,17 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
     if payload.get("player_died"):
         stats = player.setdefault("stats", {})
         _add_delta(stats, "deaths", 1)
+        player["status"] = "dead"
+        player["death_turn"] = int(record.get("turn", meta.get("current_turn", 0)))
+        meta["campaign_status"] = "ended"
+        meta["ending_id"] = f"death_day_{meta.get('game_day', 1)}_turn_{record.get('turn', meta.get('current_turn', 0))}"
+        meta["ending_summary"] = {
+            "ending_id": meta["ending_id"],
+            "reason": payload.get("death_reason", "玩家生命归零"),
+            "turn": int(record.get("turn", meta.get("current_turn", 0))),
+        }
+    if payload.get("checkpoint_increment"):
+        meta["checkpoints_used"] = int(meta.get("checkpoints_used", 0)) + int(payload.get("checkpoint_increment", 0))
     _update_narrative_state(meta, player, inventory, record)
 
     cooldown_changes = payload.get("cooldown_changes", {})

@@ -2,6 +2,8 @@
 
 from .calculators import (
     FORMULA_VERSION,
+    apply_action_dilution,
+    apply_combat_dilution,
     advance_progression,
     calculate_base_defense,
     calculate_base_maintenance,
@@ -24,6 +26,8 @@ from .narrative_log import record_narrative_turn
 
 __all__ = [
     "FORMULA_VERSION",
+    "apply_action_dilution",
+    "apply_combat_dilution",
     "GameEngine",
     "advance_progression",
     "calculate_base_defense",

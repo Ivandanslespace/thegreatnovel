@@ -52,6 +52,10 @@ ACTION_PROFILES = {
     "REST": {"time_minutes": 360.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
     "TALENT_CHOICE": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
     "ACTION_PLAN": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
+    "ENDING": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
+    "RESTART": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
+    "CHECKPOINT": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
+    "LEGACY_CREATE": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
 }
 
 
@@ -107,6 +111,8 @@ def validate_host_action(action: Mapping[str, Any]) -> None:
                     errors.append(f"steps[{index}].type 不是有效行动类型")
         if not str(action.get("plan_id", "")).strip():
             errors.append("ACTION_PLAN 缺少 plan_id")
+        if action.get("priority_order") is not None and not isinstance(action.get("priority_order"), list):
+            errors.append("priority_order 必须是列表")
     elif action.get("steps") is not None:
         errors.append("只有 ACTION_PLAN 才能提交 steps")
     requirements = action.get("requirements")

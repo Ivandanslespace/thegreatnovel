@@ -641,6 +641,8 @@ def build_files(template_dir, world, talent):
             "available_time_minutes": 720,
             "day_elapsed_minutes": 0,
             "next_disaster_day": world["rules"]["disaster"]["cycle_days"],
+            "active_encounters": [],
+            "campaign_status": "active",
             "narrative_state": {"pressure_components": {}, "open_loops": [], "payoff_history": [], "event_pattern_history": [], "recent_irreversible_changes": [], "current_arc": {}},
             "pressure_level": 30,
             "last_payoff_turn": 0,
