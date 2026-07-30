@@ -74,8 +74,24 @@ action:
     npc_available: ""      # 需要哪个NPC在场
     items: []              # 需要什么物品
     knowledge: ""          # 需要什么前置知识
-  tags: []                 # 承诺标签（见互斥系统）
+  tags: []                 # LLM意图标签，不参与硬约束
 ```
+
+行动计划的硬约束由世界注册表提供，典型结构为：
+
+```yaml
+constraints:
+  system_tags: [major_action, requires_full_attention]
+  exclusive_group: evening_major_action
+  window_id: day3_evening
+  window_capacity: 1
+  commitment_axis: faction_loyalty
+  commitment_value: black_tower
+```
+
+同一 `commitment_axis` 重复同一 `commitment_value` 不冲突；同一轴出现不同值才冲突。
+机会窗口只在同一 `exclusive_group`、同一 `window_id` 超过 `window_capacity` 时冲突；
+不同窗口可以按顺序完成。LLM 的 `tags` 不得替代这些结构化字段。
 
 ### 成本参考表
 
@@ -90,6 +106,8 @@ action:
 | 完整休息 | 360-480min | 恢复 | 恢复 | 占用整个时段 |
 | 制作/锻造 | 60-180min | 8-15 | 5-10 | 需要工具和材料 |
 | 探索(新区域) | 120-240min | 15-25 | 10-20 | 主要行动 |
+| 移动/进入地点 | 由地点注册表决定 | 由地点注册表决定 | 由地点注册表决定 | 必须使用 `TRAVEL` / `ENTER_LOCATION` |
+| 返回基地/撤离 | 由地点注册表决定 | 由地点注册表决定 | 由地点注册表决定 | `RETURN_TO_BASE` / `EXTRACT` |
 
 ## 四、专注稀释（Dilution）
 
@@ -217,9 +235,10 @@ socially_committed        # 社交承诺，中途离开会损害关系
 2. 行动槽冲突：主要行动超过每时段 1 个，或短行动超过 2 个？
 3. 地点/移动冲突：两个行动需要在不同地点，且移动窗口不足？
 4. 专注冲突：高精神负荷行动与 `requires_full_attention` 同时发生？
-5. 标签冲突：`evening_major_action`、`location_locked`、`socially_committed` 等承诺重叠？
-6. NPC冲突：两个行动需要同一个NPC同时配合不同事？
-7. 资源冲突：两个行动消耗同一份稀缺物资？
+5. 承诺轴冲突：同一 `commitment_axis` 是否出现不同 `commitment_value`？
+6. 机会窗口冲突：同一 `exclusive_group` 的 `window_id` 是否超过容量？不同窗口默认可以顺序完成。
+7. NPC冲突：两个行动需要同一个NPC同时配合不同事，或NPC日程显示不可用？
+8. 资源冲突：两个行动消耗同一份稀缺物资？
 
 任一冲突成立 → 不能同时完成 → 告知玩家必须取舍或接受稀释。
 
@@ -236,7 +255,7 @@ Combinability =
   × NPC可用度
   × 专注兼容度
   × 行动槽兼容度
-  × 承诺标签兼容度
+  × 承诺轴兼容度
   × 机会窗口兼容度
   × 移动兼容度
   × 100

@@ -116,9 +116,18 @@ def compile_world_bundle(
         "extraction_rule": {"return_to": "camp_core", "deadline_minutes": 120},
         "encounter_target_ids": [enemy_id],
     }
+    action_constraints = {
+        "system_tags": ["major_action", "requires_full_attention"],
+        "exclusive_group": "field_exploration",
+        "window_ids": ["白天", "黄昏"],
+        "window_capacity": 1,
+        "commitment_axis": "route_commitment",
+        "commitment_value": area_id,
+    }
     action_targets = {
         area_id: {
             "id": area_id,
+            "location_id": area_id,
             "target_difficulty": 25,
             "environment_penalty": 5,
             "unknown_risk": 12,
@@ -132,9 +141,11 @@ def compile_world_bundle(
                 "partial_failure": {"knowledge_additions": [f"{enemy_id}_behavior"]},
             },
             "encounter_target_ids": [enemy_id],
+            "constraints": action_constraints,
         },
         research_id: {
             "id": research_id,
+            "location_id": "camp_core",
             "target_difficulty": 30,
             "environment_penalty": 8,
             "unknown_risk": 15,
@@ -144,9 +155,18 @@ def compile_world_bundle(
             "rule_consistency": 1.0,
             "player_responsibility": 0.8,
             "effects": {"success": {"knowledge_additions": [f"{research_id}_principle"], "resource_changes": {rare_resource: 1}}},
+            "constraints": {
+                "system_tags": ["major_action", "requires_full_attention"],
+                "exclusive_group": "research_window",
+                "window_ids": ["白天", "黄昏"],
+                "window_capacity": 1,
+                "commitment_axis": "research_focus",
+                "commitment_value": research_id,
+            },
         },
         npc_id: {
             "id": npc_id,
+            "location_id": "camp_core",
             "target_difficulty": 15,
             "risk_warning": 1.0,
             "causal_chain": 1.0,
@@ -154,6 +174,7 @@ def compile_world_bundle(
             "rule_consistency": 1.0,
             "player_responsibility": 0.7,
             "effects": {"success": {"relationship_changes": {npc_id: {"trust": 3, "respect": 1}}, "knowledge_additions": [f"{npc_id}_goal"]}},
+            "constraints": {"system_tags": ["short_action"], "commitment_axis": "social_relationship", "commitment_value": npc_id},
         },
         "camp_core": {"id": "camp_core", "target_difficulty": 0, "effects": {}},
     }
@@ -161,7 +182,11 @@ def compile_world_bundle(
     action_targets[research_id]["primary_attribute"] = "spirit"
     action_targets[npc_id]["primary_attribute"] = "spirit"
     for target_profile in action_targets.values():
-        if target_profile.get("id") != "camp_core":
+        if target_profile.get("id") == area_id:
+            target_profile["requirements"] = {"location": area_id}
+        elif target_profile.get("id") == npc_id:
+            target_profile["requirements"] = {"location": "camp_core", "npc_available": npc_id}
+        elif target_profile.get("id") != "camp_core":
             target_profile["requirements"] = {"location": "camp_core"}
     modules = {}
     for index, (module_id, module_name, description) in enumerate(content["modules"]):
@@ -209,9 +234,9 @@ def compile_world_bundle(
         "profile": profile,
         "starting_location": "camp_core",
         "locations": [
-            {"id": "camp_core", "name": safe_base, "safe": True, "discovered": True},
-            {"id": area_id, "name": area_name, "safe": False, "discovered": False},
-            {"id": research_id, "name": research_name, "safe": False, "discovered": False},
+            {"id": "camp_core", "name": safe_base, "safe": True, "discovered": True, "travel_minutes_from_base": 0, "travel_stamina_from_base": 0, "extraction_minutes": 0, "extraction_stamina_cost": 0},
+            {"id": area_id, "name": area_name, "safe": False, "discovered": False, "travel_minutes_from_base": 30, "travel_stamina_from_base": 5, "extraction_minutes": 30, "extraction_stamina_cost": 5, "extraction_mental_cost": 0, "extraction_rule": deepcopy(area["extraction_rule"])},
+            {"id": research_id, "name": research_name, "safe": False, "discovered": False, "travel_minutes_from_base": 45, "travel_stamina_from_base": 8, "extraction_minutes": 45, "extraction_stamina_cost": 8, "extraction_mental_cost": 1},
         ],
         "enemies": [enemy],
         "targets": {},

@@ -111,6 +111,37 @@ class GameEngine:
 
     def _target_presence_errors(self, action: Mapping[str, Any]) -> list[str]:
         action_type = str(action.get("type"))
+        current_location = self._current_location()
+        base_location = self._base_location()
+        movement_types = {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"}
+        if action_type in movement_types:
+            target = self._movement_target(action)
+            if action_type in {"TRAVEL", "ENTER_LOCATION"}:
+                if not target:
+                    return ["移动行动必须指定目标地点"]
+                if self._location_profile(target) is None:
+                    return [f"目标地点未注册：{target}"]
+                if str(target) == str(current_location):
+                    return ["目标地点已经是当前位置，无需重复移动"]
+                if self.state.meta.get("current_encounter_id"):
+                    return ["当前仍在遭遇中：必须先使用 EXTRACT 或 LEAVE_ENCOUNTER"]
+            elif action_type == "RETURN_TO_BASE":
+                if action.get("target") and str(action.get("target")) != str(base_location):
+                    return [f"RETURN_TO_BASE 只能返回基地：{base_location}"]
+                if str(current_location) == str(base_location):
+                    return ["当前已经在基地"]
+                if self.state.meta.get("current_encounter_id"):
+                    return ["当前仍在遭遇中：必须使用 EXTRACT 返回基地"]
+            elif action_type == "EXTRACT":
+                if str(current_location) == str(base_location):
+                    return ["当前已经在基地，不需要撤离"]
+                if action.get("target") and str(action.get("target")) != str(base_location):
+                    return [f"EXTRACT 只能返回基地：{base_location}"]
+                if not self._active_encounter_allows(location_id=current_location):
+                    return ["当前地点没有可撤离的活动遭遇"]
+            elif action_type == "LEAVE_ENCOUNTER":
+                if not self._active_encounter_allows(location_id=current_location):
+                    return ["当前没有可离开的活动遭遇"]
         if action_type == "COMBAT":
             target = self._registry_lookup(self.state.data.get("world", {}).get("encounter_entities"), action.get("target"))
             target = target or self._registry_lookup(self.state.data.get("world", {}).get("targets"), action.get("target"))
@@ -128,13 +159,21 @@ class GameEngine:
             location_id = area.get("location_id") if isinstance(area, Mapping) else None
             if location_id and self.state.meta.get("current_location") != location_id:
                 return [f"刷怪区域不在当前地点：需要先进入 {location_id}"]
-        if action_type == "REST" and action.get("target"):
-            locations = self.state.data.get("world", {}).get("locations", [])
-            target_location = self._registry_lookup(locations, action.get("target"))
-            if locations and target_location is None:
-                return [f"休息地点未注册：{action.get('target')}"]
-            if not locations and action.get("target") not in {self.state.meta.get("current_location"), "camp_core"}:
-                return [f"休息地点未注册：{action.get('target')}"]
+        if action_type == "EXPLORATION":
+            profile = self._action_target_profile(action)
+            if not profile:
+                return [f"探索地点未注册：{action.get('target')}"]
+            location_id = profile.get("location_id", action.get("target"))
+            if location_id and str(location_id) != self._current_location():
+                return [f"探索地点不在当前地点：需要先使用 TRAVEL/ENTER_LOCATION 进入 {location_id}"]
+        if action_type in {"REST", "BUILD", "BASE_MANAGEMENT"}:
+            if str(current_location) != str(base_location):
+                return [f"{action_type} 只能在基地执行：当前地点为 {current_location}，基地为 {base_location}"]
+            if self.state.meta.get("current_encounter_id"):
+                return [f"当前仍在遭遇中，不能执行 {action_type}"]
+        if action_type == "REST" and action.get("target") and str(action.get("target")) != str(current_location):
+            if str(action.get("target")) != str(base_location):
+                return [f"休息目标必须是当前位置或基地：{base_location}"]
         return []
 
     def _check_requirements(self, action: Mapping[str, Any]) -> list[str]:
@@ -152,8 +191,11 @@ class GameEngine:
         for key, value in supplied_requirements.items():
             requirements.setdefault(key, value)
         required_location = requirements.get("location")
+        current_location = self._current_location()
         registry_location_only = "location" in supplied_requirements
-        if required_location and required_location != self.state.meta.get("current_location") and (registry_location_only or action_type != "BATCH_ACTION"):
+        if action_type in {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"} and not registry_location_only:
+            required_location = None
+        if required_location and required_location != current_location and (registry_location_only or action_type != "BATCH_ACTION"):
             errors.append(f"地点不符：需要 {required_location}")
         for item in requirements.get("items", []) if isinstance(requirements.get("items"), list) else []:
             item_id = item.get("id", item.get("name")) if isinstance(item, Mapping) else str(item)
@@ -168,8 +210,13 @@ class GameEngine:
         npc_id = requirements.get("npc_available")
         if npc_id:
             npc = next((item for item in self.state.data.get("npcs", []) if isinstance(item, Mapping) and item.get("id") == npc_id), None)
-            if not npc or npc.get("status", "alive") != "alive" or npc.get("location") != self.state.meta.get("current_location"):
+            if not npc or npc.get("status", "alive") != "alive" or npc.get("location") != current_location:
                 errors.append(f"NPC不可用：{npc_id}")
+            else:
+                schedule = npc.get("schedule", {}) if isinstance(npc.get("schedule", {}), Mapping) else {}
+                scheduled_action = str(schedule.get(self.state.meta.get("time_of_day", "清晨"), "")).lower()
+                if scheduled_action in {"rest", "休息", "unavailable", "不可用"}:
+                    errors.append(f"NPC当前时段不可用：{npc_id}")
         knowledge = requirements.get("knowledge")
         if knowledge:
             known = self.state.player.get("knowledge", [])
@@ -186,6 +233,137 @@ class GameEngine:
         registry = self.state.data.get("world", {}).get("action_targets", {})
         return self._registry_lookup(registry, action.get("target")) or {}
 
+    def _base_location(self) -> str:
+        world = self.state.data.get("world", {}) if isinstance(self.state.data.get("world", {}), Mapping) else {}
+        bundle = world.get("generation_bundle", {}) if isinstance(world.get("generation_bundle", {}), Mapping) else {}
+        base = self.state.data.get("base", {}) if isinstance(self.state.data.get("base", {}), Mapping) else {}
+        return str(
+            self.state.meta.get("base_location")
+            or base.get("location_id")
+            or world.get("starting_location")
+            or bundle.get("starting_location")
+            or "camp_core"
+        )
+
+    def _current_location(self) -> str:
+        return str(self.state.meta.get("current_location") or self._base_location())
+
+    def _location_profile(self, location_id: Any) -> Optional[Mapping[str, Any]]:
+        if not location_id:
+            return None
+        world = self.state.data.get("world", {}) if isinstance(self.state.data.get("world", {}), Mapping) else {}
+        return self._registry_lookup(world.get("locations", []), location_id)
+
+    def _location_name(self, location_id: Any) -> str:
+        profile = self._location_profile(location_id)
+        return str(profile.get("name", location_id)) if isinstance(profile, Mapping) else str(location_id)
+
+    def _movement_target(self, action: Mapping[str, Any]) -> str:
+        action_type = str(action.get("type"))
+        if action_type in {"RETURN_TO_BASE", "EXTRACT"}:
+            return str(action.get("target") or self._base_location())
+        if action_type == "LEAVE_ENCOUNTER":
+            return self._current_location()
+        return str(action.get("target") or "")
+
+    def _derive_action_costs(self, action: Mapping[str, Any], skill: Optional[Mapping[str, Any]] = None) -> Dict[str, float]:
+        costs = derive_action_costs(action, skill)
+        action_type = str(action.get("type"))
+        if action_type not in {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT"}:
+            return costs
+
+        current = self._current_location()
+        base = self._base_location()
+        target = self._movement_target(action)
+        if action_type in {"TRAVEL", "ENTER_LOCATION"}:
+            route = self._location_profile(target) or self._location_profile(current) or {}
+            minutes_key = "travel_minutes_from_base" if current == base else "travel_minutes"
+            stamina_key = "travel_stamina_from_base" if current == base else "travel_stamina_cost"
+            mental_key = "travel_mental_from_base" if current == base else "travel_mental_cost"
+        elif action_type == "EXTRACT":
+            route = self._location_profile(current) or {}
+            minutes_key = "extraction_minutes"
+            stamina_key = "extraction_stamina_cost"
+            mental_key = "extraction_mental_cost"
+        else:
+            route = self._location_profile(current) or {}
+            minutes_key = "return_minutes"
+            stamina_key = "return_stamina_cost"
+            mental_key = "return_mental_cost"
+        costs["time_minutes"] = float(route.get(minutes_key, route.get("travel_minutes_from_base", costs["time_minutes"])))
+        costs["stamina_cost"] = float(route.get(stamina_key, route.get("travel_stamina_from_base", costs["stamina_cost"])))
+        costs["mental_cost"] = float(route.get(mental_key, route.get("travel_mental_from_base", costs["mental_cost"])))
+        return costs
+
+    def _system_action_constraints(self, action: Mapping[str, Any], preview: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+        """只从世界/NPC注册表派生计划硬约束；LLM tags 仅保留在叙事账本。"""
+        profile = preview.get("target_profile", {}) if isinstance(preview, Mapping) else self._action_target_profile(action)
+        profile = profile if isinstance(profile, Mapping) else {}
+        action_type = str(action.get("type"))
+        world = self.state.data.get("world", {}) if isinstance(self.state.data.get("world", {}), Mapping) else {}
+        rules = world.get("rules", {}) if isinstance(world.get("rules", {}), Mapping) else {}
+        sources = []
+        rule_constraints = rules.get("action_constraints", {}) if isinstance(rules.get("action_constraints", {}), Mapping) else {}
+        for key in (action_type, str(action.get("target") or "")):
+            candidate = rule_constraints.get(key)
+            if isinstance(candidate, Mapping):
+                sources.append(candidate)
+        if action_type not in {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"}:
+            profile_constraints = profile.get("constraints", {})
+            if isinstance(profile_constraints, Mapping):
+                sources.append(profile_constraints)
+            opportunity_id = profile.get("opportunity_id")
+            opportunities = world.get("opportunities", {})
+            opportunity = self._registry_lookup(opportunities, opportunity_id)
+            if isinstance(opportunity, Mapping):
+                sources.append(opportunity.get("constraints", opportunity))
+        constraints: Dict[str, Any] = {}
+        for source in sources:
+            if isinstance(source, Mapping):
+                constraints.update(deepcopy(dict(source)))
+        system_tags = set(str(tag).lower() for tag in constraints.get("system_tags", constraints.get("tags", [])) if tag)
+        if action_type in {"EXPLORATION", "COMBAT", "BATCH_ACTION", "BUILD", "RESEARCH", "REST"}:
+            system_tags.add("major_action")
+        if action_type in {"EXPLORATION", "COMBAT", "BUILD", "RESEARCH"}:
+            system_tags.add("requires_full_attention")
+
+        commitments = []
+        raw_commitments = constraints.get("commitments", [])
+        if isinstance(raw_commitments, list):
+            for item in raw_commitments:
+                if isinstance(item, Mapping) and item.get("axis") is not None and item.get("value") is not None:
+                    commitments.append((str(item["axis"]), str(item["value"])))
+        if constraints.get("commitment_axis") is not None and constraints.get("commitment_value") is not None:
+            commitments.append((str(constraints["commitment_axis"]), str(constraints["commitment_value"])))
+
+        windows = []
+        raw_windows = constraints.get("windows", [])
+        if isinstance(raw_windows, list):
+            for item in raw_windows:
+                if isinstance(item, Mapping) and (item.get("exclusive_group") or item.get("group")):
+                    window_ids = item.get("window_ids", item.get("window_id"))
+                    if not isinstance(window_ids, list):
+                        window_ids = [window_ids] if window_ids is not None else []
+                    windows.append({"group": str(item.get("exclusive_group", item.get("group"))), "ids": sorted({str(value) for value in window_ids}), "capacity": int(item.get("capacity", item.get("window_capacity", 1)) or 1)})
+        exclusive_group = constraints.get("exclusive_group")
+        if exclusive_group:
+            window_ids = constraints.get("window_ids", constraints.get("opportunity_windows", constraints.get("window_id")))
+            if not isinstance(window_ids, list):
+                window_ids = [window_ids] if window_ids is not None else []
+            windows.append({"group": str(exclusive_group), "ids": sorted({str(value) for value in window_ids}), "capacity": int(constraints.get("window_capacity", 1) or 1)})
+
+        target_id = action.get("target")
+        npc = next((candidate for candidate in self.state.data.get("npcs", []) if isinstance(candidate, Mapping) and candidate.get("id", candidate.get("name")) == target_id), None)
+        if npc is not None:
+            schedule = npc.get("schedule", {}) if isinstance(npc.get("schedule", {}), Mapping) else {}
+            period = str(self.state.meta.get("time_of_day", "清晨"))
+            scheduled_action = schedule.get(period)
+            if scheduled_action:
+                windows.append({"group": f"npc:{target_id}", "ids": [period], "capacity": 1})
+                if str(scheduled_action).lower() in {"rest", "休息", "unavailable", "不可用"}:
+                    constraints["npc_unavailable"] = True
+        return {"tags": sorted(system_tags), "commitments": commitments, "windows": windows, "npc_unavailable": bool(constraints.get("npc_unavailable"))}
+
     def _spawn_exploration_encounter(self, action: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
         profile = self._action_target_profile(action)
         definition_ids = profile.get("encounter_target_ids", []) if isinstance(profile.get("encounter_target_ids", []), list) else []
@@ -197,21 +375,22 @@ class GameEngine:
         entities = []
         target_ids = []
         turn = self.state.current_turn + 1
+        location_id = str(profile.get("location_id") or self._current_location())
         for index, definition_id in enumerate(definition_ids, start=1):
             definition = self._registry_lookup(definitions, definition_id) or self._registry_lookup(legacy_definitions, definition_id)
             if not definition:
                 continue
             instance_id = f"{definition_id}_instance_{turn:04d}_{index}"
             entity = deepcopy(dict(definition))
-            entity.update({"id": instance_id, "instance_id": instance_id, "definition_id": str(definition_id), "status": "alive", "spawned_turn": turn, "location_id": action.get("target")})
+            entity.update({"id": instance_id, "instance_id": instance_id, "definition_id": str(definition_id), "status": "alive", "spawned_turn": turn, "location_id": location_id})
             entities.append(entity)
             target_ids.append(instance_id)
         if not target_ids:
             return None
-        encounter_id = f"encounter_{turn:04d}_{action.get('target')}"
+        encounter_id = f"encounter_{turn:04d}_{location_id}"
         return {
             "id": encounter_id,
-            "location_id": action.get("target"),
+            "location_id": location_id,
             "target_ids": target_ids,
             "participants": ["player", *target_ids],
             "status": "active",
@@ -223,14 +402,52 @@ class GameEngine:
     def _domain_effects(self, action: Mapping[str, Any], resolution: Mapping[str, Any], dilution_multiplier: float = 1.0) -> Dict[str, Any]:
         action_type = str(action.get("type", ""))
         dilution_multiplier = max(0.25, min(1.0, float(dilution_multiplier)))
+        if action_type in {"TRAVEL", "ENTER_LOCATION"}:
+            target = self._movement_target(action)
+            return {
+                "event_type": "TRAVEL_COMPLETED",
+                "current_location": target,
+                "current_location_name": self._location_name(target),
+                "current_encounter_id": None,
+                "movement": {"from": self._current_location(), "to": target, "mode": action_type},
+                "proposed_events": [{"type": "LOCATION_ENTERED", "target": target}],
+            }
+        if action_type == "RETURN_TO_BASE":
+            target = self._base_location()
+            return {
+                "event_type": "RETURN_TO_BASE_COMPLETED",
+                "current_location": target,
+                "current_location_name": self._location_name(target),
+                "current_encounter_id": None,
+                "movement": {"from": self._current_location(), "to": target, "mode": action_type},
+                "proposed_events": [{"type": "RETURNED_TO_BASE", "target": target}],
+            }
+        if action_type == "EXTRACT":
+            target = self._base_location()
+            encounter_id = self.state.meta.get("current_encounter_id")
+            return {
+                "event_type": "EXTRACTION_COMPLETED",
+                "current_location": target,
+                "current_location_name": self._location_name(target),
+                "current_encounter_id": None,
+                "encounter_updates": [{"id": encounter_id, "status": "escaped", "closed_turn": self.state.current_turn + 1}] if encounter_id else [],
+                "movement": {"from": self._current_location(), "to": target, "mode": action_type},
+                "proposed_events": [{"type": "ENCOUNTER_EXTRACTED", "target": encounter_id}],
+            }
+        if action_type == "LEAVE_ENCOUNTER":
+            encounter_id = self.state.meta.get("current_encounter_id")
+            return {
+                "event_type": "ENCOUNTER_LEFT",
+                "current_encounter_id": None,
+                "encounter_updates": [{"id": encounter_id, "status": "escaped", "closed_turn": self.state.current_turn + 1}] if encounter_id else [],
+                "proposed_events": [{"type": "ENCOUNTER_LEFT", "target": encounter_id}],
+            }
         if action_type == "REST":
             return {
                 "fatigue_delta": -35.0,
                 "mental_delta": 20.0,
                 "hp_delta": 5.0,
-                "current_location": action.get("target") or self.state.meta.get("current_location"),
-                "current_encounter_id": None,
-                "proposed_events": [{"type": "REST_COMPLETED", "target": self.state.meta.get("current_location")}],
+                "proposed_events": [{"type": "REST_COMPLETED", "target": self._current_location()}],
             }
         profile = self._action_target_profile(action)
         effects = profile.get("effects", {}) if isinstance(profile.get("effects", {}), Mapping) else {}
@@ -263,7 +480,6 @@ class GameEngine:
             encounter = self._spawn_exploration_encounter(action)
             if encounter:
                 selected["encounter_additions"] = [encounter]
-                selected["current_location"] = action.get("target")
                 selected["current_encounter_id"] = encounter["id"]
         proposed = []
         proposed.extend({"type": "AREA_DISCOVERED", "target": item} for item in selected.get("discover_locations", []))
@@ -480,7 +696,7 @@ class GameEngine:
         if str(action.get("type")) in {"ENDING", "RESTART", "CHECKPOINT", "LEGACY_CREATE"}:
             return {"legal": True, "errors": [], "resolution": self._terminal_resolution(action), "action_ledger": {"available_time_minutes": float(self.state.meta.get("available_time_minutes", 720)), "actions": [{"type": action.get("type"), "target": action.get("target"), "time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "tags": ["terminal"]}]}}
         skill = self._find_skill(action)
-        costs = derive_action_costs(action, skill)
+        costs = self._derive_action_costs(action, skill)
         errors = self._derived_budget_errors(action, costs)
         action_type = str(action.get("type"))
         if action_type == "COMBAT":
@@ -587,37 +803,55 @@ class GameEngine:
         short_count = 0
         attention_count = 0
         mental_load = 0.0
-        commitment_counts: Dict[str, int] = {}
-        opportunity_windows = set()
+        commitment_values: Dict[str, set[str]] = {}
+        opportunity_counts: Dict[tuple[str, str], int] = {}
+        opportunity_capacities: Dict[tuple[str, str], int] = {}
         npc_targets = []
+        npc_schedule_factor = 1.0
         heavy_types = {"EXPLORATION", "COMBAT", "BATCH_ACTION", "BUILD", "RESEARCH", "REST"}
         for item in previews:
             step = item["action"]
             ledger = item["preview"].get("action_ledger", {}) if isinstance(item["preview"].get("action_ledger", {}), Mapping) else {}
             row = ledger.get("actions", [{}])[0] if isinstance(ledger.get("actions", [{}]), list) else {}
             action_type = str(step.get("type"))
-            tags = {str(tag).lower() for tag in row.get("tags", step.get("tags", [])) if tag}
+            constraints = self._system_action_constraints(step, item["preview"])
+            tags = {str(tag).lower() for tag in constraints.get("tags", []) if tag}
+            if constraints.get("npc_unavailable"):
+                npc_schedule_factor = 0.0
             time_minutes = float(row.get("time_minutes", 0.0))
             mental_load += float(row.get("mental_cost", 0.0))
-            is_major = time_minutes >= 60.0 or action_type in heavy_types or "major_action" in tags or "evening_major_action" in tags
+            is_major = time_minutes >= 60.0 or action_type in heavy_types or "major_action" in tags
             if is_major:
                 major_count += 1
             else:
                 short_count += 1
             if "requires_full_attention" in tags or action_type in heavy_types:
                 attention_count += 1
-            for tag in tags:
-                if tag.startswith(("commitment:", "commit:", "立场:")):
-                    commitment_counts[tag] = commitment_counts.get(tag, 0) + 1
-                if tag.startswith(("opportunity:", "window:", "time_window:")):
-                    opportunity_windows.add(tag)
+            for axis, value in constraints.get("commitments", []):
+                commitment_values.setdefault(str(axis), set()).add(str(value))
+            for window in constraints.get("windows", []):
+                if not isinstance(window, Mapping):
+                    continue
+                group = str(window.get("group", ""))
+                ids = window.get("ids", set())
+                ids = {str(value) for value in ids} if ids else {"*"}
+                capacity = max(1, int(window.get("capacity", 1) or 1))
+                for window_id in ids:
+                    key = (group, window_id)
+                    opportunity_counts[key] = opportunity_counts.get(key, 0) + 1
+                    opportunity_capacities[key] = min(opportunity_capacities.get(key, capacity), capacity)
             if step.get("target"):
                 npc = next((candidate for candidate in self.state.data.get("npcs", []) if isinstance(candidate, Mapping) and candidate.get("id", candidate.get("name")) == step.get("target")), None)
                 if npc is not None:
                     npc_targets.append(str(step.get("target")))
             requirements = step.get("requirements", {}) if isinstance(step.get("requirements", {}), Mapping) else {}
             profile = item["preview"].get("target_profile", {}) if isinstance(item["preview"].get("target_profile", {}), Mapping) else {}
-            locations.add(str(requirements.get("location", profile.get("location_id", "camp_core"))))
+            if action_type in {"TRAVEL", "ENTER_LOCATION"}:
+                locations.add(self._movement_target(step))
+            elif action_type in {"RETURN_TO_BASE", "EXTRACT"}:
+                locations.add(self._base_location())
+            else:
+                locations.add(str(requirements.get("location", profile.get("location_id", self._current_location()))))
         action_types = {str(item["action"].get("type")) for item in previews}
         capacity = int(self.state.player.get("action_slot_capacity", self.state.meta.get("action_slot_capacity", 1)) or 1)
         slot_factor = 1.0 if major_count <= capacity else capacity / max(major_count, 1)
@@ -629,11 +863,13 @@ class GameEngine:
         if mental_load > 16.0:
             attention_factor = min(attention_factor, 16.0 / mental_load)
         commitment_factor = 1.0
-        if any(count > 1 for count in commitment_counts.values()):
+        if any(len(values) > 1 for values in commitment_values.values()):
             commitment_factor = 0.35
-        if sum(1 for item in previews if "evening_major_action" in {str(tag).lower() for tag in item["action"].get("tags", [])}) > 1:
-            commitment_factor = min(commitment_factor, 0.25)
-        opportunity_factor = 1.0 if len(opportunity_windows) <= 1 else 0.35
+        opportunity_factor = 1.0
+        for key, count in opportunity_counts.items():
+            capacity = opportunity_capacities.get(key, 1)
+            if count > capacity:
+                opportunity_factor = min(opportunity_factor, capacity / max(count, 1))
         npc_factor = 1.0
         if len(npc_targets) != len(set(npc_targets)):
             npc_factor = 0.35
@@ -643,7 +879,7 @@ class GameEngine:
             "resource_compatibility": 0.0 if resource_error else 1.0,
             "location_proximity": 1.0 if len(locations) <= 1 else 0.8,
             "goal_compatibility": 1.0 if len(action_types) == len(previews) else 0.8,
-            "npc_availability": 0.0 if any("NPC不可用" in error for error in errors) else npc_factor,
+            "npc_availability": 0.0 if any("NPC不可用" in error for error in errors) else min(npc_factor, npc_schedule_factor),
             "attention_compatibility": max(0.0, min(1.0, attention_factor)),
             "action_slot_compatibility": max(0.0, min(1.0, slot_factor)),
             "commitment_compatibility": commitment_factor,
@@ -726,7 +962,7 @@ class GameEngine:
     def preview_action(self, action: Mapping[str, Any], dilution_multiplier: float = 1.0) -> Dict[str, Any]:
         validate_host_action(action)
         skill = self._find_skill(action)
-        costs = derive_action_costs(action, skill)
+        costs = self._derive_action_costs(action, skill)
         context = self._build_action_context(action, costs)
         resolution = resolve_action(self.state.player, context, self.state.inventory)
         apply_action_dilution(resolution, dilution_multiplier)
@@ -757,6 +993,7 @@ class GameEngine:
             "errors": legal_errors,
             "resolution": resolution.to_dict(),
             "target_profile": deepcopy(dict(self._action_target_profile(action))),
+            "system_constraints": self._system_action_constraints(action, {"target_profile": self._action_target_profile(action)}),
             "action_ledger": {
                 "available_time_minutes": available_time,
                 "available_stamina": max(0.0, 100.0 - float(self.state.player.get("fatigue", 0))),
@@ -791,6 +1028,7 @@ class GameEngine:
         payload = {
             "action": {key: action[key] for key in ("action_id", "type", "target", "primary_attribute") if key in action},
             "action_ledger": preview["action_ledger"],
+            "system_constraints": preview.get("system_constraints", {}),
             "resolution": preview["resolution"],
             "fatigue_delta": float(ledger_action.get("stamina_cost", 0)),
             "mental_delta": -float(ledger_action.get("mental_cost", 0)),
@@ -848,7 +1086,7 @@ class GameEngine:
         if action_type == "TALENT_CHOICE":
             return self.execute_talent_choice(action, persist=persist)
         skill = self._find_skill(action)
-        costs = derive_action_costs(action, skill)
+        costs = self._derive_action_costs(action, skill)
         errors = self._derived_budget_errors(action, costs)
         if errors:
             raise ValueError("行动不合法：" + "、".join(errors))
@@ -1053,6 +1291,10 @@ class GameEngine:
         return {"event": event, "resolution": resolution.to_dict(), "state": self.state.data}
 
     def execute_batch_action(self, action: Mapping[str, Any], persist: bool = True, dilution_multiplier: float = 1.0) -> Dict[str, Any]:
+        area = action.get("area", {}) if isinstance(action.get("area", {}), Mapping) else {}
+        area_location = area.get("location_id", action.get("target"))
+        if area_location and str(area_location) != self._current_location():
+            raise ValueError(f"刷怪区域不在当前地点：需要先进入 {area_location}")
         dilution_multiplier = max(0.25, min(1.0, float(dilution_multiplier)))
         result = simulate_batch_action(
             area=action.get("area", {}),
@@ -1114,6 +1356,8 @@ class GameEngine:
         return {"event": event, "resolution": result.to_dict(), "state": self.state.data}
 
     def execute_build(self, module: Mapping[str, Any], available_minutes: float, action_costs: Optional[Mapping[str, float]] = None, persist: bool = True, dilution_multiplier: float = 1.0) -> Dict[str, Any]:
+        if self._current_location() != self._base_location():
+            raise ValueError(f"BUILD 只能在基地执行：当前地点为 {self._current_location()}，基地为 {self._base_location()}")
         dilution_multiplier = max(0.25, min(1.0, float(dilution_multiplier)))
         module_for_build = deepcopy(dict(module))
         effects = module_for_build.get("effects", {})

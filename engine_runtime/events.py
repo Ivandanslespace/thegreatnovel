@@ -513,6 +513,8 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
     _add_unique(player.setdefault("status_effects", []), payload.get("status_additions"))
     if "current_location" in payload and payload.get("current_location") is not None:
         meta["current_location"] = payload["current_location"]
+    if "current_location_name" in payload and payload.get("current_location_name") is not None:
+        meta["current_location_name"] = payload["current_location_name"]
     if "current_encounter_id" in payload:
         meta["current_encounter_id"] = payload.get("current_encounter_id")
     if payload.get("information_completeness") is not None:

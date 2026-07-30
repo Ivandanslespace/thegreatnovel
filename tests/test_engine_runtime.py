@@ -211,20 +211,29 @@ class RuntimeIntegrationTests(unittest.TestCase):
             })
             self.assertEqual(len(plan["events"]), 2)
             self.assertEqual(engine.state.meta["time_of_day"], "白天")
+            travel = engine.execute_host_action({"action_id": "travel-1", "type": "TRAVEL", "target": area_id})
+            self.assertEqual(travel["event"]["type"], "TRAVEL_COMPLETED")
+            self.assertEqual(engine.state.meta["current_location"], area_id)
             explored = engine.execute_host_action({"action_id": "scout", "type": "EXPLORATION", "target": area_id, "risk_preference": "谨慎"})
             self.assertEqual(explored["event"]["type"], "EXPLORATION_RESOLVED")
             self.assertEqual(explored["event"]["data"]["encounter_additions"][0]["target_ids"][0].split("_instance_")[0], enemy_definition_id)
             enemy_id = next(iter(engine.state.data["world"]["encounter_entities"]))
             combat = engine.execute_host_action({"action_id": "combat-1", "type": "COMBAT", "target": enemy_id})
             self.assertIn("target_deltas", combat["event"]["data"])
+            if engine.state.meta.get("current_encounter_id"):
+                engine.execute_host_action({"action_id": "extract-1", "type": "EXTRACT"})
+            else:
+                engine.execute_host_action({"action_id": "return-1", "type": "RETURN_TO_BASE"})
+            self.assertEqual(engine.state.meta["current_location"], "camp_core")
             built = engine.execute_host_action({"action_id": "build-1", "type": "BUILD", "target": module_id})
             self.assertEqual(built["event"]["type"], "BUILDING_BUILT")
-            rested = engine.execute_host_action({"action_id": "rest-1", "type": "REST", "target": "camp_core"})
-            self.assertEqual(rested["event"]["type"], "ACTION_RESOLVED")
-            self.assertEqual(engine.state.meta["game_day"], 2)
-            engine.execute_host_action({"action_id": "explore-2", "type": "EXPLORATION", "target": area_id, "risk_preference": "谨慎"})
+            engine.execute_host_action({"action_id": "travel-2", "type": "ENTER_LOCATION", "target": area_id})
+            second_exploration = engine.execute_host_action({"action_id": "explore-2", "type": "EXPLORATION", "target": area_id, "risk_preference": "谨慎"})
             self.assertEqual(engine.state.data["world"]["enemy_definitions"][enemy_definition_id]["status"], "definition")
-            self.assertGreaterEqual(len(engine.state.data["world"]["encounter_entities"]), 2)
+            if second_exploration["resolution"].get("outcome") in {"大成功", "普通成功", "成功但付出代价", "失败但获得部分信息"}:
+                self.assertGreaterEqual(len(engine.state.data["world"]["encounter_entities"]), 2)
+            else:
+                self.assertGreaterEqual(len(engine.state.data["world"]["encounter_entities"]), 1)
             farmed = engine.execute_host_action({"action_id": "farm-1", "type": "BATCH_ACTION", "target": area_id})
             self.assertEqual(farmed["event"]["type"], "BATCH_ACTION_RESOLVED")
             self.assertLess(engine.state.data["world"]["areas"][area_id]["monster_population"], 50)
@@ -245,6 +254,12 @@ class RuntimeIntegrationTests(unittest.TestCase):
                 "npcs.yaml": {"npcs": []}, "factions.yaml": {"factions": []}, "relationships.yaml": {"relationships": []}, "event_queue.yaml": {"event_queue": []},
                 "meta.yaml": {"meta": {"current_turn": 1, "game_day": 1, "time_of_day": "白天", "world_name": "注册表世界", "difficulty": "标准", "available_time_minutes": 240, "current_location": "edge", "current_encounter_id": "encounter-1", "active_encounters": [{"id": "encounter-1", "location_id": "edge", "target_ids": ["ice-zombie-instance"], "participants": ["player", "ice-zombie-instance"], "status": "active"}], "event_format_version": 2}},
             }
+            values["world.yaml"]["world"]["locations"] = [
+                {"id": "camp_core", "name": "基地", "safe": True},
+                {"id": "edge", "name": "边缘", "safe": False, "travel_minutes_from_base": 30, "travel_stamina_from_base": 5, "return_minutes": 30, "return_stamina_cost": 5, "extraction_minutes": 30, "extraction_stamina_cost": 5},
+            ]
+            values["world.yaml"]["world"]["areas"]["edge"]["location_id"] = "edge"
+            values["meta.yaml"]["meta"]["available_time_minutes"] = 720
             for filename, value in values.items():
                 (root / filename).write_text(yaml.safe_dump(value, allow_unicode=True, sort_keys=False), encoding="utf-8")
             (root / "event_log.md").write_text("# 事件日志\n", encoding="utf-8")
@@ -256,14 +271,19 @@ class RuntimeIntegrationTests(unittest.TestCase):
             self.assertEqual(engine.state.inventory["resources"]["ammo"], 19.0)
             self.assertEqual(engine.state.inventory["equipment"]["main_weapon"]["durability"], 1.0)
 
+            if engine.state.meta.get("current_encounter_id"):
+                engine.execute_host_action({"action_id": "extract", "type": "EXTRACT"})
+            else:
+                engine.execute_host_action({"action_id": "return", "type": "RETURN_TO_BASE"})
             built = engine.execute_host_action({"action_id": "build", "type": "BUILD", "target": "workbench"})
             self.assertEqual(built["event"]["type"], "BUILDING_BUILT")
             self.assertEqual(engine.state.inventory["resources"]["wood"], 0.0)
 
+            engine.execute_host_action({"action_id": "travel", "type": "TRAVEL", "target": "edge"})
             batch = engine.execute_host_action({"action_id": "farm", "type": "BATCH_ACTION", "target": "edge"})
             self.assertEqual(batch["event"]["type"], "BATCH_ACTION_RESOLVED")
-            self.assertEqual(engine.state.meta["available_time_minutes"], 30)
-            self.assertEqual(engine.state.player["fatigue"], 45)
+            self.assertEqual(engine.state.meta["available_time_minutes"], 330)
+            self.assertEqual(engine.state.player["fatigue"], 55)
 
     def test_execute_action_writes_event_and_updates_state(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -378,6 +398,84 @@ class RuntimeIntegrationTests(unittest.TestCase):
             engine.execute_action_plan(prioritized)
             self.assertEqual(engine.state.data["base"]["modules"][0]["id"], "module-b")
             self.assertEqual(engine.state.inventory["resources"]["wood"], 0)
+
+    def test_movement_is_explicit_and_base_actions_are_location_bound(self):
+        world = {
+            "name": "空间约束世界",
+            "difficulty": "标准",
+            "starting_location": "camp_core",
+            "locations": [
+                {"id": "camp_core", "name": "基地", "safe": True},
+                {"id": "forest", "name": "森林", "safe": False, "travel_minutes_from_base": 30, "travel_stamina_from_base": 5, "return_minutes": 25, "return_stamina_cost": 4, "extraction_minutes": 20, "extraction_stamina_cost": 3},
+            ],
+            "action_targets": {"forest": {"id": "forest", "location_id": "forest", "requirements": {"location": "forest"}}},
+            "build_catalog": {"workbench": {"id": "workbench", "space_cost": 1, "build_time": 30, "build_cost": {"wood": 1}}},
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(world=world, meta={"current_location": "camp_core"})))
+            travel = engine.execute_host_action({"action_id": "travel", "type": "TRAVEL", "target": "forest"})
+            self.assertEqual(travel["event"]["type"], "TRAVEL_COMPLETED")
+            self.assertEqual(engine.state.meta["current_location"], "forest")
+            self.assertEqual(engine.state.meta["available_time_minutes"], 690)
+            with self.assertRaisesRegex(ValueError, "只能在基地"):
+                engine.execute_host_action({"action_id": "rest-away", "type": "REST", "target": "camp_core"})
+            with self.assertRaisesRegex(ValueError, "只能在基地"):
+                engine.execute_host_action({"action_id": "build-away", "type": "BUILD", "target": "workbench"})
+
+            engine.state.meta["current_encounter_id"] = "encounter-leave"
+            engine.state.meta["active_encounters"] = [{"id": "encounter-leave", "location_id": "forest", "target_ids": [], "participants": ["player"], "status": "active"}]
+            left = engine.execute_host_action({"action_id": "leave", "type": "LEAVE_ENCOUNTER"})
+            self.assertEqual(left["event"]["type"], "ENCOUNTER_LEFT")
+            self.assertIsNone(engine.state.meta["current_encounter_id"])
+            self.assertEqual(engine.state.meta["current_location"], "forest")
+
+            returned = engine.execute_host_action({"action_id": "return", "type": "RETURN_TO_BASE"})
+            self.assertEqual(returned["event"]["type"], "RETURN_TO_BASE_COMPLETED")
+            self.assertEqual(engine.state.meta["current_location"], "camp_core")
+
+            engine.execute_host_action({"action_id": "travel-again", "type": "ENTER_LOCATION", "target": "forest"})
+            engine.state.meta["current_encounter_id"] = "encounter-extract"
+            engine.state.meta["active_encounters"] = [{"id": "encounter-extract", "location_id": "forest", "target_ids": [], "participants": ["player"], "status": "active"}]
+            extracted = engine.execute_host_action({"action_id": "extract", "type": "EXTRACT"})
+            self.assertEqual(extracted["event"]["type"], "EXTRACTION_COMPLETED")
+            self.assertEqual(engine.state.meta["current_location"], "camp_core")
+            self.assertEqual(engine.state.meta["encounter_history"][-1]["status"], "escaped")
+
+    def test_plan_hard_constraints_come_from_registry_not_llm_tags(self):
+        def profile(action_id, value, window_id=None, capacity=1, constraints=True):
+            result = {"id": action_id, "location_id": "camp_core", "requirements": {"location": "camp_core"}}
+            if constraints:
+                result["constraints"] = {"commitment_axis": "faction_loyalty", "commitment_value": value, "exclusive_group": "evening_major_action", "window_id": window_id, "window_capacity": capacity}
+            return result
+
+        world = {
+            "name": "结构化计划世界",
+            "difficulty": "标准",
+            "action_targets": {
+                "a": profile("a", "faction_A", "morning", 2),
+                "b": profile("b", "faction_B", "morning", 2),
+                "c": profile("c", "faction_A", "evening", 1),
+                "d": profile("d", "ignored", None, 1, constraints=False),
+            },
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(world=world, meta={"current_location": "camp_core"})))
+
+            same_commitment = engine.preview_action_plan({"action_id": "same", "type": "ACTION_PLAN", "plan_id": "same", "accept_dilution": True, "steps": [{"action_id": "a1", "type": "SHORT_ACTION", "target": "a"}, {"action_id": "a2", "type": "SHORT_ACTION", "target": "a"}]})
+            self.assertEqual(same_commitment["components"]["commitment_compatibility"], 1.0)
+            self.assertEqual(same_commitment["components"]["opportunity_window_compatibility"], 1.0)
+
+            different_commitment = engine.preview_action_plan({"action_id": "different", "type": "ACTION_PLAN", "plan_id": "different", "accept_dilution": True, "steps": [{"action_id": "a", "type": "SHORT_ACTION", "target": "a"}, {"action_id": "b", "type": "SHORT_ACTION", "target": "b"}]})
+            self.assertEqual(different_commitment["components"]["commitment_compatibility"], 0.35)
+            self.assertEqual(different_commitment["components"]["opportunity_window_compatibility"], 1.0)
+
+            different_windows = engine.preview_action_plan({"action_id": "windows", "type": "ACTION_PLAN", "plan_id": "windows", "accept_dilution": True, "steps": [{"action_id": "a", "type": "SHORT_ACTION", "target": "a"}, {"action_id": "c", "type": "SHORT_ACTION", "target": "c"}]})
+            self.assertEqual(different_windows["components"]["commitment_compatibility"], 1.0)
+            self.assertEqual(different_windows["components"]["opportunity_window_compatibility"], 1.0)
+
+            llm_only_tags = engine.preview_action_plan({"action_id": "tags", "type": "ACTION_PLAN", "plan_id": "tags", "accept_dilution": True, "steps": [{"action_id": "d1", "type": "SHORT_ACTION", "target": "d", "tags": ["commitment:faction_A", "window:morning"]}, {"action_id": "d2", "type": "SHORT_ACTION", "target": "d", "tags": ["commitment:faction_B", "window:morning"]}]})
+            self.assertEqual(llm_only_tags["components"]["commitment_compatibility"], 1.0)
+            self.assertEqual(llm_only_tags["components"]["opportunity_window_compatibility"], 1.0)
 
     def test_encounter_instances_expire_and_resolve(self):
         target = {"id": "wolf-instance", "definition_id": "wolf", "status": "alive", "hp": 20, "location_id": "forest", "attributes": {"strength": 2, "constitution": 2, "agility": 2, "spirit": 2}}

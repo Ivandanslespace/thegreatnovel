@@ -15,22 +15,31 @@ LLM 只提交“玩家想做什么”。以下内容必须由 Python 计算，LL
 - 基地材料、空间、建造时间、维护损耗和所有状态增量
 - `resolution`、`action_ledger`、`resource_changes`、`player_delta` 等事件结果
 
-行动 JSON 只能使用以下意图字段：
+行动 JSON 只能使用以下意图字段。移动行动的时间、体力和撤离成本不能由 LLM 填写，
+而是从 `world.locations` 的路线字段派生：
 
 ```json
 {
   "action_id": "scout-001",
-  "type": "EXPLORATION",
+  "type": "TRAVEL",
   "target": "冰原边缘",
-  "skill_id": "optional-skill-id",
-  "risk_preference": "谨慎",
-  "tags": ["search"],
+  "risk_preference": "标准",
+  "tags": ["move"],
   "goal": "寻找燃料",
   "requirements": {},
   "parameters": {},
   "stop_conditions": {}
 }
 ```
+
+空间行动类型：
+
+- `TRAVEL` / `ENTER_LOCATION`：从当前位置进入已注册地点；目标地点必须存在，且不能在活动遭遇中绕过 `EXTRACT` 或 `LEAVE_ENCOUNTER`。
+- `RETURN_TO_BASE`：离开非基地地点并返回基地；活动遭遇中必须改用 `EXTRACT`。
+- `EXTRACT`：从当前活动遭遇撤离到基地，关闭遭遇并写入遭遇历史。
+- `LEAVE_ENCOUNTER`：放弃当前遭遇但留在原地点，关闭遭遇并保留后续重新探索的空间。
+- `REST`、`BUILD`、`BASE_MANAGEMENT`：只能在 `meta.current_location ==` 基地地点时执行。
+- `EXPLORATION`：只在当前地点结算，不再隐含移动；必须先用 `TRAVEL` 或 `ENTER_LOCATION` 到达目标地点。
 
 需要组合多个短行动时提交一个原子计划：
 
@@ -56,8 +65,10 @@ LLM 只提交“玩家想做什么”。以下内容必须由 Python 计算，LL
 研究信息完整度、建造质量和批量击杀效率。80以上才允许完整顺序完成。
 
 行动槽不是“只要时间塞得下就能全做”的容器：每个时段默认只有 1 个主要行动和 2 个短行动。
-Python 还会计算专注负荷、承诺标签冲突、机会窗口、NPC 是否被重复占用、地点移动兼容度；
-这些因子会共同降低 Combinability，低于阈值时要求排序或接受稀释。
+Python 还会计算专注负荷、注册表承诺轴冲突、结构化机会窗口、NPC 是否被重复占用、地点移动兼容度；
+这些因子会共同降低 Combinability，低于阈值时要求排序或接受稀释。行动 JSON 中的 `tags`
+只记录 LLM 对玩家意图的描述，不参与承诺轴、窗口容量或主要行动槽的硬判定；硬约束必须来自
+`world.action_targets[].constraints`、地点定义、NPC 日程和世界规则。
 
 `parameters` 和 `stop_conditions` 只能表达玩家意图或停止条件，不能藏入数值结算。
 协议会递归扫描 JSON；出现引擎字段或未知顶层字段时，入口直接拒绝，不产生事件。
@@ -81,10 +92,10 @@ Python 还会计算专注负荷、承诺标签冲突、机会窗口、NPC 是否
 
 ```powershell
 # 预览，不写入
-python tools/run_action.py saves/世界名 --action-json '{"action_id":"scout-001","type":"EXPLORATION","target":"冰原边缘","risk_preference":"谨慎"}' --dry-run
+python tools/run_action.py saves/世界名 --action-json '{"action_id":"travel-001","type":"TRAVEL","target":"冰原边缘"}' --dry-run
 
 # 玩家确认后执行，并自动记录本回合
-python tools/run_action.py saves/世界名 --action-json '{"action_id":"scout-001","type":"EXPLORATION","target":"冰原边缘","risk_preference":"谨慎"}' `
+python tools/run_action.py saves/世界名 --action-json '{"action_id":"travel-001","type":"TRAVEL","target":"冰原边缘"}' `
   --player-input '我去侦察冰原边缘。' `
   --gm-response-file response.md `
   --intent-source player_free_text
@@ -130,6 +141,9 @@ python tools/audit_report.py saves/世界名 --field player.fatigue
 
 - `EXPLORATION`、`RESEARCH`、`SOCIAL_INTERACTION`、`REST`：行动效果来自 `world.action_targets`，
   Python生成发现地点、知识、资源、关系和休息恢复事件。
+- `TRAVEL`、`ENTER_LOCATION`、`RETURN_TO_BASE`、`EXTRACT`、`LEAVE_ENCOUNTER`：只接受已注册地点和当前遭遇状态；
+  路线时间/体力/精神成本来自 `world.locations`，不能通过 `target` 或 `parameters` 覆盖。
+- `REST`、`BUILD`、`BASE_MANAGEMENT`：基地位置是 Python 强制门槛，LLM 不能用 `requirements.location` 或标签伪造基地位置。
 - `ACTION_PLAN`：Python按顺序在临时状态中预览；确认后以同一稀释参数在 SQLite 事务中原子提交。
 - `COMBAT`：怪物类型来自 `world.enemy_definitions`，具体目标必须来自
   `world.encounter_entities`；目标必须同时属于 `meta.current_encounter_id` 对应遭遇的
@@ -141,7 +155,7 @@ python tools/audit_report.py saves/世界名 --field player.fatigue
   遇到停止条件立即截断。
 - `TALENT_CHOICE`：升级后只能从 `player.pending_decision.options` 中选择一个 Python 生成的候选，
   选择前其他行动全部拒绝；放弃项不会再次出现。
-- 探索成功会生成带唯一实例 ID 的遭遇；战斗结束、玩家离开地点或遭遇到期时，遭遇会进入历史并
+- 探索成功会生成带唯一实例 ID 的遭遇；战斗结束、玩家通过 `EXTRACT`/`LEAVE_ENCOUNTER` 离开或遭遇到期时，遭遇会进入历史并
   从 `active_encounters` 清理。NPC与势力的日程、效用分数和自主资源变化由时间推进器写入状态，
   不由LLM补写。
 - 玩家死亡后写入 `campaign_status=ended`、`ending_id` 和死亡总结；普通行动全部拒绝，只允许
