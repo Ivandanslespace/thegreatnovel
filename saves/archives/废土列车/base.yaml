@@ -1,0 +1,27 @@
+base:
+  name: 不断行驶的废土列车
+  type: train
+  level: 1
+  durability: 100
+  max_durability: 100
+  defense: 10
+  space_total: 3
+  space_used: 1
+  modules:
+  - id: fuel_still
+    name: 燃油蒸馏器
+    description: 提高废燃料的回收效率
+    space_cost: 1
+    build_time: 60
+    build_cost:
+      wood: 1
+      燃油: 1
+    maintenance:
+      燃油: 1
+    effects:
+      base_defense: 1
+    quality_multiplier: 1.0
+  special_properties:
+  - 安全基地：不断行驶的废土列车
+  cohabitants: []
+  defense_log: []

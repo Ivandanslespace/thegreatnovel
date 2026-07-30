@@ -275,7 +275,14 @@ saves/{世界名}/
 ├── decision_audit.jsonl← 可查询的逐回合决策来源与状态差异
 ├── decision_audit.md   ← 人类可读的决策审计报告
 ├── campaign.sqlite3    ← SQLite事件账本、快照与可重放事实源
-└── meta.yaml           ← 元数据（回合数、游戏时间、难度）
+├── meta.yaml           ← 元数据（回合数、游戏时间、难度）
+├── region_state.yaml   ← [群体模式] 区域探索状态与声望
+├── population_state.yaml ← [群体模式] NPC 人口管理
+├── public_system_state.yaml ← [群体模式] 公共系统全局状态
+├── market_state.yaml   ← [群体模式] 交易市场状态
+├── ranking_state.yaml  ← [群体模式] 排行榜与赛季
+├── comparative_state.yaml ← [群体模式] 对比胜率基线
+└── rival_state.yaml    ← [群体模式] 竞争者关系
 ```
 
 ### 更新规则
@@ -410,12 +417,14 @@ Lv.X → Lv.Y
 当不同来源的信息冲突时，按以下优先级裁定：
 
 ```
-1. 当前世界版本的硬规则（world.yaml中的rules）
-2. 已提交的事件账本（event_log.md中的结构化事件）
-3. 根据事件计算出的正式状态（各.yaml文件）
-4. 结构化剧情与人物知识（knowledge条目）
-5. 故事摘要（story.md）
-6. LLM生成的小说文本（最低优先级）
+1. 当前世界版本的硬规则（world.yaml 中的 rules，WorldRules）
+2. 类型合同（world.yaml 中的 genre_contract，GenreContract）
+3. 主题机制编译结果（WorldPack，由 world_compiler 生成）
+4. 已提交的事件账本（event_log.md 中的结构化事件）
+5. 根据事件计算出的正式状态（各.yaml 文件）
+6. 结构化剧情与人物知识（knowledge 条目）
+7. 故事摘要（story.md）
+8. LLM 生成的小说文本（最低优先级）
 ```
 
 小说文本不能反过来修改规则。如果你写了"主角拿出一瓶从未出现过的药剂"，但inventory.yaml中没有这瓶药剂，必须重写。
@@ -510,6 +519,434 @@ Lv.X → Lv.Y
 
 四部分缺一不可，但不能互相越权。
 
+## 类型合同体系（Genre Contract）
+
+类型合同是位于 WorldPack（主题机制档案）**上方**的一层定义，决定游戏的根本玩法类型，
+而不是由视觉主题决定。优先级：**WorldRules（world.yaml rules）> GenreContract > WorldPack**。
+
+**本文件是类型合同的唯一定义来源**。`engine_runtime/` 中不包含合同定义，
+运行时通过读取存档 `world.yaml` 的 `genre_contract` 字段获取合同数据。
+
+目前已定义三种类型合同：
+
+| 合同 ID | 名称 | 核心特征 |
+|---------|------|----------|
+| `mass_system_survival` | 全民系统投放型求生 | 所有人同时获得系统能力，群体推进+排行榜 |
+| `mass_reward_survival` | 全民求生：百倍奖励 | 千人投放，唯主角拥有百倍奖励金手指 |
+| `solo_survival` | 孤独生存 | 无公共系统，独自面对世界 |
+
+类型合同在 `world.yaml` 中以 `genre_contract` 字段存储。若该字段缺失，引擎回退到
+`solo_survival`。创建存档时由 `tools/create_save.py` 根据玩家选择写入。
+
+---
+
+### 全民系统投放型求生（mass_system_survival）
+
+所有人同时被投放到世界，每个人都拥有系统能力。比的是谁的决策更优。
+
+```yaml
+genre_contract:
+  id: mass_system_survival
+  name: "全民系统投放型求生"
+  collective_transmission: true    # 所有人同时被投放到世界
+  shared_start: true               # 统一起点规则
+  region_size: 1000                # 每个区域玩家数量
+  global_count: 100000000          # 全球总玩家数
+  public_system:
+    regional_chat: true            # 区域频道
+    private_chat: true             # 私聊
+    trading: true                  # 交易系统
+    rankings: true                 # 排行榜
+    achievements: true             # 成就系统
+    announcements: true            # 系统公告
+  protagonist_contract:
+    unique_mechanic_required: true # 必须拥有特殊机制
+    comparative_advantage_target: 0.60  # 长期对比胜率 60%
+    automatic_success: false       # 不自动成功，依靠选择质量
+    tone: ["rational", "confident", "proactive"]
+  population_distribution:
+    panicked_players: {min: 0.15, max: 0.20}   # 恐慌消极玩家
+    ordinary_players: {min: 0.45, max: 0.55}   # 普通玩家
+    skilled_players: {min: 0.20, max: 0.25}    # 有职业优势者
+    regional_elites: {min: 0.05, max: 0.08}    # 区域精英
+    special_rivals: {min: 0.01, max: 0.03}     # 特殊能力竞争者
+  difficulty_calibration:          # 各行动类型的阻力区间
+    system_operations: {resistance_min: 0, resistance_max: 6}
+    daily_talk: {resistance_min: 4, resistance_max: 8}
+    newbie_exploration: {resistance_min: 10, resistance_max: 16}
+    normal_danger: {resistance_min: 18, resistance_max: 24}
+    high_risk: {resistance_min: 28, resistance_max: 38}
+  failure_distribution:            # 各结果等级的概率区间
+    critical_success_pct: {min: 0.08, max: 0.10}
+    normal_success_pct: {min: 0.70, max: 0.75}
+    costly_success_pct: {min: 0.15, max: 0.22}
+    partial_failure_pct: {min: 0.55, max: 0.65}
+    severe_failure_pct: {min: 0.30, max: 0.40}
+    catastrophic_failure_pct: 0.05
+```
+
+**LLM 主持要点：**
+- 每个人都有系统，排行榜和成就是公开竞争
+- 频道里充满情报交换、求助、炫耀和恐慌
+- 主角的优势来自决策质量，而非独占能力
+
+---
+
+### 全民求生：百倍奖励（mass_reward_survival）
+
+千人投放，唯主角拥有百倍奖励金手指。比的是如何低调利用优势生存。
+
+```yaml
+genre_contract:
+  id: mass_reward_survival
+  name: "全民求生：我有百倍奖励"
+  collective_transmission: true    # 1000人同时投放到区域
+  shared_start: true               # 统一初始条件
+  region_size: 1000                # 区域玩家数
+  protagonist_unique: true         # 主角是全区域唯一特殊能力者
+  reward_multiplier: 100           # 百倍奖励倍率
+  public_system:
+    regional_chat: true
+    private_chat: true
+    trading: true
+    rankings: true
+    announcements: true
+  protagonist_contract:
+    unique_mechanic_required: true
+    automatic_success: false       # 不自动成功，仍依赖决策质量
+    comparative_advantage_target: 0.60  # 长期对比胜率 ≥ 60%
+    tone: ["rational", "confident", "proactive"]
+    concealment_required: true     # 需要隐藏金手指，避免被围攻
+  population_distribution:
+    panicked_players: {min: 0.15, max: 0.20}
+    ordinary_players: {min: 0.45, max: 0.55}
+    skilled_players: {min: 0.20, max: 0.25}
+    regional_elites: {min: 0.05, max: 0.08}
+    special_rivals: {min: 0.01, max: 0.03}
+  difficulty_calibration:
+    system_operations: {resistance_min: 0, resistance_max: 6}
+    daily_talk: {resistance_min: 4, resistance_max: 8}
+    newbie_exploration: {resistance_min: 10, resistance_max: 16}
+    normal_danger: {resistance_min: 18, resistance_max: 24}
+    high_risk: {resistance_min: 28, resistance_max: 38}
+  failure_distribution:
+    critical_success_pct: {min: 0.08, max: 0.10}
+    normal_success_pct: {min: 0.70, max: 0.75}
+    costly_success_pct: {min: 0.15, max: 0.22}
+    partial_failure_pct: {min: 0.55, max: 0.65}
+    severe_failure_pct: {min: 0.30, max: 0.40}
+    catastrophic_failure_pct: 0.05
+```
+
+**LLM 主持要点：**
+- 主角的百倍奖励在叙述中体现为"同样的行动，收获远超预期"，而非数值直接×100展示
+- 其他999人是真实的求生者，有各自的挣扎和死亡，不是背景板
+- 频道消息、系统公告、排行榜变动要在每回合叙述中自然穿插
+- 主角需要策略性地隐藏优势（不在频道炫耀收获），这是核心张力之一
+
+---
+
+### 孤独生存（solo_survival）
+
+无公共系统，无其他玩家，独自面对世界。经典单人求生叙事。
+
+```yaml
+genre_contract:
+  id: solo_survival
+  name: "孤独生存"
+  collective_transmission: false
+  shared_start: false
+  region_size: null
+  public_system: {}
+  protagonist_contract:
+    unique_mechanic_required: false
+    comparative_advantage_target: null
+    automatic_success: false
+    tone: ["isolated", "cautious"]
+```
+
+**LLM 主持要点：**
+- 没有频道、排行榜、系统公告
+- 没有对比胜率追踪
+- Turn Controller 跳过群体推进和公共反馈流程，仅执行主角行动
+- 叙事基调偏向孤独、压迫感、自我依赖
+
+## Turn Controller 三阶段工作流（群体求生模式）
+
+群体求生模式下，回合控制器的 resolve 阶段扩展为三流程：
+
+```
+阶段一 resolve（三流程）：
+  流程A 群体推进
+    → 模拟同区域其他玩家的回合发展（死亡率、进展分布）
+    → 更新排行榜、市场价格、频道消息
+    → 生成系统公告（首杀、成就、灾难预警）
+
+  流程B 主角行动
+    → 执行玩家选择的行动（与现有结算流程一致）
+    → 计算主角本轮表现分（行动质量/资源效率/成长/风险控制/社会影响）
+    → 计算主角在同类玩家中的百分位
+
+  流程C 公共反馈
+    → 组装 peer_comparison（百分位、对比结论）
+    → 组装 regional_statistics（区域存活/死亡/成就统计）
+    → 组装 ranking_changes、announcements、channel_feed、market_changes
+    → OptionDirector 生成战略候选（含公共系统选项）
+    → 返回 NarrativePackage
+
+阶段二 record：与现有流程一致，额外校验公共系统反馈是否在小说中体现
+```
+
+调用方式不变：
+```bash
+python tools/turn_controller.py saves/世界名 --player-input "A"
+```
+
+控制器内部自动检测 `genre_contract.id`，若为群体类型则执行三流程；孤独生存则跳过
+流程A和C。
+
+**NarrativePackage 新增字段（群体模式）：**
+
+| 字段 | 内容 | LLM 使用方式 |
+|------|------|-------------|
+| `peer_comparison` | 主角百分位 + 对比结论 | 写入叙述："你本轮表现超过区域82%的求生者" |
+| `regional_statistics` | 区域存活/死亡人数 | 穿插在场景描写中 |
+| `ranking_changes` | 排行榜变动列表 | 系统公告格式展示 |
+| `system_announcements` | 系统公告（首杀/成就/灾难） | 用【系统公告】框展示 |
+| `channel_feed` | 区域频道消息摘要 | 穿插在叙述中，展示其他求生者的声音 |
+| `market_changes` | 市场价格波动 | 在交易场景或面板中展示 |
+| `achievement_unlocks` | 新解锁成就 | 用成就解锁格式展示 |
+
+## 新增数据文件（群体求生模式）
+
+群体求生模式的存档额外包含以下 YAML 文件（旧存档缺失时视为空状态，向后兼容）：
+
+```
+saves/{世界名}/
+├── region_state.yaml        ← 区域探索状态（已发现地点、区域声望）
+├── population_state.yaml    ← NPC人口管理（上限、派系、位置历史）
+├── public_system_state.yaml ← 公共系统全局状态（公告、成就、公共任务线）
+├── market_state.yaml        ← 交易市场（价格、挂单、趋势）
+├── ranking_state.yaml       ← 排行榜（全球/区域排名、赛季、声望点）
+├── comparative_state.yaml   ← 玩家对比基线（表现历史、最佳分类、对比伙伴）
+└── rival_state.yaml         ← 竞争者关系（活跃对手、竞争赛事、胜率）
+```
+
+SQLite 中对应的表：
+- `comparative_snapshots` — 逐回合对比快照（百分位、表现分、原因）
+- `market_snapshots` — 市场价格趋势
+- `rivalries` — 竞争者关系（competition/enmity/cooperation）
+- `player_reputations` — 区域/全球声望
+
+### 各文件结构说明
+
+**region_state.yaml**
+```yaml
+region_state:
+  discovered_locations: []        # 主角已发现的地点 ID 列表
+  explored_areas: {}              # 各区域探索进度 {area_id: progress_pct}
+  location_discovery_progress: {} # 地点发现进度条
+  last_known_region: null         # 最后已知区域 ID
+  regional_reputation: {}         # 区域声望 {region_id: honor_score}
+```
+
+**population_state.yaml**
+```yaml
+population_state:
+  populated_npcs: {}              # 已填充的 NPC 实体
+  npc_faction_memberships: {}     # NPC 派系归属
+  npc_location_history: {}        # NPC 位置历史
+  population_cap_used: 0          # 当前 NPC 数量
+  population_cap_total: 10        # NPC 上限
+  settlement_count: 0             # 定居点数量
+```
+
+**public_system_state.yaml**
+```yaml
+public_system_state:
+  global_events_active: []        # 当前活跃的全球事件
+  system_announcements: []        # 系统公告队列
+  active_rules_modifiers: []      # 活跃的规则修正器（如灾难增益）
+  public_quest_line: []           # 公共任务线进度
+  achievements_unlocked: []       # 已解锁成就列表
+  system_level_progression: {}    # 系统等级进度
+```
+
+**comparative_state.yaml**
+```yaml
+comparative_state:
+  player_comparison_baseline: {}  # 对比基线（同类玩家中位数）
+  performance_metrics_history: [] # 逐回合表现指标历史
+  best_performance_by_category: {}# 各分类最佳表现记录
+  comparison_partners: []         # 对比伙伴（同阶段玩家样本）
+  comparison_last_updated: null   # 最后更新时间
+```
+
+## 公共系统机制
+
+公共系统是群体求生模式中所有玩家共享的信息和交互层。由 `genre_contract.public_system`
+控制哪些子系统启用。
+
+### 区域频道（regional_chat）
+
+其他求生者在频道中的发言摘要。LLM 在叙述中以简短引语穿插：
+
+```
+频道里有人在喊："东边废墟有埋伏，别去！"
+另一条消息闪过："收燃油，价格好商量。"
+```
+
+**主持规则：**
+- 频道消息由 Python 根据人口分布和当前阶段生成，LLM 不得自行编造频道内容
+- 频道是**不可靠信息源**：其他玩家可能撒谎、恐慌或过时
+- 每回合最多穿插 2-3 条频道消息，不要刷屏
+
+### 排行榜（rankings）
+
+主角在区域内的排名变动，以系统公告格式展示：
+
+```
+【排行榜更新】
+━━━━━━━━━━━━━━━━━━
+▸ 综合实力：区域第 182 名（↑23）
+▸ 资源积累：区域第 95 名（↑12）
+▸ 探索进度：区域第 210 名（↓5）
+━━━━━━━━━━━━━━━━━━
+```
+
+### 系统公告（announcements）
+
+全局性事件通知，包括：首杀/首建成就、灾难预警、规则变更、玩家里程碑。
+
+```
+【系统公告】
+━━━━━━━━━━━━━━━━━━
+▸ [区域首杀] 玩家"铁壁"首次击杀 B 级敌人
+▸ [灾难预警] 辐射尘暴将在 48 小时后抵达本区域
+▸ [人口通报] 本区域存活人数：947/1000
+━━━━━━━━━━━━━━━━━━
+```
+
+### 交易市场（trading）
+
+玩家间的物品交换系统。市场状态由 `market_state.yaml` 管理：
+
+- `market_prices` — 各物品的当前区域均价（由供需动态调整）
+- `recent_transactions` — 最近交易记录
+- `market_trends` — 价格趋势指标
+
+LLM 可在选项中生成"浏览交易市场"行动（类型为 `VIEW_MARKET`），属于确定性查询，
+无需掷骰。
+
+## 对比胜率追踪
+
+群体求生模式的核心反馈机制：主角相对于同区域其他玩家的表现。
+
+### 表现分计算
+
+```
+表现分 = 30% × 行动质量 + 25% × 资源效率 + 20% × 长期成长 + 15% × 风险控制 + 10% × 社会影响
+```
+
+由 `calculators.calculate_peer_performance()` 纯函数计算，LLM 不得自行估算。
+
+### 百分位与长期目标
+
+- 每回合由 `calculators.calculate_comparative_result()` 计算主角在同类玩家中的百分位
+- **长期目标：主角对比胜率 ≥ 60%**（即 `comparative_advantage_target: 0.60`）
+- 这意味着主角应该大多数时候表现优于中位数，但不是碾压——约六成回合领先，四成回合落后或持平
+- 百分位 ≥ 70：`above_peer_median`（领先）；≤ 30：`below_peer_median`（落后）
+
+### 叙述中的对比反馈格式
+
+对比反馈必须以自然小说语言融入叙述，不能直接暴露内部字段：
+
+```
+你带着三桶燃油和两块废铁回到列车时，频道里正热闹——
+大多数人这趟只找到了一两桶油，有人甚至空手而归。
+你默默检查收获，比区域中位数多出将近一倍。
+
+【系统提示】
+本轮收获超过区域 82% 的求生者。
+```
+
+**LLM 禁止：**
+- 直接输出 `"percentile": 82` 或任何 JSON 格式的内部数据
+- 让对比反馈变成机械的数字播报，应融入场景和情绪
+- 每回合都强调排名——只在百分位显著变化（±15%以上）或有成就解锁时重点展示
+
+### 选项价值中的对比意义维度
+
+OptionDirector 的 `DecisionValue` 公式已包含 `comparative_meaning`（相对意义）维度，
+权重 15%。这意味着选项生成时会自动考虑"这个选择相对于其他玩家的选择有多大差异化价值"。
+
+```
+DecisionValue = 0.30 × state_impact
+              + 0.20 × long_term_growth
+              + 0.15 × comparative_meaning    ← 群体模式新增
+              + 0.15 × route_differentiation
+              + 0.10 × info_value
+              + 0.10 × social_feedback        ← 群体模式新增
+              - repeat_penalty
+              - minor_action_penalty
+```
+
+## 群体求生叙述模板
+
+### 含对比反馈的回合结构
+
+```markdown
+[场景描写：小说笔法，穿插频道消息和环境细节]
+
+---
+
+【系统面板】
+┌─────────────────────────────┐
+│ 等级: X  经验: Y/Z           │
+│ 生命: X/X  状态: 正常        │
+│ 区域排名: #182（↑23）        │
+│ 存活: 947/1000              │
+│ 时间: 第X天 [时段]           │
+└─────────────────────────────┘
+
+---
+
+【系统公告】（如有）
+━━━━━━━━━━━━━━━━━━
+▸ 公告内容
+━━━━━━━━━━━━━━━━━━
+
+---
+
+你准备怎么做？
+
+A. [方案名：一句话概括]
+   [描述]
+   → 预期：[收益] / [代价]
+
+B. [方案名]
+   ...
+
+C. [方案名]
+   ...
+
+D. 自由行动（描述你想做什么，系统会拆解结算）
+```
+
+### 主角基调
+
+群体求生模式中主角的叙述基调由 `protagonist_contract.tone` 控制。
+默认值 `["rational", "confident", "proactive"]`：
+
+- **冷静理性**：分析局势时不情绪化，用事实和数据说话
+- **自信不傲慢**：知道自己在做什么，但不会轻视其他求生者
+- **主动出击**：不等待救援，积极利用百倍奖励的优势制定计划
+
+**禁止：**
+- 自我贬低或过度谦虚（"我只是运气好"在偶尔使用可以，但不能成为基调）
+- 对其他玩家的苦难无动于衷（冷静≠冷血）
+- 在频道中炫耀收获（这违反 concealment_required 合同）
+
 ## 禁止事项
 
 - 禁止连续超过2000字不让玩家做选择
@@ -553,3 +990,611 @@ Lv.X → Lv.Y
 | tools/record_turn.py | 记录开局或补录一回合小说与对话 |
 | tools/audit_report.py | 按回合、状态或数据库字段查询流程审计 |
 | tools/validate_save.py | 存档校验脚本（六类校验器可执行版） |
+| engine_runtime/calculators.py | 纯函数计算层（含 peer_performance、comparative_result、population 模拟） |
+| engine_runtime/options.py | OptionDirector 选项价值评估（含 comparative_meaning 维度） |
+| engine_runtime/event_director.py | EventDirector 创意事件导演（机制碰撞、价值评分、槽位管理） |
+| engine_runtime/world_compiler.py | 主题→世界注册表编译（类型合同由 AGENTS.md 定义，调用方传入） |
+| tools/game_turn.py | 三阶段回合参考实现（群体推进→主角行动→公共反馈） |
+
+## 异变事件导演系统（EventDirector）
+
+### 核心理念
+
+EventDirector 解决"世界接下来值得发生什么"，而非"玩家能做什么"。它是 OptionDirector 的上层编排器：
+
+- **Python 限制因果**：验证事件可触发性、事实一致性、奖励风险平衡
+- **LLM 创造内容**：接收结构化事件蓝图（约束集），创作具体叙事
+- **机制碰撞驱动创新**：世界规则 × 当前压力 × 异常机制 × 社会后果 = 新事件
+
+### 三种创意能力
+
+| 能力 | 示例 | 底层协议 |
+|------|------|----------|
+| 宏观事件 | 怪物攻城、黑雾吞噬、列车轨道争夺 | `macro_crisis` family |
+| 规则异常 | 半夜敲门的老人、不能回答的广播、消失的车厢 | `rule_anomaly` family |
+| 活体资源 | 血参（以死亡为养分）、会生长的燃料、说谎者才能看到的果实 | `living_resource` family |
+| 强制汇聚 | 72小时城市封锁、多频道合并、临时规则覆盖 | `forced_convergence` family |
+
+### EventValue 评分公式
+
+```
+EventValue = 
+  25% 世界契合度（genre_contract + motif 匹配 + 地点关联）
++ 20% 新奇度（100 - 同类事件频率惩罚）
++ 20% 后果强度（改变几个系统维度）
++ 15% 当前相关度（与 pressure_components 高峰对齐）
++ 10% 社会传播面（NPC/势力/公共系统涉及面）
++ 10% 伏笔价值（open_loops + 谜团回收接近度）
+- 重复惩罚（同 family 近 10 回合每出现一次 -12）
+- 无意义怪异惩罚（无规则约束 -30）
+- 规则冲突惩罚（与世界事实矛盾 -50）
+- 槽位耗尽惩罚（该类型 creative_slot = 0 时 -100）
+```
+
+### Creative Slots（创意槽位）
+
+每个世界包保留未定义空间，供 EventDirector 填充：
+
+```yaml
+creative_slots:
+  signature_anomalies: 5
+  living_resources: 3
+  taboo_rules: 4
+  macro_crises: 3
+  forced_convergences: 2
+  hidden_civilizations: 2
+  system_irregularities: 3
+```
+
+槽位每 10 回合自动回复 1。NORMAL 级别事件不消耗槽位。
+
+### 事件频率节奏
+
+```
+50%：正常生存、探索、建设、交易
+25%：已有机制的变体和组合
+15%：异常物品、特殊地点、规则型遭遇
+ 8%：区域级危机
+ 2%：世界观性质变化或标志性事件
+```
+
+### 多回合事件（Phased Events）
+
+创意事件应持续数回合并每回合有新信息：
+
+```
+钩子 → 第一次试探 → 矛盾线索 → 升级 → 代价显现 → 决策 → 余波
+```
+
+Phased events 通过 event_queue 管道运行，不另建状态管理。
+
+### 机制碰撞示例
+
+```
+废土列车规则：列车持续运行 + 车厢属于玩家 + 夜间有异常生物
+当前压力：资源匮乏（70分）
+异常机制：身份禁忌
+社会后果：排行榜竞争
+= 候选事件："多出的车厢" / "反向行驶的列车" / "会生长的燃料"
+```
+
+### LLM 主持要点
+
+收到 EventDirector 蓝图后：
+
+1. **读取 content_contract**：包含 visible_hook、premise、hidden_rule、phases、possible_consequences
+2. **不要照搬模板**：蓝图是约束集，不是固定文本
+3. **用小说笔法描写**：每个阶段都必须有新信息揭示
+4. **规则异常事件**：重点是规则的可推测性——玩家应能逐步发现规律
+5. **活体资源事件**：物品本身就是剧情发动机，要有采集风险、副作用、市场价值
+6. **不泄露内部字段**：EventValue 分数、mechanism_collision 等不得出现在小说中
+
+### 世界包集成：碰撞模板与主题创意事件
+
+EventDirector 的 `MechanismCollider` 按世界主题（`world.theme`）查找专属碰撞模板。每个模板定义一组规则碰撞组合，生成对应 family 的事件蓝图。无专属模板时回退到通用模板。
+
+#### 碰撞模板结构
+
+```yaml
+collision_template:
+  rules: ["世界规则A", "世界规则B"]    # 参与碰撞的机制
+  anomaly: "identity"                   # 异常类型
+  social: "ranking"                     # 社会维度
+  family: "rule_anomaly"                # 事件家族
+  tier: "anomaly"                       # 事件等级
+  phases: 2                             # 阶段数
+  hook: "一节无主车厢突然亮起了灯"       # 玩家可见钩子
+  premise: "某节车厢的登记信息被篡改…"   # 事件前提
+  hidden_rule: "三次公开声明否则强制拍卖" # 隐藏规则（rule_anomaly 专用）
+  effects:                              # 影响维度
+    relationships: true
+    locations: true
+    rankings: true
+```
+
+#### 已定义主题碰撞模板
+
+| 主题 | 模板数 | 覆盖家族 |
+|------|--------|----------|
+| 废土列车 | 5 | rule_anomaly, living_resource, forced_convergence, macro_crisis, system_irregularity |
+| 巨兽的背脊 | 4 | macro_crisis, living_resource, rule_anomaly, forced_convergence |
+| 渊驮 | 3 | macro_crisis, living_resource, rule_anomaly |
+
+**废土列车示例：**
+- `rule_anomaly`：无主车厢亮灯 → 车厢所有权篡改 → 三次公开声明否则强制拍卖
+- `living_resource`：燃料舱长出菌类 → 夜间停靠且燃料>30%时增殖 → 吸引流浪商人和药剂师
+- `forced_convergence`：餐车管辖权争夺 → 紧张升级→公开冲突→强制仲裁（3阶段）
+- `macro_crisis`：列车驶入不存在的一段 → 景观异常→设备失灵→旅客恐慌→站点抵达（4阶段，iconic级）
+- `system_irregularity`：虚假供应商出现在采购清单 → 每次接受发货权限扩大一级
+
+**巨兽的背脊示例：**
+- `macro_crisis`：巨兽改变迁徙路线 → 震动加剧→地基开裂→紧急迁移
+- `living_resource`：背脊上长出未知花卉 → 每5回合扩展一个区域 → 过度采集激怒巨兽
+- `rule_anomaly`：祭祀仪式出现不明祭品 → 接受方获临时增益但须三回合内回献等价物
+- `forced_convergence`：深渊回声预播未来对话 → 片段回响→选择锁定
+
+**渊驮示例：**
+- `macro_crisis`：层阶重力场崩溃 → 重力波动→结构坍缩→通道稳定
+- `living_resource`：驮兽主动引导主人前往新矿脉 → 跟随可获稀有矿物，拒绝则忠诚度下降
+- `rule_anomaly`：层阶法则被改写但只有玩家注意到 → 知晓者获优势但每次使用被标记
+
+#### 为世界包添加新碰撞模板
+
+在 `MechanismCollider.COLLISION_TEMPLATES` 中为世界主题键添加模板字典。每个模板必须包含：
+- `rules`（至少两条世界规则）
+- `family`（七种家族之一）
+- `tier`（normal/variant/anomaly/regional_crisis/iconic）
+- `hook`（一句话钩子）
+- `premise`（事件前提）
+- `effects`（影响的状态维度）
+
+通用模板（`_generic_templates`）覆盖四种家族，当主题专属模板不足 3 个时自动补充。
+
+## 特殊职业玩家系统
+
+### 职业定义结构
+
+```yaml
+professions:
+  - id: mechanic
+    name: 缆车维修师
+    category: production | combat | exploration | social | support
+    description: 擅长...
+    capabilities:
+      - 诊断机械故障
+      - 紧急抢修
+      - 改装载具模块
+    exclusive_actions:
+      - action_type: DIAGNOSE_FAILURE
+        target_ids: [...]
+        requirements: { profession: mechanic }
+        time_minutes: 30
+        stamina_cost: 2
+        mental_cost: 3
+        difficulty: 15
+    attribute_bonuses: { agility: 2 }
+    starting_skills: [...]
+    consequence_radius: 0.7  # How much this profession affects the world
+    world_hooks: [event_family_names]
+    autonomous_yield_profile: { average_hours_worked: 180, output_items: {...} }
+    comparative_weights: { efficiency: 0.3, ... }
+```
+
+### 获得职业的方式
+
+#### 开局随机觉醒
+```text
+【检测到你的职业经历与世界规则产生共鸣】
+【获得职业：拾荒者】
+```
+
+#### 达成条件后转职
+连续修复三次载具故障 + 拆解旧文明机械 + 机械感知天赋 → 解锁"缆车维修师"
+
+#### 多路线三选一
+```text
+A. 轨道维修师 —— 擅长载具和交通路线
+B. 荒原猎手 —— 擅长探索、追踪和战斗
+C. 区域经纪人 —— 擅长交易、情报和玩家组织
+```
+
+#### 隐藏职业
+长期研究异常车厢后解锁："禁忌列车检修员"
+
+### 特殊职业示例
+
+**生产与建设类**
+- 维修师 / 伐木工 / 锻造师 / 药剂师 / 工程师 / 农场主
+
+**社会与规则类**
+- 契约签订者 / 商人 / 鉴定师 / 情报贩子 / 仲裁者
+
+**探索与异常类**
+- 猎人 / 路径侦察者 / 遗迹学者 / 梦境行者 / 规则破解者
+
+### 后果半径 (Consequence Radius)
+
+不同职业的战略性差异：
+- **普通玩家**: radius < 0.2 (只影响自己)
+- **专业工匠**: radius 0.3-0.5 (影响局部服务市场)
+- **战略型特殊职业**: radius > 0.7 (整个区域的交通/贸易/防御/冲突格局)
+
+公式：
+```
+ConsequenceRadius = 
+职业稀缺度 × 能力不可替代性 × 社会连接程度 × 当前阶段需求 × 主角关系强度
+```
+
+### LLM 主持要点
+
+收到特殊职业玩家出现后：
+
+1. **读取 content_contract**: 包含 visible_hook, premise, hidden_rule, phases
+2. **不要照搬模板**: 蓝图是约束集，不是固定文本
+3. **展现职业特性**: 每个阶段都必须有职业能力的具体体现
+4. **职业自主命运**: 即使主角不主动接触，这个角色也在独立做决定
+5. **后果半径体现**: 战略型角色的死亡/离开应引发区域性变化
+
+## 旁视角切换系统（Perspective Cutaway）
+
+### 核心理念
+
+偶尔切换到其他求生者的视角（如"王晨"），展示平行世界线程，制造"读者知道危险接近，但主角不知道"的悬念。
+
+关键约束：
+- **严格知识分离**：Reader_Knowledge ≠ Protagonist_Knowledge
+- **零战术作弊**：即使读者看到 Wáng Chén 的埋伏点，主角也不能据此行动
+- **真实后果**：Wáng Chén 的搜索实际消耗资源、增加遭遇概率
+- **频率控制**：每章节最多 1-2 次，绝不连续两回合触发
+
+### 何时触发
+
+PerspectiveDirector 基于收敛评分计算，满足以下条件才允许切镜头：
+
+```yaml
+ConvergenceScore = 
+  25% 物理距离（同一地点/+30 分）
++ 20% 共同目标冲突（竞争同一资源/+25 分）
++ 20% 相同威胁暴露（面对同一危险/+15 分）
++ 15% 近期事件重叠（参与同一事件/+10 分）
++ 10% 时间同步（同回合行动/+10 分）
++ 10% 角色个性独特性（rarity_score/+10 分）
+```
+
+Thresholds:
+- ≥0.85: 几乎确定触发 (HIGH_RISK)
+- ≥0.70: 可能触发 (MODERATE_RISK)  
+- ≥0.50: 后台推进不展示 (LOW_RISK)
+
+### 禁止泄露信息（Forbidden Reveal）
+
+任何切镜头都严禁包含：
+- ❌ 精确坐标（"主角在 B2 车厢"）
+- ❌ 精确时间表（"明天上午 10 点相遇"）
+- ❌ 完整队伍能力配置
+- ❌ 伏击具体位置
+- ❌ 密码或未解密物品详情
+
+只能展示：
+- ✅ 角色存在与动机（"王晨正在寻找箱子"）
+- ✅ 模糊氛围（"远处似乎有脚步声"）
+- ✅ 资源状态（"他只剩下 2 颗子弹"）
+- ✅ 性格侧写（"自信到自负的表情"）
+
+### LLM 主持指南
+
+收到切镜头后如何创作：
+
+1. **阅读 narrative_snippet** (≤80 词) 作为基础素材
+2. **不要编造新信息**：所有事件必须在事件中真实发生过
+3. **用小说笔法描写**：展现挣扎与决心，不是游戏机制描述
+4. **长度控制在 3-5 句话内**（约 50-100 字）
+5. **结束必须回到主角线**：不能停留在他人视角超过一个段落
+6. **禁止提及主角未知信息**：包括位置、库存、知识等
+
+示例输出：
+
+```text
+同一时间，灰烬城北区
+
+王晨站在满地枯死的藤蔓中，捏着那块暗红色碎片。
+
+张强低声道："这东西不是自然死亡。"
+
+王晨没有回答。他看着碎片上残留的系统信息，脸上的不安逐渐被另一种表情取代。
+
+"搜索附近。谁能杀死它，身上一定带着比这更值钱的东西。"
+
+——
+（立即结束切镜头，回到主角视角）
+```
+
+### 审计与验证
+
+每次回合记录会在 conversation_log.md 中添加 JSONL 审计条目：
+
+```json
+{
+  "event_id": "perspective_wangchen_01",
+  "type": "PERSPECTIVE_CUTAWAY_CREATED",
+  "actor": "perspective_director",
+  "turn": 18,
+  "payload": {
+    "thread_id": "wangchen_approach",
+    "peer_player_id": "player_wangchen",
+    "reader_knows": ["wangchen_exists", "wangchen_group_is_nearby"],
+    "convergence_score": 0.82,
+    "narrative_function": "approaching_collision"
+  }
+}
+```
+
+这些条目用于未来调试知识边界是否被突破。
+
+### 与现有系统联动
+
+| 系统                  | 作用                   |
+| ------------------- | -------------------- |
+| 玩家群体模拟器          | 推进离屏玩家的真实状态      |
+| NPC/玩家自主系统         | 决定他们的目标和行动        |
+| 事件系统                | 记录离屏发生的正式事件       |
+| 知识系统                | 区分主角知识和读者知识       |
+| PerspectiveDirector | 决定何时切换、展示什么       |
+| 比较引擎                | 选择值得展示的精英和竞争者    |
+| Public System         | 之后通过频道/公告让部分信息进入主角视野 |
+| OptionDirector      | 禁止使用纯读者信息生成主角选项  |
+| 表现层                 | 输出短暂切镜头并明确返回主线   |
+| 审计系统                | 检查 LLM 有没有把读者信息泄漏给主角 |
+
+## 通用观察评估框架（Generic Observation Framework）
+
+### 核心理念
+
+不要为每个精彩桥段写专用系统（如"探测仪"），而是实现通用的"认知变化"机制：
+
+> **角色通过世界内可信方式，对另一个角色形成某种评估；评估结果改变其认知与后续行为。**
+
+代码实现第二层（通用机制），EventDirector 决定第一层（叙事功能），LLM 创造第三层（世界表现）。
+
+### 抽象观察模型
+
+```yaml
+observation:
+  observer: 王可
+  target: 主角
+  subject: combat_capability
+
+  prior_belief:
+    estimate: ordinary_elite
+    confidence: 0.75
+
+  evidence:
+    source: world_consistent_method
+    reliability: 0.90
+    precision: high
+
+  revealed_result:
+    relative_gap: overwhelming
+    exact_value_visible: true
+
+  belief_change:
+    new_estimate: cannot_confront
+    confidence: 0.96
+
+  behavioral_consequences:
+    - 放弃敌对
+    - 立即撤退
+    - 将情报带回组织
+```
+
+Python 不需要知道证据具体是探测仪、鉴定术、望气术、危险直觉还是系统排行榜——这些都是表现层。
+
+### 信息获得渠道
+
+每个世界创建时编译允许的**信息获得渠道**：
+
+```yaml
+information_channels:
+  - domain: combat_capability
+    possible_methods:
+      - system_feedback          # 系统反馈
+      - professional_judgment    # 专业判断
+      - supernatural_perception  # 超自然感知
+      - equipment_analysis       # 装备分析
+      - behavioral_inference     # 行为推断
+
+  - domain: identity
+    possible_methods:
+      - contract_verification    # 契约验证
+      - scent_tracking           # 气味追踪
+      - soul_signature           # 灵魂印记
+      - public_record            # 公开记录
+
+  - domain: danger
+    possible_methods:
+      - instinct                 # 直觉
+      - environmental_reaction   # 环境反应
+      - divination               # 占卜
+      - machine_warning          # 机器警报
+```
+
+事件导演只提出"一个有资格评价主角的人获得了高可信度证据"，LLM 必须根据当前世界重新发明具体方法。
+
+### 评估风格灵活性
+
+不同世界可以使用不同的评估精度：
+
+| 风格 | 示例 | 适用场景 |
+|------|------|----------|
+| `exact_numeric` | "你的战力：47，目标：372" | 游戏化数值世界 |
+| `range_estimate` | "目标估值：300-450，设备上限：150" | 科幻分析世界 |
+| `qualitative_band` | "目标危险度至少高于你三个层级" | 等级制世界 |
+| `unmeasurable` | "评估失败：目标不符合当前评价体系" | 诡异规则世界 |
+| `environmental_reaction` | "用于识别危险的黑犬伏在地上，不肯抬头" | 御兽/自然世界 |
+| `professional_reaction` | "老兵只看了一眼，便命令全队放下武器" | 低魔现实世界 |
+
+有时候不显示数字反而更高级。
+
+### 外部验证爽点结构
+
+引擎不应保存固定模板（"傲慢角色用探测仪→震惊→逃跑"），而应识别抽象条件：
+
+```yaml
+external_validation:
+  # 触发条件
+  protagonist_recent_growth: high
+  external_underestimation: high
+  credible_observer_exists: true
+  behavioral_evidence_available: true
+  social_consequence: meaningful
+  
+  # 输出约束
+  observer_credibility: high
+  prior_underestimation: high
+  precision_required: relative
+  
+  allowed_reveals:
+    - 主角远超观察者
+    - 当前区域标准无法正确评价
+  
+  forbidden_reveals:
+    - 主角全部技能
+    - 隐藏天赋名称
+    - 精确弱点
+  
+  expected_aftermath:
+    - observer_strategy_changed
+    - information_may_spread
+```
+
+观察者不必敌视主角，可能是：公会首领想招募、职业鉴定师、未来盟友、中立商人、系统职业玩家、原住民强者、其他特殊玩家。
+
+### 通用行动原语
+
+不要不断增加专用 Action Type（PROBE_TARGET、SIGN_CONTRACT 等），而应使用少量通用原语：
+
+| 原语 | 含义 | 示例 |
+|------|------|------|
+| `OBSERVE` | 观察或获取证据 | "王可查看主角" |
+| `INTERACT` | 与人或存在交互 | "诡老头敲门" |
+| `INVESTIGATE` | 主动调查未知规则 | "研究异常车厢" |
+| `NEGOTIATE` | 交易、谈判、契约 | "签订合作协议" |
+| `TRAVEL` | 移动 | "前往灰烬城" |
+| `CONFRONT` | 对抗 | "伏击掠夺者" |
+| `PRODUCE` | 生产、维修、建造 | "采血参" |
+| `USE` | 使用道具与能力 | "启动旧文明设备" |
+| `COMMIT` | 作出承诺或不可逆选择 | "加入势力" |
+
+"王可查看主角"只是：
+
+```yaml
+type: OBSERVE
+subject: combat_capability
+method: 当前世界临时生成的可信评估手段
+```
+
+### 表现去重机制
+
+即使底层抽象不同，LLM 也可能反复使用熟悉手法（探测仪爆表、设备裂开、怀疑设备坏了）。
+
+叙事审计应记录**表现手法**，不只记录事件类型：
+
+```yaml
+presentation_history:
+  - payoff: external_validation
+    surface_method: numeric_scanner_overload
+    reaction_shape: disbelief_then_retreat
+```
+
+下个世界再次触发 `external_validation` 时，导演加入惩罚：
+
+> 如果最近用过"数字扫描爆表"，禁止再次使用设备量程、屏幕报错和建议撤退。
+
+可改用：动物反应、专业判断、敌人行为、世界规则拒绝识别、其他玩家失败作为间接证据、公共排行榜异常、契约代价暴涨。
+
+需要去重的是**表面表达**，不是背后的叙事功能。
+
+### 运行中涌现注册
+
+不要把世界中的所有道具提前写进注册表。世界创建时只定义"允许什么技术与超自然逻辑"：
+
+```yaml
+world_capabilities:
+  technology_level: scavenged_industrial
+  system_ui_visibility: medium
+  supernatural_domains: [anomaly, identity, ownership]
+  information_methods:
+    mechanical_analysis: allowed
+    system_assessment: limited
+    divination: forbidden
+    professional_inference: allowed
+```
+
+当剧情需要可信评估手段时，LLM 创造"旧时代的敌我识别镜"。Python 检查：
+
+- 是否符合废土工业技术
+- 是否超出当前世界能力
+- 使用者是否有合理来源
+- 能揭示哪些信息
+- 是否违反主角信息隐藏规则
+
+事件确认后再正式登记：
+
+```yaml
+emergent_entity:
+  id: threat_lens_01
+  category: information_tool
+  provenance: grey_harbor_armory
+  capabilities: [estimate_relative_threat]
+  limits: [unreliable_above_regional_scale]
+```
+
+这是**运行中涌现注册**，不是预制模板。
+
+### LLM 主持指南
+
+收到外部验证事件蓝图后：
+
+1. **读取 payoff_function**：理解这是"外界确认主角异常强大"的爽点
+2. **选择世界内可信方法**：根据 `information_channels` 和当前世界主题
+3. **避免重复表现**：检查 `presentation_history`，不用最近用过的手法
+4. **创造独特媒介**：废土用旧文明设备、修仙用望气术、御兽用宠物反应、诡异世界用规则异常
+5. **控制信息精度**：不必每次都显示数字，有时"无法测量"更高级
+6. **描写观察者行为变化**：放弃敌对、立即撤退、将情报带回组织等
+
+示例输出（废土科技世界）：
+
+```text
+王可举起那台从灰港军械库翻出来的旧时代威胁评估镜。
+
+镜头对准那个独自站在藤蔓残骸中的人影时，设备没有显示数字。
+
+屏幕上只有一行字：
+
+"该目标不适用于当前区域威胁等级标准。"
+
+王可缓缓放下评估镜，对身后的队友说："撤退。现在。"
+```
+
+示例输出（修仙世界）：
+
+```text
+望气师运起灵目看向那个年轻人。
+
+他看见的不是灵气，而是一片将神识吞没的黑暗。
+
+"师尊，"他的声音有些颤抖，"弟子看不清他的命格。"
+
+老者抚须微笑："看不清就对了。有些存在，本就不该被看清。"
+```
+
+### 与现有系统联动
+
+| 系统 | 作用 |
+|------|------|
+| EventDirector | 决定何时触发"外部验证"爽点 |
+| 信息/知识系统 | 记录谁观察了谁、通过什么证据、获得什么结论 |
+| 表现层 | 根据当前世界创造独特的观察媒介和反应描写 |
+| 叙事审计 | 记录 surface_method 防止重复表现 |
+| 职业系统 | 某些职业（鉴定师、望气师）可作为可信观察者 |
+| 比较引擎 | 提供主角与观察者的相对实力数据 |

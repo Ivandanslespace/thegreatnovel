@@ -72,6 +72,285 @@ CREATE TABLE IF NOT EXISTS generation_runs (
     bundle_json TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+-- ============================================================================
+-- 第十九轮对话新增：全民系统流专用表
+-- ============================================================================
+
+-- 区域信息
+CREATE TABLE IF NOT EXISTS regions (
+    region_id TEXT PRIMARY KEY,
+    campaign_id TEXT NOT NULL,
+    name TEXT,
+    population_count INTEGER DEFAULT 1000,
+    current_phase TEXT,
+    FOREIGN KEY(campaign_id) REFERENCES campaigns(campaign_id)
+);
+
+-- 具体玩家代理（有名字的具体求生者）
+CREATE TABLE IF NOT EXISTS peer_players (
+    player_id TEXT,
+    campaign_id TEXT NOT NULL,
+    name TEXT,
+    avatar_description TEXT,
+    region_id TEXT,
+    origin_background TEXT,
+    profession_id TEXT DEFAULT NULL,
+    PRIMARY KEY(player_id, campaign_id),
+    FOREIGN KEY(campaign_id) REFERENCES campaigns(campaign_id)
+);
+
+-- 为职业关联创建索引以优化查询性能
+CREATE INDEX IF NOT EXISTS idx_peer_profession ON peer_players(campaign_id, profession_id);
+
+-- 玩家群体状态快照
+CREATE TABLE IF NOT EXISTS player_population_snapshots (
+    snapshot_id TEXT PRIMARY KEY,
+    region_id TEXT NOT NULL,
+    campaign_id TEXT NOT NULL,
+    total_players INTEGER NOT NULL,
+    alive_count INTEGER NOT NULL,
+    death_rate REAL,
+    turn INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(campaign_id) REFERENCES campaigns(campaign_id)
+);
+
+-- 排行榜数据
+CREATE TABLE IF NOT EXISTS rankings (
+    rank_id TEXT PRIMARY KEY,
+    player_id TEXT NOT NULL,
+    campaign_id TEXT NOT NULL,
+    category TEXT NOT NULL,  -- overall, exploration, base, info, social
+    rank_value REAL NOT NULL,
+    percentile REAL,
+    turn INTEGER NOT NULL,
+    UNIQUE(campaign_id, player_id, category, turn)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rankings_campaign_turn ON rankings(campaign_id, turn);
+
+-- 排行榜快照（用于比较历史变化）
+CREATE TABLE IF NOT EXISTS ranking_snapshots (
+    snapshot_id TEXT PRIMARY KEY,
+    campaign_id TEXT NOT NULL,
+    turn INTEGER NOT NULL,
+    snapshot_data_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+-- 成就目录和解锁记录
+CREATE TABLE IF NOT EXISTS achievements (
+    achievement_id TEXT PRIMARY KEY,
+    catalog_id TEXT NOT NULL,
+    name TEXT,
+    description TEXT,
+    difficulty_tier TEXT,
+    category TEXT
+);
+
+CREATE TABLE IF NOT EXISTS achievement_unlocks (
+    unlock_id TEXT PRIMARY KEY,
+    campaign_id TEXT NOT NULL,
+    player_id TEXT NOT NULL,
+    achievement_id TEXT NOT NULL,
+    turn INTEGER NOT NULL,
+    unlocked_at TEXT NOT NULL,
+    is_first_of_region INTEGER DEFAULT 0,  -- 是否区域首杀/首建
+    UNIQUE(campaign_id, player_id, achievement_id, turn)
+);
+
+-- 系统公告
+CREATE TABLE IF NOT EXISTS system_announcements (
+    announcement_id TEXT PRIMARY KEY,
+    campaign_id TEXT NOT NULL,
+    turn INTEGER NOT NULL,
+    announcement_type TEXT NOT NULL,  -- first_kill, first_build, rank_change, achievement
+    content TEXT NOT NULL,
+    scope TEXT NOT NULL,  -- global, regional, private
+    related_player_id TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(campaign_id) REFERENCES campaigns(campaign_id)
+);
+
+-- 频道消息（区域频道、私聊等）
+CREATE TABLE IF NOT EXISTS regional_channels (
+    channel_id TEXT PRIMARY KEY,
+    campaign_id TEXT NOT NULL,
+    channel_type TEXT NOT NULL,  -- regional, trade, private, team
+    channel_name TEXT,
+    max_message_count INTEGER DEFAULT 100,
+    FOREIGN KEY(campaign_id) REFERENCES campaigns(campaign_id)
+);
+
+CREATE TABLE IF NOT EXISTS channel_messages (
+    message_id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL,
+    campaign_id TEXT NOT NULL,
+    sender_id TEXT NOT NULL,
+    sender_name TEXT,
+    content_hash TEXT NOT NULL,  -- 内容哈希用于去重
+    content_preview TEXT,
+    turn INTEGER NOT NULL,
+    timestamp TEXT NOT NULL,
+    FOREIGN KEY(campaign_id) REFERENCES campaigns(campaign_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_channel_messages_channel_turn ON channel_messages(channel_id, turn);
+
+-- 私聊记录
+CREATE TABLE IF NOT EXISTS private_messages (
+    message_id TEXT PRIMARY KEY,
+    sender_id TEXT NOT NULL,
+    recipient_id TEXT NOT NULL,
+    campaign_id TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    turn INTEGER NOT NULL,
+    read_status INTEGER DEFAULT 0,
+    sent_at TEXT NOT NULL,
+    UNIQUE(sender_id, recipient_id, turn, content_hash)
+);
+
+-- 交易订单
+CREATE TABLE IF NOT EXISTS trade_orders (
+    order_id TEXT PRIMARY KEY,
+    seller_id TEXT NOT NULL,
+    buyer_id TEXT,  -- null 表示挂单待匹配
+    item_id TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    price_per_unit REAL NOT NULL,
+    currency_type TEXT DEFAULT 'resource',
+    status TEXT NOT NULL,  -- active, fulfilled, cancelled, expired
+    expiration_turn INTEGER,
+    created_turn INTEGER NOT NULL,
+    fulfilled_at TEXT,
+    UNIQUE(item_id, seller_id, created_turn)  -- 同一回合一个卖家只能有一个未成交的同物品订单
+);
+
+-- 交易执行记录
+CREATE TABLE IF NOT EXISTS trade_transactions (
+    transaction_id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL,
+    buyer_id TEXT NOT NULL,
+    seller_id TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    total_price REAL NOT NULL,
+    turn INTEGER NOT NULL,
+    executed_at TEXT NOT NULL,
+    FOREIGN KEY(order_id) REFERENCES trade_orders(order_id)
+);
+
+-- 市场快照（价格趋势）
+CREATE TABLE IF NOT EXISTS market_snapshots (
+    snapshot_id TEXT PRIMARY KEY,
+    campaign_id TEXT NOT NULL,
+    turn INTEGER NOT NULL,
+    prices_json TEXT NOT NULL,
+    supply_demand_index REAL,
+    created_at TEXT NOT NULL
+);
+
+-- 玩家对比快照（主角相对优势）
+CREATE TABLE IF NOT EXISTS comparative_snapshots (
+    snapshot_id TEXT PRIMARY KEY,
+    protagonist_id TEXT NOT NULL,
+    campaign_id TEXT NOT NULL,
+    turn INTEGER NOT NULL,
+    matched_peer_count INTEGER,
+    peer_median_performance REAL,
+    protagonist_performance REAL,
+    percentile REAL,
+    power_percentile REAL,
+    resource_percentile REAL,
+    base_percentile REAL,
+    information_percentile REAL,
+    comparative_result TEXT,
+    main_causes_json TEXT,  -- JSON 数组的原因列表
+    created_at TEXT NOT NULL,
+    UNIQUE(campaign_id, protagonist_id, turn)
+);
+
+-- 竞争者关系
+CREATE TABLE IF NOT EXISTS rivalries (
+    rivalry_id TEXT PRIMARY KEY,
+    protagonist_id TEXT NOT NULL,
+    rival_id TEXT NOT NULL,
+    campaign_id TEXT NOT NULL,
+    rivalry_type TEXT NOT NULL,  -- competition, enmity, cooperation
+    intensity_score REAL,
+    turn_assessed INTEGER NOT NULL,
+    assessment_notes TEXT,
+    UNIQUE(protagonist_id, rival_id, campaign_id)
+);
+
+-- 玩家声望和标签
+CREATE TABLE IF NOT EXISTS player_reputations (
+    reputation_id TEXT PRIMARY KEY,
+    player_id TEXT NOT NULL,
+    campaign_id TEXT NOT NULL,
+    turn INTEGER NOT NULL,
+    regional_honor INTEGER DEFAULT 0,
+    global_honor INTEGER DEFAULT 0,
+    trading_credit REAL DEFAULT 0.0,
+    leader_score REAL DEFAULT 0.0,
+    tags_json TEXT,  -- JSON 数组的标签，如 "dangerous_person", "trader", "leader"
+    created_at TEXT NOT NULL,
+    UNIQUE(player_id, campaign_id, turn)
+);
+
+-- 队伍和公会
+CREATE TABLE IF NOT EXISTS teams (
+    team_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    creator_id TEXT NOT NULL,
+    campaign_id TEXT NOT NULL,
+    formation_turn INTEGER NOT NULL,
+    rules_text TEXT,
+    status TEXT DEFAULT 'active'
+);
+
+CREATE TABLE IF NOT EXISTS team_memberships (
+    membership_id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    member_id TEXT NOT NULL,
+    join_turn INTEGER NOT NULL,
+    leave_turn INTEGER,
+    role TEXT,
+    contribution_points REAL DEFAULT 0.0,
+    UNIQUE(team_id, member_id)
+);
+
+CREATE TABLE IF NOT EXISTS guilds (
+    guild_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    founder_id TEXT NOT NULL,
+    campaign_id TEXT NOT NULL,
+    formation_turn INTEGER NOT NULL,
+    headquarters_location TEXT,
+    minimum_level_requirement INTEGER DEFAULT 1,
+    status TEXT DEFAULT 'open'
+);
+
+CREATE TABLE IF NOT EXISTS guild_memberships (
+    membership_id TEXT PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    member_id TEXT NOT NULL,
+    join_turn INTEGER NOT NULL,
+    rank_or_title TEXT,
+    contribution_points REAL DEFAULT 0.0,
+    UNIQUE(guild_id, member_id)
+);
+
+-- 区域统计数据
+CREATE TABLE IF NOT EXISTS regional_statistics (
+    stat_id TEXT PRIMARY KEY,
+    region_id TEXT NOT NULL,
+    campaign_id TEXT NOT NULL,
+    turn INTEGER NOT NULL,
+    statistics_json TEXT NOT NULL,  -- 包含探索成功率、平均收益、死亡率等统计
+    created_at TEXT NOT NULL
+);
 """
 
 

@@ -46,6 +46,144 @@ LLM 只提交“玩家想做什么”。以下内容必须由 Python 计算，LL
 不能由叙述或 LLM 改写。Python 返回的移动结果带有 `movement_success=true`、`probability=1.0` 和
 `risk_mode=deterministic_route`，领域状态只有在该结果存在时才会修改。
 
+其他行动：成本由行动类型、技能定义、世界目标配置和当前状态派生。LLM 不得把完整目标、模块或区域对象塞进 `parameters` 以绕过注册表。
+
+社交经济类行动类型（新增）：
+
+**TRADE** - 与其他玩家或 NPC 进行物品/资源交易：
+```json
+{
+  "action_id": "trade-001",
+  "type": "TRADE",
+  "target": "npc-trader-jack",
+  "goal": "用燃料换取弹药",
+  "risk_preference": "谨慎",
+  "parameters": {
+    "trade_items": [
+      {"id": "fuel_canister", "quantity": 5},
+      {"id": "scrap_metal", "quantity": 10}
+    ],
+    "trade_counterparty": "npc-trader-jack",
+    "relationship_intent": "建立长期贸易关系"
+  },
+  "requirements": {
+    "items": [
+      {"id": "fuel_canister", "quantity": 5},
+      {"id": "scrap_metal", "quantity": 10}
+    ]
+  }
+}
+```
+验证规则：
+- `trade_items` 必须是 inventory.resources 或 inventory.items 中存在的物品列表
+- `trade_counterparty` 必须是已注册的 NPC ID 或其他玩家 ID
+- 交易估价由 Python 根据 market_prices 自动计算，LLM 不得提交 offer_value
+
+**TEAM_FORMATION** - 组建或调整探险小队：
+```json
+{
+  "action_id": "team-form-001",
+  "type": "TEAM_FORMATION",
+  "target": "expedition-team-alpha",
+  "goal": "组建前往废弃实验室的探险队",
+  "risk_preference": "标准",
+  "parameters": {
+    "team_roles": {
+      "npc-rivet": "scout",
+      "npc-silo": "tank",
+      "npc-shelly": "support"
+    },
+    "max_members": 3,
+    "mission_objective": "回收工程数据"
+  }
+}
+```
+验证规则：
+- `team_roles` 是字典，键为 npc_id，值为角色（tank/dps/support/scout）
+- `max_members` 不得超过世界定义的最大小队规模
+- NPC 兼容性和关系检查由 Python 自动执行
+
+**MARKET_ORDER** - 在市场发布买卖订单：
+```json
+{
+  "action_id": "market-order-001",
+  "type": "MARKET_ORDER",
+  "target": "废土集市",
+  "goal": "出售多余药品换取信用点",
+  "parameters": {
+    "market_item": "medkit_stim",
+    "market_quantity": 8,
+    "market_price_limit": 150,
+    "order_type": "sell"
+  },
+  "requirements": {
+    "location": "camp_core",
+    "knowledge": ["market_trading_basic"]
+  }
+}
+```
+验证规则：
+- `market_item` 必须是 world.market_catalog 中可交易的物品
+- `market_quantity` 是正整数，不得超过背包持有量
+- `market_price_limit` 由 Python 验证是否在市场波动范围内
+- LLM 不得提交 order_status、filled_quantity 等引擎字段
+
+**VEHICLE_UPGRADE** - 升级车辆模块或装备：
+```json
+{
+  "action_id": "vehicle-upgrade-001",
+  "type": "VEHICLE_UPGRADE",
+  "target": "train-car-01",
+  "goal": "增强列车防御系统",
+  "risk_preference": "标准",
+  "parameters": {
+    "upgrade_target": "armor_plate_heavy",
+    "vehicle_slot": "hull_front",
+    "upgrade_goal": "提升对抗载具攻击的防护"
+  },
+  "requirements": {
+    "location": "camp_core",
+    "items": [
+      {"id": "steel_ingot", "quantity": 20},
+      {"id": "welding_materials", "quantity": 5}
+    ],
+    "skill": "mechanic_l4"
+  }
+}
+```
+验证规则：
+- `upgrade_target` 必须是 world.vehicle_upgrades 或 world.build_catalog 中的注册项目
+- `vehicle_slot` 必须是该车辆当前可用的槽位 ID
+- 材料充足性检查由 Python 执行，LLM 不得提交 materials
+
+**REGIONAL_EVENT_ENTRY** - 进入区域性特殊事件区域：
+```json
+{
+  "action_id": "event-entry-001",
+  "type": "REGIONAL_EVENT_ENTRY",
+  "target": "radiation_zone_alpha",
+  "goal": "进入辐射区采集同位素样本",
+  "risk_preference": "激进",
+  "parameters": {
+    "event_type": "radiation_contamination",
+    "event_location": "zone_alpha_north",
+    "objective": "采集 Isotope_X-99 样本"
+  },
+  "requirements": {
+    "level": 12,
+    "items": [
+      {"id": "radiation_protection", "quantity": 1},
+      {"id": "sampling_kit", "quantity": 1}
+    ],
+    "knowledge": ["radiation_safety", "isotope_handling"]
+  }
+}
+```
+验证规则：
+- `event_type` 必须是 world.regional_events 中定义的活跃事件类型
+- `event_location` 必须是地点注册表中该事件类型的允许入口位置
+- 必须满足事件的等级、装备、知识门槛
+
 需要组合多个短行动时提交一个原子计划：
 
 ```json

@@ -72,6 +72,30 @@ class GameEngine:
         if action.get("skill_id"):
             skill = self._find_skill(action)
             values["skill_bonus"] = float(skill.get("level", 1)) * 2.0 if skill else 0.0
+        # Apply attribute bonuses from player's profession (if any)
+        current_profession_id = self.state.player.get("profession")
+        if current_profession_id:
+            # Check if profession exists in world bundle
+            world_professions = self.state.data.get("world", {}).get("professions", {})
+            if current_profession_id in world_professions:
+                profession_def = world_professions[current_profession_id]
+                attribute_bonuses = profession_def.get("attribute_bonuses", {})
+                if isinstance(attribute_bonuses, Mapping):
+                    for attr, bonus in attribute_bonuses.items():
+                        if attr in ("strength", "constitution", "agility", "spirit"):
+                            # Cap at half bonus for balance
+                            values[attr] = float(values.get(attr, 0.0)) + bonus * 0.5
+        
+        # Apply profession-based action modifiers for specific actions
+        if current_profession_id == "mechanic" and action_profile.get("action_type") in ["DIAGNOSE_FAILURE", "EMERGENCY_REPAIR"]:
+            values["ability_match"] += 5
+            values["preparation"] += 3
+        elif current_profession_id == "contract_signer" and action_profile.get("action_type") == "DRAFT_CONTRACT":
+            values["intelligence"] += 5
+            values["preparation"] += 2
+        elif current_profession_id == "logger" and action_profile.get("action_type") == "HARVEST_DATA":
+            values["spirit"] += 2
+        
         allowed = ActionContext.__dataclass_fields__
         return ActionContext(**{key: values[key] for key in allowed if key in values})
 
@@ -305,6 +329,29 @@ class GameEngine:
         elif action.get("skill_id"):
             errors.append(f"未掌握技能：{action['skill_id']}")
         return errors
+
+    def _check_profession_requirement(self, action_profile: Mapping[str, Any], state: GameState) -> Tuple[bool, str]:
+        """Check if player satisfies profession requirement for this action."""
+        requirements = action_profile.get("requirements", {})
+        if not isinstance(requirements, Mapping):
+            return True, ""
+        
+        required_profession = requirements.get("profession")
+        if not required_profession:
+            return True, ""
+        
+        player_profession = state.player.get("profession")
+        if player_profession == required_profession:
+            return True, ""
+        
+        # Check if player has access via skills
+        player_skills = state.player.get("skills", [])
+        for skill in player_skills:
+            if isinstance(skill, Mapping) and skill.get("id") == f"{required_profession}_training":
+                return True, ""
+        
+        error_msg = f"职业不符：执行该行动需要{required_profession}职业或相应技能，当前未拥有"
+        return False, error_msg
 
     def _action_target_profile(self, action: Mapping[str, Any]) -> Mapping[str, Any]:
         registry = self.state.data.get("world", {}).get("action_targets", {})
@@ -646,6 +693,7 @@ class GameEngine:
                 "current_location_name": self._location_name(target),
                 "current_encounter_id": None,
                 "movement": {"from": self._current_location(), "to": target, "mode": action_type},
+                "discover_locations": [target],
                 "proposed_events": [{"type": "LOCATION_ENTERED", "target": target}],
             }
         if action_type == "RETURN_TO_BASE":
@@ -1597,6 +1645,41 @@ class GameEngine:
             })
             if index >= 8:
                 break
+        
+        # Inject exclusive_actions from current profession
+        from collections.abc import Mapping
+        
+        current_profession_id = self.state.player.get("profession")
+        world_professions = world.get("professions", {}) if isinstance(world.get("professions", {}), Mapping) else {}
+        
+        exclusive_actions_list = world_professions.get(current_profession_id, {}).get("exclusive_actions", [])
+        for excl_act in exclusive_actions_list:
+            if not isinstance(excl_act, Mapping):
+                continue
+            
+            # Get location requirement
+            target_id = excl_act.get("target_id") or excl_act.get("target") or excl_act.get("action_type")
+            location_id = excl_act.get("location_id")
+            
+            # Skip if no location match
+            if location_id and location_id != current_location:
+                continue
+            
+            # If no explicit location_id, check if action has required locations and skip if not current
+            # Otherwise assume it's available at current location
+            candidates.append({
+                "id": f"excl-{index}",
+                "label": excl_act.get("name") or excl_act.get("action_type"),
+                "action": {
+                    "action_id": f"excl-{excl_act['action_type']}",
+                    "type": excl_act.get("action_type"),
+                    "target": target_id,
+                    "goal": excl_act.get("goal") or excl_act.get("action_type"),
+                },
+                "category": "professional_skill",
+            })
+            index += 1
+        
         return candidates
 
     def execute_action(self, action: Mapping[str, Any], persist: bool = True, dilution_multiplier: float = 1.0) -> Dict[str, Any]:

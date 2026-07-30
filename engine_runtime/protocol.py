@@ -44,9 +44,9 @@ ALLOWED_ACTION_FIELDS = {
 }
 
 NESTED_INTENT_FIELDS = {
-    "requirements": {"location", "items", "level", "skill", "npc_available", "knowledge"},
-    "parameters": {"approach", "relationship_intent", "message", "order", "objective", "allocations", "wait_minutes"},
-    "stop_conditions": {"ammo_below", "risk_above", "environment_change"},
+    "requirements": {"location", "items", "level", "skill", "npc_available", "knowledge", "profession"},
+    "parameters": {"approach", "relationship_intent", "message", "order", "objective", "allocations", "wait_minutes", "trade_items", "trade_counterparty", "team_roles", "upgrade_target", "market_item", "market_quantity", "market_price_limit", "vehicle_slot", "event_type", "event_location"},
+    "stop_conditions": {"ammo_below", "risk_above", "environment_change"}
 }
 
 ACTION_PLAN_FIELDS = {"action_id", "type", "target", "skill_id", "risk_preference", "tags", "goal", "approach", "parameters", "requirements"}
@@ -78,6 +78,12 @@ ACTION_PROFILES = {
     "RESTART": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
     "CHECKPOINT": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
     "LEGACY_CREATE": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
+    # 社交经济类行动类型
+    "TRADE": {"time_minutes": 30.0, "stamina_cost": 2.0, "mental_cost": 3.0, "target_difficulty": 12.0},
+    "TEAM_FORMATION": {"time_minutes": 30.0, "stamina_cost": 3.0, "mental_cost": 5.0, "target_difficulty": 18.0},
+    "MARKET_ORDER": {"time_minutes": 30.0, "stamina_cost": 2.0, "mental_cost": 4.0, "target_difficulty": 10.0},
+    "VEHICLE_UPGRADE": {"time_minutes": 120.0, "stamina_cost": 15.0, "mental_cost": 10.0, "target_difficulty": 25.0},
+    "REGIONAL_EVENT_ENTRY": {"time_minutes": 60.0, "stamina_cost": 10.0, "mental_cost": 8.0, "target_difficulty": 30.0},
 }
 
 
@@ -128,7 +134,7 @@ def validate_host_action(action: Mapping[str, Any]) -> None:
     if unknown:
         errors.append("不允许或未知字段：" + ", ".join(unknown))
     if forbidden:
-        errors.append("LLM不得提交引擎字段：" + ", ".join(forbidden))
+        errors.append("LLM 不得提交引擎字段：" + ", ".join(forbidden))
     action_type = str(action.get("type", ""))
     for field, allowed_fields in NESTED_INTENT_FIELDS.items():
         nested = action.get(field)
@@ -172,6 +178,60 @@ def validate_host_action(action: Mapping[str, Any]) -> None:
                 canonicalize_attribute_allocations(parameters.get("allocations"))
             except ProtocolError as exc:
                 errors.append(str(exc))
+    # 社交经济类行动类型的特定验证规则
+    if action_type == "TRADE":
+        parameters = action.get("parameters")
+        if not isinstance(parameters, Mapping):
+            errors.append("TRADE 必须在 parameters 提交交易参数")
+        else:
+            if "trade_items" not in parameters:
+                errors.append("TRADE 缺少必需的 trade_items（要交易的物品列表）")
+            if "trade_counterparty" not in parameters:
+                errors.append("TRADE 缺少必需的 trade_counterparty（交易对手 ID）")
+            if "trade_items" in parameters and not isinstance(parameters["trade_items"], list):
+                errors.append("TRADE 的 trade_items 必须是物品列表")
+    if action_type == "TEAM_FORMATION":
+        parameters = action.get("parameters")
+        if not isinstance(parameters, Mapping):
+            errors.append("TEAM_FORMATION 必须在 parameters 提交小队参数")
+        else:
+            if "team_roles" not in parameters:
+                errors.append("TEAM_FORMATION 缺少必需的 team_roles（队员角色配置）")
+            if "team_roles" in parameters and not isinstance(parameters["team_roles"], dict):
+                errors.append("TEAM_FORMATION 的 team_roles 必须是 NPC 到角色的映射字典")
+    if action_type == "MARKET_ORDER":
+        parameters = action.get("parameters")
+        if not isinstance(parameters, Mapping):
+            errors.append("MARKET_ORDER 必须在 parameters 提交市场订单参数")
+        else:
+            required_market_params = ["market_item", "market_quantity", "market_price_limit"]
+            for param in required_market_params:
+                if param not in parameters:
+                    errors.append(f"MARKET_ORDER 缺少必需的 {param}")
+            if "market_quantity" in parameters:
+                quantity = parameters["market_quantity"]
+                if not isinstance(quantity, int) or quantity <= 0:
+                    errors.append("MARKET_ORDER 的 market_quantity 必须是正整数")
+    if action_type == "VEHICLE_UPGRADE":
+        parameters = action.get("parameters")
+        if not isinstance(parameters, Mapping):
+            errors.append("VEHICLE_UPGRADE 必须在 parameters 提交升级参数")
+        else:
+            if "upgrade_target" not in parameters:
+                errors.append("VEHICLE_UPGRADE 缺少必需的 upgrade_target（升级项目 ID）")
+            if "vehicle_slot" not in parameters:
+                errors.append("VEHICLE_UPGRADE 缺少必需的 vehicle_slot（车辆槽位 ID）")
+            if "materials" in parameters:
+                errors.append("VEHICLE_UPGRADE 的 materials 由 Python 验证，LLM 不得提交")
+    if action_type == "REGIONAL_EVENT_ENTRY":
+        parameters = action.get("parameters")
+        if not isinstance(parameters, Mapping):
+            errors.append("REGIONAL_EVENT_ENTRY 必须在 parameters 提交事件参数")
+        else:
+            if "event_type" not in parameters:
+                errors.append("REGIONAL_EVENT_ENTRY 缺少必需的 event_type（事件类型）")
+            if "event_location" not in parameters:
+                errors.append("REGIONAL_EVENT_ENTRY 缺少必需的事件 location（事件位置）")
     if action_type not in ACTION_PROFILES:
         errors.append("type 必须是：" + ", ".join(sorted(ACTION_PROFILES)))
     if not str(action.get("action_id", "")).strip():

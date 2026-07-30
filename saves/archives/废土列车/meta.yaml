@@ -1,0 +1,808 @@
+meta:
+  save_name: 废土列车·第一日
+  world_name: 废土列车
+  created_at: '2026-07-30T14:00:15+02:00'
+  current_turn: 52
+  game_day: 6
+  time_of_day: 清晨
+  phase: 新手期
+  difficulty: 标准
+  death_mode: checkpoint
+  narrative_length: 5
+  language: 中文
+  event_format_version: 2
+  created_by: tools/create_save.py
+  rng_seed: 废土列车
+  runtime_metrics:
+    pressure: 22.0
+    payoff_maturity: 43.5
+    payoff_impact: 0.0
+    payoff_score: 26.68125
+    narrative_debt:
+    - id: 这个世界是谁创造的？
+      score: 0.0
+    - id: 全民穿越的真正目的是什么？
+      score: 0.0
+    - id: 之前有没有其他批次的人？
+      score: 0.0
+    progress: 0.03
+    stagnation_rate: 1.0
+    repetition_fatigue:
+      max: 30.0
+      by_type:
+        WAIT_COMPLETED: 30.0
+        ACTION_RESOLVED: 22.5
+        OPTIONS_PRESENTED: 30.0
+    agency: 0.14
+    uncertainty: 0.16
+    risk_credibility: 0.0
+    decision_value: 0.0
+    combinability: 0.0
+  checkpoints_used: 0
+  max_checkpoints: 3
+  current_location: camp_core
+  current_location_name: 不断行驶的废土列车
+  current_mode: base
+  in_combat: false
+  available_time_minutes: 720
+  day_elapsed_minutes: 0
+  next_disaster_day: 7
+  active_encounters: []
+  current_encounter_id: null
+  encounter_history: []
+  pending_reaction: {}
+  campaign_status: active
+  narrative_state:
+    pressure_components:
+      survival_threat: 0.0
+      resource_scarcity: 0.0
+      time_pressure: 0.0
+      information_unknown: 80.0
+      interpersonal_conflict: 0.0
+      failure_accumulation: 0.0
+    open_loops: []
+    payoff_history:
+    - turn: 33
+      score: 21.13125
+      event_type: ACTION_RESOLVED
+    - turn: 34
+      score: 22.05625
+      event_type: ACTION_RESOLVED
+    - turn: 35
+      score: 21.85625
+      event_type: WAIT_COMPLETED
+    - turn: 36
+      score: 20.48125
+      event_type: ACTION_RESOLVED
+    - turn: 37
+      score: 27.35625
+      event_type: ACTION_RESOLVED
+    - turn: 38
+      score: 24.03125
+      event_type: ACTION_RESOLVED
+    - turn: 39
+      score: 23.83125
+      event_type: ACTION_RESOLVED
+    - turn: 40
+      score: 33.7625
+      event_type: SOCIAL_RESOLVED
+    - turn: 41
+      score: 24.55625
+      event_type: ACTION_RESOLVED
+    - turn: 42
+      score: 24.35625
+      event_type: WAIT_COMPLETED
+    - turn: 43
+      score: 24.35625
+      event_type: WAIT_COMPLETED
+    - turn: 44
+      score: 24.35625
+      event_type: WAIT_COMPLETED
+    - turn: 45
+      score: 24.35625
+      event_type: WAIT_COMPLETED
+    - turn: 46
+      score: 24.35625
+      event_type: WAIT_COMPLETED
+    - turn: 47
+      score: 24.35625
+      event_type: WAIT_COMPLETED
+    - turn: 48
+      score: 24.35625
+      event_type: WAIT_COMPLETED
+    - turn: 49
+      score: 23.23125
+      event_type: ACTION_RESOLVED
+    - turn: 50
+      score: 26.48125
+      event_type: ACTION_RESOLVED
+    - turn: 51
+      score: 28.05625
+      event_type: ACTION_RESOLVED
+    - turn: 52
+      score: 26.68125
+      event_type: ACTION_RESOLVED
+    event_pattern_history:
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - TRAVEL_COMPLETED
+    - EXPLORATION_RESOLVED
+    - ACTION_RESOLVED
+    - RETURN_TO_BASE_COMPLETED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - BUILDING_BUILT
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - WAIT_COMPLETED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - WAIT_COMPLETED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - SOCIAL_RESOLVED
+    - ACTION_RESOLVED
+    - WAIT_COMPLETED
+    - WAIT_COMPLETED
+    - WAIT_COMPLETED
+    - WAIT_COMPLETED
+    - WAIT_COMPLETED
+    - WAIT_COMPLETED
+    - WAIT_COMPLETED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    - ACTION_RESOLVED
+    recent_irreversible_changes:
+    - type: BASE_UPGRADED
+      target: fuel_still
+    current_arc:
+      last_event_type: ACTION_RESOLVED
+      last_turn: 52
+      location: camp_core
+  pressure_level: 30
+  last_payoff_turn: 0
+  active_mysteries:
+  - 这个世界是谁创造的？
+  - 全民穿越的真正目的是什么？
+  - 之前有没有其他批次的人？
+  active_mystery_records:
+  - id: 这个世界是谁创造的？
+    importance: 1
+    waiting_turns: 51
+    reminder_count: 0
+    visibility: 1
+    progress: 0
+  - id: 全民穿越的真正目的是什么？
+    importance: 1
+    waiting_turns: 51
+    reminder_count: 0
+    visibility: 1
+    progress: 0
+  - id: 之前有没有其他批次的人？
+    importance: 1
+    waiting_turns: 51
+    reminder_count: 0
+    visibility: 1
+    progress: 0
+  foreshadowing_active: []
+  total_decisions: 38
+  total_combats: 0
+  total_explorations: 1
+  npcs_met: 0
+  factions_encountered: 0
+  last_played: Day 5 白天
+  last_session_turns: 0
+  recap_needed: false
+  social_state:
+    promises: []
+    deceptions: []
+  system_event_history:
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: base_maintenance
+    utility_score: 240.0
+    time_of_day: 清晨
+    turn: 2
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: route_planning
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 清晨
+    turn: 2
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: resource_search
+    utility_score: 240.0
+    time_of_day: 白天
+    turn: 6
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: trade_patrol
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 白天
+    turn: 6
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: return_to_base
+    utility_score: 240.0
+    time_of_day: 黄昏
+    turn: 15
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: collect_tax
+    tax_collected:
+      燃油: 1.0
+    utility_score: 245.0
+    time_of_day: 黄昏
+    turn: 15
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: rest
+    utility_score: 240.0
+    time_of_day: 夜晚
+    turn: 19
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: rest
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 夜晚
+    turn: 19
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: base_maintenance
+    utility_score: 240.0
+    time_of_day: 清晨
+    turn: 22
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: route_planning
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 清晨
+    turn: 22
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: resource_search
+    utility_score: 240.0
+    time_of_day: 白天
+    turn: 26
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: trade_patrol
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 白天
+    turn: 26
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: return_to_base
+    utility_score: 240.0
+    time_of_day: 黄昏
+    turn: 29
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: collect_tax
+    tax_collected:
+      燃油: 1.0
+    utility_score: 245.0
+    time_of_day: 黄昏
+    turn: 29
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: rest
+    utility_score: 240.0
+    time_of_day: 夜晚
+    turn: 31
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: rest
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 夜晚
+    turn: 31
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: base_maintenance
+    utility_score: 240.0
+    time_of_day: 清晨
+    turn: 35
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: route_planning
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 清晨
+    turn: 35
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: resource_search
+    utility_score: 240.0
+    time_of_day: 白天
+    turn: 36
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: trade_patrol
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 白天
+    turn: 36
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: return_to_base
+    utility_score: 240.0
+    time_of_day: 黄昏
+    turn: 40
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: collect_tax
+    tax_collected:
+      燃油: 1.0
+    utility_score: 245.0
+    time_of_day: 黄昏
+    turn: 40
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: rest
+    utility_score: 240.0
+    time_of_day: 夜晚
+    turn: 44
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: rest
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 夜晚
+    turn: 44
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: base_maintenance
+    utility_score: 240.0
+    time_of_day: 清晨
+    turn: 48
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: route_planning
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 清晨
+    turn: 48
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: resource_search
+    utility_score: 240.0
+    time_of_day: 白天
+    turn: 49
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: trade_patrol
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 白天
+    turn: 49
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: base_maintenance
+    utility_score: 240.0
+    time_of_day: 清晨
+    turn: 50
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: route_planning
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 清晨
+    turn: 50
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: resource_search
+    utility_score: 240.0
+    time_of_day: 白天
+    turn: 51
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: trade_patrol
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 白天
+    turn: 51
+  - type: NPC_AUTONOMOUS_ACTION
+    target: npc_atai
+    action: base_maintenance
+    utility_score: 240.0
+    time_of_day: 清晨
+    turn: 52
+  - type: FACTION_AUTONOMOUS_ACTION
+    target: faction_废土列车_wayfarers
+    action: route_planning
+    tax_collected: {}
+    utility_score: 245.0
+    time_of_day: 清晨
+    turn: 52
+  pending_options:
+    version: 1
+    state_turn: 52
+    options:
+      A:
+        id: A
+        label: 与阿苔交谈
+        description: 与阿苔交谈
+        action:
+          action_id: auto-npc_atai
+          type: SOCIAL_INTERACTION
+          target: npc_atai
+          goal: 与阿苔交谈
+        preview:
+          legal: true
+          errors: []
+          resolution:
+            formula_version: '1.0'
+            action_id: auto-npc_atai
+            advantage_components:
+              ability_match: 14.0
+              equipment_advantage: 0.0
+              preparation: 0.0
+              intelligence: 0.0
+              teammate_assistance: 0.0
+              environment_advantage: 0.0
+            resistance_components:
+              target_difficulty: 15.0
+              environment_penalty: 0.0
+              injury: 0.0
+              fatigue: 0.0
+              time_pressure: 0.0
+              unknown_risk: 0.0
+            advantage: 14.0
+            resistance: 15.0
+            K: 10.0
+            probability: 0.475021
+            random_roll: 0.68185
+            severity: 0.0
+            severity_band: 成功区
+            death_fairness: 0.56
+            outcome: 严重失败
+            death_allowed: false
+            components:
+              severity:
+                difficulty: 3.0
+                injury: 0.0
+                resource_shortage: 0.0
+                information_missing: 0.0
+                time_pressure: 0.0
+                continuous_errors: 0.0
+                preparation: 0.0
+                ability_match: 14.0
+                teammate_support: 0.0
+                survival_assets: 0.0
+              death_fairness_inputs:
+                risk_warning: 1.0
+                causal_chain: 1.0
+                avoidable: 0.8
+                rule_consistency: 1.0
+                player_responsibility: 0.7
+              outcome_thresholds:
+                critical: 0.047502
+                normal: 0.308764
+                costly: 0.475021
+                partial_failure: 0.606266
+                severe_failure: 0.947502
+          target_profile:
+            id: npc_atai
+            location_id: camp_core
+            target_difficulty: 15
+            risk_warning: 1.0
+            causal_chain: 1.0
+            avoidable: 0.8
+            rule_consistency: 1.0
+            player_responsibility: 0.7
+            effects:
+              success:
+                relationship_changes:
+                  npc_atai:
+                    trust: 3
+                    respect: 1
+                knowledge_additions:
+                - npc_atai_goal
+            constraints:
+              system_tags:
+              - short_action
+              commitment_axis: social_relationship
+              commitment_value: npc_atai
+            primary_attribute: spirit
+            requirements:
+              location: camp_core
+              npc_available: npc_atai
+          system_constraints:
+            tags:
+            - short_action
+            commitments:
+            - - social_relationship
+              - npc_atai
+            windows:
+            - group: npc:npc_atai
+              ids:
+              - 清晨
+              capacity: 1
+            allowed_periods: []
+            npc_unavailable: false
+          action_ledger:
+            available_time_minutes: 720.0
+            available_stamina: 100.0
+            available_mental: 81.0
+            actions:
+            - type: SOCIAL_INTERACTION
+              target: npc_atai
+              time_minutes: 30.0
+              stamina_cost: 2.0
+              mental_cost: 4.0
+              tags: []
+          skill: null
+        state_turn: 52
+      B:
+        id: B
+        label: 休息恢复
+        description: ''
+        action:
+          action_id: auto-rest
+          type: REST
+          target: camp_core
+        preview:
+          legal: true
+          errors: []
+          resolution:
+            formula_version: '1.0'
+            action_id: auto-rest
+            advantage_components:
+              ability_match: 14.0
+              equipment_advantage: 0.0
+              preparation: 0.0
+              intelligence: 0.0
+              teammate_assistance: 0.0
+              environment_advantage: 0.0
+            resistance_components:
+              target_difficulty: 0.0
+              environment_penalty: 0.0
+              injury: 0.0
+              fatigue: 0.0
+              time_pressure: 0.0
+              unknown_risk: 0.0
+            advantage: 14.0
+            resistance: 0.0
+            K: 10.0
+            probability: 0.802184
+            random_roll: 0.579449
+            severity: 0.0
+            severity_band: 成功区
+            death_fairness: 0.0
+            outcome: 成功但付出代价
+            death_allowed: false
+            components:
+              severity:
+                difficulty: 0.0
+                injury: 0.0
+                resource_shortage: 0.0
+                information_missing: 0.0
+                time_pressure: 0.0
+                continuous_errors: 0.0
+                preparation: 0.0
+                ability_match: 14.0
+                teammate_support: 0.0
+                survival_assets: 0.0
+              death_fairness_inputs:
+                risk_warning: 1.0
+                causal_chain: 1.0
+                avoidable: 0.0
+                rule_consistency: 1.0
+                player_responsibility: 0.0
+              outcome_thresholds:
+                critical: 0.080218
+                normal: 0.52142
+                costly: 0.802184
+                partial_failure: 0.851638
+                severe_failure: 0.980218
+          target_profile:
+            id: camp_core
+            target_difficulty: 0
+            effects: {}
+          system_constraints:
+            tags:
+            - major_action
+            commitments: []
+            windows: []
+            allowed_periods: []
+            npc_unavailable: false
+          action_ledger:
+            available_time_minutes: 720.0
+            available_stamina: 100.0
+            available_mental: 81.0
+            actions:
+            - type: REST
+              target: camp_core
+              time_minutes: 360.0
+              stamina_cost: 0.0
+              mental_cost: 0.0
+              tags:
+              - major_action
+          skill: null
+        state_turn: 52
+      C:
+        id: C
+        label: 前往废铁站场
+        description: ''
+        action:
+          action_id: auto-travel-scrap_yard
+          type: TRAVEL
+          target: scrap_yard
+        preview:
+          legal: true
+          errors: []
+          resolution:
+            formula_version: '1.0'
+            action_type: TRAVEL
+            outcome: 普通成功
+            movement_success: true
+            probability: 1.0
+            risk_mode: deterministic_route
+            time_cost: 30.0
+            stamina_cost: 5.0
+            mental_cost: 0.0
+          target_profile:
+            id: scrap_yard
+            location_id: scrap_yard
+            target_difficulty: 25
+            environment_penalty: 5
+            unknown_risk: 12
+            risk_warning: 0.9
+            causal_chain: 0.9
+            avoidable: 0.8
+            rule_consistency: 1.0
+            player_responsibility: 0.8
+            effects:
+              success:
+                discover_locations:
+                - scrap_yard
+                resource_changes:
+                  燃油: 2
+                knowledge_additions:
+                - wasteland_raider_lv1_behavior
+              partial_failure:
+                knowledge_additions:
+                - wasteland_raider_lv1_behavior
+            encounter_target_ids:
+            - wasteland_raider_lv1
+            constraints:
+              system_tags:
+              - major_action
+              - requires_full_attention
+              exclusive_group: field_exploration
+              window_ids:
+              - 白天
+              - 黄昏
+              window_capacity: 1
+              availability:
+                allowed_periods:
+                - 白天
+                - 黄昏
+              reservation:
+                exclusive_group: field_exploration
+                window_id: current_period
+                capacity: 1
+              commitment_axis: route_commitment
+              commitment_value: scrap_yard
+            primary_attribute: agility
+            requirements:
+              location: scrap_yard
+          system_constraints:
+            tags: []
+            commitments: []
+            windows: []
+            allowed_periods: []
+            npc_unavailable: false
+          action_ledger:
+            available_time_minutes: 720.0
+            available_stamina: 100.0
+            available_mental: 81.0
+            actions:
+            - type: TRAVEL
+              target: scrap_yard
+              time_minutes: 30.0
+              stamina_cost: 5.0
+              mental_cost: 0.0
+              tags: []
+          skill: null
+        state_turn: 52
+      D:
+        id: D
+        label: 前往旧信号塔
+        description: ''
+        action:
+          action_id: auto-travel-signal_tower
+          type: TRAVEL
+          target: signal_tower
+        preview:
+          legal: true
+          errors: []
+          resolution:
+            formula_version: '1.0'
+            action_type: TRAVEL
+            outcome: 普通成功
+            movement_success: true
+            probability: 1.0
+            risk_mode: deterministic_route
+            time_cost: 45.0
+            stamina_cost: 8.0
+            mental_cost: 0.0
+          target_profile:
+            id: signal_tower
+            location_id: signal_tower
+            target_difficulty: 30
+            environment_penalty: 8
+            unknown_risk: 15
+            risk_warning: 0.9
+            causal_chain: 0.9
+            avoidable: 0.7
+            rule_consistency: 1.0
+            player_responsibility: 0.8
+            effects:
+              success:
+                knowledge_additions:
+                - signal_tower_principle
+                resource_changes:
+                  废旧金属: 1
+            constraints:
+              system_tags:
+              - major_action
+              - requires_full_attention
+              exclusive_group: research_window
+              window_ids:
+              - 白天
+              - 黄昏
+              window_capacity: 1
+              commitment_axis: research_focus
+              commitment_value: signal_tower
+            primary_attribute: spirit
+            requirements:
+              location: signal_tower
+          system_constraints:
+            tags: []
+            commitments: []
+            windows: []
+            allowed_periods: []
+            npc_unavailable: false
+          action_ledger:
+            available_time_minutes: 720.0
+            available_stamina: 100.0
+            available_mental: 81.0
+            actions:
+            - type: TRAVEL
+              target: signal_tower
+              time_minutes: 45.0
+              stamina_cost: 8.0
+              mental_cost: 0.0
+              tags: []
+          skill: null
+        state_turn: 52
+  pending_options_state_turn: 52

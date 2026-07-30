@@ -1,0 +1,7 @@
+population_state:
+  populated_npcs: {}
+  npc_faction_memberships: {}
+  npc_location_history: {}
+  population_cap_used: 0
+  population_cap_total: 10
+  settlement_count: 0

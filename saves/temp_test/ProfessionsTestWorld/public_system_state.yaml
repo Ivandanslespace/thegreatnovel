@@ -1,0 +1,7 @@
+public_system_state:
+  global_events_active: []
+  system_announcements: []
+  active_rules_modifiers: []
+  public_quest_line: []
+  achievements_unlocked: []
+  system_level_progression: {}

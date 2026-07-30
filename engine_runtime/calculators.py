@@ -211,13 +211,13 @@ def resolve_action(player: Mapping[str, Any], context: ActionContext | Mapping[s
     })
     death_allowed = severity >= 86 and death_fairness >= 0.5
 
-    # P 是“成功或更好”的累计概率；random_roll 必须真正参与所有结果分支。
-    # 大成功/普通成功/代价成功只是把 P 这段概率再细分，不能用概率区间替代随机判定。
-    critical_threshold = probability * 0.10
-    normal_threshold = probability * 0.65
-    costly_threshold = probability
-    partial_failure_threshold = probability + (1.0 - probability) * 0.25
-    severe_failure_threshold = probability + (1.0 - probability) * 0.90
+    # P 是"成功或更好"的累计概率；random_roll 必须真正参与所有结果分支。
+    # 第十九轮对话调整：增加普通成功比例，减少严重失败比例
+    critical_threshold = probability * 0.08  # 大成功：从 10% 降到 8-10%
+    normal_threshold = probability * 0.78  # 普通成功：从 65% 升到 70-75%
+    costly_threshold = probability  # 代价成功保持 15-22%
+    partial_failure_threshold = probability + (1.0 - probability) * 0.60  # 部分失败：从 25% 升到 55-65%
+    severe_failure_threshold = probability + (1.0 - probability) * 0.95  # 严重失败：从 90% 降到 30-40%
 
     if random_roll < critical_threshold:
         outcome = "大成功"
@@ -828,20 +828,83 @@ def calculate_risk_credibility(values: Mapping[str, Any]) -> float:
     return rounded(result)
 
 
+def calculate_consequence_radius(
+    profession_id: str,
+    action_resolution: Mapping[str, Any],
+    region_info: Mapping[str, Any]
+) -> Dict[str, float]:
+    """计算职业行动的后果半径 (consequence radius)。
+    
+    Args:
+        profession_id: 职业 ID (mechanic, contract_signer, logger, etc.)
+        action_resolution: 行动解析结果，包含 outcome 等字段
+        region_info: 区域信息，包含 phase 等字段
+    
+    Returns:
+        {radius: float, type: str, estimated_affected_population: int}
+    """
+    # 基础半径 by 职业稀有度/影响
+    base_radii = {
+        "mechanic": 0.6,      # Regional traffic impact
+        "contract_signer": 0.8,  # Trust system stability
+        "logger": 0.3,        # Local information gathering
+        "hunter": 0.4,        # Hunting area impact
+        "default": 0.2,       # Most professions
+    }
+    base_radius = base_radii.get(profession_id, base_radii["default"])
+    
+    # 计算行动影响规模
+    action_impact_scale = 0.0
+    if isinstance(action_resolution, Mapping):
+        outcome = str(action_resolution.get("outcome", ""))
+        if outcome in ["大成功", "普通成功"]:
+            action_impact_scale = 0.8
+        elif outcome in ["成功但付出代价"]:
+            action_impact_scale = 0.5
+        else:
+            action_impact_scale = 0.2
+    
+    # 地区阶段乘数 (higher impact in mid-game crises)
+    phase_multiplier = 1.0
+    if isinstance(region_info, Mapping):
+        phase = str(region_info.get("phase", ""))
+        if phase == "early_game":
+            phase_multiplier = 0.8
+        elif phase == "mid_game":
+            phase_multiplier = 1.2
+        elif phase == "late_game":
+            phase_multiplier = 1.5
+    
+    # 最终计算 with clamping
+    final_radius = base_radius * (0.5 + action_impact_scale * 0.5) * phase_multiplier
+    final_radius = max(0.0, min(1.0, final_radius))  # Clamp to 0-1
+    
+    # 估计受影响人口
+    estimated_population = int(number(region_info.get("region_size", 1000)) * final_radius)
+    
+    return {
+        "radius": rounded(final_radius),
+        "type": "regional" if final_radius > 0.5 else "local" if final_radius > 0.2 else "personal",
+        "estimated_affected_population": estimated_population,
+    }
+
+
 def calculate_narrative_metrics(state: Mapping[str, Any], event_history: Sequence[Mapping[str, Any]], payoff: Optional[Mapping[str, Any]] = None, decision: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     meta = state.get("meta", {}) if isinstance(state.get("meta"), Mapping) else {}
     narrative_state = meta.get("narrative_state", {}) if isinstance(meta.get("narrative_state"), Mapping) else {}
     pressure = meta.get("pressure_inputs", {}) if isinstance(meta.get("pressure_inputs"), Mapping) else {}
     if not pressure:
         pressure = narrative_state.get("pressure_components", {}) if isinstance(narrative_state.get("pressure_components"), Mapping) else {}
-    pressure_score = rounded(0.25 * clamp(number(pressure.get("survival_threat"))) + 0.20 * clamp(number(pressure.get("resource_scarcity"))) + 0.20 * clamp(number(pressure.get("time_pressure"))) + 0.15 * clamp(number(pressure.get("information_unknown"))) + 0.10 * clamp(number(pressure.get("interpersonal_conflict"))) + 0.10 * clamp(number(pressure.get("failure_accumulation"))))
+    progress = decision or {}
+    # 第十九轮对话更新压力公式：降低持续受苦权重，增加竞争压力
+    pressure_score = rounded(0.20 * clamp(number(pressure.get("survival_threat"))) + 0.15 * clamp(number(pressure.get("resource_scarcity"))) + 0.15 * clamp(number(pressure.get("time_pressure"))) + 0.15 * clamp(number(pressure.get("information_unknown"))) + 0.10 * clamp(number(pressure.get("interpersonal_conflict"))) + 0.10 * clamp(number(pressure.get("regional_competition"))) + 0.10 * clamp(number(pressure.get("world_phase_approaching"))) + 0.05 * clamp(number(pressure.get("failure_accumulation"))))
     irreversible_types = {"LEVEL_UP", "CHARACTER_DIED", "AREA_DISCOVERED", "MYSTERY_RESOLVED", "FACTION_JOINED", "BASE_UPGRADED", "WORLD_EVENT"}
     total = len(event_history)
     stagnant = sum(1 for event in event_history[-20:] if str(event.get("type", event.get("event_type", ""))) not in irreversible_types)
     stagnation = rounded(stagnant / max(min(total, 20), 1))
     payoff = payoff or {}
     maturity = rounded(0.25 * clamp(number(payoff.get("scarcity_pressure"))) + 0.20 * clamp(number(payoff.get("setup_depth"))) + 0.20 * clamp(number(payoff.get("waiting_time"))) + 0.20 * clamp(number(payoff.get("cost_paid"))) + 0.15 * clamp(number(payoff.get("chapter_rhythm"))))
-    impact = rounded(0.25 * clamp(number(payoff.get("relative_gain"))) + 0.25 * clamp(number(payoff.get("restriction_removed"))) + 0.20 * clamp(number(payoff.get("behavior_change"))) + 0.15 * clamp(number(payoff.get("long_term_value"))) + 0.15 * clamp(number(payoff.get("social_feedback"))))
+    impact = rounded(0.20 * clamp(number(payoff.get("relative_gain_scale"))) + 0.20 * clamp(number(payoff.get("restriction_removed"))) + 0.15 * clamp(number(payoff.get("behavior_change"))) + 0.15 * clamp(number(payoff.get("long_term_value"))) + 0.15 * clamp(number(payoff.get("comparative_advantage"))) + 0.15 * clamp(number(payoff.get("public_social_feedback"))))
     novelty = rounded(clamp(100.0 - number(payoff.get("same_type_last_20")) * 15.0 - number(payoff.get("similar_structure_last_50")) * 8.5))
     causality = rounded(0.30 * clamp(number(payoff.get("causal_chain"))) + 0.25 * clamp(number(payoff.get("rule_consistency"))) + 0.25 * clamp(number(payoff.get("cost_paid"))) + 0.20 * clamp(number(payoff.get("reward_foreshadowed"))))
     aftermath = rounded(0.30 * clamp(number(payoff.get("new_playable_system"))) + 0.25 * clamp(number(payoff.get("decision_change"))) + 0.25 * clamp(number(payoff.get("higher_resource_need"))) + 0.20 * clamp(number(payoff.get("social_market_effect"))))
@@ -854,8 +917,8 @@ def calculate_narrative_metrics(state: Mapping[str, Any], event_history: Sequenc
         if isinstance(mystery, Mapping):
             debt = number(mystery.get("importance"), 1) * number(mystery.get("waiting_turns"), 0) * number(mystery.get("reminder_count"), 0) * clamp(number(mystery.get("visibility")), 0.0, 1.0) / max(number(mystery.get("progress"), 1), 1.0)
             narrative_debt.append({"id": mystery.get("id"), "score": rounded(debt)})
-    progress = decision or {}
-    progress_score = rounded(0.20 * clamp(number(progress.get("permanent_growth"))) + 0.20 * clamp(number(progress.get("world_change"))) + 0.15 * clamp(number(progress.get("relationship_change"))) + 0.15 * clamp(number(progress.get("information_change"))) + 0.15 * clamp(number(progress.get("goal_progress"))) + 0.15 * clamp(number(progress.get("new_playable_system"))))
+    # 第十九轮对话更新进展公式：加入同类比较优势和公共社会反馈
+    progress_score = rounded(0.15 * clamp(number(progress.get("permanent_growth"))) + 0.15 * clamp(number(progress.get("world_or_regional_change"))) + 0.10 * clamp(number(progress.get("relationship_change"))) + 0.10 * clamp(number(progress.get("information_change"))) + 0.15 * clamp(number(progress.get("goal_progress"))) + 0.10 * clamp(number(progress.get("new_playable_system"))) + 0.15 * clamp(number(progress.get("comparative_advantage"))) + 0.10 * clamp(number(progress.get("public_social_feedback"))))
     decision_value = rounded(math.prod(clamp(number(decision.get(key)), 0.0, 1.0) for key in ("consequence_difference", "opportunity_cost", "irreversibility", "information_uncertainty", "value_impact", "route_divergence"))) if decision else 0.0
     agency = rounded(math.prod(clamp(number(decision.get(key)), 0.0, 1.0) for key in ("option_balance", "consequence_difference", "information_sufficiency", "opportunity_cost", "long_term_impact"))) if decision else 0.0
     uncertainty_inputs = decision.get("uncertainty", {}) if decision and isinstance(decision.get("uncertainty"), Mapping) else {}
@@ -864,3 +927,205 @@ def calculate_narrative_metrics(state: Mapping[str, Any], event_history: Sequenc
     repetition = calculate_repetition_fatigue(event_history)
     combinability = calculate_combinability(decision.get("combinability", {})) if decision and isinstance(decision.get("combinability"), Mapping) else 0.0
     return {"pressure": pressure_score, "payoff_maturity": maturity, "payoff_impact": impact, "payoff_score": payoff_score, "narrative_debt": narrative_debt, "progress": progress_score, "stagnation_rate": stagnation, "repetition_fatigue": repetition, "agency": agency, "uncertainty": uncertainty, "risk_credibility": risk_credibility, "decision_value": decision_value, "combinability": combinability}
+
+
+# ============================================================================
+# 第十九轮对话新增：同类玩家比较与群体模拟引擎
+# ============================================================================
+
+def calculate_peer_performance(player_stats: Mapping[str, Any]) -> float:
+    """计算玩家的综合表现分，用于和同类玩家对比。
+    
+    公式：30% 行动质量 + 25% 资源效率 + 20% 长期成长 + 15% 风险控制 + 10% 社会影响
+    """
+    action_quality = clamp(number(player_stats.get("action_quality_score", 50.0)), 0.0, 100.0)
+    resource_efficiency = clamp(number(player_stats.get("resource_efficiency_ratio") * 100, 50.0), 0.0, 100.0)
+    permanent_growth = clamp(number(player_stats.get("permanent_growth_value", 25.0)), 0.0, 100.0)
+    risk_control = clamp(number(player_stats.get("risk_control_score", 50.0)), 0.0, 100.0)
+    social_influence = clamp(number(player_stats.get("social_influence_points", 20.0)), 0.0, 100.0)
+    
+    score = (
+        0.30 * action_quality +
+        0.25 * resource_efficiency +
+        0.20 * permanent_growth +
+        0.15 * risk_control +
+        0.10 * social_influence
+    )
+    return rounded(score)
+
+
+def calculate_comparative_result(
+    protagonist_performance: float,
+    peer_distribution: Mapping[str, float],
+    matched_peer_count: int = 200
+) -> Dict[str, Any]:
+    """计算主角在同类玩家中的百分位和比较结果。
+    
+    Args:
+        protagonist_performance: 主角表现分（来自 calculate_peer_performance）
+        peer_distribution: 普通玩家分布 {percentile: performance_score}
+        matched_peer_count: 匹配的同阶玩家数量
+    
+    Returns:
+        包含百分位、比较结果、原因分析的比较快照
+    """
+    percentile = calculate_percentile(protagonist_performance, peer_distribution)
+    
+    # 判断相对位置
+    if percentile >= 70:
+        comparative_result = "above_peer_median"
+    elif percentile <= 30:
+        comparative_result = "below_peer_median"
+    else:
+        comparative_result = "near_peer_median"
+    
+    return {
+        "protagonist_performance": protagonist_performance,
+        "matched_peer_count": matched_peer_count,
+        "percentile": percentile,
+        "comparative_result": comparative_result,
+    }
+
+
+def calculate_percentile(performance: float, peer_distribution: Mapping[str, float]) -> float:
+    """根据分布计算百分位。
+    
+    Args:
+        performance: 主角表现分
+        peer_distribution: {10: 32.5, 25: 41.2, 50: 50.0, 75: 59.5, 90: 68.2}
+    
+    Returns:
+        百分位 (0-100)
+    """
+    if not peer_distribution:
+        return 50.0  # 默认中位
+    
+    percentiles = sorted(peer_distribution.keys())
+    scores = [peer_distribution[p] for p in percentiles]
+    
+    # 如果超过最高分
+    if performance >= scores[-1]:
+        return 100.0
+    # 如果低于最低分
+    if performance <= scores[0]:
+        return 0.0
+    
+    # 线性插值计算百分位
+    for i in range(len(percentiles) - 1):
+        p_low, p_high = percentiles[i], percentiles[i + 1]
+        s_low, s_high = scores[i], scores[i + 1]
+        if s_low <= performance <= s_high:
+            # 线性插值
+            ratio = (performance - s_low) / max(s_high - s_low, 0.001)
+            return rounded(p_low + ratio * (p_high - p_low))
+    
+    return 50.0
+
+
+def simulate_peer_population_advancement(region_info: Mapping[str, Any], turn: int) -> Dict[str, Any]:
+    """模拟一批普通玩家在同一回合的发展情况。
+    
+    不是真的为每个玩家单独运行逻辑，而是生成统计分布。
+    """
+    region_size = number(region_info.get("population_count", 1000))
+    phase = str(region_info.get("current_phase", "newbie_protection"))
+    
+    # 不同阶段的死亡率
+    death_rates = {
+        "newbie_protection": 0.005,  # 新手保护期 0.5%
+        "early_game": 0.015,         # 早期 1.5%
+        "mid_game": 0.025,           # 中期 2.5%
+        "late_game": 0.035,          # 后期 3.5%
+    }
+    death_rate = death_rates.get(phase, 0.02)
+    deaths = int(region_size * death_rate)
+    alive_after = int(region_size - deaths)
+    
+    # 进展分布（根据阶段调整）
+    base_distributions = {
+        "newbie_protection": {10: 28.0, 25: 35.0, 50: 45.0, 75: 55.0, 90: 65.0},
+        "early_game": {10: 32.0, 25: 41.0, 50: 50.0, 75: 60.0, 90: 70.0},
+        "mid_game": {10: 38.0, 25: 47.0, 50: 57.0, 75: 67.0, 90: 77.0},
+        "late_game": {10: 42.0, 25: 52.0, 50: 62.0, 75: 72.0, 90: 82.0},
+    }
+    advancement_distribution = base_distributions.get(phase, base_distributions["early_game"])
+    
+    # 本轮回有特殊表现的玩家（简化的精英代理）
+    notable_players = []
+    elite_count = int(region_size * 0.05)  # 5% 区域精英
+    if elite_count > 0:
+        notable_players.append({
+            "player_id": f"elite_player_{turn}",
+            "archetype": "regional_elite",
+            "performance_score": advancement_distribution[90] + 15.0,
+            "notable_action": "high_risk_exploration_success",
+        })
+    
+    return {
+        "region_id": region_info.get("region_id", "default"),
+        "population_before": int(region_size),
+        "population_after": alive_after,
+        "deaths": deaths,
+        "advancement_distribution": advancement_distribution,
+        "notable_players": notable_players,
+        "achievements_unlocked": int(region_size * 0.10),  # 10% 解锁成就
+        "first_achievements": [],  # 可填充首杀记录
+    }
+
+
+def calculate_consequence_radius(
+    profession_id: str,
+    action_resolution: Mapping[str, Any],
+    region_info: Mapping[str, Any]
+) -> Dict[str, float]:
+    """计算基于职业的行动后果半径。
+    
+    Args:
+        profession_id: 职业 ID，如"mechanic"、"contract_signer"等
+        action_resolution: 行动结果，包含 outcome 字段
+        region_info: 地区信息，包含 phase 和 region_size
+    
+    Returns:
+        包含后果半径、类型和影响人口的字典
+    """
+    # 按职业稀有度/影响力的基础半径
+    base_radii = {
+        "mechanic": 0.6,      # 区域交通影响
+        "contract_signer": 0.8,  # 信任体系稳定性
+        "logger": 0.3,        # 本地信息收集
+        "hunter": 0.4,        # 狩猎区域影响
+        "default": 0.2,       # 大多数职业
+    }
+    base_radius = base_radii.get(profession_id, base_radii["default"])
+    
+    # 计算行动影响规模
+    action_impact_scale = 0.0
+    if isinstance(action_resolution, Mapping):
+        outcome = str(action_resolution.get("outcome", ""))
+        if outcome in ["大成功", "普通成功"]:
+            action_impact_scale = 0.8
+        elif outcome in ["成功但付出代价"]:
+            action_impact_scale = 0.5
+        else:
+            action_impact_scale = 0.2
+    
+    # 地区阶段乘数（中期危机时影响更高）
+    phase_multiplier = 1.0
+    if isinstance(region_info, Mapping):
+        phase = str(region_info.get("phase", ""))
+        if phase == "early_game":
+            phase_multiplier = 0.8
+        elif phase == "mid_game":
+            phase_multiplier = 1.2
+        elif phase == "late_game":
+            phase_multiplier = 1.5
+    
+    # 最终计算并限制在 0-1 范围内
+    final_radius = base_radius * (0.5 + action_impact_scale * 0.5) * phase_multiplier
+    final_radius = max(0.0, min(1.0, final_radius))  # Clamp to 0-1
+    
+    return {
+        "radius": round(final_radius, 2),
+        "type": "regional" if final_radius > 0.5 else "local" if final_radius > 0.2 else "personal",
+        "estimated_affected_population": int(region_info.get("region_size", 1000) * final_radius),
+    }

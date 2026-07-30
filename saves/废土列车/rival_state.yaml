@@ -1,0 +1,8 @@
+rival_state:
+  active_rivals: []
+  rival_relationships: {}
+  rival_competitions_active: []
+  rival_score_current: 0
+  rival_score_target: 0
+  rivalry_win_rate: 0.0
+  last_rival_encounter: null

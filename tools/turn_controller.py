@@ -133,6 +133,120 @@ def build_scene_context(engine: GameEngine) -> dict:
 # ─── 智能候选生成 ───────────────────────────────────────────────────
 
 
+def _generate_npc_topics(engine: GameEngine) -> list[dict]:
+    """生成 NPC 具体对话话题（P0-4）。"""
+    topics = []
+    current_location = engine._current_location()
+    
+    # P0-4: 从 state.data.npcs 而不是 world.npcs 获取 NPC 列表
+    npcs = engine.state.data.get("npcs", []) if isinstance(engine.state.data, dict) else []
+    
+    # 找到当前 NPC（目前只有阿苔）
+    npc = next((n for n in npcs if isinstance(n, dict) and n.get("id") == "npc_atai" and n.get("location") == current_location), None)
+    if not npc:
+        return topics
+    
+    player = engine.state.player
+    knowledge = set(player.get("knowledge", []))
+    
+    # P0-4: 所有话题都有前置条件和一次性奖励
+    topic_definitions = [
+        {
+            "id": "ask-route-plan",
+            "label": "询问下一次停靠路线",
+            "description": "了解列车即将停泊的位置和预计停留时间",
+            "requirements": [],
+            "cooldown_turns": 7,
+            "last_used": -100,  # 假设很久没用了
+            "effects": {
+                "success": {"knowledge_additions": ["route_plan_day7"]}
+            }
+        },
+        {
+            "id": "help-water-system",
+            "label": "协助检查供水管",
+            "description": "和阿苔一起巡视列车净水循环系统",
+            "requirements": ["has_basic_knowledge"],
+            "cooldown_turns": 5,
+            "last_used": -100,
+            "effects": {
+                "success": {
+                    "relationship_changes": {"npc_atai": {"trust": 2, "respect": 1}},
+                    "resource_changes": {"净水": 1}
+                }
+            }
+        },
+        {
+            "id": "propose-search-natural-source",
+            "label": "提出共同搜索净水源",
+            "description": "建议离开列车寻找天然水源",
+            "requirements": [],
+            "cooldown_turns": 10,
+            "last_used": -100,
+            "effects": {
+                "success": {"knowledge_additions": ["water_source_risk_assessment"]},
+                "relationship_changes": {"npc_atai": {"trust": 3}}
+            }
+        },
+        {
+            "id": "ask-about-dagger-calluses",
+            "label": "追问她手上的刀茧",
+            "description": "观察并询问她手上的旧伤",
+            "requirements": [],
+            "cooldown_turns": 20,  # 很长，暗示很私密
+            "last_used": -100,
+            "effects": {
+                "success": {
+                    "knowledge_additions": ["atai_past_military_background"],
+                    "relationship_changes": {"npc_atai": {"affection": 2, "intimacy": 1}}
+                }
+            }
+        },
+        {
+            "id": "promise-scout-scrap-yard",
+            "label": "向她承诺负责废铁站场侦察",
+            "description": "主动承担探索废铁站场的责任",
+            "requirements": ["npc_atai_goal"],
+            "cooldown_turns": 14,
+            "last_used": -100,
+            "effects": {
+                "success": {
+                    "relationship_changes": {"npc_atai": {"trust": 5, "commitment": 3}},
+                    "promise_additions": [{"npc_id": "npc_atai", "content": "确保废铁站场安全", "due_turn": "next_visit"}]
+                }
+            }
+        }
+    ]
+    
+    for topic in topic_definitions:
+        topic_id = topic["id"]
+        
+        # 检查冷却
+        turn_diff = engine.state.current_turn - topic.get("last_used", 0)
+        if turn_diff < topic["cooldown_turns"]:
+            continue
+        
+        # 检查前置条件
+        requirements_met = all(req in knowledge or req.startswith("has_") for req in topic["requirements"])
+        if not requirements_met:
+            continue
+        
+        topics.append({
+            "label": f"[对话] {topic['label']}",
+            "action": {
+                "action_id": f"auto-topic-{topic_id}",
+                "type": "SOCIAL_INTERACTION",
+                "target": "npc_atai",
+                "goal": topic["label"],
+                "parameters": {"topic": topic_id}
+            },
+            "priority_category": "social_development",
+            "tags": ["conversation", f"topic:{topic_id}"]
+        })
+    
+    return topics
+
+
 def infer_action_type(profile: dict) -> str | None:
     """从目标配置推断正确的行动类型。"""
     explicit = profile.get("action_type")
@@ -161,8 +275,17 @@ def minutes_until_period(current_elapsed: float, target_period: str) -> float:
     return (720 - current_elapsed) + target_start
 
 
+def _area_enemy_level(area: dict) -> int:
+    """从区域配置中提取最高敌人等级。"""
+    max_level = 0
+    for group in (area.get("enemy_groups") or []):
+        if isinstance(group, dict):
+            max_level = max(max_level, int(group.get("level", 0)))
+    return max_level
+
+
 def generate_smart_candidates(engine: GameEngine) -> list[dict]:
-    """从世界注册表生成智能候选：正确类型、过滤未发现、生成WAIT计划、限制数量。"""
+    """从世界注册表生成智能候选：正确类型、渐进发现、生成WAIT计划、基地建造。"""
     candidates: list[dict] = []
     current_location = engine._current_location()
     base_location = engine._base_location()
@@ -171,7 +294,8 @@ def generate_smart_candidates(engine: GameEngine) -> list[dict]:
     time_of_day = str(engine.state.meta.get("time_of_day", "清晨"))
     day_elapsed = float(engine.state.meta.get("day_elapsed_minutes", 0))
     available_time = float(engine.state.meta.get("available_time_minutes", 720))
-    player_known = set(engine.state.player.get("known_locations", []))
+    player_known = set(engine.state.player.get("discovered_locations", []))
+    player_known.update(engine.state.player.get("known_locations", []))
     player_known.add(base_location)
     player_known.add(current_location)
 
@@ -232,10 +356,44 @@ def generate_smart_candidates(engine: GameEngine) -> list[dict]:
 
     if current_location != base_location:
         candidates.append({"label": "返回基地", "action": {"action_id": "auto-return", "type": "RETURN_TO_BASE"}})
+    
+    # P0-3: REST 收益阈值 - 只在有效恢复≥15 时展示主要选项
+    # 如果玩家已经接近满状态，不应让休息成为常规选择
     if current_location == base_location and available_time >= 360:
-        candidates.append({"label": "休息恢复", "action": {"action_id": "auto-rest", "type": "REST", "target": base_location}})
+        player = engine.state.player
+        fatigue = float(player.get("fatigue", 0))
+        max_mental = float(player.get("max_mental", 100))
+        mental = float(player.get("mental", 100))
+        hp = float(player.get("hp", 50))
+        max_hp = float(player.get("max_hp", 50))
+        
+        # 计算有效恢复量（受限于单次休息上限）
+        effective_recovery = min(fatigue, 35) + min(max(0, max_mental - mental), 20) + min(max(0, max_hp - hp), 5)
+        
+        # 只有当有效恢复达到一定程度时，才作为主要候选展示
+        # forced_sleep 条件：极度疲劳 (>90) 或 HP 低于 30%
+        forced_sleep = (fatigue > 90) or (hp < max_hp * 0.3)
+        
+        if effective_recovery >= 15 or forced_sleep:
+            candidates.append({
+                "label": "休息恢复", 
+                "action": {"action_id": "auto-rest", "type": "REST", "target": base_location}
+            })
+        else:
+            # 低价值休息不添加，避免选项池被垃圾填塞
+            pass
+
+    # ── 渐进发现：按距离排序，只展示最近的未发现地点 ──
+    # 玩家可以前往任何已注册地点，但选项面板只显示最近的几个未发现地点。
+    # 已发现的地点始终显示。地点难度过高时暂时隐藏（防止新手闯入高等级区）。
+    player_level = int(engine.state.player.get("level", 1))
+    max_reachable_level = player_level + 3  # 允许看到比自己高3级的区域
+    max_travel_shown = 2  # 最多同时展示2个旅行候选
 
     locations = world.get("locations", []) if isinstance(world.get("locations", []), list) else []
+    areas = world.get("areas", {}) if isinstance(world.get("areas", {}), dict) else {}
+    travel_candidates: list[tuple[float, dict]] = []
+
     for loc in locations:
         if not isinstance(loc, dict):
             continue
@@ -244,15 +402,237 @@ def generate_smart_candidates(engine: GameEngine) -> list[dict]:
             continue
         if loc_id == base_location:
             continue
-        if loc_id not in player_known and loc.get("discovered") is False:
-            continue
-        candidates.append({"label": f"前往{loc.get('name', loc_id)}", "action": {"action_id": f"auto-travel-{loc_id}", "type": "TRAVEL", "target": loc_id}})
 
-    return candidates[:MAX_VISIBLE_OPTIONS + 2]
+        is_known = loc_id in player_known or loc.get("discovered") is True
+        if not is_known:
+            # 渐进发现：检查该区域敌人等级是否在可达范围
+            area = areas.get(loc_id, {})
+            if isinstance(area, dict) and area:
+                enemy_level = _area_enemy_level(area)
+                if enemy_level > 0 and enemy_level > max_reachable_level:
+                    continue
+            travel_candidates.append((float(loc.get("travel_minutes_from_base", 999)), {
+                "label": f"前往{loc.get('name', loc_id)}",
+                "action": {"action_id": f"auto-travel-{loc_id}", "type": "TRAVEL", "target": loc_id},
+            }))
+        else:
+            # 已发现的地点始终可前往
+            candidates.append({"label": f"前往{loc.get('name', loc_id)}", "action": {"action_id": f"auto-travel-{loc_id}", "type": "TRAVEL", "target": loc_id}})
+
+    # 按距离排序，取最近的 max_travel_shown 个
+    travel_candidates.sort(key=lambda pair: pair[0])
+    for _, cand in travel_candidates[:max_travel_shown]:
+        candidates.append(cand)
+
+    # ── 基地建造：在基地时，提供 build_catalog 中的建造选项 ──
+    if current_location == base_location:
+        build_catalog = world.get("build_catalog", {}) if isinstance(world.get("build_catalog", {}), dict) else {}
+        for build_id, build_info in build_catalog.items():
+            if not isinstance(build_info, dict):
+                continue
+            # 跳过已建造的模块（避免重复选项）
+            base_modules = engine.state.data.get("base", {}).get("modules", []) if isinstance(engine.state.data.get("base", {}), dict) else []
+            already_built = any(
+                isinstance(m, dict) and m.get("id") == build_id and m.get("status") == "built"
+                for m in (base_modules if isinstance(base_modules, list) else [])
+            )
+            if already_built:
+                continue
+            build_name = str(build_info.get("name", build_id))
+            candidates.append({
+                "label": f"建造{build_name}",
+                "action": {"action_id": f"auto-build-{build_id}", "type": "BUILD", "target": build_id},
+            })
+
+    # ── 创意基地活动：当候选偏少时，提供有意义的短行动 ──
+    if current_location == base_location and len(candidates) < MAX_VISIBLE_OPTIONS:
+        # 检查装备耐久 — 只有在拥有武器时才有意义
+        items = engine.state.inventory.get("items", []) if isinstance(engine.state.inventory, dict) else []
+        equipment = engine.state.inventory.get("equipment", {}) if isinstance(engine.state.inventory, dict) else {}
+        has_weapon = bool(equipment.get("main_weapon")) if isinstance(equipment, dict) else False
+        if has_weapon:
+            candidates.append({
+                "label": "检修装备",
+                "action": {"action_id": "auto-inspect-gear", "type": "SHORT_ACTION", "target": current_location,
+                           "goal": "检查武器和工具的耐久状况，进行必要的维护"},
+            })
+        # 整理物资 — 总是有意义的基地管理行动
+        candidates.append({
+            "label": "整理物资",
+            "action": {"action_id": "auto-organize", "type": "BASE_MANAGEMENT", "target": current_location,
+                       "goal": "清点和整理基地内的物资储备"},
+        })
+
+    # P0-4: 添加 NPC 具体话题
+    npc_topics = _generate_npc_topics(engine)
+    candidates.extend(npc_topics)
+    
+    # P0-5: 按类别平衡选择最终输出
+    return balance_options_by_category(candidates, max_output=MAX_VISIBLE_OPTIONS)
+
+
+# ─── Option Director: 类别平衡与价值评分 (P0-5) ───────────────────────────
+
+
+def categorize_option(candidate: dict) -> str:
+    """将行动分配到战略类别。"""
+    action = candidate.get("action", {})
+    action_type = str(action.get("type", ""))
+    
+    # P0-5: 明确分类
+    if action_type in {"TRAVEL", "ENTER_LOCATION"}:
+        return "exploration_travel"
+    if action_type == "EXPLORATION":
+        return "exploration_activity"
+    if action_type in {"EXTRACT", "RETURN_TO_BASE"}:
+        return "movement_safety"
+    if action_type == "BUILD":
+        return "base_development"
+    if action_type == "BASE_MANAGEMENT":
+        return "base_management"
+    if action_type in {"SOCIAL_INTERACTION"}:
+        return "relationship_development"
+    if action_type == "COMBAT":
+        return "combat_encounter"
+    if action_type == "REST":
+        return "rest_recovery"
+    if action_type == "SHORT_ACTION":
+        goal = str(action.get("goal", "")).lower()
+        if "inspect" in goal or "check" in goal:
+            return "maintenance_short"
+        if "organize" in goal or "survey" in goal:
+            return "base_management"
+        return "miscellaneous"
+    return "miscellaneous"
+
+
+def score_option_category(category: str, candidate_pool: list[dict]) -> float:
+    """计算该类别的补充价值分数（稀缺性越高分数越高）。"""
+    count_in_pool = sum(1 for c in candidate_pool if categorize_option(c) == category)
+    if count_in_pool >= 1:
+        # 已有一个，降分
+        return 0.3
+    elif count_in_pool >= 2:
+        # 已有两个，大幅下降
+        return 0.1
+    else:
+        # 没有，加分
+        return 1.0
+
+
+def balance_options_by_category(candidates: list[dict], max_output: int = 3) -> list[dict]:
+    """从候选池中按类别平衡选择最终选项（P0-5）。"""
+    if len(candidates) <= max_output:
+        return candidates
+    
+    # 分组
+    by_category: dict[str, list[dict]] = {}
+    for c in candidates:
+        cat = categorize_option(c)
+        if cat not in by_category:
+            by_category[cat] = []
+        by_category[cat].append(c)
+    
+    # 选择：每种类型优先选一个，直到满 3 个
+    selected: list[dict] = []
+    used_categories: set[str] = set()
+    
+    # 第一轮：每个类别选一个代表性选项
+    for category, group in sorted(by_category.items(), key=lambda x: -score_option_category(x[0], candidates)):
+        if len(selected) >= max_output:
+            break
+        
+        # 简单策略：选第一个，或优先级最高的
+        winner = group[0]
+        selected.append(winner)
+        used_categories.add(category)
+    
+    # 第二轮：如果还不足 3 个，从剩余类别补齐
+    for category, group in sorted(by_category.items(), key=lambda x: x[0]):
+        if len(selected) >= max_output:
+            break
+        if category not in used_categories:
+            selected.append(group[0])
+    
+    return selected[:max_output]
+
+
+def generate_merged_short_actions(engine: GameEngine) -> list[dict]:
+    """生成合并后的短行动序列（P0-6 决策压缩）。"""
+    candidates = []
+    current_location = engine._current_location()
+    base_location = engine._base_location()
+    inventory = engine.state.inventory.get("resources", {}) if isinstance(engine.state.inventory, dict) else {}
+    
+    # 不在基地时不考虑合并活动
+    if current_location != base_location:
+        return candidates
+    
+    player = engine.state.player
+    available_time = float(player.get("fatigue", 100)) < 30  # 精力较好
+    
+    if available_time and len(inventory) >= 3:
+        # 检查背包/装备的多种维护行动
+        candidates.append({
+            "label": "为下一次停靠做准备",
+            "action": {
+                "action_id": "auto-merge-preparation",
+                "type": "ACTION_PLAN",
+                "plan_id": "prep-for-stop",
+                "accept_dilution": False,
+                "steps": [
+                    {
+                        "action_id": "step-inspect-gear",
+                        "type": "SHORT_ACTION",
+                        "target": current_location,
+                        "goal": "检查武器和工具的耐久状况"
+                    },
+                    {
+                        "action_id": "step-organize",
+                        "type": "BASE_MANAGEMENT",
+                        "target": current_location,
+                        "goal": "清点和整理物资储备"
+                    }
+                ],
+                "goal": "为下一次列车停靠做好综合准备"
+            },
+            "priority_category": "base_management"
+        })
+        
+        # 询问 + 休息组合
+        if player.get("fatigue", 0) > 20:
+            candidates.append({
+                "label": "问完阿苔就去补觉",
+                "action": {
+                    "action_id": "auto-merge-question-rest",
+                    "type": "ACTION_PLAN",
+                    "plan_id": "ask-and-rest",
+                    "accept_dilution": True,
+                    "steps": [
+                        {
+                            "action_id": "step-talk-atai",
+                            "type": "SOCIAL_INTERACTION",
+                            "target": "npc_atai",
+                            "goal": "快速询问当前状况",
+                            "parameters": {"topic": "status-check"}
+                        },
+                        {
+                            "action_id": "step-rest",
+                            "type": "REST",
+                            "target": current_location,
+                            "goal": "恢复体力"
+                        }
+                    ],
+                    "goal": "先确认信息再休息恢复"
+                },
+                "priority_category": "social_recovery"
+            })
+    
+    return candidates
 
 
 def add_fallback_candidates(engine: GameEngine, candidates: list[dict]) -> list[dict]:
-    """当候选不足时添加保底行动。"""
+    """当候选不足时添加保底行动，包括环境观察和短行动。"""
     current_location = engine._current_location()
     base_location = engine._base_location()
     available_time = float(engine.state.meta.get("available_time_minutes", 720))
@@ -260,7 +640,7 @@ def add_fallback_candidates(engine: GameEngine, candidates: list[dict]) -> list[
         if current_location != base_location:
             candidates.append({"label": "返回基地", "action": {"action_id": "fallback-return", "type": "RETURN_TO_BASE"}})
         if available_time >= 5:
-            candidates.append({"label": "等待", "action": {"action_id": "fallback-wait", "type": "WAIT", "parameters": {"wait_minutes": 30}, "goal": "观察周围"}})
+            candidates.append({"label": "观察周围环境", "action": {"action_id": "fallback-observe", "type": "SHORT_ACTION", "target": current_location, "goal": "仔细观察周围环境，寻找有用的线索"}})
         if current_location == base_location and available_time >= 360:
             candidates.append({"label": "休息", "action": {"action_id": "fallback-rest", "type": "REST", "target": base_location}})
     return candidates

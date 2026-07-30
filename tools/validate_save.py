@@ -1,13 +1,26 @@
 #!/usr/bin/env python3
 """
 TheGreatNovel 存档校验器
-实现 engine/validators.md 中定义的六类校验。
+实现 engine/validators.md 中定义的十一类校验。
 
 用法：
     python validate_save.py <存档路径>
     python validate_save.py saves/渊驮
 
 输出：按严重度分组的校验结果（CRITICAL / ERROR / WARNING / INFO）
+
+校验类别:
+1. 连续性校验 - 存档完整性与事件源一致性
+2. 规则校验 - 事件队列、灾难周期等游戏机制
+3. 知识校验 - 情报降级与认知安全
+4. 战力校验 - 战斗平衡与等级关系
+5. 关系校验 - NPC 态度与信任值协调
+6. 叙事校验 - 悬念、伏笔与叙述长度
+7. 人口一致性 - NPC、种族、派系逻辑自洽
+8. 对比一致性 - 跨存档进度比例合理性
+9. 公共系统一致性 - 经济、基建、公共服务逻辑
+10. 流派一致性 - 废土列车主题设定符合度
+11. 选项质量 - 待处理选项的可用性与多样性
 """
 
 import sys
@@ -774,6 +787,650 @@ def validate_formula_trace(save_dir, data):
     return findings
 
 
+def validate_population_consistency(save_dir, data):
+    """七、人口一致性校验 - 确保 NPC、种族、势力之间的人口逻辑自洽。"""
+    findings = []
+    
+    npcs = data.get("npcs", [])
+    factions = data.get("factions", [])
+    relationships = relationship_map(data.get("relationships", {}))
+    world = data.get("world", {})
+    setting = world.get("setting", {}) if isinstance(world, dict) else {}
+    
+    # 1. 检查 NPC 是否在相关 faction 中注册
+    for npc in npcs:
+        npc_id = npc.get("id", "unknown")
+        npc_name = npc.get("name", "未知角色")
+        npc_faction = npc.get("faction")
+        
+        if npc_faction:
+            found_in_factions = False
+            for faction in factions:
+                if faction.get("id") == npc_faction or faction.get("name") == npc_faction:
+                    found_in_factions = True
+                    break
+            
+            if not found_in_factions:
+                findings.append(Finding(
+                    "WARNING", "人口一致性",
+                    f"NPC「{npc_name}」(ID:{npc_id}) 所属派系'{npc_faction}'未在世界中注册"
+                ))
+    
+    # 2. 检查派系成员数与 NPC 数量是否合理匹配
+    for faction in factions:
+        faction_id = faction.get("id", "unknown")
+        faction_name = faction.get("name", "未知派系")
+        expected_members = faction.get("member_count", 0)
+        actual_members = sum(1 for npc in npcs if npc.get("faction") == faction_id)
+        
+        # 允许一定的误差范围 (±20% 或绝对值差异不超过 3)
+        tolerance = max(int(expected_members * 0.2), 3)
+        difference = abs(actual_members - expected_members)
+        
+        if difference > tolerance:
+            findings.append(Finding(
+                "WARNING", "人口一致性",
+                f"派系'{faction_name}'实际成员数({actual_members})与声明的成员数({expected_members})差异过大 (差异：{difference})"
+            ))
+    
+    # 3. 检查 NPC 状态与人口统计
+    alive_npcs = [n for n in npcs if n.get("status") != "dead"]
+    dead_npcs = [n for n in npcs if n.get("status") == "dead"]
+    
+    # 检查死亡 NPC 是否有 death_turn
+    for npc in dead_npcs:
+        if "death_turn" not in npc:
+            name = npc.get("name", npc.get("id", "unknown"))
+            findings.append(Finding(
+                "ERROR", "人口一致性",
+                f"已死 NPC「{name}」缺少死亡回合 (death_turn)"
+            ))
+    
+    # 4. 检查年龄合理性（NPC 年龄不应超过世界最大寿命）
+    max_lifespan = setting.get("max_lifespan", 150)
+    for npc in npcs:
+        age = npc.get("age")
+        if age and isinstance(age, (int, float)):
+            if age > max_lifespan * 1.5:  # 允许 50% 缓冲 (可能是不死生物等特殊设定)
+                findings.append(Finding(
+                    "WARNING", "人口一致性",
+                    f"NPC「{npc.get('name')}」年龄 ({age}) 超过合理范围 (上限~{max_lifespan})"
+                ))
+    
+    # 5. 检查种族与属性的协调性
+    valid_races = setting.get("valid_races", ["人类", "变异体", "机械体"])
+    for npc in npcs:
+        race = npc.get("race")
+        if race and race not in valid_races:
+            name = npc.get("name", npc.get("id", "unknown"))
+            findings.append(Finding(
+                "WARNING", "人口一致性",
+                f"NPC「{name}」的种族 '{race}' 未在世界配置中定义"
+            ))
+    
+    # 6. 检查关系网络完整性
+    orphan_npcs = [npc for npc in npcs if not relationships.get(npc.get("id", ""))]
+    if len(orphan_npcs) > len(npcs) * 0.7:  # 超过 70% 的 NPC 没有关系记录
+        findings.append(Finding(
+            "WARNING", "人口一致性",
+            f"人口网络稀疏：{len(orphan_npcs)}/{len(npcs)} 的 NPC 没有建立关系网络"
+        ))
+    
+    return findings
+
+
+def validate_comparative_consistency(save_dir, data):
+    """八、对比一致性校验 - 确保跨存档/版本的数据保持一致性。"""
+    findings = []
+    
+    meta = data.get("meta", {})
+    player = data.get("player", {})
+    world = data.get("world", {})
+    events = data.get("events", [])
+    
+    current_turn = meta.get("current_turn", 0)
+    
+    # 1. 检查存档生成代数是否与 meta 一致
+    generation = world.get("generation", {})
+    recorded_generation = meta.get("generation", {}).get("world_generation", 0)
+    generated_fields = generation.get("generated_fields", {})
+    
+    if recorded_generation != generation.get("world_generation", 0):
+        findings.append(Finding(
+            "ERROR", "对比一致性",
+            f"存档代数不一致：meta.yaml 记录为{recorded_generation}, world.yaml 声明为{generation.get('world_generation')}"
+        ))
+    
+    # 2. 检查游戏进度与玩家等级的比例合理性
+    player_level = player.get("level", 1)
+    
+    # Turn 1-5: Level 1-3
+    # Turn 6-15: Level 3-8
+    # Turn 16+: Level 8+
+    
+    expected_level_range = None
+    if current_turn <= 5:
+        expected_level_range = (1, 3)
+    elif current_turn <= 15:
+        expected_level_range = (3, 8)
+    else:
+        expected_level_range = (8, min(current_turn // 2 + 5, 50))
+    
+    if expected_level_range:
+        if player_level < expected_level_range[0]:
+            findings.append(Finding(
+                "INFO", "对比一致性",
+                f"玩家等级 ({player_level}) 低于预期范围 [{expected_level_range[0]}, ...]，可能存在跳过成长经历"
+            ))
+        elif player_level > expected_level_range[1]:
+            findings.append(Finding(
+                "WARNING", "对比一致性",
+                f"玩家等级 ({player_level}) 高于当前回合 ({current_turn}) 的预期范围 [..., {expected_level_range[1]}]"
+            ))
+    
+    # 3. 检查经验值与等级的匹配
+    exp = player.get("experience", 0)
+    level = player.get("level", 1)
+    
+    # 简单经验曲线检查：每级需要 ~level*100 经验
+    expected_exp = sum((i + 1) * 100 for i in range(level))
+    if exp < expected_exp * 0.5:
+        findings.append(Finding(
+            "WARNING", "对比一致性",
+            f"玩家经验 ({exp}) 明显低于等级 ({level}) 的预期值 (~{expected_exp})"
+        ))
+    
+    # 4. 检查资源数量与回合数的比例
+    inventory = data.get("inventory", {})
+    resources = inventory.get("items", [])
+    
+    # 计算总资源数
+    total_resources = len(resources)
+    
+    # 平均每回合获取资源量应在合理范围内 (1-10 个/回合)
+    if current_turn > 0:
+        avg_resources_per_turn = total_resources / current_turn
+        if avg_resources_per_turn > 20:
+            findings.append(Finding(
+                "WARNING", "对比一致性",
+                f"资源获取速度异常：平均每回合{avg_resources_per_turn:.1f}个 (建议<10 个/回合)"
+            ))
+    
+    # 5. 检查地点变更频率
+    if events and len(events) > 1:
+        locations_changed = set()
+        for event in events:
+            loc = event_location(event)
+            if loc:
+                locations_changed.add(loc)
+        
+        turn_count = current_turn
+        location_count = len(locations_changed)
+        
+        # 平均每 N 回合更换一次地点 (正常应为 10-30 回合)
+        if turn_count > 0:
+            avg_turns_per_location = turn_count / location_count if location_count > 0 else turn_count
+            
+            if avg_turns_per_location < 3:  # 过于频繁移动
+                findings.append(Finding(
+                    "WARNING", "对比一致性",
+                    f"地点切换过于频繁：平均每{avg_turns_per_location:.1f}回合更换地点 (建议 10-30 回合)"
+                ))
+            elif avg_turns_per_location > 50 and turn_count > 20:  # 长时间未移动
+                findings.append(Finding(
+                    "INFO", "对比一致性",
+                    f"长时间停留在单一地点：平均每{avg_turns_per_location:.1f}回合更换地点"
+                ))
+    
+    # 6. 检查成就/解锁项与进度的关系
+    achievements = player.get("achievements", [])
+    unlocked_features = world.get("unlocked_features", [])
+    
+    # Turn 10 应该至少解锁 1-2 个成就
+    if current_turn >= 10 and len(achievements) == 0:
+        findings.append(Finding(
+            "INFO", "对比一致性",
+            f"当前回合 ({current_turn}) 但尚未获得任何成就 ({len(achievements)}条)"
+        ))
+    
+    # 7. 检查技能数量与玩家等级的关系
+    skills = player.get("skills", [])
+    skill_count = len(skills)
+    
+    # 每 2 级获得约 1 个新技能的合理预期
+    expected_skill_count = level // 2
+    if skill_count < expected_skill_count * 0.5:
+        findings.append(Finding(
+            "WARNING", "对比一致性",
+            f"技能数量 ({skill_count}) 偏少，建议至少{expected_skill_count}个 (按等级{level}推算)"
+        ))
+    
+    return findings
+
+
+def validate_public_system_consistency(save_dir, data):
+    """九、公共系统一致性校验 - 确保经济、基建、公共服务的逻辑一致。"""
+    findings = []
+    
+    base = data.get("base", {})
+    inventory = data.get("inventory", {})
+    world = data.get("world", {})
+    events = data.get("events", [])
+    
+    # 1. 检查基地设施与可用资源的匹配
+    facilities = base.get("facilities", {})
+    resources = inventory.get("resources", {})
+    
+    required_resources_for_facilities = {
+        "workshop": ["metal", "electricity"],
+        "garden": ["water", "fertile_soil"],
+        "clinic": ["medicine", "sterilization"],
+        "power_plant": ["fuel", "maintenance_parts"],
+        "defense_tower": ["steel", "ammunition"],
+    }
+    
+    for facility_type, required_res in required_resources_for_facilities.items():
+        if facilities.get(facility_type, {}).get("level", 0) > 0:
+            for res in required_res:
+                if not resources.get(res, 0) > 0 and not world.get("setting", {}).get("infinite_resources", False):
+                    findings.append(Finding(
+                        "WARNING", "公共系统一致性",
+                        f"基地已建造 '{facility_type}'但未检测到必要资源 '{res}'"
+                    ))
+    
+    # 2. 检查公共服务效率与服务对象的匹配
+    services = base.get("services", {})
+    npcs = data.get("npcs", [])
+    active_npcs = [n for n in npcs if n.get("status") != "dead"]
+    
+    service_capacity = sum(s.get("capacity", 0) for s in services.values())
+    population = len(active_npcs)
+    
+    if service_capacity > 0 and population > 0:
+        coverage_ratio = service_capacity / population
+        
+        if coverage_ratio < 0.3:  # 覆盖率过低
+            findings.append(Finding(
+                "WARNING", "公共系统一致性",
+                f"公共服务覆盖不足：服务能力({service_capacity})仅满足{coverage_ratio*100:.1f}%的人口 ({population})"
+            ))
+        elif coverage_ratio > 5.0:  # 过度建设
+            findings.append(Finding(
+                "WARNING", "公共系统一致性",
+                f"公共服务过度冗余：服务能力({service_capacity})是人口的{coverage_ratio:.1f}倍"
+            ))
+    
+    # 3. 检查经济系统的货币流通
+    economy = world.get("economy", {})
+    currency = economy.get("currency", {})
+    player_cash = inventory.get("credits", 0)
+    
+    # 检查货币总量与物价水平的合理性
+    price_index = economy.get("price_index", 1.0)
+    if price_index > 10.0 and player_cash < 100:
+        findings.append(Finding(
+            "WARNING", "公共系统一致性",
+            f"高物价环境 (价格指数={price_index}) 但玩家资金不足 ({player_cash})，可能存在生存压力"
+        ))
+    
+    # 4. 检查市场供需平衡
+    markets = economy.get("markets", {})
+    for market_name, market_data in markets.items():
+        supply = market_data.get("supply", 0)
+        demand = market_data.get("demand", 0)
+        
+        if supply == 0 and demand > 0:
+            findings.append(Finding(
+                "INFO", "公共系统一致性",
+                f"市场 '{market_name}'存在需求但无供给 (可能短缺)"
+            ))
+        elif supply > demand * 3:
+            findings.append(Finding(
+                "WARNING", "公共系统一致性",
+                f"市场 '{market_name}'严重供过于求 (供应:{supply}, 需求:{demand})"
+            ))
+    
+    # 5. 检查基础设施耐久度与维护
+    infrastructure = base.get("infrastructure", {})
+    maintenance_cost = base.get("monthly_maintenance", {})
+    
+    for infra_type, infra_data in infrastructure.items():
+        durability = infra_data.get("durability", 100)
+        
+        if durability < 30:  # 耐久度低
+            findings.append(Finding(
+                "WARNING", "公共系统一致性",
+                f"基础设施 '{infra_type}'耐久度仅剩 {durability}%，建议维修"
+            ))
+    
+    # 6. 检查事件日志中的基建/维护记录
+    infrastructure_events = [
+        e for e in events 
+        if any(kw in str(e.get("data", {})).lower() for kw in ["maintenance", "repair", "upgrade", "construction"])
+    ]
+    
+    if infrastructure and len(infrastructure_events) == 0:
+        findings.append(Finding(
+            "INFO", "公共系统一致性",
+            "存在基建数据但未检测到相关维护/升级记录"
+        ))
+    
+    return findings
+
+
+def validate_genre_consistency(save_dir, data):
+    """十、流派一致性校验 - 确保内容符合废土列车主题设定的核心要素。"""
+    findings = []
+    
+    world = data.get("world", {})
+    setting = world.get("setting", {})
+    story_text = data.get("story_text", "")
+    event_log = data.get("event_log_text", "")
+    
+    # 1. 检查核心废土要素是否存在
+    required_elements = {
+        "safe_base": setting.get("safe_base"),
+        "external_dangers": setting.get("external_dangers"),
+        "exploration_method": setting.get("exploration_method"),
+    }
+    
+    missing_elements = [k for k, v in required_elements.items() if not v]
+    if missing_elements:
+        findings.append(Finding(
+            "CRITICAL", "流派一致性",
+            f"缺失废土核心设定元素：{', '.join(missing_elements)}"
+        ))
+    
+    # 2. 检查列车相关元素的保留
+    train_elements = {
+        "train_carriages": setting.get("train_carriages"),
+        "engine_power": setting.get("engine_power"),
+        "route_schedule": setting.get("route_schedule"),
+    }
+    
+    # 根据世界观类型决定是否严格要求列车元素
+    worldview = world.get("viewpoint", "third_person")
+    is_train_world = "train" in worldview.lower() or "列车" in worldview
+    
+    if is_train_world:
+        missing_train = [k for k, v in train_elements.items() if not v]
+        if missing_train:
+            findings.append(Finding(
+                "ERROR", "流派一致性",
+                f"列车世界观缺少关键元素：{', '.join(missing_train)}"
+            ))
+    
+    # 3. 检查叙事文本中的关键词密度
+    genre_keywords = {
+        "survival": ["生存", "存活", "资源", "饥荒", "温饱"],
+        "mystery": ["真相", "秘密", "线索", "阴谋", "遗迹"],
+        "conflict": ["敌人", "威胁", "战斗", "对抗", "掠夺者"],
+        "community": ["同伴", "伙伴", "团结", "组织", "派系"],
+        "journey": ["旅途", "旅程", "前进", "抵达", "路线"],
+    }
+    
+    text_content = story_text + "\n" + event_log
+    
+    keyword_density = {}
+    for category, keywords in genre_keywords.items():
+        count = sum(text_content.count(kw) for kw in keywords)
+        keyword_density[category] = count
+    
+    # 检查各类别关键词是否至少有基本分布
+    total_keyword_occurrences = sum(keyword_density.values())
+    if total_keyword_occurrences > 0:
+        survival_ratio = keyword_density["survival"] / total_keyword_occurrences
+        
+        if survival_ratio < 0.15:  # 生存主题占比过低
+            findings.append(Finding(
+                "WARNING", "流派一致性",
+                "生存主题词汇占比偏低 (<15%)，可能偏离废土核心氛围"
+            ))
+    
+    # 4. 检查敌对势力的多样性与威胁等级
+    external_dangers = setting.get("external_dangers", [])
+    
+    if not external_dangers or len(external_dangers) < 2:
+        findings.append(Finding(
+            "WARNING", "流派一致性",
+            f"外部威胁过少 ({len(external_dangers)}种)，建议至少 2-3 类不同性质的威胁"
+        ))
+    else:
+        threat_types = set()
+        for danger in external_dangers:
+            if isinstance(danger, dict):
+                threat_types.add(danger.get("type", danger.get("category", "unknown")))
+        
+        if len(threat_types) < 2:
+            findings.append(Finding(
+                "WARNING", "流派一致性",
+                "外部威胁类型单一，建议增加多样性 (自然灾难/敌对势力/诡异现象等)"
+            ))
+    
+    # 5. 检查科技水平与社会形态的一致性
+    tech_level = setting.get("tech_level", "post_apocalyptic")
+    social_form = setting.get("social_form", "scavenger_community")
+    
+    # 简单的规则检查
+    high_tech_social_forms = ["cybernetic_society", "hive_mind", "digital_utopia"]
+    low_tech_social_forms = ["tribal", "slavery", "dark_age"]
+    
+    if tech_level == "high" and social_form in low_tech_social_forms:
+        findings.append(Finding(
+            "WARNING", "流派一致性",
+            "高科技水平与原始社会形态不匹配，建议调整设定一致性"
+        ))
+    
+    # 6. 检查安全基地的可行性
+    safe_base = setting.get("safe_base", "")
+    
+    if safe_base:
+        # 检查是否有防御措施
+        protection_measures = setting.get("protection_measures", [])
+        
+        if not protection_measures:
+            findings.append(Finding(
+                "WARNING", "流派一致性",
+                f"安全基地 '{safe_base}' 缺少明确的防护措施配置"
+            ))
+        
+        # 检查基地功能完备性
+        base_functions = setting.get("base_functions", [])
+        essential_functions = ["shelter", "resources", "safety", "communication"]
+        
+        missing_essential = [f for f in essential_functions if f not in base_functions]
+        if missing_essential:
+            findings.append(Finding(
+                "WARNING", "流派一致性",
+                f"基地功能不完整：缺少 {', '.join(missing_essential)} 等基本功能"
+            ))
+    
+    # 7. 检查探索机制的合理性
+    exploration_method = setting.get("exploration_method")
+    
+    if not exploration_method:
+        findings.append(Finding(
+            "ERROR", "流派一致性",
+            "未定义探索方式，废土冒险缺乏基本探索机制"
+        ))
+    else:
+        # 探索应该有代价和风险
+        exploration_costs = setting.get("exploration_costs", {})
+        
+        if not exploration_costs:
+            findings.append(Finding(
+                "WARNING", "流派一致性",
+                f"探索机制'{exploration_method}'缺少风险与代价配置"
+            ))
+    
+    return findings
+
+
+def validate_option_quality(save_dir, data):
+    """十一、选项质量校验 - 确保待处理选项的质量与可用性。"""
+    findings = []
+    
+    meta = data.get("meta", {})
+    pending_options = meta.get("pending_options", {})
+    
+    # 1. 检查 pending_options 是否存在且有效
+    if not pending_options:
+        findings.append(Finding(
+            "INFO", "选项质量",
+            "当前无待处理选项 (可能是正常流程节点)"
+        ))
+        return findings
+    
+    options = pending_options.get("options", {})
+    
+    if not isinstance(options, dict) or not options:
+        findings.append(Finding(
+            "ERROR", "选项质量",
+            "pending_options.options 为空或格式无效"
+        ))
+        return findings
+    
+    # 2. 检查选项数量合理性
+    option_count = len(options)
+    
+    if option_count == 0:
+        findings.append(Finding(
+            "ERROR", "选项质量",
+            "暂无可选方案可供玩家决策"
+        ))
+        return findings
+    elif option_count > 6:
+        findings.append(Finding(
+            "WARNING", "选项质量",
+            f"选项过多 ({option_count}个)，可能导致决策疲劳，建议控制在 3-6 个"
+        ))
+    elif option_count < 2:
+        findings.append(Finding(
+            "INFO", "选项质量",
+            f"选项较少 ({option_count}个)，可能限制玩家选择空间"
+        ))
+    
+    # 3. 检查每个选项的结构完整性
+    for option_id, option in options.items():
+        if not isinstance(option, dict):
+            findings.append(Finding(
+                "ERROR", "选项质量",
+                f"选项 {option_id} 格式错误，不是对象类型"
+            ))
+            continue
+        
+        # 必填字段检查
+        required_fields = ("label", "action", "description")
+        missing_fields = [f for f in required_fields if f not in option]
+        
+        if missing_fields:
+            findings.append(Finding(
+                "ERROR", "选项质量",
+                f"选项 {option_id} 缺少必需字段：{', '.join(missing_fields)}"
+            ))
+            continue
+        
+        # 检查 action 契约
+        action = option.get("action", {})
+        if not isinstance(action, dict):
+            findings.append(Finding(
+                "ERROR", "选项质量",
+                f"选项 {option_id}.action 必须是对象"
+            ))
+        
+        # 标签长度检查
+        label = option.get("label", "")
+        if len(label) > 50:
+            findings.append(Finding(
+                "WARNING", "选项质量",
+                f"选项 {option_id} 标签过长 ({len(label)}字符)，建议简化到 50 字以内"
+            ))
+        elif len(label) < 5:
+            findings.append(Finding(
+                "INFO", "选项质量",
+                f"选项 {option_id} 标签过短 ({len(label)}字符)，建议更明确"
+            ))
+        
+        # 检查预览信息
+        preview = option.get("preview", {})
+        if not isinstance(preview, dict):
+            findings.append(Finding(
+                "WARNING", "选项质量",
+                f"选项 {option_id} 缺少预览信息 (应是对象)"
+            ))
+        else:
+            legal = preview.get("legal")
+            
+            # 必须有合法性验证
+            if legal is not True:
+                findings.append(Finding(
+                    "ERROR", "选项质量",
+                    f"选项 {option_id} 未通过合法性验证 (legal≠true)"
+                ))
+            
+            # 检查是否有成本信息
+            costs = preview.get("costs", {})
+            if not costs:
+                findings.append(Finding(
+                    "WARNING", "选项质量",
+                    f"选项 {option_id} 缺少行动成本说明"
+                ))
+    
+    # 4. 检查选项多样性（避免同质化）
+    action_types = set()
+    for option_id, option in options.items():
+        action = option.get("action", {})
+        action_type = action.get("type", action.get("action_type", "unknown"))
+        action_types.add(action_type)
+    
+    diversity_ratio = len(action_types) / option_count if option_count > 0 else 0
+    
+    if diversity_ratio < 0.5 and option_count >= 3:
+        findings.append(Finding(
+            "WARNING", "选项质量",
+            f"选项重复度高：{len(action_types)}种类型/{option_count}个选项，建议增加差异化"
+        ))
+    
+    # 5. 检查选项标签是否清晰区分
+    labels = [opt.get("label", "") for opt in options.values()]
+    similar_labels = []
+    
+    for i in range(len(labels)):
+        for j in range(i + 1, len(labels)):
+            if labels[i] and labels[j]:
+                # 简单的相似度检查（共同词占比）
+                common_words = set(labels[i].split()) & set(labels[j].split())
+                if len(common_words) > 3:
+                    similar_labels.append((labels[i], labels[j]))
+    
+    if similar_labels:
+        findings.append(Finding(
+            "WARNING", "选项质量",
+            f"存在相似选项标签：{similar_labels[:3]}"
+        ))
+    
+    # 6. 检查选项的时间敏感性
+    state_turn = pending_options.get("state_turn", 0)
+    current_turn = meta.get("current_turn", 0)
+    
+    if state_turn != current_turn:
+        findings.append(Finding(
+            "WARNING", "选项质量",
+            f"选项状态回合 ({state_turn}) 与当前回合 ({current_turn}) 不一致"
+        ))
+    
+    # 7. 检查是否有默认选项标记
+    default_option = pending_options.get("default_option")
+    
+    if option_count > 3 and not default_option:
+        findings.append(Finding(
+            "INFO", "选项质量",
+            "多个选项但无默认推荐，建议设置 default_option 指引新手"
+        ))
+    
+    return findings
+
+
 # ─── 主流程 ─────────────────────────────────────────────────
 
 def _load_validation_data(save_dir):
@@ -823,6 +1480,12 @@ def collect_findings(save_path):
     all_findings.extend(validate_combat(save_dir, data))
     all_findings.extend(validate_relationships(save_dir, data))
     all_findings.extend(validate_narrative(save_dir, data))
+    # 新增五项校验
+    all_findings.extend(validate_population_consistency(save_dir, data))
+    all_findings.extend(validate_comparative_consistency(save_dir, data))
+    all_findings.extend(validate_public_system_consistency(save_dir, data))
+    all_findings.extend(validate_genre_consistency(save_dir, data))
+    all_findings.extend(validate_option_quality(save_dir, data))
     return all_findings
 
 

@@ -44,12 +44,217 @@ from engine_runtime.state import load_game_state
 
 DIFFICULTIES = {"休闲", "标准", "硬核"}
 DEATH_MODES = {"permanent", "checkpoint", "legacy"}
+
+
+def get_default_genre_contract(theme: str) -> dict:
+    """根据主题返回默认的类型合同。
+    
+    废土列车、永夜冰川、巨兽背部、深渊裂隙等主题默认使用全民系统投放型求生。
+    """
+    # 所有主要主题都默认使用 mass_system_survival
+    mass_survival_themes = {"废土列车", "永夜冰川", "巨兽背部", "深渊裂隙"}
+    
+    if theme in mass_survival_themes:
+        return {
+            "id": "mass_system_survival",
+            "name": "全民系统投放型求生",
+            "collective_transmission": True,
+            "shared_start": True,
+            "region_size": 1000,
+            "global_count": 100000000,
+            "public_system": {
+                "regional_chat": True,
+                "private_chat": True,
+                "trading": True,
+                "rankings": True,
+                "achievements": True,
+                "announcements": True,
+            },
+            "protagonist_contract": {
+                "unique_mechanic_required": True,
+                "comparative_advantage_target": 0.60,
+                "automatic_success": False,
+                "tone": ["rational", "confident", "proactive"],
+            },
+            "population_distribution": {
+                "panicked_players": {"min": 0.15, "max": 0.20},
+                "ordinary_players": {"min": 0.45, "max": 0.55},
+                "skilled_players": {"min": 0.20, "max": 0.25},
+                "regional_elites": {"min": 0.05, "max": 0.08},
+                "special_rivals": {"min": 0.01, "max": 0.03},
+            },
+            "difficulty_calibration": {
+                "system_operations": {"resistance_min": 0, "resistance_max": 6},
+                "daily_talk": {"resistance_min": 4, "resistance_max": 8},
+                "newbie_exploration": {"resistance_min": 10, "resistance_max": 16},
+                "normal_danger": {"resistance_min": 18, "resistance_max": 24},
+                "high_risk": {"resistance_min": 28, "resistance_max": 38},
+            },
+            "failure_distribution": {
+                "critical_success_pct": {"min": 0.08, "max": 0.10},
+                "normal_success_pct": {"min": 0.70, "max": 0.75},
+                "costly_success_pct": {"min": 0.15, "max": 0.22},
+                "partial_failure_pct": {"min": 0.55, "max": 0.65},
+                "severe_failure_pct": {"min": 0.30, "max": 0.40},
+                "catastrophic_failure_pct": 0.05,
+            },
+        }
+    else:
+        # 其他主题默认使用 solo_survival
+        return {
+            "id": "solo_survival",
+            "name": "孤独生存",
+            "collective_transmission": False,
+            "shared_start": False,
+            "region_size": None,
+            "global_count": None,
+            "public_system": {},
+            "protagonist_contract": {
+                "unique_mechanic_required": False,
+                "comparative_advantage_target": None,
+                "automatic_success": False,
+                "tone": ["isolated", "cautious"],
+            },
+        }
 REQUIRED_QUESTIONS = (
     ("theme", "世界主题", "永夜冰川 / 巨兽背部 / 废土列车 / 深渊裂隙；也可自定义"),
+    ("genre_contract", "世界类型", "1=全民系统投放型求生（推荐），2=全民求生：百倍奖励，3=孤独生存"),
     ("difficulty", "游戏残酷程度", "1=休闲，2=标准，3=硬核永久死亡"),
     ("narrative_length", "每段叙述长度（1-10）", "1=极短，5=中等，7=标准，10=极长"),
     ("language", "游戏语言", "1=中文，2=English，3=日本語；留空为中文"),
 )
+
+
+def parse_genre_contract_choice(choice: str, theme: str) -> dict:
+    """解析玩家选择的类型合同。
+    
+    Args:
+        choice: 玩家输入（"1", "2", "3" 或具体类型名称）
+        theme: 世界主题
+    
+    Returns:
+        对应的类型合同字典
+    """
+    # 标准化输入
+    choice = str(choice).strip().lower()
+    
+    # 选项 1: 全民系统投放型求生（推荐）
+    if choice in ["1", "mass_system_survival", "全民系统投放", "全民"]:
+        return {
+            "id": "mass_system_survival",
+            "name": "全民系统投放型求生",
+            "collective_transmission": True,
+            "shared_start": True,
+            "region_size": 1000,
+            "global_count": 100000000,
+            "public_system": {
+                "regional_chat": True,
+                "private_chat": True,
+                "trading": True,
+                "rankings": True,
+                "achievements": True,
+                "announcements": True,
+            },
+            "protagonist_contract": {
+                "unique_mechanic_required": True,
+                "comparative_advantage_target": 0.60,
+                "automatic_success": False,
+                "tone": ["rational", "confident", "proactive"],
+            },
+            "population_distribution": {
+                "panicked_players": {"min": 0.15, "max": 0.20},
+                "ordinary_players": {"min": 0.45, "max": 0.55},
+                "skilled_players": {"min": 0.20, "max": 0.25},
+                "regional_elites": {"min": 0.05, "max": 0.08},
+                "special_rivals": {"min": 0.01, "max": 0.03},
+            },
+            "difficulty_calibration": {
+                "system_operations": {"resistance_min": 0, "resistance_max": 6},
+                "daily_talk": {"resistance_min": 4, "resistance_max": 8},
+                "newbie_exploration": {"resistance_min": 10, "resistance_max": 16},
+                "normal_danger": {"resistance_min": 18, "resistance_max": 24},
+                "high_risk": {"resistance_min": 28, "resistance_max": 38},
+            },
+            "failure_distribution": {
+                "critical_success_pct": {"min": 0.08, "max": 0.10},
+                "normal_success_pct": {"min": 0.70, "max": 0.75},
+                "costly_success_pct": {"min": 0.15, "max": 0.22},
+                "partial_failure_pct": {"min": 0.55, "max": 0.65},
+                "severe_failure_pct": {"min": 0.30, "max": 0.40},
+                "catastrophic_failure_pct": 0.05,
+            },
+        }
+    
+    # 选项 2: 全民求生：百倍奖励
+    elif choice in ["2", "mass_reward_survival", "百倍奖励", "全民奖励"]:
+        return {
+            "id": "mass_reward_survival",
+            "name": "全民求生：百倍奖励",
+            "collective_transmission": True,
+            "shared_start": True,
+            "region_size": 1000,
+            "global_count": 100000000,
+            "public_system": {
+                "regional_chat": True,
+                "private_chat": True,
+                "trading": True,
+                "rankings": True,
+                "achievements": True,
+                "announcements": True,
+            },
+            "protagonist_contract": {
+                "unique_mechanic_required": True,
+                "comparative_advantage_target": 0.70,
+                "automatic_success": False,
+                "reward_multiplier": 100,
+                "concealment_required": True,
+                "tone": ["cautious", "strategic", "low_profile"],
+            },
+            "population_distribution": {
+                "panicked_players": {"min": 0.15, "max": 0.20},
+                "ordinary_players": {"min": 0.45, "max": 0.55},
+                "skilled_players": {"min": 0.20, "max": 0.25},
+                "regional_elites": {"min": 0.05, "max": 0.08},
+                "special_rivals": {"min": 0.01, "max": 0.03},
+            },
+            "difficulty_calibration": {
+                "system_operations": {"resistance_min": 0, "resistance_max": 6},
+                "daily_talk": {"resistance_min": 4, "resistance_max": 8},
+                "newbie_exploration": {"resistance_min": 10, "resistance_max": 16},
+                "normal_danger": {"resistance_min": 18, "resistance_max": 24},
+                "high_risk": {"resistance_min": 28, "resistance_max": 38},
+            },
+            "failure_distribution": {
+                "critical_success_pct": {"min": 0.08, "max": 0.10},
+                "normal_success_pct": {"min": 0.70, "max": 0.75},
+                "costly_success_pct": {"min": 0.15, "max": 0.22},
+                "partial_failure_pct": {"min": 0.55, "max": 0.65},
+                "severe_failure_pct": {"min": 0.30, "max": 0.40},
+                "catastrophic_failure_pct": 0.05,
+            },
+        }
+    
+    # 选项 3: 孤独生存
+    elif choice in ["3", "solo_survival", "孤独", "单人"]:
+        return {
+            "id": "solo_survival",
+            "name": "孤独生存",
+            "collective_transmission": False,
+            "shared_start": False,
+            "region_size": None,
+            "global_count": None,
+            "public_system": {},
+            "protagonist_contract": {
+                "unique_mechanic_required": False,
+                "comparative_advantage_target": None,
+                "automatic_success": False,
+                "tone": ["isolated", "cautious"],
+            },
+        }
+    
+    # 默认：全民系统投放型求生
+    else:
+        return parse_genre_contract_choice("1", theme)
 
 
 # 世界运行机制不是让玩家凭空填写的问卷答案，而是由主题映射得到。
@@ -497,6 +702,16 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
     if talent_was_incomplete:
         auto_generated_fields.append("player_talent")
 
+    # 从模板读取 professions（职业系统支持）
+    world_config = template.get("world", {})
+    
+    # 将 professions 传递给 compiler
+    profession_source = template.get("world", {}).get("professions", {})
+    
+    # 获取玩家选择的类型合同
+    genre_contract_choice = world.get("genre_contract", "1")  # 默认选项 1
+    selected_genre_contract = parse_genre_contract_choice(genre_contract_choice, world["theme"])
+    
     supplied_bundle = world.get("generation_bundle")
     if isinstance(supplied_bundle, dict) and supplied_bundle.get("compiler_version") == COMPILER_VERSION:
         bundle = copy.deepcopy(supplied_bundle)
@@ -504,9 +719,15 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
         bundle = compile_world_bundle(
             theme=world["theme"],
             language=world["language"],
-            mechanics=generated,
+            mechanics={
+                "profile": generated["profile"],
+                "professions": profession_source,
+                "disaster_type": generated["disaster_type"],
+                "genre_contract": selected_genre_contract,
+            },
             safe_base=setting["safe_base"],
             primary_resources=[item["name"] for item in resources["primary"]],
+            genre_contract=selected_genre_contract,
         )
         auto_generated_fields.append("generation_bundle")
     world["generation_bundle"] = bundle
@@ -613,7 +834,17 @@ def build_files(template_dir, world, talent):
             "currency": 0,
         }
     }
-    files["npcs.yaml"] = {"npcs": copy.deepcopy(world.get("starting_npcs", bundle.get("starting_npcs", [])))}
+    # 为 starter NPC 分配职业（如果 bundle 中有 professions）
+    starter_npc_profession = None
+    starting_npcs_list = copy.deepcopy(world.get("starting_npcs", bundle.get("starting_npcs", [])))
+    if starting_npcs_list and len(starting_npcs_list) > 0:
+        # 优先从 bundle 获取 professions（compiler 已整合 professions）
+        # 否则从 world.professions 获取（模板定义）
+        professions_dict = bundle.get("professions") or world.get("professions", {})
+        if professions_dict:
+            starter_npc_profession = random.choice(list(professions_dict.keys()))
+            starting_npcs_list[0]["profession"] = starter_npc_profession
+    files["npcs.yaml"] = {"npcs": starting_npcs_list}
     files["factions.yaml"] = {"factions": copy.deepcopy(world.get("starting_factions", bundle.get("starting_factions", [])))}
     files["relationships.yaml"] = {"relationships": copy.deepcopy(world.get("starting_relationships", bundle.get("starting_relationships", [])))}
     files["event_queue.yaml"] = {"event_queue": []}
@@ -707,6 +938,77 @@ def build_files(template_dir, world, talent):
     files["conversation_log.md"] = f"# 《{world_name}》对话记录\n"
     files["decision_audit.jsonl"] = ""
     files["decision_audit.md"] = "# 决策审计\n"
+    
+    # 新增状态文件（向后兼容：旧存档缺少这些文件时视为空状态）
+    files["region_state.yaml"] = {
+        "region_state": {
+            "discovered_locations": [],
+            "explored_areas": {},
+            "location_discovery_progress": {},
+            "last_known_region": None,
+            "regional_reputation": {}
+        }
+    }
+    files["population_state.yaml"] = {
+        "population_state": {
+            "populated_npcs": {},
+            "npc_faction_memberships": {},
+            "npc_location_history": {},
+            "population_cap_used": 0,
+            "population_cap_total": 10,
+            "settlement_count": 0
+        }
+    }
+    files["public_system_state.yaml"] = {
+        "public_system_state": {
+            "global_events_active": [],
+            "system_announcements": [],
+            "active_rules_modifiers": [],
+            "public_quest_line": [],
+            "achievements_unlocked": [],
+            "system_level_progression": {}
+        }
+    }
+    files["market_state.yaml"] = {
+        "market_state": {
+            "market_enabled": False,
+            "available_vendors": [],
+            "market_prices": {},
+            "player_inventory_listings": [],
+            "recent_transactions": [],
+            "market_trends": {}
+        }
+    }
+    files["ranking_state.yaml"] = {
+        "ranking_state": {
+            "player_rank_global": None,
+            "player_rank_regional": None,
+            "leaderboards": {},
+            "rank_season_current": 1,
+            "rank_season_end_turn": 100,
+            "prestige_points": 0
+        }
+    }
+    files["comparative_state.yaml"] = {
+        "comparative_state": {
+            "player_comparison_baseline": {},
+            "performance_metrics_history": [],
+            "best_performance_by_category": {},
+            "comparison_partners": [],
+            "comparison_last_updated": None
+        }
+    }
+    files["rival_state.yaml"] = {
+        "rival_state": {
+            "active_rivals": [],
+            "rival_relationships": {},
+            "rival_competitions_active": [],
+            "rival_score_current": 0,
+            "rival_score_target": 0,
+            "rivalry_win_rate": 0.0,
+            "last_rival_encounter": None
+        }
+    }
     return files
 
 

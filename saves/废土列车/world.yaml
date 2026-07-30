@@ -5,6 +5,7 @@ world:
   difficulty: 标准
   narrative_length: 5
   language: 中文
+  professions: {}
   setting:
     safe_base: 不断行驶的废土列车
     external_dangers:
@@ -59,7 +60,7 @@ world:
     - player_talent
     - generation_bundle
   generation_bundle:
-    compiler_version: '1.1'
+    compiler_version: '1.3'
     theme: 废土列车
     profile: 废土列车
     starting_location: camp_core
@@ -328,11 +329,11 @@ world:
       scrap_yard:
         id: scrap_yard
         location_id: scrap_yard
-        target_difficulty: 25
-        environment_penalty: 5
-        unknown_risk: 12
-        risk_warning: 0.9
-        causal_chain: 0.9
+        target_difficulty: 14
+        environment_penalty: 3
+        unknown_risk: 5
+        risk_warning: 0.7
+        causal_chain: 0.85
         avoidable: 0.8
         rule_consistency: 1.0
         player_responsibility: 0.8
@@ -341,10 +342,12 @@ world:
             discover_locations:
             - scrap_yard
             resource_changes:
-              燃油: 2
+              燃油: 3
             knowledge_additions:
             - wasteland_raider_lv1_behavior
           partial_failure:
+            resource_changes:
+              燃油: 1
             knowledge_additions:
             - wasteland_raider_lv1_behavior
         encounter_target_ids:
@@ -369,16 +372,17 @@ world:
           commitment_axis: route_commitment
           commitment_value: scrap_yard
         primary_attribute: agility
+        action_type: EXPLORATION
         requirements:
           location: scrap_yard
       signal_tower:
         id: signal_tower
         location_id: signal_tower
-        target_difficulty: 30
-        environment_penalty: 8
-        unknown_risk: 15
-        risk_warning: 0.9
-        causal_chain: 0.9
+        target_difficulty: 20
+        environment_penalty: 5
+        unknown_risk: 10
+        risk_warning: 0.8
+        causal_chain: 0.85
         avoidable: 0.7
         rule_consistency: 1.0
         player_responsibility: 0.8
@@ -387,7 +391,7 @@ world:
             knowledge_additions:
             - signal_tower_principle
             resource_changes:
-              废旧金属: 1
+              废旧金属: 2
         constraints:
           system_tags:
           - major_action
@@ -400,15 +404,16 @@ world:
           commitment_axis: research_focus
           commitment_value: signal_tower
         primary_attribute: spirit
+        action_type: RESEARCH
         requirements:
           location: signal_tower
       npc_atai:
         id: npc_atai
         location_id: camp_core
-        target_difficulty: 15
+        target_difficulty: 6
         risk_warning: 1.0
         causal_chain: 1.0
-        avoidable: 0.8
+        avoidable: 0.9
         rule_consistency: 1.0
         player_responsibility: 0.7
         effects:
@@ -419,12 +424,15 @@ world:
                 respect: 1
             knowledge_additions:
             - npc_atai_goal
+            - npc_atai_routine
         constraints:
           system_tags:
           - short_action
           commitment_axis: social_relationship
           commitment_value: npc_atai
         primary_attribute: spirit
+        action_type: SOCIAL_INTERACTION
+        is_npc: true
         requirements:
           location: camp_core
           npc_available: npc_atai
@@ -507,6 +515,150 @@ world:
       affection: 0
       fear: 0
       dependency: 0
+    professions:
+      mechanic:
+        id: mechanic
+        name: 缆车维修师
+        category: production
+        description: 擅长维修载具和轨道系统
+        capabilities:
+        - 诊断机械故障
+        - 紧急抢修
+        - 改装载具模块
+        exclusive_actions:
+        - action_type: DIAGNOSE_FAILURE
+          target_ids:
+          - load_bearing_cable
+          - engine_block
+          requirements:
+            profession: mechanic
+          time_minutes: 30
+          stamina_cost: 2
+          mental_cost: 3
+          difficulty: 15
+        attribute_bonuses:
+          agility: 2
+        starting_skills:
+        - id: diagnosis_l1
+          level: 1
+        consequence_radius: 0.7
+        world_hooks:
+        - vehicle_breakdown_event
+        - region_transportation_interruption
+        autonomous_yield_profile:
+          average_hours_worked: 180
+          output_items:
+            steel_parts: 2.5
+            wire_rope: 1.2
+        comparative_weights:
+          technical_efficiency: 0.3
+          complexity_handled: 0.3
+          resource_utilization: 0.2
+          emergency_response: 0.2
+      contract_signer:
+        id: contract_signer
+        name: 契约签署员
+        category: social
+        description: 负责处理资源交换协议与权益契约
+        capabilities:
+        - 起草交易契约
+        - 验证权益条款
+        - 仲裁利益冲突
+        exclusive_actions:
+        - action_type: DRAFT_CONTRACT
+          target_ids:
+          - trade_agreement
+          - resource_rights
+          requirements:
+            profession: contract_signer
+          time_minutes: 60
+          stamina_cost: 1
+          mental_cost: 4
+          difficulty: 18
+        attribute_bonuses:
+          spirit: 2
+        starting_skills:
+        - id: contract_l1
+          level: 1
+        consequence_radius: 0.6
+        world_hooks:
+        - trade_negotiation_event
+        - rights_dispute_scenario
+        autonomous_yield_profile:
+          average_hours_worked: 150
+          output_items:
+            valid_contracts: 0.8
+            trusted_partners: 0.3
+        comparative_weights:
+          technical_efficiency: 0.1
+          complexity_handled: 0.4
+          resource_utilization: 0.2
+          emergency_response: 0.1
+      logger:
+        id: logger
+        name: 日志记录者
+        category: exploration
+        description: 收集环境数据并记录废土生态变迁
+        capabilities:
+        - 数据采样分析
+        - 生态模式识别
+        - 长期趋势追踪
+        exclusive_actions:
+        - action_type: HARVEST_DATA
+          target_ids:
+          - environment_sample
+          - ecosystem_change
+          requirements:
+            profession: logger
+          time_minutes: 45
+          stamina_cost: 1
+          mental_cost: 2
+          difficulty: 12
+        attribute_bonuses:
+          spirit: 1
+          agility: 1
+        starting_skills:
+        - id: data_harvest_l1
+          level: 1
+        consequence_radius: 0.5
+        world_hooks:
+        - anomaly_detection_event
+        - long_term_pattern_emergence
+        autonomous_yield_profile:
+          average_hours_worked: 200
+          output_items:
+            data_packets: 3.5
+            pattern_notes: 0.5
+        comparative_weights:
+          technical_efficiency: 0.2
+          complexity_handled: 0.2
+          resource_utilization: 0.3
+          emergency_response: 0.1
+    creative_slots:
+      signature_anomalies: 5
+      living_resources: 3
+      taboo_rules: 4
+      macro_crises: 3
+      forced_convergences: 2
+      hidden_civilizations: 2
+      system_irregularities: 3
+    motifs:
+    - 铁轨
+    - 车厢
+    - 车票
+    - 站台
+    - 广播
+    - 燃料
+    - 旧乘客
+    - 行驶方向
+    - 轨道
+    - 列车
+    taboo_domains:
+    - 身份
+    - 邀请
+    - 车厢所有权
+    - 到站与下车
+    - 记忆
   locations:
   - id: camp_core
     name: 不断行驶的废土列车
@@ -749,11 +901,11 @@ world:
     scrap_yard:
       id: scrap_yard
       location_id: scrap_yard
-      target_difficulty: 25
-      environment_penalty: 5
-      unknown_risk: 12
-      risk_warning: 0.9
-      causal_chain: 0.9
+      target_difficulty: 14
+      environment_penalty: 3
+      unknown_risk: 5
+      risk_warning: 0.7
+      causal_chain: 0.85
       avoidable: 0.8
       rule_consistency: 1.0
       player_responsibility: 0.8
@@ -762,10 +914,12 @@ world:
           discover_locations:
           - scrap_yard
           resource_changes:
-            燃油: 2
+            燃油: 3
           knowledge_additions:
           - wasteland_raider_lv1_behavior
         partial_failure:
+          resource_changes:
+            燃油: 1
           knowledge_additions:
           - wasteland_raider_lv1_behavior
       encounter_target_ids:
@@ -790,16 +944,17 @@ world:
         commitment_axis: route_commitment
         commitment_value: scrap_yard
       primary_attribute: agility
+      action_type: EXPLORATION
       requirements:
         location: scrap_yard
     signal_tower:
       id: signal_tower
       location_id: signal_tower
-      target_difficulty: 30
-      environment_penalty: 8
-      unknown_risk: 15
-      risk_warning: 0.9
-      causal_chain: 0.9
+      target_difficulty: 20
+      environment_penalty: 5
+      unknown_risk: 10
+      risk_warning: 0.8
+      causal_chain: 0.85
       avoidable: 0.7
       rule_consistency: 1.0
       player_responsibility: 0.8
@@ -808,7 +963,7 @@ world:
           knowledge_additions:
           - signal_tower_principle
           resource_changes:
-            废旧金属: 1
+            废旧金属: 2
       constraints:
         system_tags:
         - major_action
@@ -821,15 +976,16 @@ world:
         commitment_axis: research_focus
         commitment_value: signal_tower
       primary_attribute: spirit
+      action_type: RESEARCH
       requirements:
         location: signal_tower
     npc_atai:
       id: npc_atai
       location_id: camp_core
-      target_difficulty: 15
+      target_difficulty: 6
       risk_warning: 1.0
       causal_chain: 1.0
-      avoidable: 0.8
+      avoidable: 0.9
       rule_consistency: 1.0
       player_responsibility: 0.7
       effects:
@@ -840,12 +996,15 @@ world:
               respect: 1
           knowledge_additions:
           - npc_atai_goal
+          - npc_atai_routine
       constraints:
         system_tags:
         - short_action
         commitment_axis: social_relationship
         commitment_value: npc_atai
       primary_attribute: spirit
+      action_type: SOCIAL_INTERACTION
+      is_npc: true
       requirements:
         location: camp_core
         npc_available: npc_atai
@@ -957,6 +1116,16 @@ world:
     turns: 61-100
     focus: 世界真相逐渐揭露
     threats: Lv10+，文明级事件
+  creative_slots:
+    signature_anomalies: 5
+    living_resources: 3
+    taboo_rules: 4
+    macro_crises: 3
+    forced_convergences: 2
+    hidden_civilizations: 2
+    system_irregularities: 3
+  motifs: []
+  taboo_domains: []
 player_talent:
   name: 危险预兆
   description: 能够从微弱的声音、气味和光线变化中识别附近危险。

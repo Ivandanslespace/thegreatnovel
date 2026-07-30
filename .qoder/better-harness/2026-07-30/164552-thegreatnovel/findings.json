@@ -1,0 +1,138 @@
+{
+  "summary": {
+    "projectName": "TheGreatNovel",
+    "locale": "zh-CN",
+    "modelId": "agent-work-loop-v4",
+    "reportContractVersion": 25,
+    "overview": "项目拥有设计良好的 LLM-Python 协议边界和事件溯源审计链，引擎层测试覆盖深入。但缺少依赖管理文件导致环境不可复现，唯一游戏入口 turn_controller.py 无直接测试，无任何构建时质量门禁，且 92 个存档文件违背 .gitignore 意图被 git 跟踪入库。会话证据源不可用（0 合格会话），Learning Capture 维度无法评估。",
+    "aiAgentPractice": {
+      "inspectedSurfaces": [
+        "Rules"
+      ],
+      "coverageRows": [
+        {
+          "surface": "Rules",
+          "scopes": [
+            "Project"
+          ],
+          "count": 1,
+          "paths": [
+            "AGENTS.md"
+          ]
+        },
+        {
+          "surface": "Custom Agents",
+          "scopes": [
+            "Project"
+          ],
+          "count": 0
+        }
+      ]
+    },
+    "assignmentSummaries": [],
+    "dimensions": [
+      {
+        "id": "task-understanding",
+        "label": "任务理解",
+        "score": 72,
+        "summary": "AGENTS.md（556 行）和 host_protocol.md 提供清晰的任务入口、P0 不变量和上下文边界，路由到正确的 owner。缺少会话证据验证实际理解效果。",
+        "findingRefs": []
+      },
+      {
+        "id": "controlled-execution",
+        "label": "可控执行",
+        "score": 52,
+        "summary": "CLI 入口和运行时权限边界（protocol.py 递归字段拒绝）设计完善，但缺少依赖管理文件导致环境不可复现，且无构建时门禁强制推送策略。",
+        "findingRefs": [
+          "missing-dependency-management",
+          "missing-build-time-gates"
+        ]
+      },
+      {
+        "id": "change-validation",
+        "label": "改动验证",
+        "score": 55,
+        "summary": "引擎层测试覆盖深入（1081 行覆盖公式确定性、协议越权拒绝、选项编译时段过滤），但唯一入口 turn_controller.py 无直接测试，且无 lint/CI 门禁捕获缺失。",
+        "findingRefs": [
+          "controller-missing-tests",
+          "missing-build-time-gates"
+        ]
+      },
+      {
+        "id": "reliable-delivery",
+        "label": "可靠交付",
+        "score": 42,
+        "summary": "SQLite 事务和 replay/verify 工具链提供回滚和验证能力，但推送策略无程序化强制，且 92 个存档文件违背 .gitignore 意图被跟踪入库导致 git 历史膨胀。",
+        "findingRefs": [
+          "save-data-tracked-despite-gitignore"
+        ]
+      },
+      {
+        "id": "learning-capture",
+        "label": "经验沉淀",
+        "score": 35,
+        "summary": "会话证据源不可用（0 合格会话，warning: disabled-source-root, missing-optional-root），无法评估生命周期检测、循环工程或纵向验证。Memory 治理检查通过，无碰撞或相似性候选。",
+        "findingRefs": []
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "missing-dependency-management",
+      "title": "隐式第三方依赖 PyYAML 无依赖管理文件，新环境无法复现",
+      "severity": "Medium",
+      "reason": "engine_runtime/state.py 第 10 行 `import yaml` 确认项目依赖 PyYAML，tests/test_engine_runtime.py 同样导入 yaml。但项目根目录无 requirements.txt、pyproject.toml、setup.py、setup.cfg、Pipfile 或任何依赖管理文件（均已验证不存在）。新克隆环境中 `python -m pytest tests/` 会因 ModuleNotFoundError 直接失败。AGENTS.md 声明项目为「纯标准库」，与实际依赖矛盾。evidence-pack 报告 frameworks 为空且 entryCandidates 为空，与环境不可复现一致。",
+      "expectedOutput": [
+        "创建 requirements.txt 声明 PyYAML 依赖，新克隆环境可确定性安装并运行测试和 CLI 入口"
+      ],
+      "expectedArtifact": "requirements.txt",
+      "aiFixPrompt": "/better-harness fix this issue\n\n在项目根目录创建 requirements.txt 声明 PyYAML 依赖，使新环境能确定性复现。\n\n## 验证\n\n- 在新虚拟环境中 `pip install -r requirements.txt` 后运行 `python -m pytest tests/` 通过\n- 确认 `python tools/turn_controller.py --help` 不报导入错误",
+      "dimensionRefs": [
+        "controlled-execution"
+      ]
+    },
+    {
+      "id": "controller-missing-tests",
+      "title": "唯一游戏入口 turn_controller.py 缺少直接测试覆盖",
+      "severity": "Medium",
+      "reason": "turn_controller.py 是 AGENTS.md 指定的唯一游戏入口（461 行），包含选项路由（_parse_option_input）、智能候选生成（generate_smart_candidates）、record 阶段禁止词校验等关键逻辑。现有 1081 行测试直接调用 GameEngine 底层 API（compile_options、preview_host_action、execute_host_action），tests/ 目录中对 turn_controller 或 TurnController 的引用为 0（grep 确认）。evidence-pack 的 change-drift advisory（cli-help-doc-sync）同样标记此文件变更缺少配套测试。controller 层的 CLI 路由分发、错误返回路径（NEEDS_INTENT_PARSE、NO_PENDING_OPTIONS）和 record 校验逻辑的回归无任何自动化防护。",
+      "expectedOutput": [
+        "turn_controller.py 的选项路由、错误处理和 record 校验路径有直接测试覆盖"
+      ],
+      "expectedArtifact": "Test additions",
+      "aiFixPrompt": "/better-harness fix this issue\n\n在 tests/test_engine_runtime.py 中添加 turn_controller 层的直接测试，覆盖选项路由、错误返回路径和 record 校验逻辑。\n\n## 验证\n\n- 运行 `python -m pytest tests/ -k turn_controller` 通过\n- 确认覆盖 _parse_option_input、generate_smart_candidates 和 record 禁止词校验路径",
+      "dimensionRefs": [
+        "change-validation"
+      ]
+    },
+    {
+      "id": "missing-build-time-gates",
+      "title": "零构建时质量门禁，代码质量规则无机械化强制",
+      "severity": "Medium",
+      "reason": "项目无 lint、type-check、CI pipeline 或 pre-commit hook（已确认 .github/、.flake8、mypy.ini、ruff.toml、.pre-commit-config.yaml、Jenkinsfile 均不存在）。AGENTS.md 要求'推送前必须检查工作区范围、运行与改动相关的验证'，但无程序化门禁强制执行此策略。evidence-pack 的 change-drift advisory 显示 turn_controller.py（461 行新文件）在无配套文档或测试的情况下被提交，无自动化检查捕获此缺失。协议实现本身的回归（如 validate_host_action 漏检某字段）只能通过手动运行 pytest 发现。",
+      "expectedOutput": [
+        "项目拥有机械化质量门禁，代码提交前自动运行 lint 和测试"
+      ],
+      "expectedArtifact": "CI/lint configuration",
+      "aiFixPrompt": "/better-harness fix this issue\n\n添加最小化构建时质量门禁：创建 lint 配置文件（如 pyproject.toml 含 ruff 配置或 .flake8），并添加 pre-commit hook 或 GitHub Actions workflow 在提交前运行 `python -m pytest tests/` 和 lint 检查。\n\n## 验证\n\n- 运行 `python -m pytest tests/` 通过\n- 运行 lint 检查无错误\n- 确认 pre-commit hook 或 CI workflow 配置文件存在",
+      "dimensionRefs": [
+        "change-validation",
+        "controlled-execution"
+      ]
+    },
+    {
+      "id": "save-data-tracked-despite-gitignore",
+      "title": "92 个存档文件违背 .gitignore 意图被 git 跟踪入库",
+      "severity": "Low",
+      "reason": ".gitignore 排除 saves/ 和 *.sqlite3，但 `git ls-files -- 'saves/'` 确认 89 个 saves/ 下文件和 `git ls-files -- '*.sqlite3'` 确认 3 个 .sqlite3 文件仍被跟踪。.gitignore 不会取消已跟踪文件的跟踪状态。evidence-pack 报告的 49442 行变更中绝大部分是存档数据（decision_audit.md: 28349 行、event_log.md: 9745 行、conversation_log.md: 8914 行），导致 git 历史膨胀。存档数据包含游戏对话日志和决策审计，每次游戏回合都会增长，不适合版本控制。",
+      "expectedOutput": [
+        "存档文件不再被 git 跟踪，.gitignore 排除规则生效，git 历史不再因存档数据膨胀"
+      ],
+      "expectedArtifact": "Git index cleanup",
+      "aiFixPrompt": "/better-harness fix this issue\n\n使用 `git rm --cached -r saves/` 和 `git rm --cached *.sqlite3` 将已跟踪的存档文件从 git 索引中移除（保留本地文件），使 .gitignore 生效。\n\n## 验证\n\n- 运行 `git ls-files -- 'saves/' '*.sqlite3'` 确认返回空\n- 确认本地 saves/ 目录和 .sqlite3 文件仍存在\n- 运行 `python tools/turn_controller.py` 确认游戏入口正常工作",
+      "dimensionRefs": [
+        "reliable-delivery"
+      ]
+    }
+  ]
+}

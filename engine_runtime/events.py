@@ -23,6 +23,13 @@ TIME_PERIODS = (
 )
 TIME_PERIOD_STARTS = {name: start for start, name in TIME_PERIODS}
 
+# 视角切分事件类型常量
+PERSPECTIVE_CUTAWAY_CREATED = "PERSPECTIVE_CUTAWAY_CREATED"
+PERSPECTIVE_CUTAWAY_ENDED = "PERSPECTIVE_CUTAWAY_ENDED"
+PERSPECTIVE_CONVERGENCE = "PERSPECTIVE_CONVERGENCE"
+PERSPECTIVE_INSIGHT_GAINED = "PERSPECTIVE_INSIGHT_GAINED"
+OBSERVATION_OCCURRED = "OBSERVATION_OCCURRED"  # A character observes/assesses another
+
 
 def parse_events(text: str) -> List[Dict[str, Any]]:
     events: List[Dict[str, Any]] = []
@@ -464,11 +471,81 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
     world = updated.setdefault("world", {})
 
     # 展示选项是可恢复的主持状态，不是玩家行动：不推进回合、时间、
-    # NPC日程或叙事指标，只保存已经预验证的行动契约。
+    # NPC 日程或叙事指标，只保存已经预验证的行动契约。
     if event_type == "OPTIONS_PRESENTED":
         pending_options = payload.get("pending_options", {})
         meta["pending_options"] = deepcopy(dict(pending_options)) if isinstance(pending_options, Mapping) else {}
         meta["pending_options_state_turn"] = int(payload.get("state_turn", meta.get("current_turn", 0)))
+        return updated
+    
+    # 视角切分事件处理
+    if event_type == PERSPECTIVE_CUTAWAY_CREATED:
+        cutaway_context = payload.get("cutaway_context", {})
+        if isinstance(cutaway_context, Mapping):
+            cutaway_contexts = meta.setdefault("cutaway_contexts", [])
+            if not isinstance(cutaway_contexts, list):
+                cutaway_contexts = []
+                meta["cutaway_contexts"] = cutaway_contexts
+            thread_id = cutaway_context.get("thread_id") or cutaway_context.get("id")
+            if thread_id:
+                existing_indices = [
+                    i for i, ctx in enumerate(cutaway_contexts)
+                    if isinstance(ctx, Mapping) and (ctx.get("thread_id") or ctx.get("id")) == thread_id
+                ]
+                if existing_indices:
+                    cutaway_contexts[existing_indices[0]] = deepcopy(dict(cutaway_context))
+                else:
+                    cutaway_contexts.append(deepcopy(dict(cutaway_context)))
+            active_threads = meta.setdefault("active_perspective_threads", 0)
+            meta["active_perspective_threads"] = int(active_threads) + 1
+    
+    elif event_type == PERSPECTIVE_CUTAWAY_ENDED:
+        thread_id = payload.get("thread_id") or payload.get("cutaway_id")
+        if thread_id:
+            cutaway_contexts = meta.get("cutaway_contexts", [])
+            if isinstance(cutaway_contexts, list):
+                ended_contexts = [
+                    ctx for ctx in cutaway_contexts
+                    if isinstance(ctx, Mapping) and (ctx.get("thread_id") or ctx.get("id")) == thread_id
+                ]
+                if ended_contexts:
+                    ended_contexts[0]["ended"] = True
+                    ended_contexts[0]["end_turn"] = int(record.get("turn", meta.get("current_turn", 0)))
+            active_threads = meta.get("active_perspective_threads", 1)
+            if active_threads > 0:
+                meta["active_perspective_threads"] = int(active_threads) - 1
+
+    elif event_type == OBSERVATION_OCCURRED:
+        # Record observation in meta without changing protagonist knowledge
+        observations = meta.setdefault("observations", [])
+        if not isinstance(observations, list):
+            observations = []
+            meta["observations"] = observations
+
+        observation_record = {
+            "observer_id": payload.get("observer_id"),
+            "target_id": payload.get("target_id"),
+            "subject": payload.get("subject"),
+            "turn": record.get("turn"),
+            "prior_belief": payload.get("prior_belief", {}),
+            "evidence": payload.get("evidence", {}),
+            "revealed_result": payload.get("revealed_result", {}),
+            "belief_change": payload.get("belief_change", {}),
+            "behavioral_consequences": payload.get("behavioral_consequences", []),
+            "assessment_style": payload.get("assessment_style", "qualitative_band"),
+        }
+        observations.append(observation_record)
+
+        # Also update observer's belief if they're an NPC/peer
+        observer_id = payload.get("observer_id")
+        if observer_id:
+            npcs = updated.setdefault("npcs", {})
+            if observer_id in npcs and isinstance(npcs[observer_id], dict):
+                beliefs = npcs[observer_id].setdefault("beliefs", {})
+                beliefs[payload.get("subject", "unknown")] = (
+                    payload.get("belief_change", {}).get("new_estimate", "unknown")
+                )
+
         return updated
 
     for key, delta in (payload.get("player_delta", {}) or {}).items():

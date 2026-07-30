@@ -11,7 +11,14 @@ from copy import deepcopy
 from typing import Any, Dict, Mapping, Sequence
 
 
-COMPILER_VERSION = "1.1"
+COMPILER_VERSION = "1.3"  # 类型合同定义移至 AGENTS.md；运行时不再硬编码合同
+
+# ============================================================================
+# 类型合同 (Genre Contract)
+# ============================================================================
+# 类型合同的唯一定义来源是 AGENTS.md「类型合同体系」章节。
+# 运行时不在此处定义合同常量；genre_contract 数据由调用方
+# （tools/create_save.py）根据玩家选择和 AGENTS.md 定义写入存档。
 
 
 PROFILE_CONTENT = {
@@ -52,6 +59,127 @@ PROFILE_CONTENT = {
     },
 }
 
+THEME_MOTIFS = {
+    "废土列车": ["铁轨", "车厢", "车票", "站台", "广播", "燃料", "旧乘客", "行驶方向", "轨道", "列车"],
+    "永夜冰川": ["冰层", "极光", "热洞", "霜轨", "白夜", "冻土", "冰晶", "暴风雪", "寒煤"],
+    "巨兽背部": ["脊背", "寄生", "翻身", "锚桩", "苔田", "骨材", "索具", "巨兽"],
+    "深渊裂隙": ["裂隙", "潮汐", "锚点", "回声", "污染", "深渊", "精神", "升降平台"],
+    "generic": ["避难所", "资源", "危险", "探索", "信号"],
+}
+
+THEME_TABOO_DOMAINS = {
+    "废土列车": ["身份", "邀请", "车厢所有权", "到站与下车", "记忆"],
+    "永夜冰川": ["温度", "光源", "方向感", "声音"],
+    "巨兽背部": ["平衡", "寄生", "巨兽意志", "坠落"],
+    "深渊裂隙": ["凝视", "回声", "锚定", "深度"],
+    "generic": ["安全", "信任", "方向"],
+}
+
+# ============================================================================
+# 职业注册表 (Profession Registry)
+# ============================================================================
+# 职业档案定义了玩家在游戏中的专业角色；每个职业拥有专属能力、
+# 独占行动、属性加成、起始技能和世界钩子。运行时通过 profession_registry
+# 查找可玩职业列表并初始化玩家档案。
+PROFESSION_REGISTRY = {
+    "mechanic": {
+        "id": "mechanic",
+        "name": "缆车维修师",
+        "category": "production",
+        "description": "擅长维修载具和轨道系统",
+        "capabilities": ["诊断机械故障", "紧急抢修", "改装载具模块"],
+        "exclusive_actions": [
+            {
+                "action_type": "DIAGNOSE_FAILURE",
+                "target_ids": ["load_bearing_cable", "engine_block"],
+                "requirements": {"profession": "mechanic"},
+                "time_minutes": 30,
+                "stamina_cost": 2,
+                "mental_cost": 3,
+                "difficulty": 15,
+            },
+        ],
+        "attribute_bonuses": {"agility": 2},
+        "starting_skills": [{"id": "diagnosis_l1", "level": 1}],
+        "consequence_radius": 0.7,
+        "world_hooks": ["vehicle_breakdown_event", "region_transportation_interruption"],
+        "autonomous_yield_profile": {
+            "average_hours_worked": 180,
+            "output_items": {"steel_parts": 2.5, "wire_rope": 1.2},
+        },
+        "comparative_weights": {
+            "technical_efficiency": 0.3,
+            "complexity_handled": 0.3,
+            "resource_utilization": 0.2,
+            "emergency_response": 0.2,
+        },
+    },
+    "contract_signer": {
+        "id": "contract_signer",
+        "name": "契约签署员",
+        "category": "social",
+        "description": "负责处理资源交换协议与权益契约",
+        "capabilities": ["起草交易契约", "验证权益条款", "仲裁利益冲突"],
+        "exclusive_actions": [
+            {
+                "action_type": "DRAFT_CONTRACT",
+                "target_ids": ["trade_agreement", "resource_rights"],
+                "requirements": {"profession": "contract_signer"},
+                "time_minutes": 60,
+                "stamina_cost": 1,
+                "mental_cost": 4,
+                "difficulty": 18,
+            },
+        ],
+        "attribute_bonuses": {"spirit": 2},
+        "starting_skills": [{"id": "contract_l1", "level": 1}],
+        "consequence_radius": 0.6,
+        "world_hooks": ["trade_negotiation_event", "rights_dispute_scenario"],
+        "autonomous_yield_profile": {
+            "average_hours_worked": 150,
+            "output_items": {"valid_contracts": 0.8, "trusted_partners": 0.3},
+        },
+        "comparative_weights": {
+            "technical_efficiency": 0.1,
+            "complexity_handled": 0.4,
+            "resource_utilization": 0.2,
+            "emergency_response": 0.1,
+        },
+    },
+    "logger": {
+        "id": "logger",
+        "name": "日志记录者",
+        "category": "exploration",
+        "description": "收集环境数据并记录废土生态变迁",
+        "capabilities": ["数据采样分析", "生态模式识别", "长期趋势追踪"],
+        "exclusive_actions": [
+            {
+                "action_type": "HARVEST_DATA",
+                "target_ids": ["environment_sample", "ecosystem_change"],
+                "requirements": {"profession": "logger"},
+                "time_minutes": 45,
+                "stamina_cost": 1,
+                "mental_cost": 2,
+                "difficulty": 12,
+            },
+        ],
+        "attribute_bonuses": {"spirit": 1, "agility": 1},
+        "starting_skills": [{"id": "data_harvest_l1", "level": 1}],
+        "consequence_radius": 0.5,
+        "world_hooks": ["anomaly_detection_event", "long_term_pattern_emergence"],
+        "autonomous_yield_profile": {
+            "average_hours_worked": 200,
+            "output_items": {"data_packets": 3.5, "pattern_notes": 0.5},
+        },
+        "comparative_weights": {
+            "technical_efficiency": 0.2,
+            "complexity_handled": 0.2,
+            "resource_utilization": 0.3,
+            "emergency_response": 0.1,
+        },
+    },
+}
+
 
 def _english(language: str) -> bool:
     return str(language or "").strip().lower() in {"en", "english", "英文", "英语"}
@@ -63,8 +191,36 @@ def compile_world_bundle(
     mechanics: Mapping[str, Any],
     safe_base: str,
     primary_resources: Sequence[str],
+    genre_contract: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
-    """返回可直接放入 world.yaml 的完整生成包。"""
+    """返回可直接放入 world.yaml 的完整生成包。
+    
+    Args:
+        theme: 世界主题（废土列车、永夜冰川等）
+        language: 游戏语言
+        mechanics: 机制配置档案，可包含：
+            - profile: 主题配置文件 ID
+            - professions: 职业注册表字典（可选）
+            - disaster_type: 灾难类型名称
+            - genre_contract: 类型合同
+        safe_base: 安全基地名称
+        primary_resources: 基础资源列表
+        genre_contract: 类型合同数据（来自 AGENTS.md 定义）。
+            若为 None，回退到 solo_survival 最小默认值。
+    """
+    # 类型合同由调用方提供；未提供时回退到孤独生存最小默认值
+    if genre_contract is None:
+        genre_contract = {
+            "id": "solo_survival",
+            "name": "孤独生存",
+            "collective_transmission": False,
+            "public_system": {},
+            "protagonist_contract": {"automatic_success": False},
+        }
+    
+    # 提取 professions（如果传入）
+    professions = mechanics.get("professions") if isinstance(mechanics.get("professions"), dict) else {}
+    
     profile = str(mechanics.get("profile", "generic"))
     content = deepcopy(PROFILE_CONTENT.get(profile, PROFILE_CONTENT["generic"]))
     area_id, area_name = content["area"]
@@ -133,17 +289,18 @@ def compile_world_bundle(
         area_id: {
             "id": area_id,
             "location_id": area_id,
-            "target_difficulty": 25,
-            "environment_penalty": 5,
-            "unknown_risk": 12,
-            "risk_warning": 0.9,
-            "causal_chain": 0.9,
+            # 按全民系统投放标准调整难度
+            "target_difficulty": 14,  # 从 25 降到 14（新手探索区间 10-16）
+            "environment_penalty": 3,  # 从 5 降到 3
+            "unknown_risk": 5,  # 从 12 大幅降到 5（减少新手死亡风险）
+            "risk_warning": 0.7,  # 从 0.9 降低，给玩家更多试错空间
+            "causal_chain": 0.85,
             "avoidable": 0.8,
             "rule_consistency": 1.0,
             "player_responsibility": 0.8,
             "effects": {
-                "success": {"discover_locations": [area_id], "resource_changes": {resource: 2}, "knowledge_additions": [f"{enemy_id}_behavior"]},
-                "partial_failure": {"knowledge_additions": [f"{enemy_id}_behavior"]},
+                "success": {"discover_locations": [area_id], "resource_changes": {resource: 3}, "knowledge_additions": [f"{enemy_id}_behavior"]},
+                "partial_failure": {"resource_changes": {resource: 1}, "knowledge_additions": [f"{enemy_id}_behavior"]},
             },
             "encounter_target_ids": [enemy_id],
             "constraints": action_constraints,
@@ -151,15 +308,15 @@ def compile_world_bundle(
         research_id: {
             "id": research_id,
             "location_id": research_id,
-            "target_difficulty": 30,
-            "environment_penalty": 8,
-            "unknown_risk": 15,
-            "risk_warning": 0.9,
-            "causal_chain": 0.9,
+            "target_difficulty": 20,  # 从 30 降到 20（普通危险区间 18-24）
+            "environment_penalty": 5,  # 从 8 降到 5
+            "unknown_risk": 10,  # 从 15 降到 10
+            "risk_warning": 0.8,
+            "causal_chain": 0.85,
             "avoidable": 0.7,
             "rule_consistency": 1.0,
             "player_responsibility": 0.8,
-            "effects": {"success": {"knowledge_additions": [f"{research_id}_principle"], "resource_changes": {rare_resource: 1}}},
+            "effects": {"success": {"knowledge_additions": [f"{research_id}_principle"], "resource_changes": {rare_resource: 2}}},
             "constraints": {
                 "system_tags": ["major_action", "requires_full_attention"],
                 "exclusive_group": "research_window",
@@ -172,13 +329,14 @@ def compile_world_bundle(
         npc_id: {
             "id": npc_id,
             "location_id": "camp_core",
-            "target_difficulty": 15,
+            # 按全民系统投放标准调整：日常交谈 4-8
+            "target_difficulty": 6,  # 从 15 大幅降低
             "risk_warning": 1.0,
             "causal_chain": 1.0,
-            "avoidable": 0.8,
+            "avoidable": 0.9,
             "rule_consistency": 1.0,
             "player_responsibility": 0.7,
-            "effects": {"success": {"relationship_changes": {npc_id: {"trust": 3, "respect": 1}}, "knowledge_additions": [f"{npc_id}_goal"]}},
+            "effects": {"success": {"relationship_changes": {npc_id: {"trust": 3, "respect": 1}}, "knowledge_additions": [f"{npc_id}_goal", f"{npc_id}_routine"]}},
             "constraints": {"system_tags": ["short_action"], "commitment_axis": "social_relationship", "commitment_value": npc_id},
         },
         "camp_core": {"id": "camp_core", "target_difficulty": 0, "effects": {}},
@@ -239,7 +397,7 @@ def compile_world_bundle(
         "utility_profile": {"goal_fit": 75, "survival_benefit": 65, "resource_benefit": 60, "relationship_impact": 25, "value_alignment": 55, "risk": 20, "cost": 15},
     }
     disaster_type = mechanics.get("disaster_type", "大型环境灾难")
-    return {
+    result = {
         "compiler_version": COMPILER_VERSION,
         "theme": theme,
         "profile": profile,
@@ -266,3 +424,29 @@ def compile_world_bundle(
         "starting_factions": [starting_faction],
         "starting_relationships": [{"npc_id": npc_id, "trust": 0, "respect": 0, "affection": 0, "fear": 0, "dependency": 0}],
     }
+
+    # 添加 professions（如果已从 mechanics 传递）
+    if professions:
+        result["professions"] = professions
+    else:
+        # 默认使用 PROFESSION_REGISTRY（向后兼容）
+        result["professions"] = {pid: pdef.copy() for pid, pdef in PROFESSION_REGISTRY.items()}
+
+    # Creative slots for EventDirector
+    if genre_contract and isinstance(genre_contract, dict) and genre_contract.get("creative_slots"):
+        result["creative_slots"] = genre_contract["creative_slots"]
+    else:
+        result["creative_slots"] = {
+            "signature_anomalies": 5,
+            "living_resources": 3,
+            "taboo_rules": 4,
+            "macro_crises": 3,
+            "forced_convergences": 2,
+            "hidden_civilizations": 2,
+            "system_irregularities": 3,
+        }
+
+    result["motifs"] = THEME_MOTIFS.get(profile, THEME_MOTIFS.get("generic", []))
+    result["taboo_domains"] = THEME_TABOO_DOMAINS.get(profile, THEME_TABOO_DOMAINS.get("generic", []))
+
+    return result

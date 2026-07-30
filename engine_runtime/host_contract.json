@@ -1,21 +1,68 @@
 {
-  "version": "2.0",
+  "version": "2.1",
   "priority_invariants": [
-    {"id": "P0-1", "rule": "数据库是唯一真相", "enforcement": "SQLite事件账本 > YAML > 小说文本"},
+    {"id": "P0-1", "rule": "数据库是唯一真相", "enforcement": "SQLite 事件账本 > YAML > 小说文本"},
     {"id": "P0-2", "rule": "玩家选项只能执行预保存合同", "enforcement": "execute_player_choice 读取 pending_options"},
     {"id": "P0-3", "rule": "玩家提交行动就是授权，不二次确认", "enforcement": "execute_host_action 内部预览后立即提交"},
     {"id": "P0-4", "rule": "非法选项不能展示", "enforcement": "compile_options 丢弃 preview.legal==False"},
     {"id": "P0-5", "rule": "玩家不能看到内部主持信息", "enforcement": "player_facing_result 剥离引擎字段"}
   ],
+  "detailed_actions_types": {
+    "TRADE": {
+      "description": "与其他玩家或 NPC 进行物品/资源交易",
+      "required_parameters": ["trade_items", "trade_counterparty"],
+      "validation_rules": {
+        "trade_items": "必须是 inventory.resources 或 inventory.items 中存在的物品列表，每项包含 id、quantity",
+        "trade_counterparty": "必须是已注册的 NPC ID 或其他玩家 ID",
+        "parameters.offer_value": "LLM 不得提交，由 Python 根据 market_prices 计算"
+      }
+    },
+    "TEAM_FORMATION": {
+      "description": "组建或调整探险小队",
+      "required_parameters": ["team_roles"],
+      "validation_rules": {
+        "team_roles": "字典，键为 npc_id，值为角色（tank/dps/support/scout）",
+        "parameters.max_members": "不得超过世界定义的最大小队规模",
+        "parameters.compatibility_check": "由 Python 检查 NPC 关系和兼容性"
+      }
+    },
+    "MARKET_ORDER": {
+      "description": "在市场发布买卖订单",
+      "required_parameters": ["market_item", "market_quantity", "market_price_limit"],
+      "validation_rules": {
+        "market_item": "必须是 world.market_catalog 中可交易的物品",
+        "market_quantity": "正整数，不得超过背包持有量",
+        "market_price_limit": "由 Python 验证是否在市场波动范围内"
+      }
+    },
+    "VEHICLE_UPGRADE": {
+      "description": "升级车辆模块或装备",
+      "required_parameters": ["upgrade_target", "vehicle_slot"],
+      "validation_rules": {
+        "upgrade_target": "必须是 world.vehicle_upgrades 或 world.build_catalog 中的注册项目",
+        "vehicle_slot": "必须是该车辆当前可用的槽位 ID",
+        "parameters.materials": "由 Python 验证材料充足性，LLM 不得提交"
+      }
+    },
+    "REGIONAL_EVENT_ENTRY": {
+      "description": "进入区域性特殊事件区域",
+      "required_parameters": ["event_type", "event_location"],
+      "validation_rules": {
+        "event_type": "必须是 world.regional_events 中定义的活跃事件类型",
+        "event_location": "必须是地点注册表中该事件类型的允许入口位置",
+        "requirements": "必须满足事件的等级、装备、知识门槛"
+      }
+    }
+  },
   "turn_workflow": {
     "entry_point": "python tools/turn_controller.py",
     "routing": "控制器自动识别输入类型：A/B/C → 直接执行合同；自由文本 → 需要 --action-json",
     "steps": [
       "加载存档",
-      "自动识别输入（选项合同 / 自由行动JSON / 仅生成选项）",
+      "自动识别输入（选项合同 / 自由行动 JSON / 仅生成选项）",
       "执行玩家行动",
       "自动生成下一回合候选",
-      "编译选项（合法性门槛，最多3个）",
+      "编译选项（合法性门槛，最多 3 个）",
       "返回 NarrativePackage + turn_token"
     ],
     "record_step": "python tools/turn_controller.py <存档> record --turn-token <token> --response-file <file>",

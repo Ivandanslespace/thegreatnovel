@@ -64,6 +64,127 @@ class FormulaTests(unittest.TestCase):
         with self.assertRaises(ProtocolError):
             validate_host_action({"action_id": "cheat", "type": "EXPLORATION", "parameters": {"minutes": 999}})
 
+    def test_new_social_economic_actions_validation(self):
+        # TRADE - 成功验证
+        valid_trade = {
+            "action_id": "trade-001",
+            "type": "TRADE",
+            "target": "npc-trader-jack",
+            "risk_preference": "谨慎",
+            "parameters": {
+                "trade_items": [{"id": "fuel_canister", "quantity": 5}],
+                "trade_counterparty": "npc-trader-jack"
+            },
+            "requirements": {"items": [{"id": "fuel_canister", "quantity": 5}]}
+        }
+        validate_host_action(valid_trade)
+        
+        # TRADE - 缺少必需参数
+        invalid_trade_missing_params = {
+            "action_id": "trade-002",
+            "type": "TRADE",
+            "parameters": {}
+        }
+        with self.assertRaises(ProtocolError):
+            validate_host_action(invalid_trade_missing_params)
+        
+        # TEAM_FORMATION - 成功验证
+        valid_team = {
+            "action_id": "team-form-001",
+            "type": "TEAM_FORMATION",
+            "target": "expedition-team-alpha",
+            "parameters": {
+                "team_roles": {
+                    "npc-rivet": "scout",
+                    "npc-silo": "tank"
+                }
+            }
+        }
+        validate_host_action(valid_team)
+        
+        # TEAM_FORMATION - team_roles 必须是字典
+        invalid_team_roles = {
+            "action_id": "team-form-002",
+            "type": "TEAM_FORMATION",
+            "parameters": {
+                "team_roles": ["npc-rivet", "npc-silo"]
+            }
+        }
+        with self.assertRaises(ProtocolError):
+            validate_host_action(invalid_team_roles)
+        
+        # MARKET_ORDER - 成功验证
+        valid_market = {
+            "action_id": "market-order-001",
+            "type": "MARKET_ORDER",
+            "target": "废土集市",
+            "parameters": {
+                "market_item": "medkit_stim",
+                "market_quantity": 8,
+                "market_price_limit": 150
+            }
+        }
+        validate_host_action(valid_market)
+        
+        # MARKET_ORDER - quantity 必须为正整数
+        invalid_quantity = {
+            "action_id": "market-order-002",
+            "type": "MARKET_ORDER",
+            "parameters": {
+                "market_item": "medkit_stim",
+                "market_quantity": -5,
+                "market_price_limit": 150
+            }
+        }
+        with self.assertRaises(ProtocolError):
+            validate_host_action(invalid_quantity)
+        
+        # VEHICLE_UPGRADE - 成功验证
+        valid_upgrade = {
+            "action_id": "vehicle-upgrade-001",
+            "type": "VEHICLE_UPGRADE",
+            "target": "train-car-01",
+            "parameters": {
+                "upgrade_target": "armor_plate_heavy",
+                "vehicle_slot": "hull_front"
+            }
+        }
+        validate_host_action(valid_upgrade)
+        
+        # VEHICLE_UPGRADE - LLM 不得提交 materials
+        invalid_upgrade_materials = {
+            "action_id": "vehicle-upgrade-002",
+            "type": "VEHICLE_UPGRADE",
+            "parameters": {
+                "upgrade_target": "armor_plate_heavy",
+                "vehicle_slot": "hull_front",
+                "materials": [{"id": "steel_ingot", "quantity": 20}]
+            }
+        }
+        with self.assertRaises(ProtocolError):
+            validate_host_action(invalid_upgrade_materials)
+        
+        # REGIONAL_EVENT_ENTRY - 成功验证
+        valid_event = {
+            "action_id": "event-entry-001",
+            "type": "REGIONAL_EVENT_ENTRY",
+            "target": "radiation_zone_alpha",
+            "parameters": {
+                "event_type": "radiation_contamination",
+                "event_location": "zone_alpha_north"
+            }
+        }
+        validate_host_action(valid_event)
+        
+        # REGIONAL_EVENT_ENTRY - 缺少必需参数
+        invalid_event_missing = {
+            "action_id": "event-entry-002",
+            "type": "REGIONAL_EVENT_ENTRY",
+            "parameters": {}
+        }
+        with self.assertRaises(ProtocolError):
+            validate_host_action(invalid_event_missing)
+
     def test_action_is_deterministic_and_state_linked(self):
         player = {"attributes": {"strength": 8, "constitution": 5, "agility": 5, "spirit": 5}, "fatigue": 0, "injuries": []}
         context = ActionContext(action_id="inspect", primary_attribute="strength", target_difficulty=20, seed="seed-1")
@@ -155,7 +276,7 @@ class FormulaTests(unittest.TestCase):
         self.assertEqual(talent["rarity"], "A")
         self.assertEqual(world["generation_bundle"]["starting_inventory"]["equipment"]["main_weapon"]["rarity"], "G")
         self.assertEqual(world["generation"]["theme_profile"], "永夜冰川")
-        self.assertEqual(world["generation_bundle"]["compiler_version"], "1.1")
+        self.assertEqual(world["generation_bundle"]["compiler_version"], "1.3")
         self.assertTrue(world["generation_bundle"]["locations"][1]["extraction_rule"]["requires_discovered_location"])
         self.assertEqual(
             set(world["generation"]["generated_fields"]),
@@ -1074,6 +1195,175 @@ class OptionLegalityGateTests(unittest.TestCase):
             self.assertNotIn("pending_options", engine.state.meta)
             review = engine.preview_player_choice("A")
             self.assertFalse(review["legal"])
+
+
+class EventDirectorTests(unittest.TestCase):
+    """异变事件导演系统测试（EventDirector）"""
+
+    def test_event_blueprint_creation(self):
+        """EventBlueprint dataclass can be created and serialized"""
+        from engine_runtime.event_director import EventBlueprint
+        bp = EventBlueprint(event_id="test_01", family="rule_anomaly", tier="anomaly")
+        d = bp.to_dict()
+        self.assertEqual(d["event_id"], "test_01")
+        self.assertEqual(d["family"], "rule_anomaly")
+
+    def test_creative_slot_inventory(self):
+        """CreativeSlotInventory tracks and consumes slots"""
+        from engine_runtime.event_director import CreativeSlotInventory
+        inv = CreativeSlotInventory()
+        self.assertEqual(inv.signature_anomalies, 5)
+        self.assertTrue(inv.consume("rule_anomaly"))  # maps to signature_anomalies
+        self.assertEqual(inv.signature_anomalies, 4)
+
+    def test_creative_slot_regeneration(self):
+        """Slots regenerate every 10 turns"""
+        from engine_runtime.event_director import CreativeSlotInventory
+        inv = CreativeSlotInventory(signature_anomalies=3)
+        inv.regenerate(turns_elapsed=10)
+        self.assertEqual(inv.signature_anomalies, 4)
+
+    def test_event_value_calculator_deterministic(self):
+        """EventValue scoring produces deterministic results for same inputs"""
+        from engine_runtime.event_director import EventValueCalculator, EventBlueprint
+        calc = EventValueCalculator()
+        bp = EventBlueprint(event_id="test", family="macro_crisis", tier="regional_crisis")
+        state = {"meta": {"narrative_state": {"event_pattern_history": [], "pressure_components": {}}, "current_turn": 5}, "data": {"world": {"motifs": ["铁轨"], "taboo_domains": ["身份"]}, "npcs": [], "factions": []}}
+        score1 = calc.score(bp, state, state["data"]["world"])
+        score2 = calc.score(bp, state, state["data"]["world"])
+        self.assertEqual(score1.value_score, score2.value_score)
+
+    def test_no_creative_slots_means_no_events(self):
+        """EventDirector returns empty list when no creative_slots"""
+        from engine_runtime.event_director import EventDirector
+        class MockState:
+            data = {"world": {}}
+            meta = {}
+        class MockEngine:
+            state = MockState()
+        director = EventDirector(MockEngine())
+        result = director.evaluate_turn()
+        self.assertEqual(result, [])
+
+    def test_frequency_gate_window(self):
+        """FrequencyGate tracks distribution within window"""
+        from engine_runtime.event_director import FrequencyGate
+        gate = FrequencyGate()
+        history = [{"tier": "normal"} for _ in range(15)]
+        result = gate.should_trigger("anomaly", history)
+        self.assertTrue(result)
+
+    def test_mechanism_collision_generates_candidates(self):
+        """MechanismCollider generates event candidates from world rules"""
+        from engine_runtime.event_director import MechanismCollider
+        collider = MechanismCollider()
+        world = {"motifs": ["铁轨", "车厢"], "taboo_domains": ["身份", "邀请"]}
+        pressure = {"survival_threat": 70, "resource_scarcity": 50}
+        candidates = collider.generate_candidates(world, pressure, [], {})
+        self.assertGreater(len(candidates), 0)
+        for c in candidates:
+            self.assertTrue(hasattr(c, 'event_id'))
+            self.assertTrue(hasattr(c, 'family'))
+
+
+class ProfessionSystemTests(unittest.TestCase):
+    """Test profession system functionality"""
+    
+    def test_profession_registry_loads_from_world(self):
+        from engine_runtime.world_compiler import compile_world_bundle, PROFESSION_REGISTRY
+        mechanics = {
+            "profile": "generic",
+            "professions": [PROFESSION_REGISTRY["mechanic"]],
+            "disaster_type": "test",
+        }
+        world_bundle = compile_world_bundle("废土列车", "中文", mechanics, "测试基地", ["资源"])
+        self.assertIn("mechanic", world_bundle["professions"])
+        self.assertEqual(world_bundle["professions"]["mechanic"]["name"], "缆车维修师")
+    
+    def test_exclusive_actions_merged_into_action_targets(self):
+        from engine_runtime.world_compiler import compile_world_bundle, PROFESSION_REGISTRY
+        mechanics = {
+            "profile": "generic",
+            "professions": [PROFESSION_REGISTRY["mechanic"]],
+            "disaster_type": "test",
+        }
+        world_bundle = compile_world_bundle("废土列车", "中文", mechanics, "测试基地", ["资源"])
+        # Exclusive actions should be merged into action_targets
+        self.assertIn("DIAGNOSE_FAILURE", world_bundle["action_targets"])
+        self.assertEqual(world_bundle["action_targets"]["DIAGNOSE_FAILURE"]["action_type"], "DIAGNOSE_FAILURE")
+    
+    def test_profession_requirement_validation(self):
+        from engine_runtime.runtime import GameEngine
+        from engine_runtime.state import GameState
+        from pathlib import Path
+        from engine_runtime.world_compiler import PROFESSION_REGISTRY
+        
+        state_dict = {
+            "player": {"profession": "mechanic"},
+            "base": {},
+            "inventory": {},
+            "npcs": {},
+            "factions": {},
+            "relationships": [],
+            "event_queue": [],
+            "meta": {"current_turn": 1, "time_of_day": "白天"},
+            "world": {"professions": {"mechanic": PROFESSION_REGISTRY["mechanic"]}},
+        }
+        state = GameState(save_dir=Path("."), data=state_dict)
+        engine = GameEngine(state)
+        
+        action_profile = {"requirements": {"profession": "mechanic"}}
+        is_valid, _ = engine._check_profession_requirement(action_profile, state)
+        self.assertTrue(is_valid)
+        
+        # Now test without profession
+        state.player["profession"] = None
+        is_valid, msg = engine._check_profession_requirement(action_profile, state)
+        self.assertFalse(is_valid)
+        self.assertIn("职业不符", msg)
+    
+    def test_profession_bonus_injection(self):
+        from engine_runtime.runtime import GameEngine
+        from engine_runtime.state import GameState
+        from pathlib import Path
+        from engine_runtime.world_compiler import PROFESSION_REGISTRY
+        
+        state_dict = {
+            "player": {"profession": "mechanic", "attributes": {"agility": 5}},
+            "base": {},
+            "inventory": {},
+            "npcs": {},
+            "factions": {},
+            "relationships": [],
+            "event_queue": [],
+            "meta": {},
+            "world": {"professions": {"mechanic": PROFESSION_REGISTRY["mechanic"]}},
+        }
+        state = GameState(save_dir=Path("."), data=state_dict)
+        engine = GameEngine(state)
+        
+        action_profile = {}
+        context = engine._build_action_context(action_profile, {})
+        
+        # Agility bonus +2 should be applied (capped at half for balance)
+        self.assertGreater(context.agility, 5)
+        self.assertEqual(context.agility, 6.0)  # 5 base + 1 (half of 2)
+    
+    def test_backward_compatibility_no_professions(self):
+        from engine_runtime.world_compiler import compile_world_bundle
+        mechanics = {
+            "profile": "generic",
+            "professions": [],
+            "disaster_type": "test",
+        }
+        world_bundle = compile_world_bundle("废土列车", "中文", mechanics, "测试基地", ["资源"])
+        self.assertEqual(world_bundle["professions"], {})
+    
+    def test_consequence_radius_calculation(self):
+        from engine_runtime.calculators import calculate_consequence_radius
+        radius = calculate_consequence_radius("mechanic", {"impact_score": 0.8}, {})
+        self.assertGreater(radius, 0.5)
+        self.assertLess(radius, 1.0)
 
 
 if __name__ == "__main__":

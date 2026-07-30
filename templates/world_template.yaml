@@ -9,6 +9,9 @@ world:
   narrative_length: 7         # 叙述长度偏好(1-10)，每轮约 length×100~120字
   language: "中文"            # 游戏语言（任何语言，默认中文）
 
+  # 职业系统（可选）
+  professions: {}             # 可玩职业注册表，由 engine_runtime/world_compiler.py 中的 PROFESSION_REGISTRY 定义
+
   # 核心设定
   setting:
     safe_base: ""             # 由主题档案生成
@@ -107,6 +110,18 @@ world:
       turns: "61-100"
       focus: "世界真相逐渐揭露"
       threats: "Lv10+，文明级事件"
+
+  # 创意槽位（控制主题编译器生成各类创意元素的数量）
+  creative_slots:
+    signature_anomalies: 5
+    living_resources: 3
+    taboo_rules: 4
+    macro_crises: 3
+    forced_convergences: 2
+    hidden_civilizations: 2
+    system_irregularities: 3
+  motifs: []
+  taboo_domains: []
 
 # 主角天赋（玩家定义）
 player_talent:
