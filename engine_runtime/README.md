@@ -12,7 +12,10 @@ LLM 主持器必须遵守 [host_protocol.md](host_protocol.md)。`tools/run_acti
 python tools/run_action.py <存档目录> --action-json '{"action_id":"scout","type":"EXPLORATION","target":"区域名","risk_preference":"谨慎"}' --player-input '我去侦察。' --gm-response-file response.md
 ```
 
-加 `--dry-run` 只预览，不写入 YAML 和 `event_log.md`。
+游戏流程不需要二次确认：玩家输入即执行授权，入口在同一调用内内部预览后提交。
+加 `--dry-run` 只用于开发排查，不写入 YAML 和 `event_log.md`。
+
+已展示选项用 `--player-choice-option A` 执行保存的预验证契约，不会重新解释 A 的含义。
 
 组合行动使用 `ACTION_PLAN`；Python会先计算可组合度，再在一次 SQLite 事务中提交所有步骤。
 

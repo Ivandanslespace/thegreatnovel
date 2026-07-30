@@ -29,6 +29,7 @@ except ImportError:
     sys.exit(1)
 
 from engine_runtime.ratings import RATING_INDEX
+from engine_runtime.world_compiler import COMPILER_VERSION
 
 
 # ─── 工具函数 ───────────────────────────────────────────────
@@ -242,6 +243,16 @@ def validate_world_package(save_dir, data):
             findings.append(Finding("ERROR", "规则", f"inventory.items[{index}].rarity 必须是 G/F/E/D/C/B/A/S/SS/SSS"))
 
     generation = world.get("generation", {}) if isinstance(world.get("generation", {}), dict) else {}
+    registered_locations = world.get("locations", [])
+    if isinstance(registered_locations, list):
+        registered_location_ids = {str(item.get("id", item.get("name"))) for item in registered_locations if isinstance(item, dict) and item.get("id", item.get("name"))}
+    elif isinstance(registered_locations, dict):
+        registered_location_ids = {str(key) for key in registered_locations}
+    else:
+        registered_location_ids = set()
+    current_location = meta.get("current_location")
+    if current_location and registered_location_ids and str(current_location) not in registered_location_ids:
+        findings.append(Finding("CRITICAL", "连续性", f"meta.current_location 未注册：{current_location}"))
     if generation.get("mechanics_source") == "theme_profile":
         bundle = world.get("generation_bundle")
         required_bundle = ("starting_location", "locations", "enemies", "areas", "build_catalog", "action_targets", "starting_inventory", "starting_npcs", "starting_factions", "starting_relationships")
@@ -251,6 +262,15 @@ def validate_world_package(save_dir, data):
             missing_bundle = [field for field in required_bundle if not bundle.get(field)]
             if missing_bundle:
                 findings.append(Finding("CRITICAL", "规则", f"generation_bundle 缺少可执行字段：{', '.join(missing_bundle)}"))
+            if str(bundle.get("compiler_version", "")) != str(COMPILER_VERSION):
+                findings.append(Finding("CRITICAL", "规则", f"generation_bundle.compiler_version={bundle.get('compiler_version')} 与当前编译器 {COMPILER_VERSION} 不兼容"))
+            location_values = bundle.get("locations", [])
+            location_ids = {
+                str(item.get("id", item.get("name"))) for item in location_values
+                if isinstance(item, dict) and item.get("id", item.get("name"))
+            } if isinstance(location_values, list) else {str(key) for key in location_values} if isinstance(location_values, dict) else set()
+            if current_location and not registered_location_ids and str(current_location) not in location_ids:
+                findings.append(Finding("CRITICAL", "连续性", f"meta.current_location 未注册：{current_location}"))
         if not (save_dir / "campaign.sqlite3").exists():
             findings.append(Finding("CRITICAL", "连续性", "主题世界缺少 SQLite 事件存储 campaign.sqlite3"))
         else:
@@ -277,6 +297,19 @@ def validate_world_package(save_dir, data):
         findings.append(Finding("ERROR", "连续性", "meta.current_turn 必须是正整数"))
     if meta.get("world_name") and world.get("name") and meta["world_name"] != world["name"]:
         findings.append(Finding("ERROR", "连续性", "meta.world_name 与 world.name 不一致"))
+    pending_options = meta.get("pending_options")
+    if pending_options:
+        if not isinstance(pending_options, dict) or not isinstance(pending_options.get("options"), dict):
+            findings.append(Finding("CRITICAL", "连续性", "pending_options 必须包含 options 映射"))
+        else:
+            for option_id, option in pending_options["options"].items():
+                if not isinstance(option, dict) or not isinstance(option.get("action"), dict):
+                    findings.append(Finding("CRITICAL", "连续性", f"pending_options.{option_id} 缺少已绑定 action 契约"))
+                preview = option.get("preview") if isinstance(option, dict) else None
+                if not isinstance(preview, dict) or preview.get("legal") is not True:
+                    findings.append(Finding("CRITICAL", "连续性", f"pending_options.{option_id} 没有合法的预验证结果"))
+            if pending_options.get("state_turn") != current_turn:
+                findings.append(Finding("CRITICAL", "连续性", "pending_options 与当前回合不一致"))
     if meta.get("event_format_version", 1) >= 2 and not data.get("events"):
         findings.append(Finding("CRITICAL", "连续性", "标准事件存档至少需要一条初始事件"))
     return findings
@@ -743,15 +776,8 @@ def validate_formula_trace(save_dir, data):
 
 # ─── 主流程 ─────────────────────────────────────────────────
 
-def run_validation(save_path):
-    save_dir = Path(save_path)
-    if not save_dir.is_dir():
-        print(f"错误：找不到存档目录 {save_path}")
-        sys.exit(1)
-
-    print(f"═══ 校验存档：{save_dir.name} ═══\n")
-
-    # 加载所有数据
+def _load_validation_data(save_dir):
+    """加载一次完整校验输入；启动门禁与人类报告共用同一套事实。"""
     world_package = load_yaml(save_dir / "world.yaml") or {}
     data = {
         "meta": (load_yaml(save_dir / "meta.yaml") or {}).get("meta", {}),
@@ -768,7 +794,6 @@ def run_validation(save_path):
         "story_text": load_text(save_dir / "story.md"),
     }
     data["events"], data["event_parse_errors"] = parse_event_blocks(data["event_log_text"])
-    # 新存档以 SQLite events 表为事件事实源；Markdown 事件日志仅作为人类可读导出。
     campaign_path = save_dir / "campaign.sqlite3"
     if campaign_path.exists():
         try:
@@ -779,8 +804,14 @@ def run_validation(save_path):
             data["event_parse_errors"] = []
         except (OSError, ValueError, RuntimeError) as exc:
             data["event_parse_errors"] = [f"SQLite 事件读取失败：{exc}"]
+    return data
 
-    # 运行六类校验
+
+def collect_findings(save_path):
+    save_dir = Path(save_path)
+    if not save_dir.is_dir():
+        raise ValueError(f"找不到存档目录：{save_path}")
+    data = _load_validation_data(save_dir)
     all_findings = []
     all_findings.extend(validate_world_package(save_dir, data))
     all_findings.extend(validate_event_sourcing(save_dir, data))
@@ -792,6 +823,30 @@ def run_validation(save_path):
     all_findings.extend(validate_combat(save_dir, data))
     all_findings.extend(validate_relationships(save_dir, data))
     all_findings.extend(validate_narrative(save_dir, data))
+    return all_findings
+
+
+def assert_startable(save_path):
+    """启动硬门禁：CRITICAL/ERROR 都不能进入游戏流程。"""
+    findings = collect_findings(save_path)
+    blockers = [finding for finding in findings if finding.severity in {"CRITICAL", "ERROR"}]
+    if blockers:
+        summary = "；".join(f"[{item.severity}] {item.message}" for item in blockers[:6])
+        raise ValueError(f"存档启动门禁拒绝继续：{summary}")
+    return findings
+
+
+def run_validation(save_path):
+    save_dir = Path(save_path)
+    try:
+        all_findings = collect_findings(save_path)
+    except ValueError as exc:
+        print(f"错误：{exc}")
+        return 1
+
+    print(f"═══ 校验存档：{save_dir.name} ═══\n")
+
+    # 按严重度分组输出
 
     # 按严重度分组输出
     severity_order = ["CRITICAL", "ERROR", "WARNING", "INFO"]

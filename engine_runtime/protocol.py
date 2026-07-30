@@ -56,6 +56,9 @@ ACTION_PROFILES = {
     "LEAVE_ENCOUNTER": {"time_minutes": 15.0, "stamina_cost": 2.0, "mental_cost": 0.0, "target_difficulty": 5.0},
     "BASE_MANAGEMENT": {"time_minutes": 30.0, "stamina_cost": 2.0, "mental_cost": 4.0, "target_difficulty": 0.0},
     "REST": {"time_minutes": 360.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
+    # 只处理已经发生的即时危险，不占用普通行动槽；运行时还会把
+    # pending_reaction 的实际时间限制在 0-5 分钟内。
+    "REACTION": {"time_minutes": 5.0, "stamina_cost": 1.0, "mental_cost": 1.0, "target_difficulty": 10.0},
     "TALENT_CHOICE": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
     "ACTION_PLAN": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
     "ENDING": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},

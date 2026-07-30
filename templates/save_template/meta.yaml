@@ -32,6 +32,9 @@ meta:
   active_encounters: []
   current_encounter_id: ""
   encounter_history: []
+  pending_options: {}         # 已预验证的 A/B/C 行动契约
+  pending_options_state_turn: 0
+  pending_reaction: {}        # 即时危险专用的0-5分钟反应窗口
   
   # 叙事状态
   pressure_level: 30          # 当前压力值(0-100)

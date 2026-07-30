@@ -36,8 +36,9 @@
 1. LLM只把玩家自然语言解析成意图 JSON，不自行计算或填写任何硬公式数值。
 2. LLM不得直接编辑 `saves/`、追加 `event_log.md` 或凭记忆修改 YAML；状态变更只能经过
    `python tools/run_action.py` 的 Python 入口。
-3. 行动先用 `--dry-run` 预览。只有玩家确认后，才调用同一行动 JSON 的执行命令，并同时
-   提交玩家原始输入和GM完整回答；该命令会自动记录本回合。
+3. 玩家选择 A/B/C 或提交自由行动本身就是执行授权。Python 可以在同一调用内先做内部
+   预览，再立即提交同一行动；不得向玩家追加“确认执行”问题。`--dry-run` 仅供开发排查，
+   游戏主持流程不得把它当成第二个玩家回合。
 4. 执行命令失败时，本轮没有结算。不得用小说叙述“补出”结果，也不得手写替代事件。
    缺少玩家输入或GM回答时，Python入口直接拒绝执行。
 5. LLM不得提交或隐藏 `time_minutes`、`stamina_cost`、`mental_cost`、`target_difficulty`、
@@ -50,7 +51,7 @@
 协议状态机固定为：
 
 ```text
-读取存档 → 解析意图 → 白名单校验 → Python预览 → 玩家确认
+读取存档 → 解析意图 → 白名单校验 → Python内部预览
 → Python执行 → 执行后校验 → 根据返回值叙述 → 等待下一轮
 ```
 
@@ -133,7 +134,7 @@
 
 ```
 读取 SQLite 当前状态 → 描写场景（narrative_length × 100~120字）→ 提供选择 → 等待玩家输入
-→ 解析意图 → Python预览/确认 → SQLite事务结算 → 导出视图 → 小说化结果 → 下一轮
+→ 解析意图 → Python内部预览与SQLite事务结算 → 导出视图 → 小说化结果 → 下一轮
 ```
 
 ## 交互格式
@@ -236,7 +237,10 @@ saves/{世界名}/
 - 使用 Read 工具读取 .yaml 文件
 - 主持运行期间禁止 LLM 使用 Write/Edit 直接更新存档；必须调用 `python tools/run_action.py`
   让 Python 通过标准事件完整更新 YAML、追加 `event_log.md`，并记录玩家输入和GM回答
-- 每个涉及多个小步骤的玩家输入必须先编译为 `ACTION_PLAN`：Python 计算每一步的属性、成本、合法性和可组合度，预览通过后以一个 SQLite 事务原子提交；LLM 不得自行计算或覆盖这些数值
+- 每个涉及多个小步骤的玩家输入必须先编译为 `ACTION_PLAN`：Python 计算每一步的属性、成本、合法性和可组合度，内部预览通过后以一个 SQLite 事务原子提交；LLM 不得自行计算或覆盖这些数值
+- 展示给玩家的 A/B/C 必须来自 `meta.pending_options` 中的已预验证行动契约；选择选项时只读取该契约，不重新解释为另一个行动。没有实际状态效果的选项不得展示。
+- 普通行动时间为0时，只能展示 `REACTION` 即时反应；反应行动必须来自 `meta.pending_reaction`，耗时0-5分钟且不占普通行动槽，不得借此探索、采集、研究或建造。
+- 玩家可见小说不得出现 `预览合法`、`未结算`、`Python`、`SQLite`、`dry-run`、`action_id`、`确认执行` 等主持协议词，也不得声称事件没有提交的状态变化。
 - `python tools/replay_campaign.py <存档路径>` 必须能从 SQLite 基础状态重放事件；`python tools/verify_projection.py <存档路径>` 必须通过后才能继续主持
 - `novel_draft.md` 只保留可复制的GM连续叙述；`conversation_log.md` 保留完整对话与审计数据
 - `decision_audit.jsonl` / `decision_audit.md` 必须区分 `player`、`llm`、`python`、`joint`，并记录
@@ -433,7 +437,7 @@ Lv.X → Lv.Y
 2. 计算总成本 vs 当前可用资源（时间/体力/精神）
 3. 计算可组合度
 4. 告知玩家：哪些能完成、哪些只能部分完成、哪些必须放弃
-5. 玩家确认后，逐项结算，应用稀释修正
+5. 玩家选择或提交自由行动后，逐项结算，应用稀释修正
 6. 由 SQLite 事务提交事件和快照，再导出 YAML/Markdown 视图
 
 ## 公式三级分类

@@ -455,12 +455,21 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
     payload = record.get("data", {})
     if not isinstance(payload, Mapping):
         payload = {}
+    event_type = str(record.get("type", ""))
     if isinstance(payload.get("state_restore"), Mapping):
         updated = deepcopy(dict(payload["state_restore"]))
     player = updated.setdefault("player", {})
     meta = updated.setdefault("meta", {})
     inventory = updated.setdefault("inventory", {})
     world = updated.setdefault("world", {})
+
+    # 展示选项是可恢复的主持状态，不是玩家行动：不推进回合、时间、
+    # NPC日程或叙事指标，只保存已经预验证的行动契约。
+    if event_type == "OPTIONS_PRESENTED":
+        pending_options = payload.get("pending_options", {})
+        meta["pending_options"] = deepcopy(dict(pending_options)) if isinstance(pending_options, Mapping) else {}
+        meta["pending_options_state_turn"] = int(payload.get("state_turn", meta.get("current_turn", 0)))
+        return updated
 
     for key, delta in (payload.get("player_delta", {}) or {}).items():
         if isinstance(delta, Mapping):
@@ -583,7 +592,13 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
     if isinstance(payload.get("runtime_metrics"), Mapping):
         meta["runtime_metrics"] = deepcopy(dict(payload["runtime_metrics"]))
 
-    event_type = str(record.get("type", ""))
+    # 玩家一旦提交行动，旧选项立即失效。清理由投影器执行，保证实时
+    # 状态与 SQLite 事件重放拥有相同语义。
+    if record.get("actor") == "player":
+        meta.pop("pending_options", None)
+        meta.pop("pending_options_state_turn", None)
+        if event_type == "REACTION_RESOLVED":
+            meta.pop("pending_reaction", None)
     if event_type in {"COMBAT_RESOLVED", "COMBAT_ENDED"}:
         meta["total_combats"] = int(meta.get("total_combats", 0)) + 1
     if event_type in {"ACTION_RESOLVED", "EXPLORATION_RESOLVED"}:

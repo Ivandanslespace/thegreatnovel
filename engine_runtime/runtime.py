@@ -6,6 +6,7 @@ from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
+from uuid import uuid4
 
 from .calculators import (
     ActionContext,
@@ -155,11 +156,25 @@ class GameEngine:
                 return ["尚未发现当前地点的撤离点"]
         return []
 
+    def _reaction_errors(self, action: Mapping[str, Any]) -> list[str]:
+        pending = self.state.meta.get("pending_reaction", {})
+        if not isinstance(pending, Mapping) or not pending.get("id"):
+            return ["当前没有待处理的即时危险"]
+        allowed_types = pending.get("allowed_action_types", ["REACTION"])
+        if isinstance(allowed_types, list) and "REACTION" not in {str(item) for item in allowed_types}:
+            return ["当前即时危险不允许反应行动"]
+        parameters = action.get("parameters", {}) if isinstance(action.get("parameters", {}), Mapping) else {}
+        if not action.get("goal") and not parameters.get("objective"):
+            return ["反应行动必须说明要处理的即时危险"]
+        return []
+
     def _target_presence_errors(self, action: Mapping[str, Any]) -> list[str]:
         action_type = str(action.get("type"))
         current_location = self._current_location()
         base_location = self._base_location()
         movement_types = {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"}
+        if action_type == "REACTION":
+            return self._reaction_errors(action)
         target_profile = self._action_target_profile(action)
         target_constraints = target_profile.get("constraints", {}) if isinstance(target_profile, Mapping) else {}
         availability = target_constraints.get("availability", {}) if isinstance(target_constraints, Mapping) else {}
@@ -586,6 +601,27 @@ class GameEngine:
     def _domain_effects(self, action: Mapping[str, Any], resolution: Mapping[str, Any], dilution_multiplier: float = 1.0) -> Dict[str, Any]:
         action_type = str(action.get("type", ""))
         dilution_multiplier = max(0.25, min(1.0, float(dilution_multiplier)))
+        if action_type == "REACTION":
+            pending = self.state.meta.get("pending_reaction", {})
+            pending = pending if isinstance(pending, Mapping) else {}
+            effects = pending.get("effects", {}) if isinstance(pending.get("effects", {}), Mapping) else {}
+            outcome = str(resolution.get("outcome", ""))
+            if any(key in effects for key in ("success", "partial_failure", "failure")):
+                if outcome in {"大成功", "普通成功", "成功但付出代价"}:
+                    effects = effects.get("success", {})
+                elif outcome == "失败但获得部分信息":
+                    effects = effects.get("partial_failure", {})
+                else:
+                    effects = effects.get("failure", {})
+                effects = effects if isinstance(effects, Mapping) else {}
+            result = {
+                "event_type": "REACTION_RESOLVED",
+                "reaction_id": pending.get("id"),
+                "reaction_effect": str(action.get("goal") or (action.get("parameters", {}) or {}).get("objective") or "即时处置"),
+                "proposed_events": [{"type": "REACTION_RESOLVED", "target": pending.get("id")}],
+            }
+            result.update(deepcopy(dict(effects)))
+            return result
         if action_type in {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"} and not bool(resolution.get("movement_success")):
             raise ValueError("移动/撤离没有获得 Python 路线成功结果，拒绝修改地点状态")
         if action_type in {"TRAVEL", "ENTER_LOCATION"}:
@@ -758,8 +794,10 @@ class GameEngine:
     def _derived_budget_errors(self, action: Mapping[str, Any], costs: Mapping[str, float]) -> list[str]:
         errors = self._check_requirements(action)
         available_time = float(self.state.meta.get("available_time_minutes", 240))
-        if float(costs["time_minutes"]) > available_time:
+        if str(action.get("type")) != "REACTION" and float(costs["time_minutes"]) > available_time:
             errors.append("时间不足")
+        if str(action.get("type")) == "REACTION" and not 0.0 <= float(costs["time_minutes"]) <= 5.0:
+            errors.append("反应行动必须在0-5分钟内")
         if float(self.state.player.get("fatigue", 0)) + float(costs["stamina_cost"]) > 100:
             errors.append("体力不足")
         if float(self.state.player.get("mental", 100)) - float(costs["mental_cost"]) < 0:
@@ -1185,7 +1223,7 @@ class GameEngine:
         stamina_cost = float(costs["stamina_cost"])
         mental_cost = float(costs["mental_cost"])
         legal_errors = self._check_requirements(action)
-        if time_cost > available_time:
+        if str(action.get("type")) != "REACTION" and time_cost > available_time:
             legal_errors.append("时间不足")
         if float(self.state.player.get("fatigue", 0)) + stamina_cost > 100:
             legal_errors.append("体力不足")
@@ -1202,6 +1240,8 @@ class GameEngine:
             action_tags.append("major_action")
         if str(action.get("type")) in {"EXPLORATION", "COMBAT", "BUILD", "RESEARCH"} and "requires_full_attention" not in action_tags:
             action_tags.append("requires_full_attention")
+        if str(action.get("type")) == "REACTION" and "immediate_reaction" not in action_tags:
+            action_tags.append("immediate_reaction")
         return {
             "legal": not legal_errors,
             "errors": legal_errors,
@@ -1223,6 +1263,160 @@ class GameEngine:
             },
             "skill": skill,
         }
+
+    @staticmethod
+    def _option_label(candidate: Mapping[str, Any], option_id: str) -> str:
+        return str(candidate.get("label") or candidate.get("title") or candidate.get("name") or f"方案{option_id}")
+
+    def _option_has_real_effect(self, action: Mapping[str, Any], preview: Mapping[str, Any]) -> bool:
+        if not preview.get("legal"):
+            return False
+        action_type = str(action.get("type"))
+        resolution = preview.get("resolution", {}) if isinstance(preview.get("resolution", {}), Mapping) else {}
+        if action_type == "ACTION_PLAN":
+            return any(
+                self._option_has_real_effect(item.get("action", {}), item.get("preview", {}))
+                for item in preview.get("steps", []) if isinstance(item, Mapping)
+            )
+        if action_type in {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"}:
+            return bool(resolution.get("movement_success"))
+        if action_type in {"REST", "REACTION", "TALENT_CHOICE"}:
+            return True
+        if action_type == "BUILD":
+            return bool(resolution.get("resource_changes") or resolution.get("space_cost") or resolution.get("module"))
+        if action_type == "COMBAT":
+            return any(float(resolution.get(key, 0) or 0) != 0 for key in ("damage", "incoming_damage", "ammo_consumed", "durability_cost"))
+        if action_type == "BATCH_ACTION":
+            return any(float(resolution.get(key, 0) or 0) != 0 for key in ("total_kills", "total_experience", "ammo_consumed", "durability_cost")) or bool(resolution.get("recovered_resources"))
+        try:
+            effects = self._domain_effects(action, resolution)
+        except (TypeError, ValueError):
+            return False
+        ignored = {"event_type", "proposed_events", "effect_multiplier"}
+        return any(key not in ignored and value not in (None, 0, 0.0, "", [], {}, False) for key, value in effects.items())
+
+    def compile_options(self, candidates: list[Mapping[str, Any]], *, persist: bool = True) -> Dict[str, Any]:
+        """将主持器候选编译为已预验证、可直接执行的行动契约。"""
+        if not isinstance(candidates, list) or not candidates:
+            raise ValueError("选项候选不能为空")
+        compiled: Dict[str, Any] = {}
+        ordinary_types = {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER", "EXPLORATION", "RESEARCH", "BUILD", "COMBAT", "BATCH_ACTION", "SOCIAL_INTERACTION", "SHORT_ACTION", "REST", "BASE_MANAGEMENT"}
+        for index, candidate in enumerate(candidates):
+            if not isinstance(candidate, Mapping):
+                continue
+            option_id = str(candidate.get("id") or candidate.get("option_id") or chr(65 + index)).strip().upper()
+            raw_action = candidate.get("action") or candidate.get("contract")
+            if not isinstance(raw_action, Mapping):
+                raw_action = {key: deepcopy(value) for key, value in candidate.items() if key in {"action_id", "type", "target", "primary_attribute", "skill_id", "requirements", "risk_preference", "tags", "goal", "approach", "parameters", "stop_conditions", "plan_id", "steps", "priority_order", "accept_dilution"}}
+            action = deepcopy(dict(raw_action))
+            if not action.get("action_id"):
+                action["action_id"] = f"option-{self.state.current_turn + 1}-{option_id}"
+            # 选项可以只描述“去某地调查”；若当前位置不符，编译器把它
+            # 固化为含自动移动步骤的 ACTION_PLAN，避免把空间规则交给LLM。
+            required_location = self._required_action_location(action)
+            if (
+                required_location
+                and required_location != self._current_location()
+                and str(action.get("type")) not in {"ACTION_PLAN", "TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"}
+            ):
+                action = {
+                    "action_id": f"{action['action_id']}-compiled-plan",
+                    "type": "ACTION_PLAN",
+                    "plan_id": f"{action['action_id']}-compiled-plan",
+                    "accept_dilution": True,
+                    "steps": [action],
+                }
+            try:
+                preview = self.preview_host_action(action)
+            except (TypeError, ValueError):
+                continue
+            action_type = str(action.get("type"))
+            if float(self.state.meta.get("available_time_minutes", 240)) <= 0 and action_type in ordinary_types:
+                continue
+            if not self._option_has_real_effect(action, preview):
+                continue
+            compiled[option_id] = {
+                "id": option_id,
+                "label": self._option_label(candidate, option_id),
+                "description": str(candidate.get("description") or candidate.get("summary") or action.get("goal") or ""),
+                "action": action,
+                "preview": deepcopy(preview),
+                "state_turn": self.state.current_turn,
+            }
+        # 两个选项如果产生完全相同的路线/结果，就不是两个真正的选择。
+        distinct: Dict[str, Any] = {}
+        fingerprints = set()
+        for option_id, item in compiled.items():
+            action = item["action"]
+            preview = item["preview"]
+            resolution = preview.get("resolution", {}) if isinstance(preview.get("resolution", {}), Mapping) else {}
+            if str(action.get("type")) == "ACTION_PLAN":
+                fingerprint = repr([
+                    (step.get("action", {}).get("type"), step.get("action", {}).get("target"), step.get("preview", {}).get("resolution", {}).get("outcome"), step.get("preview", {}).get("resolution", {}).get("resource_changes"))
+                    for step in preview.get("steps", []) if isinstance(step, Mapping)
+                ])
+            else:
+                fingerprint = repr((action.get("type"), action.get("target"), resolution.get("outcome"), resolution.get("movement_success"), resolution.get("total_kills"), resolution.get("damage"), resolution.get("resource_changes"), resolution.get("knowledge_additions"), resolution.get("current_location")))
+            if fingerprint in fingerprints:
+                continue
+            fingerprints.add(fingerprint)
+            distinct[option_id] = item
+        compiled = distinct
+        if not compiled:
+            raise ValueError("没有可展示的合法且有实际状态效果的选项")
+        pending = {"version": 1, "state_turn": self.state.current_turn, "options": compiled}
+        if persist:
+            event = standard_event(
+                event_id=f"evt_{self.state.current_turn:04d}_options_{uuid4().hex[:8]}",
+                event_type="OPTIONS_PRESENTED",
+                actor="system",
+                target=None,
+                data={"pending_options": pending, "state_turn": self.state.current_turn},
+                turn=self.state.current_turn,
+                timestamp=f"Day {self.state.meta.get('game_day', 1)} {self.state.meta.get('time_of_day', '清晨')}",
+            )
+            self.state.apply_and_append(event, persist=True)
+            self.state.save()
+        else:
+            self.state.meta["pending_options"] = pending
+            self.state.meta["pending_options_state_turn"] = self.state.current_turn
+        return {"state_turn": self.state.current_turn, "options": {key: {field: value for field, value in item.items() if field in {"id", "label", "description"}} for key, item in compiled.items()}, "contracts": compiled}
+
+    def preview_player_choice(self, option_id: str | Mapping[str, Any]) -> Dict[str, Any]:
+        if isinstance(option_id, Mapping):
+            option_id = option_id.get("option_id") or option_id.get("id") or ""
+        pending = self.state.meta.get("pending_options", {})
+        pending = pending if isinstance(pending, Mapping) else {}
+        options = pending.get("options", {}) if isinstance(pending.get("options", {}), Mapping) else {}
+        raw_key = str(option_id).strip()
+        key = raw_key.upper()
+        selected = options.get(key) or options.get(raw_key)
+        errors: list[str] = []
+        if not selected:
+            errors.append(f"不存在待执行选项：{option_id}")
+        if pending.get("state_turn") is not None and int(pending.get("state_turn")) != self.state.current_turn:
+            errors.append("选项对应的世界状态已经变化，必须重新生成选项")
+        action = deepcopy(selected.get("action", {})) if isinstance(selected, Mapping) else {}
+        preview: Dict[str, Any] = {}
+        if selected and isinstance(action, Mapping):
+            try:
+                preview = self.preview_host_action(action)
+            except (TypeError, ValueError) as exc:
+                errors.append(str(exc))
+            if preview and not preview.get("legal"):
+                errors.extend(str(item) for item in preview.get("errors", []))
+            if preview and not self._option_has_real_effect(action, preview):
+                errors.append("选项已经不再产生实际状态变化")
+        return {"legal": not errors, "errors": errors, "option_id": key, "action": action, "preview": preview, "stored_option": deepcopy(selected) if isinstance(selected, Mapping) else None}
+
+    def execute_player_choice(self, option_id: str | Mapping[str, Any], persist: bool = True) -> Dict[str, Any]:
+        """玩家选择即授权：读取已保存契约并在同一调用内完成预览与提交。"""
+        review = self.preview_player_choice(option_id)
+        if not review["legal"]:
+            raise ValueError("选项不可执行：" + "、".join(review["errors"]))
+        result = self.execute_host_action(review["action"], persist=persist)
+        result["selected_option"] = review["option_id"]
+        return result
 
     def execute_action(self, action: Mapping[str, Any], persist: bool = True, dilution_multiplier: float = 1.0) -> Dict[str, Any]:
         preview = self.preview_action(action, dilution_multiplier=dilution_multiplier)
@@ -1299,6 +1493,11 @@ class GameEngine:
             return self.execute_action_plan(action, persist=persist)
         if action_type == "TALENT_CHOICE":
             return self.execute_talent_choice(action, persist=persist)
+        # 自由行动和已绑定选项都必须先经过一次不写入的内部审查；审查通过
+        # 后本调用立即提交，不把“确认”再暴露给玩家。
+        review = self.preview_host_action(action, dilution_multiplier=dilution_multiplier)
+        if not review.get("legal"):
+            raise ValueError("行动不合法：" + "、".join(str(item) for item in review.get("errors", [])))
         skill = self._find_skill(action)
         costs = self._derive_action_costs(action, skill)
         errors = self._derived_budget_errors(action, costs)

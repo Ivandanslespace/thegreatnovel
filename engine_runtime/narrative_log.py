@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict
 
@@ -13,6 +14,9 @@ from .state import load_game_state
 NOVEL_FILENAME = "novel_draft.md"
 CONVERSATION_FILENAME = "conversation_log.md"
 TURN_MARKER = "<!-- narrative-turn:{turn} -->"
+INTERNAL_PROTOCOL_PATTERNS = (
+    r"预览合法", r"未结算", r"dry-run", r"action_id", r"确认执行", r"SQLite", r"Python",
+)
 
 
 def _has_turn(text: str, turn: int) -> bool:
@@ -45,6 +49,23 @@ def _write_pair_atomically(novel_path: Path, novel_text: str, conversation_path:
         raise
 
 
+def validate_player_narrative(gm_response: str, result: Dict[str, Any] | None = None) -> None:
+    """阻止主持协议泄漏，以及叙述声称不存在的状态变化。"""
+    for pattern in INTERNAL_PROTOCOL_PATTERNS:
+        if re.search(pattern, gm_response, flags=re.IGNORECASE):
+            raise ValueError(f"GM回答包含不可展示的主持协议字段：{pattern}")
+    result = result or {}
+    event = result.get("event", {}) if isinstance(result, dict) else {}
+    payload = event.get("data", {}) if isinstance(event, dict) and isinstance(event.get("data", {}), dict) else {}
+    if re.search(r"已加固|加固完成|基地防御提升", gm_response):
+        has_base_effect = any(
+            payload.get(key) not in (None, 0, 0.0, "", {}, [])
+            for key in ("base_durability_delta", "base_defense_delta", "base_space_delta", "base_module")
+        )
+        if not has_base_effect:
+            raise ValueError("叙述声称基地已变化，但本回合事件没有对应的基地状态增量")
+
+
 def record_narrative_turn(
     save_dir: str | Path,
     player_input: str,
@@ -56,12 +77,14 @@ def record_narrative_turn(
     intent_source: str = "player_free_text",
 ) -> Dict[str, Any]:
     """记录当前存档回合；同一回合只能记录一次。"""
-    player_input = str(player_input or "").strip()
-    gm_response = str(gm_response or "").strip()
-    if not player_input:
+    # 保留玩家原话的每个字符；只用 strip 做空白判定，不能把它写回去。
+    player_input = str(player_input or "")
+    gm_response = str(gm_response or "")
+    if not player_input.strip():
         raise ValueError("缺少玩家原始输入，不能记录小说回合")
-    if not gm_response:
+    if not gm_response.strip():
         raise ValueError("缺少GM完整回答，不能记录小说回合")
+    validate_player_narrative(gm_response, result)
 
     state = load_game_state(save_dir)
     turn = state.current_turn
@@ -71,6 +94,7 @@ def record_narrative_turn(
         raise ValueError(f"当前回合 {turn} 没有对应 Python 事件，拒绝记录")
     latest = current_events[-1]
     record = latest["record"]
+    validate_player_narrative(gm_response, result or {"event": record})
     world_name = str(state.data.get("world", {}).get("name") or state.meta.get("world_name") or "未命名世界")
     timestamp = str(record.get("timestamp") or state.meta.get("last_played") or "")
     marker = TURN_MARKER.format(turn=turn)

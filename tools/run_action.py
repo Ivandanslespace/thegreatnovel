@@ -16,10 +16,11 @@ if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
 from engine_runtime.audit import append_audit_record, build_rejected_audit
+from engine_runtime.presentation import player_facing_result
 from engine_runtime.runtime import GameEngine
 from engine_runtime.narrative_log import record_narrative_turn
 from engine_runtime.state import load_game_state
-from validate_save import run_validation
+from validate_save import assert_startable
 
 
 def snapshot_files(save_dir: Path) -> dict[Path, bytes]:
@@ -48,6 +49,7 @@ def main() -> int:
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--action-json", help="行动 JSON")
     source.add_argument("--action-file", help="行动 JSON 文件")
+    source.add_argument("--player-choice-option", help="直接执行已保存的玩家选项，例如 A")
     parser.add_argument("--dry-run", action="store_true", help="只计算，不写入事件和 YAML")
     player = parser.add_mutually_exclusive_group()
     player.add_argument("--player-input", help="玩家本轮原始输入（执行时必填）")
@@ -55,7 +57,7 @@ def main() -> int:
     response = parser.add_mutually_exclusive_group()
     response.add_argument("--gm-response", help="GM本轮完整回答（执行时必填）")
     response.add_argument("--gm-response-file", help="GM本轮完整回答文件（执行时必填）")
-    parser.add_argument("--intent-source", choices=("player_free_text", "player_choice", "llm_suggestion_confirmed", "system"), default="player_free_text", help="意图来源，用于审计归属")
+    parser.add_argument("--intent-source", choices=("player_free_text", "player_choice", "llm_suggestion", "system"), default="player_free_text", help="意图来源，用于审计归属")
     args = parser.parse_args()
 
     save_dir = None
@@ -66,22 +68,27 @@ def main() -> int:
     try:
         if args.action_json:
             action = json.loads(args.action_json)
-        else:
+        elif args.action_file:
             action = json.loads(Path(args.action_file).read_text(encoding="utf-8"))
-        if not isinstance(action, dict):
+        if args.player_choice_option and args.dry_run and any((args.player_input, args.player_input_file, args.gm_response, args.gm_response_file)):
+            raise ValueError("--dry-run 不记录小说；请不要同时提交玩家输入和GM回答")
+        if action is not None and not isinstance(action, dict):
             raise ValueError("行动 JSON 顶层必须是对象")
         save_dir = Path(args.save).resolve()
         if not save_dir.is_dir():
             raise ValueError(f"找不到存档目录：{save_dir}")
-        preflight = run_validation(str(save_dir))
-        if preflight != 0:
-            raise ValueError("执行前存档校验未通过，Python 引擎拒绝继续")
+        assert_startable(str(save_dir))
         preflight_ok = True
         engine = GameEngine(load_game_state(save_dir))
+        if args.player_choice_option:
+            choice_review = engine.preview_player_choice(args.player_choice_option)
+            if not choice_review["legal"]:
+                raise ValueError("选项不可执行：" + "、".join(choice_review["errors"]))
+            action = choice_review["action"]
         if args.dry_run:
             if any((args.player_input, args.player_input_file, args.gm_response, args.gm_response_file)):
-                raise ValueError("--dry-run 不记录小说；请在确认执行时提交玩家输入和GM回答")
-            result = engine.preview_host_action(action)
+                raise ValueError("--dry-run 不记录小说；开发预览不能同时提交玩家输入和GM回答")
+            result = engine.preview_player_choice(args.player_choice_option) if args.player_choice_option else engine.preview_host_action(action)
         else:
             if not (args.player_input or args.player_input_file):
                 raise ValueError("执行时必须提供 --player-input 或 --player-input-file")
@@ -89,16 +96,17 @@ def main() -> int:
                 raise ValueError("执行时必须提供 --gm-response 或 --gm-response-file")
             snapshot = snapshot_files(save_dir)
             before_state = deepcopy(engine.state.data)
-            result = engine.execute_host_action(action)
+            result = engine.execute_player_choice(args.player_choice_option) if args.player_choice_option else engine.execute_host_action(action)
             player_input = Path(args.player_input_file).read_text(encoding="utf-8") if args.player_input_file else args.player_input
             gm_response = Path(args.gm_response_file).read_text(encoding="utf-8") if args.gm_response_file else args.gm_response
             player_input_text = player_input or ""
             record_narrative_turn(save_dir, player_input, gm_response, action=action, before_state=before_state, result=result, intent_source=args.intent_source)
-            postflight = run_validation(str(save_dir))
-            if postflight != 0:
+            try:
+                assert_startable(str(save_dir))
+            except ValueError:
                 restore_files(save_dir, snapshot)
                 raise ValueError("执行后存档校验未通过，已恢复执行前状态")
-        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        print(json.dumps(player_facing_result(result), ensure_ascii=False, indent=2, default=str))
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         if snapshot is not None and save_dir is not None:
             restore_files(save_dir, snapshot)

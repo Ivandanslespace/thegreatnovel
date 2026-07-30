@@ -114,7 +114,7 @@ def build_execution_audit(
             "raw_input": str(player_input),
             "intent_source": intent_source,
             "confirmed": True,
-            "influence_path": "玩家原话 → LLM意图 → Python校验 → Python状态增量",
+            "influence_path": "玩家原话/选项 → LLM意图 → Python校验 → Python状态增量",
         },
         "llm": {
             "responsibilities": ["解析玩家意图", "选择叙事呈现", "生成GM完整回答"],
@@ -130,7 +130,7 @@ def build_execution_audit(
             "metrics": deepcopy(result.get("metrics", {})),
         },
         "joint": {
-            "responsibilities": ["玩家确认行动方向", "LLM将意图转换为协议JSON", "Python将协议JSON转换为确定性后果", "LLM将后果写成小说"],
+            "responsibilities": ["玩家选择行动方向", "LLM将意图转换为协议JSON", "Python将协议JSON转换为确定性后果", "LLM将后果写成小说"],
             "decision_chain": ["player_input", "llm.intent", "python.validation", "python.resolution", "python.event", "llm.narrative_response"],
         },
         "player_database_impact": {

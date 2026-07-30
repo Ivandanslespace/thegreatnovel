@@ -10,7 +10,7 @@ if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
 from engine_runtime.narrative_log import record_narrative_turn
-from validate_save import run_validation
+from validate_save import assert_startable
 
 
 def _value(inline: str | None, filename: str | None, label: str) -> str:
@@ -32,15 +32,14 @@ def main() -> int:
     response = parser.add_mutually_exclusive_group(required=True)
     response.add_argument("--gm-response", help="GM完整回答")
     response.add_argument("--gm-response-file", help="GM完整回答文件")
-    parser.add_argument("--intent-source", choices=("player_free_text", "player_choice", "llm_suggestion_confirmed", "system"), default="system", help="开局或补录时的意图来源")
+    parser.add_argument("--intent-source", choices=("player_free_text", "player_choice", "llm_suggestion", "system"), default="system", help="开局或补录时的意图来源")
     args = parser.parse_args()
 
     try:
         save_dir = Path(args.save).resolve()
         if not save_dir.is_dir():
             raise ValueError(f"找不到存档目录：{save_dir}")
-        if run_validation(str(save_dir)) != 0:
-            raise ValueError("记录前存档校验未通过")
+        assert_startable(str(save_dir))
         result = record_narrative_turn(
             save_dir,
             _value(args.player_input, args.player_input_file, "玩家原始输入"),

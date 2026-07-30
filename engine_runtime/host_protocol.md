@@ -92,7 +92,7 @@ Python 还会计算专注负荷、注册表承诺轴冲突、结构化机会窗�
   → 解析玩家输入为意图 JSON
   → 协议白名单校验
   → Python 预览（不写文件）
-  → 若属于重大决策，展示预览并等待玩家确认
+  → 玩家选择本身即为执行授权；内部预览通过后立即执行专用结算器
   → Python 执行专用结算器
   → SQLite事务写入标准事件与快照
   → 导出YAML、Markdown和回合小说视图
@@ -106,11 +106,18 @@ Python 还会计算专注负荷、注册表承诺轴冲突、结构化机会窗�
 # 预览，不写入
 python tools/run_action.py saves/世界名 --action-json '{"action_id":"travel-001","type":"TRAVEL","target":"冰原边缘"}' --dry-run
 
-# 玩家确认后执行，并自动记录本回合
+# 玩家原始输入即执行授权，并自动记录本回合
 python tools/run_action.py saves/世界名 --action-json '{"action_id":"travel-001","type":"TRAVEL","target":"冰原边缘"}' `
   --player-input '我去侦察冰原边缘。' `
   --gm-response-file response.md `
   --intent-source player_free_text
+```
+
+如果本轮选择的是已经展示的 A/B/C，使用保存的契约直接执行，不重新解释选项：
+
+```powershell
+python tools/run_action.py saves/世界名 --player-choice-option A `
+  --player-input '我选A。' --gm-response-file response.md --intent-source player_choice
 ```
 
 执行前会校验存档；执行后再次校验。后置校验失败时，入口恢复执行前快照并报错。
@@ -125,7 +132,7 @@ python tools/run_action.py saves/世界名 --action-json '{"action_id":"travel-0
 例如 `player.fatigue`、`inventory.resources.xxx`、`base.space_used`、
 `meta.available_time_minutes`，因此可以直接追踪玩家回答最终如何影响数据库。
 `--intent-source player_choice` 表示玩家选择了LLM展示的选项；`player_free_text` 表示玩家
-直接描述行动；`llm_suggestion_confirmed` 表示LLM提出方案后玩家确认；这些标签只用于审计，
+直接描述行动；`llm_suggestion` 表示LLM整理出的候选方案；这些标签只用于审计，
 不参与游戏结果计算。
 
 命令失败时，LLM 必须告诉玩家行动没有结算，不得编造结果、补写 YAML 或手写事件。
@@ -159,7 +166,7 @@ python tools/audit_report.py saves/世界名 --field player.fatigue
 - 编译世界中的现场 `RESEARCH` 目标地点就是生成的研究地点；如果设计需要回基地分析，应另建一个基地分析行动，
   不能把现场研究目标错误地绑定到 `camp_core`。
 - `REST`、`BUILD`、`BASE_MANAGEMENT`：基地位置是 Python 强制门槛，LLM 不能用 `requirements.location` 或标签伪造基地位置。
-- `ACTION_PLAN`：Python先编译并补齐路线，再按顺序在临时状态中预览；确认后以同一稀释参数在 SQLite 事务中原子提交。
+- `ACTION_PLAN`：Python先编译并补齐路线，再按顺序在临时状态中预览；玩家提交后以同一稀释参数在 SQLite 事务中原子提交。
 - `COMBAT`：怪物类型来自 `world.enemy_definitions`，具体目标必须来自
   `world.encounter_entities`；目标必须同时属于 `meta.current_encounter_id` 对应遭遇的
   `participants/target_ids`，且遭遇地点等于玩家当前地点。死亡或过期遭遇不可继续战斗。

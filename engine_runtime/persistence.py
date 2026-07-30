@@ -265,7 +265,9 @@ class SQLiteEventStore:
             return None
         replayed = deepcopy(base)
         for record in self.events():
-            if int(record.get("turn", 0)) <= self.base_turn():
+            # OPTIONS_PRESENTED 可在当前回合展示并持久化，不能因为它与
+            # 初始化快照同回合就被重放器跳过。
+            if int(record.get("turn", 0)) <= self.base_turn() and str(record.get("type", "")) != "OPTIONS_PRESENTED":
                 continue
             replayed = apply_event(replayed, record)
         return replayed

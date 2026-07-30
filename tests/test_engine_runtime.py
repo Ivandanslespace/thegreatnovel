@@ -20,12 +20,15 @@ from engine_runtime.calculators import (
 )
 from engine_runtime.events import apply_event, parse_events, standard_event
 from engine_runtime.narrative_log import record_narrative_turn
+from engine_runtime.narrative_log import validate_player_narrative
 from engine_runtime.persistence import SQLiteEventStore
+from engine_runtime.presentation import player_facing_result
 from engine_runtime.protocol import ProtocolError, derive_action_costs, validate_host_action
 from engine_runtime.ratings import RATING_SCALE, normalize_rating, shift_rating
 from engine_runtime.runtime import GameEngine
 from engine_runtime.state import GameState, load_game_state
 from tools.create_save import answers_to_package, build_files, generate_world_mechanics, normalize_package
+from tools.validate_save import assert_startable
 
 
 def minimal_state(meta=None, world=None, player=None, inventory=None, npcs=None, factions=None):
@@ -185,6 +188,90 @@ class FormulaTests(unittest.TestCase):
 
 
 class RuntimeIntegrationTests(unittest.TestCase):
+    def _option_world(self):
+        return {
+            "name": "选项回归世界",
+            "difficulty": "标准",
+            "starting_location": "camp_core",
+            "locations": [
+                {"id": "camp_core", "name": "基地", "safe": True, "travel_minutes_from_base": 0, "travel_stamina_from_base": 0},
+                {"id": "forest", "name": "森林", "safe": False, "travel_minutes_from_base": 30, "travel_stamina_from_base": 5},
+            ],
+            "action_targets": {
+                "camp_core": {"id": "camp_core", "location_id": "camp_core", "target_difficulty": 0, "effects": {}},
+                "forest": {"id": "forest", "location_id": "forest", "requirements": {"location": "forest"}, "target_difficulty": 0, "effects": {"success": {"resource_changes": {"wood": 1}}}},
+            },
+        }
+
+    def test_player_choice_is_implicit_confirmation_and_bound_to_contract(self):
+        world = self._option_world()
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(world=world, meta={"current_location": "camp_core"})))
+            compiled = engine.compile_options([
+                {"id": "A", "label": "前往森林", "action": {"action_id": "stored-travel", "type": "TRAVEL", "target": "forest"}},
+                {"id": "B", "label": "无变化伪选项", "action": {"action_id": "noop", "type": "SHORT_ACTION", "target": "camp_core"}},
+                {"id": "C", "label": "直接调查森林", "action": {"action_id": "stored-explore", "type": "EXPLORATION", "target": "forest"}},
+            ])
+            self.assertEqual(set(compiled["options"]), {"A", "C"})
+            self.assertEqual(compiled["contracts"]["C"]["action"]["type"], "ACTION_PLAN")
+            self.assertEqual(compiled["contracts"]["C"]["preview"]["steps"][0]["action"]["type"], "TRAVEL")
+            self.assertTrue(engine.state.meta["pending_options"]["options"]["A"]["preview"]["legal"])
+            result = engine.execute_player_choice("A")
+            self.assertEqual(result["selected_option"], "A")
+            self.assertEqual(engine.state.meta["current_location"], "forest")
+            self.assertNotIn("pending_options", engine.state.meta)
+            self.assertTrue(engine.state.store.verify_projection(apply_event)["ok"])
+
+    def test_zero_action_time_only_allows_reactions(self):
+        world = self._option_world()
+        with tempfile.TemporaryDirectory() as temp:
+            state = GameState(Path(temp), minimal_state(world=world, meta={"current_location": "camp_core", "available_time_minutes": 0, "pending_reaction": {"id": "shadow", "effects": {"hp_delta": -1}}}))
+            engine = GameEngine(state)
+            compiled = engine.compile_options([
+                {"id": "A", "action": {"action_id": "explore", "type": "EXPLORATION", "target": "forest"}},
+                {"id": "B", "label": "应对黑影", "action": {"action_id": "react", "type": "REACTION", "goal": "挡住黑影"}},
+            ])
+            self.assertEqual(set(compiled["options"]), {"B"})
+            result = engine.execute_player_choice("B")
+            self.assertEqual(result["event"]["type"], "REACTION_RESOLVED")
+            self.assertNotIn("pending_reaction", engine.state.meta)
+
+    def test_player_raw_input_and_narrative_claim_are_auditable(self):
+        world = self._option_world()
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(world=world, meta={"current_location": "camp_core"})))
+            action = {"action_id": "inspect", "type": "SHORT_ACTION", "target": "camp_core"}
+            before = deepcopy(engine.state.data)
+            result = engine.execute_action(action)
+            raw = "  我检查基地的角落。  "
+            record_narrative_turn(Path(temp), raw, "冷风掠过空车厢。", action=action, before_state=before, result=result)
+            self.assertIn(raw, (Path(temp) / "conversation_log.md").read_text(encoding="utf-8"))
+            with self.assertRaises(ValueError):
+                validate_player_narrative("【系统】预览合法，确认执行。", result)
+
+    def test_narrative_cannot_claim_uncommitted_state_change(self):
+        world = self._option_world()
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(world=world, meta={"current_location": "camp_core"})))
+            action = {"action_id": "wait", "type": "SHORT_ACTION", "target": "camp_core"}
+            before = deepcopy(engine.state.data)
+            result = engine.execute_action(action)
+            with self.assertRaises(ValueError):
+                record_narrative_turn(Path(temp), "我等待。", "基地已加固。", action=action, before_state=before, result=result)
+
+    def test_player_facing_result_hides_host_protocol(self):
+        public = player_facing_result({"resolution": {"outcome": "普通成功", "probability": 0.8}, "event": {"data": {"action": {"action_id": "secret"}}}, "state": {"meta": {"current_location": "camp_core"}}})
+        text = str(public)
+        self.assertNotIn("probability", text)
+        self.assertNotIn("action_id", text)
+
+    def test_game_does_not_start_with_invalid_world_bundle(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "world.yaml").write_text("world: {}\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                assert_startable(root)
+
     def test_compiled_world_supports_core_loop_and_sql_replay(self):
         project_root = Path(__file__).resolve().parents[1]
         template = yaml.safe_load((project_root / "templates" / "world_template.yaml").read_text(encoding="utf-8"))
