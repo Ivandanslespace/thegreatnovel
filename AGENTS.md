@@ -64,7 +64,7 @@ python tools/turn_controller.py saves/<存档> record --turn-token "..." --playe
 
 - 职业、地点、NPC、资源、灾难、敌人和主角天赋均由本次世界包原创；不存在主题关键词对应的职业/能力列表。
 - `world.genre_contract` 在创建时必须固化为完整对象，不能保留 `"1"`、`"2"` 之类选择字符串。
-- 天赋必须同时给出原创描述和 `mechanical_focus`。前者决定世界感，后者决定它在哪类行动结算中真正生效。
+- 天赋必须同时给出原创描述、可执行的 `mechanical_effect` 和独占循环。前者决定世界感；效果合同决定它真正改变哪些行动；独占循环必须说明输入、转化、竞争影响与反制，不能只是泛用探测或小幅效率加成。
 - 天赋 `opening_card` 必须说明：优势、第一天如何用、普通玩家缺什么、硬限制。开局必须直接展示它，不能只报一个玄而又玄的名字。
 
 ### 全民求生开局（`mass_system_survival` / `mass_reward_survival`）

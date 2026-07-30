@@ -227,7 +227,7 @@ def validate_world_package(save_dir, data):
     if not disaster.get("first_event"):
         findings.append(Finding("ERROR", "规则", "world.rules.disaster.first_event 不能为空"))
 
-    talent_fields = ("name", "description", "type", "trigger", "effect", "limitations", "rarity")
+    talent_fields = ("name", "description", "trigger", "effect", "limitations", "rarity")
     if not isinstance(talent, dict):
         findings.append(Finding("CRITICAL", "规则", "world.yaml 缺少 player_talent 对象"))
     else:
@@ -239,6 +239,14 @@ def validate_world_package(save_dir, data):
             ))
         elif talent.get("rarity") not in RATING_INDEX:
             findings.append(Finding("ERROR", "规则", "player_talent.rarity 必须是 G/F/E/D/C/B/A/S/SS/SSS"))
+
+        mechanical_effect = talent.get("mechanical_effect")
+        if mechanical_effect is not None and not isinstance(mechanical_effect, dict):
+            findings.append(Finding("ERROR", "规则", "player_talent.mechanical_effect 必须是对象"))
+
+    talent_deck = world.get("talent_deck", []) if isinstance(world, dict) else []
+    if talent_deck and (not isinstance(talent_deck, list) or len(talent_deck) < 3):
+        findings.append(Finding("ERROR", "规则", "world.talent_deck 至少需要3张天赋卡"))
 
     player = data.get("player", {}) if isinstance(data.get("player", {}), dict) else {}
     talent_list = player.get("talents", []) if isinstance(player.get("talents", []), list) else []

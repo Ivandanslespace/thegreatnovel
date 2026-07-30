@@ -686,7 +686,8 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
     if payload.get("experience_gain"):
         from .calculators import advance_progression
 
-        updated["player"] = advance_progression(player, payload["experience_gain"])
+        talent_deck = world.get("talent_deck", []) if isinstance(world, Mapping) else []
+        updated["player"] = advance_progression(player, payload["experience_gain"], talent_deck)
         player = updated["player"]
 
     talent_choice = payload.get("talent_choice")

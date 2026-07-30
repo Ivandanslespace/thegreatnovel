@@ -17,7 +17,15 @@ world:
 player_talent:
   name: "寒潮预兆"
   description: "在灾害逼近前感知环境变化。"
-  type: "信息类"
   trigger: "大型灾害前"
   effect: "获得一条方向性预警"
   limitations: "信息不完整，连续使用需要休息"
+  mechanical_effect:
+    action_modifiers:
+      EXPLORATION:
+        preparation: 2
+  strategic_loop:
+    input: "寒潮前的异常气流"
+    conversion: "把预兆换成一次避灾路线选择"
+    competitive_impact: "能抢先占据避灾位置"
+    counterplay: "其他人可跟踪或封锁路线"

@@ -463,38 +463,16 @@ def level_threshold(level: int) -> int:
     return int(100 * (2 ** max(0, int(level) - 1)))
 
 
-def talent_options_for_level(level: int) -> List[Dict[str, Any]]:
-    """为升级生成稳定的三选一；候选由规则引擎生成，LLM 只能选择其一。"""
-    level = int(level)
-    return [
-        {
-            "id": f"level_{level}_field_sense",
-            "category": "信息类",
-            "name": "野外感知",
-            "rarity": "B",
-            "description": "探索时更容易从环境中提取有效线索。",
-            "effect": {"action_modifiers": {"EXPLORATION": {"intelligence": 5, "unknown_risk": -3}}},
-        },
-        {
-            "id": f"level_{level}_iron_body",
-            "category": "个人类",
-            "name": "耐受强化",
-            "rarity": "B",
-            "description": "体质永久提高一点，伤势和疲劳造成的行动阻力降低。",
-            "effect": {"attribute_bonus": {"constitution": 1}, "action_modifiers": {"COMBAT": {"preparation": 2}}},
-        },
-        {
-            "id": f"level_{level}_salvage_hand",
-            "category": "建设类",
-            "name": "回收巧手",
-            "rarity": "B",
-            "description": "建造和修理时能把准备工作转化为更稳定的施工结果。",
-            "effect": {"action_modifiers": {"BUILD": {"preparation": 5}}},
-        },
-    ]
+def talent_options_for_level(level: int, talent_deck: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    """从本世界在开局已注册的原创天赋卡池中稳定抽取三张。"""
+    cards = [deepcopy(dict(card)) for card in talent_deck if isinstance(card, Mapping) and card.get("id")]
+    if len(cards) < 3:
+        return []
+    start = max(0, int(level) - 2) * 3 % len(cards)
+    return [cards[(start + offset) % len(cards)] for offset in range(3)]
 
 
-def advance_progression(player: Mapping[str, Any], gained_exp: float) -> Dict[str, Any]:
+def advance_progression(player: Mapping[str, Any], gained_exp: float, talent_deck: Sequence[Mapping[str, Any]] = ()) -> Dict[str, Any]:
     updated = deepcopy(dict(player))
     updated["level"] = int(number(updated.get("level"), 1))
     updated["exp"] = number(updated.get("exp"), 0.0) + max(0.0, number(gained_exp))
@@ -511,12 +489,13 @@ def advance_progression(player: Mapping[str, Any], gained_exp: float) -> Dict[st
         updated["free_points"] = int(number(updated.get("free_points"), 0)) + 2
     updated["exp"] = rounded(updated["exp"])
     updated["levels_gained"] = levels_gained
-    updated["talent_choice_required"] = levels_gained > 0
-    if levels_gained > 0:
+    options = talent_options_for_level(updated["level"], talent_deck) if levels_gained > 0 else []
+    updated["talent_choice_required"] = bool(options)
+    if options:
         updated["pending_decision"] = {
             "type": "TALENT_CHOICE",
             "level": updated["level"],
-            "options": talent_options_for_level(updated["level"]),
+            "options": options,
             "must_resolve_before_continue": True,
         }
     return updated

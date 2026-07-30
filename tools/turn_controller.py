@@ -356,10 +356,9 @@ def generate_smart_candidates(engine: GameEngine) -> list[dict]:
         for option in pending_decision.get("options", []):
             if not isinstance(option, dict) or not option.get("id"):
                 continue
-            category = str(option.get("category", "天赋"))
             name = str(option.get("name", option["id"]))
             candidates.append({
-                "label": f"觉醒{category}天赋：{name}",
+                "label": f"觉醒天赋：{name}",
                 "description": str(option.get("description", "")),
                 "action": {
                     "action_id": f"auto-talent-{option['id']}",

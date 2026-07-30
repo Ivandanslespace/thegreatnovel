@@ -44,14 +44,6 @@ from engine_runtime.state import load_game_state
 
 DIFFICULTIES = {"休闲", "标准", "硬核"}
 DEATH_MODES = {"permanent", "checkpoint", "legacy"}
-TALENT_MECHANICAL_FOCUSES = {
-    "exploration": {"EXPLORATION": {"preparation": 3, "unknown_risk": -2}},
-    "research": {"RESEARCH": {"intelligence": 4}},
-    "combat": {"COMBAT": {"preparation": 3}},
-    "construction": {"BUILD": {"preparation": 4}},
-    "social": {"SOCIAL_INTERACTION": {"intelligence": 3}},
-    "survival": {"EXPLORATION": {"environment_advantage": 2, "unknown_risk": -1}},
-}
 
 
 REQUIRED_QUESTIONS = (
@@ -295,9 +287,50 @@ def normalize_public_survival(world, collective):
 
 
 def initial_talent_effects(talent):
-    """把天赋的抽象作用域编译成稳定、可审计的行动修正。"""
-    focus = str(talent.get("mechanical_focus") or "").strip()
-    return {"action_modifiers": copy.deepcopy(TALENT_MECHANICAL_FOCUSES.get(focus, {}))}
+    """直接采用本世界 LLM 声明的可执行天赋合同，不套用固定类别效果。"""
+    effect = talent.get("mechanical_effect", {}) if isinstance(talent, dict) else {}
+    modifiers = effect.get("action_modifiers", {}) if isinstance(effect, dict) else {}
+    return {"action_modifiers": copy.deepcopy(modifiers) if isinstance(modifiers, dict) else {}}
+
+
+def normalize_talent_effect(raw, label):
+    if not isinstance(raw, dict):
+        raise GeneratorError(f"{label} 必须是对象")
+    effect = copy.deepcopy(raw)
+    modifiers = effect.get("action_modifiers", {})
+    bonuses = effect.get("attribute_bonus", {})
+    if not isinstance(modifiers, dict) or not isinstance(bonuses, dict):
+        raise GeneratorError(f"{label}.action_modifiers 和 {label}.attribute_bonus 必须是对象")
+    if not modifiers and not bonuses:
+        raise GeneratorError(f"{label} 必须至少定义一项可执行效果")
+    effect["action_modifiers"] = modifiers
+    if bonuses:
+        effect["attribute_bonus"] = bonuses
+    return effect
+
+
+def normalize_talent_deck(world):
+    """升级三选一卡池必须来自当前世界包，不能退回全局固定三张卡。"""
+    raw_deck = world.get("talent_deck", [])
+    if not isinstance(raw_deck, list) or len(raw_deck) < 3:
+        raise GeneratorError("LLM 世界包必须提供至少3张原创升级天赋卡")
+    deck = []
+    ids = set()
+    for index, raw_card in enumerate(raw_deck):
+        if not isinstance(raw_card, dict):
+            raise GeneratorError(f"talent_deck[{index}] 必须是对象")
+        card = copy.deepcopy(raw_card)
+        for field in ("id", "name", "description"):
+            card[field] = str(card.get(field) or "").strip()
+            if not card[field]:
+                raise GeneratorError(f"talent_deck[{index}].{field} 不能为空")
+        if card["id"] in ids:
+            raise GeneratorError("talent_deck 的 id 不能重复")
+        ids.add(card["id"])
+        card["rarity"] = normalize_rating(card.get("rarity"), default="B")
+        card["effect"] = normalize_talent_effect(card.get("effect"), f"talent_deck[{index}].effect")
+        deck.append(card)
+    world["talent_deck"] = deck
 
 
 def first_number(value):
@@ -443,18 +476,24 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
         raise GeneratorError("rules.death.type 必须是 permanent/checkpoint/legacy")
 
     talent = talent or {}
-    for field in ("name", "description", "type", "trigger", "effect", "limitations", "mechanical_focus"):
+    for field in ("name", "description", "trigger", "effect", "limitations"):
         talent[field] = str(talent.get(field) or "").strip()
+    talent["mechanical_effect"] = normalize_talent_effect(talent.get("mechanical_effect"), "player_talent.mechanical_effect")
+    strategic_loop = talent.get("strategic_loop", {})
+    strategic_loop = strategic_loop if isinstance(strategic_loop, dict) else {}
+    for field in ("input", "conversion", "competitive_impact", "counterplay"):
+        strategic_loop[field] = str(strategic_loop.get(field) or "").strip()
+    talent["strategic_loop"] = strategic_loop
     opening_card = talent.get("opening_card", {})
     opening_card = opening_card if isinstance(opening_card, dict) else {}
     for field in ("advantage", "first_use", "comparison", "hard_limit"):
         opening_card[field] = str(opening_card.get(field) or "").strip()
     talent["opening_card"] = opening_card
     talent["rarity"] = normalize_rating(talent.get("rarity"), default="A")
-    if any(not talent[field] for field in ("name", "description", "type", "trigger", "effect", "limitations", "mechanical_focus")):
-        raise GeneratorError("LLM 世界包必须完整定义主角天赋的 name/description/type/trigger/effect/limitations/mechanical_focus")
-    if talent["mechanical_focus"] not in TALENT_MECHANICAL_FOCUSES:
-        raise GeneratorError("player_talent.mechanical_focus 必须是 exploration/research/combat/construction/social/survival 之一")
+    if any(not talent[field] for field in ("name", "description", "trigger", "effect", "limitations")):
+        raise GeneratorError("LLM 世界包必须完整定义主角天赋的 name/description/trigger/effect/limitations")
+    if any(not strategic_loop[field] for field in ("input", "conversion", "competitive_impact", "counterplay")):
+        raise GeneratorError("主角天赋必须定义独占循环的 input/conversion/competitive_impact/counterplay")
     if any(not opening_card[field] for field in ("advantage", "first_use", "comparison", "hard_limit")):
         raise GeneratorError("LLM 世界包必须完整定义主角天赋 opening_card 的 advantage/first_use/comparison/hard_limit")
 
@@ -467,6 +506,7 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
     )
     world["genre_contract"] = selected_genre_contract
     normalize_public_survival(world, bool(selected_genre_contract.get("collective_transmission")))
+    normalize_talent_deck(world)
     supplied_bundle = world.get("generation_bundle")
     if isinstance(supplied_bundle, dict) and supplied_bundle.get("compiler_version") == COMPILER_VERSION:
         bundle = copy.deepcopy(supplied_bundle)
@@ -524,6 +564,15 @@ def build_files(template_dir, world, talent):
     ]
     primary_resources = world["resources"]["primary"]
     public_states = initial_public_states(world)
+    initial_attributes = {"strength": 5, "constitution": 5, "agility": 5, "spirit": 5}
+    initial_bonus = talent.get("mechanical_effect", {}).get("attribute_bonus", {})
+    if isinstance(initial_bonus, dict):
+        for attribute, delta in initial_bonus.items():
+            if attribute in initial_attributes:
+                try:
+                    initial_attributes[attribute] += float(delta)
+                except (TypeError, ValueError):
+                    pass
 
     files = {}
     files["world.yaml"] = {"world": world, "player_talent": talent}
@@ -536,7 +585,7 @@ def build_files(template_dir, world, talent):
             "level": 1,
             "exp": 0,
             "exp_to_next": 100,
-            "attributes": {"strength": 5, "constitution": 5, "agility": 5, "spirit": 5},
+            "attributes": initial_attributes,
             "free_points": 4,
             "hp": 50,
             "max_hp": 50,

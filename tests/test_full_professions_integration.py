@@ -62,6 +62,11 @@ def creative_answers() -> dict:
                 ],
             },
             "professions": {"tide_singer": profession},
+            "talent_deck": [
+                {"id": "chorus_anchor", "name": "副歌锚定", "description": "把一段稳定副歌固定为短时航线。", "rarity": "B", "effect": {"action_modifiers": {"EXPLORATION": {"preparation": 3}}}},
+                {"id": "tide_receipt", "name": "潮汐收据", "description": "把一次公开交换记成可追索的潮痕。", "rarity": "B", "effect": {"action_modifiers": {"SOCIAL_INTERACTION": {"intelligence": 3}}}},
+                {"id": "silence_mold", "name": "静默铸模", "description": "以失声潮残留物加固一个模块。", "rarity": "B", "effect": {"action_modifiers": {"BUILD": {"preparation": 3}}}},
+            ],
             "motifs": ["潮歌", "被淹没的地址"],
             "taboo_domains": ["替亡者唱名"],
             "world_blueprint": {
@@ -76,11 +81,16 @@ def creative_answers() -> dict:
         "player_talent": {
             "name": "回声借名",
             "description": "可借用一段遗失声音的余响。",
-            "type": "信息类",
             "trigger": "在潮水退去后聆听残留回声时",
             "effect": "得到一条不完整的过去线索。",
             "limitations": "每次借名都会使自己的声音变轻，不能用来直接判定真相。",
-            "mechanical_focus": "research",
+            "mechanical_effect": {"action_modifiers": {"RESEARCH": {"intelligence": 4}}},
+            "strategic_loop": {
+                "input": "收集被其他人放弃的失声残响。",
+                "conversion": "把残响翻译成可交换的临时潮图。",
+                "competitive_impact": "你能让无主残响成为抢航线时的交易筹码。",
+                "counterplay": "竞争者可抢先封存残响、伪造潮图或公开抬价。",
+            },
             "opening_card": {
                 "advantage": "你能从退潮后的余响里直接辨认哪些石阶通向资源，普通人只能逐段试错。",
                 "first_use": "第一次副歌结束后聆听石阶残留的节拍，挑出最可能安全的下一段航路。",

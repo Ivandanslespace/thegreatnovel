@@ -14,6 +14,12 @@ world:
   professions: {}
   starting_profession: null
 
+  # 升级时的三选一卡池。由本次 LLM 与世界一起原创，不得使用跨世界固定职业、
+  # 天赋类别或示例能力。至少三张；每张须含 id/name/description/rarity/effect。
+  # effect 是可执行合同，例如 attribute_bonus 或 action_modifiers；名称、意象、
+  # 触发逻辑与取舍完全由本世界决定。
+  talent_deck: []
+
   # 核心设定
   setting:
     safe_base: ""             # LLM 创作
@@ -150,12 +156,19 @@ world:
 player_talent:
   name: ""
   description: ""
-  type: ""                    # 信息类/个人类/建设类/规则类
   trigger: ""                 # 触发条件
   effect: ""                  # 具体效果
   limitations: ""             # 限制条件
-  # 天赋意象与内容由 LLM 原创；作用域用于让 Python 把它落到真实结算，而不是只当文案。
-  mechanical_focus: ""        # exploration/research/combat/construction/social/survival 之一
+  # Python 不再按“信息/个人/建设”或固定作用域替能力套模板。
+  # LLM 直接给出本能力实际改变的、可审计的行动修正合同。
+  mechanical_effect:
+    action_modifiers: {}
+  # 独占循环而非单次便利：主角取得什么、如何转化、会怎样影响同区竞争，以及他人如何反制。
+  strategic_loop:
+    input: ""
+    conversion: ""
+    competitive_impact: ""
+    counterplay: ""
   opening_card:
     advantage: ""             # 它为何明显强于普通玩家
     first_use: ""             # 第一天立即怎样使用

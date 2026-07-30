@@ -97,6 +97,29 @@ def creative_world_package(name="云海邮路"):
             },
             "professions": {"storm_reader": profession},
             "starting_profession": "storm_reader",
+            "talent_deck": [
+                {
+                    "id": "borrowed_return_address",
+                    "name": "借址回投",
+                    "description": "把一次已验证投递的余响封成临时回程地址。",
+                    "rarity": "B",
+                    "effect": {"action_modifiers": {"EXPLORATION": {"preparation": 4}}},
+                },
+                {
+                    "id": "unsealed_debt",
+                    "name": "未封存债",
+                    "description": "以一枚未投递承诺换取一次公开交易中的议价权。",
+                    "rarity": "B",
+                    "effect": {"action_modifiers": {"SOCIAL_INTERACTION": {"intelligence": 4}}},
+                },
+                {
+                    "id": "whale_postmark",
+                    "name": "鲸鸣邮戳",
+                    "description": "将一次成功撤离留下的节拍压成可重复利用的封印。",
+                    "rarity": "B",
+                    "effect": {"action_modifiers": {"BUILD": {"preparation": 4}}},
+                },
+            ],
             "motifs": ["被风改写的地址", "鲸鸣邮戳", "失效承诺"],
             "taboo_domains": ["替他人拆信", "伪造死亡通知"],
             "world_blueprint": {
@@ -139,11 +162,16 @@ def creative_world_package(name="云海邮路"):
         "player_talent": {
             "name": "退信回响",
             "description": "你能听见被世界拒收之物留下的退信声。",
-            "type": "信息类",
             "trigger": "接触无主信件、失效承诺或被抹去的地址时",
             "effect": "获得一条与其原始去向有关但不完整的线索。",
             "limitations": "回响会混入寄件人的自我欺骗；每次使用都可能让一段自己的记忆变得模糊。",
-            "mechanical_focus": "research",
+            "mechanical_effect": {"action_modifiers": {"RESEARCH": {"intelligence": 4}}},
+            "strategic_loop": {
+                "input": "收集其他投递者放弃、失效或公开交易过的信件残响。",
+                "conversion": "把残响封成一次可出售、可交换或可自用的临时回程地址。",
+                "competitive_impact": "你能先把无主信息变成航路筹码，迫使抢路线的人决定合作、竞价或截胡。",
+                "counterplay": "对手可以抢先封存信件、投放伪造地址，或用公开频道抬高关键残响的价格。",
+            },
             "opening_card": {
                 "advantage": "你能从别人看成废纸的退信里直接找出可验证的目的地线索。",
                 "first_use": "第一天检查邮局里无主的退信，就能决定该去断邮航线还是末班投递塔。",
@@ -354,13 +382,22 @@ class FormulaTests(unittest.TestCase):
         self.assertEqual(calculate_experience(5, 3), 18.0)
         self.assertEqual(calculate_experience(5, 2), 5.0)
         player = {"level": 1, "exp": 0, "exp_to_next": 100, "attributes": {"strength": 5, "constitution": 5, "agility": 5, "spirit": 5}, "free_points": 0}
-        updated = advance_progression(player, 100)
+        deck = [
+            {"id": "echo_anchor", "name": "回声锚", "description": "测试卡一", "rarity": "B", "effect": {"action_modifiers": {"EXPLORATION": {"preparation": 2}}}},
+            {"id": "cloud_debt", "name": "云债", "description": "测试卡二", "rarity": "B", "effect": {"action_modifiers": {"SOCIAL_INTERACTION": {"intelligence": 2}}}},
+            {"id": "seal_press", "name": "封蜡压机", "description": "测试卡三", "rarity": "B", "effect": {"action_modifiers": {"BUILD": {"preparation": 2}}}},
+        ]
+        updated = advance_progression(player, 100, deck)
         self.assertEqual(updated["level"], 2)
         self.assertEqual(updated["free_points"], 2)
         self.assertTrue(updated["talent_choice_required"])
         self.assertEqual(updated["pending_decision"]["type"], "TALENT_CHOICE")
         self.assertEqual(len(updated["pending_decision"]["options"]), 3)
         self.assertTrue(all(option["rarity"] == "B" for option in updated["pending_decision"]["options"]))
+        self.assertEqual(
+            [option["id"] for option in updated["pending_decision"]["options"]],
+            ["echo_anchor", "cloud_debt", "seal_press"],
+        )
 
     def test_macro_economy_and_resource_pressure(self):
         farmability = calculate_farmability({"combat_advantage": 90, "enemy_information": 90, "kill_stability": 90, "sustainability": 90, "route_familiarity": 90, "extraction_ability": 90, "unknown_danger_penalty": 0})
@@ -411,6 +448,15 @@ class FormulaTests(unittest.TestCase):
             "narrative_length": 7,
             "language": "中文",
         })
+        with self.assertRaises(GeneratorError):
+            normalize_package(template, supplied_world, supplied_talent)
+
+    def test_create_save_rejects_legacy_talent_category_fallback(self):
+        template_path = Path(__file__).resolve().parents[1] / "templates" / "world_template.yaml"
+        template = yaml.safe_load(template_path.read_text(encoding="utf-8"))
+        supplied_world, supplied_talent = answers_to_package(creative_world_package())
+        supplied_talent.pop("mechanical_effect")
+        supplied_talent["mechanical_focus"] = "exploration"
         with self.assertRaises(GeneratorError):
             normalize_package(template, supplied_world, supplied_talent)
 
@@ -499,7 +545,7 @@ class RuntimeIntegrationTests(unittest.TestCase):
             "skills": [],
             "pending_decision": {
                 "type": "TALENT_CHOICE",
-                "options": [{"id": "level_2_field_sense", "name": "野外感知"}],
+                "options": [{"id": "echo_anchor", "name": "回声锚"}],
                 "must_resolve_before_continue": True,
             },
         }
@@ -1553,9 +1599,9 @@ class MechanismClosureTests(unittest.TestCase):
         player["pending_decision"] = {
             "type": "TALENT_CHOICE",
             "options": [
-                {"id": "talent_info", "category": "信息类", "name": "听风", "description": "发现远处线索"},
-                {"id": "talent_personal", "category": "个人类", "name": "耐寒", "description": "降低寒冷影响"},
-                {"id": "talent_build", "category": "建设类", "name": "修补", "description": "提高维修稳定性"},
+                {"id": "talent_echo", "name": "听风", "description": "发现远处线索"},
+                {"id": "talent_frost", "name": "耐寒", "description": "降低寒冷影响"},
+                {"id": "talent_patch", "name": "修补", "description": "提高维修稳定性"},
             ],
             "must_resolve_before_continue": True,
         }
@@ -1565,7 +1611,7 @@ class MechanismClosureTests(unittest.TestCase):
             self.assertEqual(set(package["visible_options"]), {"A", "B", "C"})
             contracts = engine.state.meta["pending_options"]["options"]
             self.assertTrue(all(item["action"]["type"] == "TALENT_CHOICE" for item in contracts.values()))
-            self.assertEqual(contracts["A"]["action"]["target"], "talent_info")
+            self.assertEqual(contracts["A"]["action"]["target"], "talent_echo")
 
     def test_controller_uses_wait_when_all_regular_candidates_are_effectless(self):
         from tools.turn_controller import resolve
