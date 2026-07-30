@@ -178,6 +178,8 @@ class GameEngine:
         current_location = self._current_location()
         base_location = self._base_location()
         movement_types = {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"}
+        if action_type == "WAIT":
+            return []
         if action_type == "REACTION":
             return self._reaction_errors(action)
         target_profile = self._action_target_profile(action)
@@ -344,6 +346,13 @@ class GameEngine:
     def _derive_action_costs(self, action: Mapping[str, Any], skill: Optional[Mapping[str, Any]] = None) -> Dict[str, float]:
         costs = derive_action_costs(action, skill)
         action_type = str(action.get("type"))
+        if action_type == "WAIT":
+            parameters = action.get("parameters", {}) if isinstance(action.get("parameters", {}), Mapping) else {}
+            wait_minutes = max(5.0, min(720.0, float(parameters.get("wait_minutes", 30.0))))
+            costs["time_minutes"] = wait_minutes
+            costs["stamina_cost"] = 0.0
+            costs["mental_cost"] = 0.0
+            return costs
         if action_type not in {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT"}:
             return costs
 
@@ -675,6 +684,11 @@ class GameEngine:
                 "mental_delta": 20.0,
                 "hp_delta": 5.0,
                 "proposed_events": [{"type": "REST_COMPLETED", "target": self._current_location()}],
+            }
+        if action_type == "WAIT":
+            return {
+                "event_type": "WAIT_COMPLETED",
+                "proposed_events": [{"type": "TIME_ADVANCED", "target": self._current_location()}],
             }
         profile = self._action_target_profile(action)
         effects = profile.get("effects", {}) if isinstance(profile.get("effects", {}), Mapping) else {}
@@ -1296,7 +1310,17 @@ class GameEngine:
         skill = self._find_skill(action)
         costs = self._derive_action_costs(action, skill)
         movement_types = {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"}
-        if str(action.get("type")) in movement_types:
+        if str(action.get("type")) == "WAIT":
+            resolution = {
+                "formula_version": "1.0",
+                "action_type": "WAIT",
+                "outcome": "普通成功",
+                "probability": 1.0,
+                "risk_mode": "deterministic_wait",
+                "time_cost": float(costs.get("time_minutes", 0.0)),
+                "wait_minutes": float(costs.get("time_minutes", 0.0)),
+            }
+        elif str(action.get("type")) in movement_types:
             resolution = self._deterministic_movement_resolution(action, costs)
         else:
             context = self._build_action_context(action, costs)
@@ -1366,7 +1390,7 @@ class GameEngine:
             return bool(resolution.get("movement_success"))
         if action_type == "ATTRIBUTE_ALLOCATION":
             return int(resolution.get("points_spent", 0) or 0) > 0
-        if action_type in {"REST", "REACTION", "TALENT_CHOICE"}:
+        if action_type in {"REST", "REACTION", "TALENT_CHOICE", "WAIT"}:
             return True
         if action_type == "BUILD":
             return bool(resolution.get("resource_changes") or resolution.get("space_cost") or resolution.get("module"))
@@ -1386,7 +1410,7 @@ class GameEngine:
         if not isinstance(candidates, list) or not candidates:
             raise ValueError("选项候选不能为空")
         compiled: Dict[str, Any] = {}
-        ordinary_types = {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER", "EXPLORATION", "RESEARCH", "BUILD", "COMBAT", "BATCH_ACTION", "SOCIAL_INTERACTION", "SHORT_ACTION", "REST", "BASE_MANAGEMENT"}
+        ordinary_types = {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER", "EXPLORATION", "RESEARCH", "BUILD", "COMBAT", "BATCH_ACTION", "SOCIAL_INTERACTION", "SHORT_ACTION", "REST", "BASE_MANAGEMENT", "WAIT"}
         for index, candidate in enumerate(candidates):
             if not isinstance(candidate, Mapping):
                 continue
@@ -1415,6 +1439,11 @@ class GameEngine:
             try:
                 preview = self.preview_host_action(action)
             except (TypeError, ValueError):
+                continue
+            # ── 硬门槛：preview.legal 必须为 True 才可进入候选 ──
+            # 时段(allowed_periods)、地点、物品、等级等所有前置校验
+            # 都在 preview_host_action 内完成；不合法则直接丢弃。
+            if not preview.get("legal", False):
                 continue
             action_type = str(action.get("type"))
             if float(self.state.meta.get("available_time_minutes", 240)) <= 0 and action_type in ordinary_types:

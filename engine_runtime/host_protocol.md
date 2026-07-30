@@ -79,8 +79,74 @@ Python 还会计算专注负荷、注册表承诺轴冲突、结构化机会窗�
 
 机会约束分为两层：`availability.allowed_periods` 判断行动在当前真实时段是否合法；
 `reservation.exclusive_group`、`window_id`、`capacity` 判断同一真实时段能预留几项。
-计划预览和执行会按每一步实际开始时的 `time_of_day` 重新判断，不能把“白天/黄昏”当成当前时段之外的
+计划预览和执行会按每一步实际开始时的 `time_of_day` 重新判断，不能把”白天/黄昏”当成当前时段之外的
 预先许可，也不会把尚未到达的窗口立即执行。
+
+## 选项编译硬门槛
+
+展示给玩家的 A/B/C 必须经过 `compile_options()` 编译。编译器对每个候选行动调用
+`preview_host_action()`，只有 `preview.legal == True` 的候选才能进入最终选项列表。
+这意味着时段（`allowed_periods`）、地点、物品、等级、NPC可用性等所有前置校验
+都在展示之前完成；玩家永远看不到当前状态下不合法的选项。
+
+正确流程：
+
+```text
+主持器生成候选行动列表
+  → compile_options() 逐项调用 preview_host_action()
+  → preview.legal == False → 丢弃（玩家看不到）
+  → preview.legal == True → 检查实际状态效果 → 去重 → 编译为行动契约
+  → 持久化为 OPTIONS_PRESENTED 事件 → 展示给玩家
+```
+
+错误流程（禁止）：
+
+```text
+主持器凭叙事直觉写出 A/B/C → 玩家选择 → 结算时才发现时段不合法 → 拒绝
+```
+
+这不是”有意义的失败”，而是选项生成顺序错误。合法性审核必须发生在展示之前。
+
+如果当前时段不允许某项行动（如清晨不能探索废铁站场），编译器会自动丢弃该候选。
+主持器应当提供替代方案，例如：
+
+- 在当前地点执行不受时段限制的短行动（观察、整理、交谈）
+- 返回基地准备装备或休息
+- 提交含 `WAIT` 步骤的 ACTION_PLAN，等待进入合法时段后再执行
+
+`WAIT` 行动类型只推进时间，不消耗体力或精神，不触发随机事件：
+
+```json
+{
+  “action_id”: “wait-for-day”,
+  “type”: “WAIT”,
+  “parameters”: {“wait_minutes”: 120},
+  “goal”: “等待进入白天”
+}
+```
+
+`wait_minutes` 范围 5-720 分钟。在 ACTION_PLAN 中，WAIT 步骤会推进模拟时钟，
+后续步骤的 `allowed_periods` 检查使用推进后的 `time_of_day`。例如：
+
+```json
+{
+  “action_id”: “plan-wait-then-explore”,
+  “type”: “ACTION_PLAN”,
+  “plan_id”: “plan-wait-then-explore”,
+  “accept_dilution”: true,
+  “steps”: [
+    {“action_id”: “step-wait”, “type”: “WAIT”, “parameters”: {“wait_minutes”: 120}, “goal”: “等待天亮”},
+    {“action_id”: “step-explore”, “type”: “EXPLORATION”, “target”: “scrap_yard”, “goal”: “探索废铁站场”}
+  ]
+}
+```
+
+如果等待后进入白天，整个计划合法；如果等待后仍不在允许时段，计划预览返回
+`legal: False`，编译器丢弃该候选。
+
+选项绑定当前 `state_turn`。任何玩家行动提交后，旧选项自动清除；
+时段或状态变化后，`preview_player_choice()` 会重新校验存储的契约，
+不再合法的选项会被拒绝执行。
 
 `parameters` 和 `stop_conditions` 只能表达玩家意图或停止条件，不能藏入数值结算。
 协议会递归扫描 JSON；出现引擎字段或未知顶层字段时，入口直接拒绝，不产生事件。
@@ -166,6 +232,8 @@ python tools/audit_report.py saves/世界名 --field player.fatigue
 - 编译世界中的现场 `RESEARCH` 目标地点就是生成的研究地点；如果设计需要回基地分析，应另建一个基地分析行动，
   不能把现场研究目标错误地绑定到 `camp_core`。
 - `REST`、`BUILD`、`BASE_MANAGEMENT`：基地位置是 Python 强制门槛，LLM 不能用 `requirements.location` 或标签伪造基地位置。
+- `WAIT`：只推进时间（`parameters.wait_minutes`，5-720分钟），不消耗体力/精神，不触发随机事件，
+  不受地点或时段限制。用于 ACTION_PLAN 中等待合法时段窗口。
 - `ACTION_PLAN`：Python先编译并补齐路线，再按顺序在临时状态中预览；玩家提交后以同一稀释参数在 SQLite 事务中原子提交。
 - `COMBAT`：怪物类型来自 `world.enemy_definitions`，具体目标必须来自
   `world.encounter_entities`；目标必须同时属于 `meta.current_encounter_id` 对应遭遇的

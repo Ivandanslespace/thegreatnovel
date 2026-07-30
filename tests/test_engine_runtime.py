@@ -936,5 +936,145 @@ class RuntimeIntegrationTests(unittest.TestCase):
             self.assertTrue(engine.state.store.verify_projection(apply_event)["ok"])
 
 
+class OptionLegalityGateTests(unittest.TestCase):
+    """选项编译硬门槛：preview.legal 必须为 True 才能展示。"""
+
+    def _period_world(self):
+        return {
+            "name": "时段门槛世界",
+            "difficulty": "标准",
+            "starting_location": "camp_core",
+            "locations": [
+                {"id": "camp_core", "name": "基地", "safe": True, "travel_minutes_from_base": 0},
+                {"id": "scrap_yard", "name": "废铁站场", "safe": False, "travel_minutes_from_base": 30, "travel_stamina_from_base": 5},
+            ],
+            "action_targets": {
+                "camp_core": {"id": "camp_core", "location_id": "camp_core", "target_difficulty": 0, "effects": {}},
+                "scrap_yard": {
+                    "id": "scrap_yard",
+                    "location_id": "scrap_yard",
+                    "requirements": {"location": "scrap_yard"},
+                    "constraints": {"availability": {"allowed_periods": ["白天", "黄昏"]}},
+                    "target_difficulty": 5,
+                    "effects": {
+                        "success": {"resource_changes": {"scrap": 1}},
+                        "partial_failure": {"knowledge_additions": ["scrap_layout"]},
+                    },
+                },
+            },
+        }
+
+    def test_compile_options_filters_period_illegal_actions(self):
+        """清晨时探索废铁站场（允许白天/黄昏）不应出现在选项中。"""
+        world = self._period_world()
+        world["action_targets"]["scrap_yard_obs"] = {
+            "id": "scrap_yard_obs",
+            "location_id": "scrap_yard",
+            "target_difficulty": 5,
+            "effects": {"success": {"knowledge_additions": ["scrap_layout"]}},
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(
+                world=world,
+                meta={"current_location": "scrap_yard", "time_of_day": "清晨", "day_elapsed_minutes": 0},
+            )))
+            compiled = engine.compile_options([
+                {"id": "A", "label": "探索废铁站场", "action": {"action_id": "explore-illegal", "type": "EXPLORATION", "target": "scrap_yard"}},
+                {"id": "B", "label": "观察周围", "action": {"action_id": "observe", "type": "SHORT_ACTION", "target": "scrap_yard_obs", "goal": "观察威胁"}},
+            ])
+            self.assertNotIn("A", compiled["options"])
+            self.assertIn("B", compiled["options"])
+
+    def test_compile_options_passes_period_legal_actions(self):
+        """白天时探索废铁站场应正常出现在选项中。"""
+        world = self._period_world()
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(
+                world=world,
+                meta={"current_location": "scrap_yard", "time_of_day": "白天", "day_elapsed_minutes": 120},
+            )))
+            compiled = engine.compile_options([
+                {"id": "A", "label": "探索废铁站场", "action": {"action_id": "explore-legal", "type": "EXPLORATION", "target": "scrap_yard"}},
+            ])
+            self.assertIn("A", compiled["options"])
+            self.assertTrue(compiled["contracts"]["A"]["preview"]["legal"])
+
+    def test_wait_action_advances_time(self):
+        """WAIT 行动应推进时间并更新时段。"""
+        world = self._period_world()
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(
+                world=world,
+                meta={"current_location": "camp_core", "time_of_day": "清晨", "day_elapsed_minutes": 0},
+            )))
+            preview = engine.preview_host_action({"action_id": "wait-test", "type": "WAIT", "parameters": {"wait_minutes": 120}})
+            self.assertTrue(preview["legal"], preview)
+            self.assertEqual(preview["resolution"]["wait_minutes"], 120.0)
+            result = engine.execute_host_action({"action_id": "wait-test", "type": "WAIT", "parameters": {"wait_minutes": 120}})
+            self.assertEqual(result["event"]["type"], "WAIT_COMPLETED")
+            self.assertEqual(engine.state.meta["time_of_day"], "白天")
+            self.assertEqual(engine.state.meta["day_elapsed_minutes"], 120)
+
+    def test_plan_wait_then_explore_legal_when_period_advances(self):
+        """WAIT 120min → EXPLORATION 在清晨提交应合法（等待后进入白天）。"""
+        world = self._period_world()
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(
+                world=world,
+                meta={"current_location": "scrap_yard", "time_of_day": "清晨", "day_elapsed_minutes": 0},
+            )))
+            plan = {
+                "action_id": "plan-wait-explore",
+                "type": "ACTION_PLAN",
+                "plan_id": "plan-wait-explore",
+                "accept_dilution": True,
+                "steps": [
+                    {"action_id": "step-wait", "type": "WAIT", "parameters": {"wait_minutes": 120}, "goal": "等待天亮"},
+                    {"action_id": "step-explore", "type": "EXPLORATION", "target": "scrap_yard", "goal": "探索废铁站场"},
+                ],
+            }
+            preview = engine.preview_host_action(plan)
+            self.assertTrue(preview["legal"], preview)
+
+    def test_plan_wait_insufficient_still_illegal(self):
+        """WAIT 60min → EXPLORATION 在清晨提交仍不合法（60min后仍是清晨）。"""
+        world = self._period_world()
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(
+                world=world,
+                meta={"current_location": "scrap_yard", "time_of_day": "清晨", "day_elapsed_minutes": 0},
+            )))
+            plan = {
+                "action_id": "plan-short-wait",
+                "type": "ACTION_PLAN",
+                "plan_id": "plan-short-wait",
+                "accept_dilution": True,
+                "steps": [
+                    {"action_id": "step-wait", "type": "WAIT", "parameters": {"wait_minutes": 60}, "goal": "短暂等待"},
+                    {"action_id": "step-explore", "type": "EXPLORATION", "target": "scrap_yard", "goal": "探索废铁站场"},
+                ],
+            }
+            preview = engine.preview_host_action(plan)
+            self.assertFalse(preview["legal"])
+            self.assertTrue(any("时段" in err for err in preview["errors"]))
+
+    def test_stale_options_rejected_after_state_change(self):
+        """选项绑定 state_turn；状态变化后旧选项被拒绝。"""
+        world = self._period_world()
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(
+                world=world,
+                meta={"current_location": "camp_core", "time_of_day": "白天", "day_elapsed_minutes": 120},
+            )))
+            compiled = engine.compile_options([
+                {"id": "A", "label": "休息", "action": {"action_id": "rest-day", "type": "REST", "target": "camp_core"}},
+            ])
+            self.assertIn("A", compiled["options"])
+            engine.execute_player_choice("A")
+            self.assertNotIn("pending_options", engine.state.meta)
+            review = engine.preview_player_choice("A")
+            self.assertFalse(review["legal"])
+
+
 if __name__ == "__main__":
     unittest.main()
