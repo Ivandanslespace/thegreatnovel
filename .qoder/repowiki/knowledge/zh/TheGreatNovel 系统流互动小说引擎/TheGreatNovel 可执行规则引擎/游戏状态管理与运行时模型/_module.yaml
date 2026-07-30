@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: engine_runtime/state_management
+title: 游戏状态管理与运行时模型
+scope:
+    - engine_runtime/state.py
+    - engine_runtime/models.py
+    - engine_runtime/options.py
+source_files: []
+depends_on: []
+related_to:
+    - path: engine_runtime/calculation_core
+    - path: engine_runtime/persistence_world
+    - path: tools

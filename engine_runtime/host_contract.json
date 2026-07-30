@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "2.0",
   "priority_invariants": [
     {"id": "P0-1", "rule": "数据库是唯一真相", "enforcement": "SQLite事件账本 > YAML > 小说文本"},
     {"id": "P0-2", "rule": "玩家选项只能执行预保存合同", "enforcement": "execute_player_choice 读取 pending_options"},
@@ -8,17 +8,36 @@
     {"id": "P0-5", "rule": "玩家不能看到内部主持信息", "enforcement": "player_facing_result 剥离引擎字段"}
   ],
   "turn_workflow": {
-    "entry_point": "python tools/game_turn.py",
+    "entry_point": "python tools/turn_controller.py",
+    "routing": "控制器自动识别输入类型：A/B/C → 直接执行合同；自由文本 → 需要 --action-json",
     "steps": [
       "加载存档",
-      "执行玩家行动（选项合同或自由输入JSON）",
-      "记录叙事日志",
+      "自动识别输入（选项合同 / 自由行动JSON / 仅生成选项）",
+      "执行玩家行动",
       "自动生成下一回合候选",
-      "编译选项（合法性门槛）",
-      "返回 NarrativePackage"
+      "编译选项（合法性门槛，最多3个）",
+      "返回 NarrativePackage + turn_token"
     ],
-    "llm_responsibility": "只负责：解析自由输入为行动JSON + 把NarrativePackage写成小说",
-    "python_responsibility": "执行、校验、选项生成、状态更新、审计"
+    "record_step": "python tools/turn_controller.py <存档> record --turn-token <token> --response-file <file>",
+    "llm_responsibility": "选项回合：调用控制器 → 写小说 → 记录。自由输入：额外提供 --action-json",
+    "python_responsibility": "输入路由、执行、校验、选项生成、状态更新、审计"
+  },
+  "input_routing": {
+    "player_choice": {
+      "pattern": "A / B / C / 选A / 我选B",
+      "llm_work": "无。直接传 --player-input",
+      "python_work": "匹配 pending_options → 执行合同 → 生成下轮选项"
+    },
+    "free_text": {
+      "pattern": "任何非选项的自然语言",
+      "llm_work": "轻量意图解析为行动 JSON，传 --action-json",
+      "python_work": "校验 → 执行 → 生成下轮选项"
+    },
+    "generate_only": {
+      "pattern": "--generate-options-only",
+      "llm_work": "无",
+      "python_work": "从世界注册表生成候选 → 编译 → 返回选项"
+    }
   },
   "forbidden_player_visible_terms": [
     "预览合法", "未结算", "Python", "SQLite", "dry-run",
@@ -33,5 +52,9 @@
     "structure": "A/B/C + 自由行动D",
     "source": "meta.pending_options（Python编译）",
     "never": "LLM凭叙事直觉直接写出"
+  },
+  "compatibility": {
+    "game_turn_py": "tools/game_turn.py 仍可用，但 turn_controller.py 是推荐入口",
+    "run_action_py": "tools/run_action.py 仅供开发调试，游戏主持不使用"
   }
 }

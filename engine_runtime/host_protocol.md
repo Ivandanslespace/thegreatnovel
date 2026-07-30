@@ -1,7 +1,7 @@
 # LLM 主持器—Python 硬协议
 
 本协议是所有 LLM 主持游戏时的唯一结算流程。`AGENTS.md` 负责叙事和主持行为；
-`engine_runtime/` 与 `tools/run_action.py` 负责数值、随机性、状态增量和存档写入。
+`engine_runtime/` 与 `tools/turn_controller.py` 负责数值、随机性、状态增量和存档写入。
 
 ## 不可越权的边界
 
@@ -154,36 +154,44 @@ Python 还会计算专注负荷、注册表承诺轴冲突、结构化机会窗�
 ## 唯一状态机
 
 ```text
-读取存档
-  → 解析玩家输入为意图 JSON
-  → 协议白名单校验
-  → Python 预览（不写文件）
-  → 玩家选择本身即为执行授权；内部预览通过后立即执行专用结算器
-  → Python 执行专用结算器
-  → SQLite事务写入标准事件与快照
-  → 导出YAML、Markdown和回合小说视图
-  → 执行后存档校验
-  → 只根据 Python 返回值进行小说化叙述
+玩家输入
+  → Turn Controller 自动路由
+  → 选项输入（A/B/C）：直接读取 pending_options 合同并执行
+  → 自由输入：协议白名单校验 → Python 预览 → Python 执行
+  → 生成下轮合法选项
+  → 返回 NarrativePackage + turn_token
+  → LLM 写小说
+  → record 阶段校验并记录
+  → 等待下一轮
 ```
 
-命令行入口：
+命令行入口（推荐）：
 
 ```powershell
-# 预览，不写入
+# 选项回合：控制器自动识别 A/B/C 并执行预保存合同
+python tools/turn_controller.py saves/世界名 --player-input "A"
+
+# 自由输入：LLM 解析意图后附带 action-json
+python tools/turn_controller.py saves/世界名 --player-input '我去侦察冰原边缘。' `
+  --action-json '{"action_id":"scout-001","type":"TRAVEL","target":"冰原边缘"}'
+
+# 仅生成选项
+python tools/turn_controller.py saves/世界名 --generate-options-only
+
+# 记录叙述（LLM 写完小说后）
+python tools/turn_controller.py saves/世界名 record `
+  --turn-token "turn-13-a1b2c3" --player-input "A" --response-file response.md
+```
+
+兼容入口（仍可用，但不再推荐）：
+
+```powershell
+# 旧两阶段入口
+python tools/game_turn.py saves/世界名 resolve --player-choice A --player-input '我选A。'
+python tools/game_turn.py saves/世界名 record --player-input '我选A。' --gm-response-file response.md
+
+# 开发调试入口
 python tools/run_action.py saves/世界名 --action-json '{"action_id":"travel-001","type":"TRAVEL","target":"冰原边缘"}' --dry-run
-
-# 玩家原始输入即执行授权，并自动记录本回合
-python tools/run_action.py saves/世界名 --action-json '{"action_id":"travel-001","type":"TRAVEL","target":"冰原边缘"}' `
-  --player-input '我去侦察冰原边缘。' `
-  --gm-response-file response.md `
-  --intent-source player_free_text
-```
-
-如果本轮选择的是已经展示的 A/B/C，使用保存的契约直接执行，不重新解释选项：
-
-```powershell
-python tools/run_action.py saves/世界名 --player-choice-option A `
-  --player-input '我选A。' --gm-response-file response.md --intent-source player_choice
 ```
 
 执行前会校验存档；执行后再次校验。后置校验失败时，入口恢复执行前快照并报错。
@@ -269,7 +277,7 @@ LLM 不得把完整目标、模块或区域对象塞进 `parameters` 以绕过�
 
 SQLite 的 `campaign.sqlite3` 是事件和投影的事实源；`event_log.md`、YAML 和小说文件是导出视图。
 可以使用 `tools/replay_campaign.py` 重放事件，使用 `tools/verify_projection.py` 验证当前投影。
-这套协议在 LLM 通过 `tools/run_action.py` 调用引擎、且不直接写存档时，可以把越权输入
+这套协议在 LLM 通过 `tools/turn_controller.py` 调用引擎、且不直接写存档时，可以把越权输入
 拦截在入口并让状态只由 Python 事件更新。若把操作系统的任意文件写权限同时交给 LLM，
 任何纯提示词都无法提供绝对保证；因此主持器必须把本文件、`AGENTS.md` 和命令入口作为
 操作契约，禁止直接编辑 `saves/`。

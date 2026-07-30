@@ -26,7 +26,7 @@ inventory:
     燃油: 3
     净水: 2
     废旧金属: 2
-    wood: 5
+    wood: 4
     ammo: 8
   weight_current: 0
   weight_max: 50

@@ -10,7 +10,7 @@ factions:
     黄昏: collect_tax
     夜晚: rest
   treasury:
-    燃油: 3
+    燃油: 6
   tax_rate:
     燃油: 1
   influence: 10
@@ -22,5 +22,6 @@ factions:
     value_alignment: 55
     risk: 20
     cost: 15
-  last_schedule_execution: 1:白天
-  last_autonomous_action: trade_patrol
+  last_schedule_execution: 6:清晨
+  last_autonomous_action: route_planning
+  last_tax_turn: 40

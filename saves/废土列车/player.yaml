@@ -16,8 +16,8 @@ player:
   max_hp: 50
   status_effects: []
   hunger: 100
-  fatigue: 36
-  mental: 58
+  fatigue: 0
+  mental: 81
   max_mental: 100
   talents:
   - name: 危险预兆

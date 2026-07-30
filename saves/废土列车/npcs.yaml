@@ -19,5 +19,5 @@ npcs:
     value_alignment: 60
     risk: 25
     cost: 20
-  last_schedule_execution: 1:白天
-  last_autonomous_action: resource_search
+  last_schedule_execution: 6:清晨
+  last_autonomous_action: base_maintenance

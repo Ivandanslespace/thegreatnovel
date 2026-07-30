@@ -16,28 +16,42 @@ P0-4  非法选项不能展示。compile_options 丢弃 preview.legal==False。
 P0-5  玩家不能看到内部主持信息（Python/SQLite/preview/action_id等）。
 ```
 
-## 每回合工作流（两阶段）
+## 每回合工作流（Turn Controller）
+
+唯一游戏入口：`python tools/turn_controller.py`。控制器自动识别输入类型并路由。
 
 ```bash
-# 阶段一 resolve：执行行动 + 生成选项 + 返回 NarrativePackage
-python tools/game_turn.py saves/世界名 resolve --player-choice A --player-input '我选A。'
-python tools/game_turn.py saves/世界名 resolve --action-json '{"action_id":"x","type":"EXPLORATION","target":"y"}' --player-input '原始输入'
-python tools/game_turn.py saves/世界名 resolve --generate-options-only
+# ─── 选项回合（A/B/C）：LLM 无需解析意图，直接传原始输入 ───
+python tools/turn_controller.py saves/世界名 --player-input "A"
 
-# LLM 根据 NarrativePackage 写小说，保存为 response.md
+# ─── 自由输入：LLM 提供轻量意图解析 ───
+python tools/turn_controller.py saves/世界名 \
+  --player-input "我先检查车厢，然后问阿苔供水情况" \
+  --action-json '{"action_id":"plan-1","type":"ACTION_PLAN","plan_id":"plan-1","accept_dilution":true,"steps":[...]}'
 
-# 阶段二 record：校验小说 + 记录审计
-python tools/game_turn.py saves/世界名 record --player-input '我选A。' --gm-response-file response.md
+# ─── 仅生成/刷新选项（开局、选项过期） ───
+python tools/turn_controller.py saves/世界名 --generate-options-only
+
+# ─── 记录叙述（LLM 写完小说后调用） ───
+python tools/turn_controller.py saves/世界名 record \
+  --turn-token "<resolve返回的token>" --player-input "A" --response-file response.md
 ```
 
-resolve 内部完成：执行行动 → 自动生成候选（正确行动类型、过滤未发现地点、时段不符生成WAIT计划）→ 编译选项（合法性门槛，最多3个）→ 返回 NarrativePackage。
-record 内部完成：校验禁止词 → 校验选项标签一致 → 记录审计日志。
+控制器内部自动完成：
+- 识别输入 → 选项合同直接执行 / 自由行动校验执行
+- 生成下一回合候选（正确行动类型、过滤未发现地点、时段不符生成WAIT计划）
+- 编译选项（合法性门槛，最多3个）
+- 返回 NarrativePackage + turn_token
 
-**LLM只负责两件事：**
-1. 把自由输入解析为行动 JSON（意图字段，不填数值）
-2. 把 NarrativePackage 写成小说（narrative_length × 100~120字），展示其中的 visible_options
+**LLM 的职责（按输入类型）：**
 
-LLM 不负责：保存选项、判断字母含义、选择工具入口、决定是否预览、拼接移动步骤、判断时段。
+| 玩家输入 | LLM 需要做的 |
+|----------|-------------|
+| A/B/C 选项 | 调用控制器 → 读结果 → 写小说 → 记录 |
+| 自由自然语言 | 解析为行动JSON → 调用控制器(附 --action-json) → 写小说 → 记录 |
+| 固定命令（查看面板等） | 调用 --generate-options-only → 展示 |
+
+**LLM 不负责：** 判断字母含义、选择工具入口、决定是否预览、拼接移动步骤、判断时段、保存选项。
 
 完整协议见 `engine_runtime/host_protocol.md`；机器可读版见 `engine_runtime/host_contract.json`。
 
@@ -70,11 +84,11 @@ LLM 不负责：保存选项、判断字母含义、选择工具入口、决定�
 
 1. LLM只把玩家自然语言解析成意图 JSON，不自行计算或填写任何硬公式数值。
 2. LLM不得直接编辑 `saves/`、追加 `event_log.md` 或凭记忆修改 YAML；状态变更只能经过
-   `python tools/run_action.py` 的 Python 入口。
-3. 玩家选择 A/B/C 或提交自由行动本身就是执行授权。Python 可以在同一调用内先做内部
-   预览，再立即提交同一行动；不得向玩家追加“确认执行”问题。`--dry-run` 仅供开发排查，
+   `python tools/turn_controller.py` 的 Python 入口。
+3. 玩家选择 A/B/C 或提交自由行动本身就是执行授权。控制器自动识别选项输入并直接执行
+   预保存合同；不得向玩家追加"确认执行"问题。`--dry-run` 仅供开发排查，
    游戏主持流程不得把它当成第二个玩家回合。
-4. 执行命令失败时，本轮没有结算。不得用小说叙述“补出”结果，也不得手写替代事件。
+4. 执行命令失败时，本轮没有结算。不得用小说叙述"补出"结果，也不得手写替代事件。
    缺少玩家输入或GM回答时，Python入口直接拒绝执行。
 5. LLM不得提交或隐藏 `time_minutes`、`stamina_cost`、`mental_cost`、`target_difficulty`、
    `seed`、`probability`、`resolution`、`action_ledger`、`damage`、`experience_gain`、
@@ -86,8 +100,11 @@ LLM 不负责：保存选项、判断字母含义、选择工具入口、决定�
 协议状态机固定为：
 
 ```text
-读取存档 → 解析意图 → 白名单校验 → Python内部预览
-→ Python执行 → 执行后校验 → 根据返回值叙述 → 等待下一轮
+玩家输入 → Turn Controller 自动路由
+  → 选项输入：直接执行 pending_options 合同
+  → 自由输入：白名单校验 → Python内部预览 → Python执行
+→ 生成下轮选项 → 返回 NarrativePackage
+→ LLM 写小说 → record 记录 → 等待下一轮
 ```
 
 如果模型拥有不受限制的文件系统写权限，任何提示词都无法提供绝对安全保证；因此本协议
@@ -264,7 +281,7 @@ saves/{世界名}/
 ### 更新规则
 - **每次选择结算后**：先由 Python 生成标准事件并在 `campaign.sqlite3` 中以事务提交；YAML、Markdown 和小说文件只是同步导出视图
 - **每次状态变化**：在 event_log.md 追加一条记录
-- **每次完成一轮叙述**：由 `tools/run_action.py` 自动追加 `novel_draft.md` 和
+- **每次完成一轮叙述**：由 `tools/turn_controller.py` 的 record 阶段自动追加 `novel_draft.md` 和
   `conversation_log.md`；开局回合使用 `tools/record_turn.py`
 - **每10轮**：更新 story.md 摘要
 - **延迟事件**：每轮检查 event_queue.yaml 中的触发条件
@@ -272,7 +289,7 @@ saves/{世界名}/
 
 ### 文件读写
 - 使用 Read 工具读取 .yaml 文件
-- 主持运行期间禁止 LLM 使用 Write/Edit 直接更新存档；必须调用 `python tools/run_action.py`
+- 主持运行期间禁止 LLM 使用 Write/Edit 直接更新存档；必须调用 `python tools/turn_controller.py`
   让 Python 通过标准事件完整更新 YAML、追加 `event_log.md`，并记录玩家输入和GM回答
 - 每个涉及多个小步骤的玩家输入必须先编译为 `ACTION_PLAN`：Python 计算每一步的属性、成本、合法性和可组合度，内部预览通过后以一个 SQLite 事务原子提交；LLM 不得自行计算或覆盖这些数值
 - 展示给玩家的 A/B/C 必须来自 `meta.pending_options` 中的已预验证行动契约；`compile_options()` 会丢弃所有 `preview.legal == False` 的候选（时段/地点/物品/等级不满足），LLM 不得绕过编译器凭叙事直觉直接写出选项。选择选项时只读取已保存契约，不重新解释为另一个行动。没有实际状态效果的选项不得展示。
@@ -530,7 +547,9 @@ Lv.X → Lv.Y
 | templates/world_template.yaml | 世界创建模板 |
 | templates/save_template/ | 存档文件模板 |
 | tools/create_save.py | 根据世界问卷生成完整新存档并自动校验 |
-| tools/run_action.py | 调用Python引擎预览或执行一次行动 |
+| tools/turn_controller.py | **唯一游戏入口**：自动路由选项/自由输入、结算、生成选项、记录叙述 |
+| tools/run_action.py | 开发调试用：预览或执行单次行动（游戏主持不使用） |
+| tools/game_turn.py | 兼容入口：两阶段结构（turn_controller.py 是推荐替代） |
 | tools/record_turn.py | 记录开局或补录一回合小说与对话 |
 | tools/audit_report.py | 按回合、状态或数据库字段查询流程审计 |
 | tools/validate_save.py | 存档校验脚本（六类校验器可执行版） |
