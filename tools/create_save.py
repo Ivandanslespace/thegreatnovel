@@ -838,7 +838,7 @@ def build_files(template_dir, world, talent):
             "theme": world["theme"],
             "safe_base": safe_base,
             "difficulty": world["difficulty"],
-            "generation_profile": world.get("generation", {}).get("theme_profile", "generic"),
+            "generation_source": world.get("generation", {}).get("mechanics_source", "llm_world_blueprint"),
             "registry_counts": {key: len(bundle.get(key, {})) if isinstance(bundle.get(key), (dict, list)) else 0 for key in ("locations", "enemies", "areas", "build_catalog", "action_targets")},
         },
         "turn": 1,
