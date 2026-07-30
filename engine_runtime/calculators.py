@@ -304,17 +304,32 @@ def apply_action_dilution(resolution: ActionResolution, multiplier: float) -> Ac
     return resolution
 
 
-def apply_combat_dilution(resolution: CombatResolution, multiplier: float) -> CombatResolution:
-    """将行动计划稀释应用到命中率和伤害，保留同一随机数以便复盘。"""
+def apply_combat_dilution(
+    resolution: CombatResolution,
+    multiplier: float,
+    *,
+    attacker: Optional[Mapping[str, Any]] = None,
+    defender: Optional[Mapping[str, Any]] = None,
+    weapon: Optional[Mapping[str, Any]] = None,
+    skill: Optional[Mapping[str, Any]] = None,
+    environment: Optional[Mapping[str, Any]] = None,
+    seed: str = "",
+) -> CombatResolution:
+    """用原始战斗输入重新计算稀释后的全部派生字段。"""
     multiplier = clamp(number(multiplier, 1.0), 0.25, 1.0)
     if multiplier >= 1.0:
         return resolution
-    resolution.hit_probability = rounded(resolution.hit_probability * multiplier)
-    resolution.hit = resolution.random_roll < resolution.hit_probability
-    resolution.damage = rounded(resolution.damage * multiplier) if resolution.hit else 0.0
-    resolution.components = deepcopy(resolution.components)
-    resolution.components["dilution_multiplier"] = multiplier
-    return resolution
+    if attacker is None or defender is None:
+        raise ValueError("战斗稀释必须提供 attacker 和 defender 以重新计算完整结果")
+    return calculate_combat(
+        attacker,
+        defender,
+        weapon=weapon,
+        skill=skill,
+        environment=environment,
+        seed=seed,
+        dilution_multiplier=multiplier,
+    )
 
 
 def _skill_modifier(skill: Optional[Mapping[str, Any]]) -> float:
@@ -329,9 +344,10 @@ def _environment_modifier(environment: Mapping[str, Any], key: str) -> float:
     return max(0.1, 1.0 + number(environment.get(key), 0.0) / 100.0)
 
 
-def calculate_combat(attacker: Mapping[str, Any], defender: Mapping[str, Any], weapon: Optional[Mapping[str, Any]] = None, skill: Optional[Mapping[str, Any]] = None, environment: Optional[Mapping[str, Any]] = None, seed: str = "") -> CombatResolution:
+def calculate_combat(attacker: Mapping[str, Any], defender: Mapping[str, Any], weapon: Optional[Mapping[str, Any]] = None, skill: Optional[Mapping[str, Any]] = None, environment: Optional[Mapping[str, Any]] = None, seed: str = "", dilution_multiplier: float = 1.0) -> CombatResolution:
     environment = environment or {}
     weapon = weapon or {}
+    dilution_multiplier = clamp(number(dilution_multiplier, 1.0), 0.25, 1.0)
     attacker_state = state_modifier(attacker)
     defender_state = state_modifier(defender)
     attack_attribute = "agility" if weapon.get("attack_type") == "ranged" else "strength"
@@ -341,7 +357,7 @@ def calculate_combat(attacker: Mapping[str, Any], defender: Mapping[str, Any], w
     skill_modifier = _skill_modifier(skill)
     equipment_modifier = 1.0 + weapon_attack / 100.0
     environment_modifier = _environment_modifier(environment, "attack_bonus")
-    attack = base_attribute * skill_modifier * equipment_modifier * attacker_state * environment_modifier
+    attack = base_attribute * skill_modifier * equipment_modifier * attacker_state * environment_modifier * dilution_multiplier
 
     defense_skill = number(defender.get("defense_skill"), 0.0)
     terrain_cover = number(environment.get("terrain_cover"), 0.0)
@@ -351,14 +367,16 @@ def calculate_combat(attacker: Mapping[str, Any], defender: Mapping[str, Any], w
 
     weapon_accuracy = number(weapon.get("accuracy"), equipment_stat(weapon, "accuracy"))
     skill_accuracy = number(skill.get("accuracy"), 0.0) if isinstance(skill, Mapping) else 0.0
-    attacker_accuracy = attribute_value(attacker, "agility") * 2.0 + weapon_accuracy + skill_accuracy + number(environment.get("accuracy_bonus"), 0.0)
+    raw_attacker_accuracy = attribute_value(attacker, "agility") * 2.0 + weapon_accuracy + skill_accuracy + number(environment.get("accuracy_bonus"), 0.0)
     defender_evasion = attribute_value(defender, "agility") * 2.0 + number(defender.get("equipment_evasion"), 0.0) + number(environment.get("defender_evasion_bonus"), 0.0)
+    attacker_accuracy = defender_evasion + (raw_attacker_accuracy - defender_evasion) * dilution_multiplier
     k = DIFFICULTY_K.get(str(environment.get("difficulty", "标准")), 10.0)
     hit_probability = rounded(sigmoid((attacker_accuracy - defender_evasion) / k))
     random_roll = rounded(deterministic_roll(seed, "combat-hit"))
     hit = random_roll < hit_probability
     raw_damage = max(0.0, attack - defense * 0.50) if hit else 0.0
     damage_multiplier = number(skill.get("damage_multiplier"), 1.0) if isinstance(skill, Mapping) else 1.0
+    damage_multiplier = 1.0 + (damage_multiplier - 1.0) * dilution_multiplier
     damage = rounded(max(0.0, raw_damage * damage_multiplier))
     retreat_probability = rounded(clamp(0.4 + (attribute_value(attacker, "agility") - attribute_value(defender, "agility")) / 20.0 + number(environment.get("retreat_bonus"), 0.0), 0.05, 0.95))
 
@@ -375,7 +393,13 @@ def calculate_combat(attacker: Mapping[str, Any], defender: Mapping[str, Any], w
     if hit and isinstance(skill, Mapping):
         for effect in skill.get("effects", []) if isinstance(skill.get("effects"), list) else []:
             if isinstance(effect, Mapping) and effect.get("type") in {"status", "debuff"}:
-                status_effects.append(deepcopy(dict(effect)))
+                effect_copy = deepcopy(dict(effect))
+                if dilution_multiplier < 1.0:
+                    effect_copy["dilution_multiplier"] = dilution_multiplier
+                    for key in ("magnitude", "strength", "chance"):
+                        if isinstance(effect_copy.get(key), (int, float)):
+                            effect_copy[key] = rounded(float(effect_copy[key]) * dilution_multiplier)
+                status_effects.append(effect_copy)
     damage_ratio = damage / max(attribute_value(defender, "constitution") * 10.0, 1.0)
     target_hp = max(1.0, number(defender.get("hp"), attribute_value(defender, "constitution") * 10.0))
     target_downed = damage >= target_hp
@@ -412,7 +436,7 @@ def calculate_combat(attacker: Mapping[str, Any], defender: Mapping[str, Any], w
         weapon_durability_after=durability_after,
         status_effects=status_effects,
         death_risk=death_risk,
-        components={"base_attribute": base_attribute, "skill_modifier": skill_modifier, "equipment_modifier": equipment_modifier, "state_modifier": attacker_state, "environment_modifier": environment_modifier, "defender_state_modifier": defender_state, "injury_penalty": injury_penalty, "ammo_available": ammo_available, "durability_available": durability_available, "target_hp": target_hp, "counterattack_probability": rounded(counterattack_probability)},
+        components={"base_attribute": base_attribute, "skill_modifier": skill_modifier, "equipment_modifier": equipment_modifier, "state_modifier": attacker_state, "environment_modifier": environment_modifier, "defender_state_modifier": defender_state, "injury_penalty": injury_penalty, "ammo_available": ammo_available, "durability_available": durability_available, "target_hp": target_hp, "counterattack_probability": rounded(counterattack_probability), "dilution_multiplier": dilution_multiplier},
         incoming_damage=incoming_damage,
         counterattack_hit=counterattack_hit,
     )
@@ -760,7 +784,20 @@ def calculate_base_defense(base: Mapping[str, Any], player_power: float = 0.0, t
 def calculate_combinability(components: Mapping[str, Any]) -> float:
     time_factor = components.get("time_compatibility", components.get("time_remaining"))
     factors = [clamp(number(time_factor), 0.0, 1.0)]
-    factors.extend(clamp(number(components.get(key)), 0.0, 1.0) for key in ("resource_compatibility", "location_proximity", "goal_compatibility", "npc_availability"))
+    factors.extend(
+        clamp(number(components.get(key), 1.0), 0.0, 1.0)
+        for key in (
+            "resource_compatibility",
+            "location_proximity",
+            "goal_compatibility",
+            "npc_availability",
+            "attention_compatibility",
+            "action_slot_compatibility",
+            "commitment_compatibility",
+            "opportunity_window_compatibility",
+            "movement_compatibility",
+        )
+    )
     return rounded(math.prod(factors) * 100.0)
 
 

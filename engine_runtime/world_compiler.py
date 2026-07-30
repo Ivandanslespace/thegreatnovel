@@ -79,6 +79,7 @@ def compile_world_bundle(
 
     enemy = {
         "id": enemy_id,
+        "definition_id": enemy_id,
         "name": enemy_name,
         "level": 1,
         "quality": "普通",
@@ -91,7 +92,7 @@ def compile_world_bundle(
         "attributes": {"strength": 4, "constitution": 3, "agility": 4, "spirit": 2},
         "drops": {resource: 2, secondary_resource: 1},
         "knowledge_hint": enemy_hint,
-        "status": "alive",
+        "status": "definition",
         "location_id": area_id,
     }
     area = {
@@ -213,8 +214,10 @@ def compile_world_bundle(
             {"id": research_id, "name": research_name, "safe": False, "discovered": False},
         ],
         "enemies": [enemy],
-        "targets": {enemy_id: enemy},
-        "combat_targets": {enemy_id: enemy},
+        "targets": {},
+        "enemy_definitions": {enemy_id: enemy},
+        "encounter_entities": {},
+        "combat_targets": {},
         "areas": {area_id: area},
         "farm_areas": {area_id: area},
         "build_catalog": modules,

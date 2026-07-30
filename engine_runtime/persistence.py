@@ -191,7 +191,7 @@ class SQLiteEventStore:
             connection.commit()
 
     def _upsert_projection(self, connection: sqlite3.Connection, state: Mapping[str, Any]) -> None:
-        for entity_type in ("npcs", "factions", "locations", "targets", "combat_targets", "areas", "build_catalog"):
+        for entity_type in ("npcs", "factions", "locations", "targets", "combat_targets", "enemy_definitions", "encounter_entities", "areas", "build_catalog"):
             if entity_type in {"npcs", "factions"}:
                 raw = state.get(entity_type, {})
             else:

@@ -76,6 +76,20 @@ class FormulaTests(unittest.TestCase):
         self.assertFalse(no_ammo.ammo_sufficient)
         self.assertEqual(no_ammo.damage, 0.0)
 
+    def test_combat_dilution_recomputes_counterattack_and_outcome(self):
+        attacker = {"attributes": {"strength": 20, "constitution": 8, "agility": 10, "spirit": 5}, "fatigue": 0, "max_hp": 50}
+        defender = {"id": "target", "hp": 20, "max_hp": 20, "attack": 30, "accuracy": 20, "attributes": {"strength": 5, "constitution": 2, "agility": 2, "spirit": 2}}
+        weapon = {"attack": 100, "accuracy": 50, "durability": 3}
+        full = calculate_combat(attacker, defender, weapon=weapon, seed="seed-0")
+        diluted = calculate_combat(attacker, defender, weapon=weapon, seed="seed-0", dilution_multiplier=0.25)
+        self.assertTrue(full.hit)
+        self.assertGreaterEqual(full.damage, defender["hp"])
+        self.assertTrue(diluted.hit)
+        self.assertLess(diluted.damage, defender["hp"])
+        self.assertFalse(full.counterattack_hit)
+        self.assertTrue(diluted.counterattack_hit)
+        self.assertGreater(diluted.incoming_damage, 0)
+
     def test_experience_decay_and_level_up(self):
         self.assertEqual(calculate_experience(5, 4), 40.0)
         self.assertEqual(calculate_experience(5, 3), 18.0)
@@ -168,6 +182,7 @@ class RuntimeIntegrationTests(unittest.TestCase):
             "language": "中文",
         })
         world, talent = normalize_package(template, supplied_world, supplied_talent)
+        world["action_targets"][next(iter(world["areas"]))]["target_difficulty"] = 0
         files = build_files(project_root / "templates" / "save_template", world, talent)
 
         with tempfile.TemporaryDirectory() as temp:
@@ -181,7 +196,7 @@ class RuntimeIntegrationTests(unittest.TestCase):
             engine = GameEngine(load_game_state(root))
             bundle = engine.state.data["world"]["generation_bundle"]
             area_id = next(iter(bundle["areas"]))
-            enemy_id = next(iter(bundle["combat_targets"]))
+            enemy_definition_id = next(iter(bundle["enemy_definitions"]))
             module_id = next(iter(bundle["build_catalog"]))
 
             plan = engine.execute_host_action({
@@ -196,8 +211,10 @@ class RuntimeIntegrationTests(unittest.TestCase):
             })
             self.assertEqual(len(plan["events"]), 2)
             self.assertEqual(engine.state.meta["time_of_day"], "白天")
-            explored = engine.execute_host_action({"action_id": "explore-1", "type": "EXPLORATION", "target": area_id, "risk_preference": "谨慎"})
+            explored = engine.execute_host_action({"action_id": "scout", "type": "EXPLORATION", "target": area_id, "risk_preference": "谨慎"})
             self.assertEqual(explored["event"]["type"], "EXPLORATION_RESOLVED")
+            self.assertEqual(explored["event"]["data"]["encounter_additions"][0]["target_ids"][0].split("_instance_")[0], enemy_definition_id)
+            enemy_id = next(iter(engine.state.data["world"]["encounter_entities"]))
             combat = engine.execute_host_action({"action_id": "combat-1", "type": "COMBAT", "target": enemy_id})
             self.assertIn("target_deltas", combat["event"]["data"])
             built = engine.execute_host_action({"action_id": "build-1", "type": "BUILD", "target": module_id})
@@ -205,6 +222,9 @@ class RuntimeIntegrationTests(unittest.TestCase):
             rested = engine.execute_host_action({"action_id": "rest-1", "type": "REST", "target": "camp_core"})
             self.assertEqual(rested["event"]["type"], "ACTION_RESOLVED")
             self.assertEqual(engine.state.meta["game_day"], 2)
+            engine.execute_host_action({"action_id": "explore-2", "type": "EXPLORATION", "target": area_id, "risk_preference": "谨慎"})
+            self.assertEqual(engine.state.data["world"]["enemy_definitions"][enemy_definition_id]["status"], "definition")
+            self.assertGreaterEqual(len(engine.state.data["world"]["encounter_entities"]), 2)
             farmed = engine.execute_host_action({"action_id": "farm-1", "type": "BATCH_ACTION", "target": area_id})
             self.assertEqual(farmed["event"]["type"], "BATCH_ACTION_RESOLVED")
             self.assertLess(engine.state.data["world"]["areas"][area_id]["monster_population"], 50)
@@ -217,12 +237,13 @@ class RuntimeIntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             values = {
-                "world.yaml": {"world": {"name": "注册表世界", "difficulty": "标准", "targets": {"ice-zombie": {"id": "ice-zombie", "attributes": {"strength": 3, "constitution": 3, "agility": 3, "spirit": 3}}}, "build_catalog": {"workbench": {"id": "workbench", "space_cost": 1, "build_time": 60, "build_cost": {"wood": 1}, "maintenance": {"wood": 1}}}, "areas": {"edge": {"monster_density_per_hour": 10, "route_coverage": 100, "search_efficiency": 100, "monster_alertness_modifier": 100, "kill_success_rate": 1, "ammo_per_kill": 1, "weapon_rate_per_hour": 20, "enemy_groups": [{"level": 1, "quality": "普通", "weight": 1, "drops": {"food": 1}}], "farmability_components": {"combat_advantage": 80, "enemy_information": 80, "kill_stability": 80, "sustainability": 80, "route_familiarity": 80, "extraction_ability": 80}}}}, "player_talent": {}},
+                "world.yaml": {"world": {"name": "注册表世界", "difficulty": "标准", "enemy_definitions": {"ice-zombie-def": {"id": "ice-zombie-def", "status": "definition", "attributes": {"strength": 3, "constitution": 3, "agility": 3, "spirit": 3}}}, "encounter_entities": {"ice-zombie-instance": {"id": "ice-zombie-instance", "definition_id": "ice-zombie-def", "status": "alive", "location_id": "edge", "hp": 30, "max_hp": 30, "attributes": {"strength": 3, "constitution": 3, "agility": 3, "spirit": 3}}}, "build_catalog": {"workbench": {"id": "workbench", "space_cost": 1, "build_time": 60, "build_cost": {"wood": 1}, "maintenance": {"wood": 1}}}, "areas": {"edge": {"monster_density_per_hour": 10, "route_coverage": 100, "search_efficiency": 100, "monster_alertness_modifier": 100, "kill_success_rate": 1, "ammo_per_kill": 1, "weapon_rate_per_hour": 20, "enemy_groups": [{"level": 1, "quality": "普通", "weight": 1, "drops": {"food": 1}}], "farmability_components": {"combat_advantage": 80, "enemy_information": 80, "kill_stability": 80, "sustainability": 80, "route_familiarity": 80, "extraction_ability": 80}}}, "player_talent": {}},
+                },
                 "player.yaml": {"player": {"level": 1, "exp": 0, "exp_to_next": 100, "attributes": {"strength": 8, "constitution": 5, "agility": 6, "spirit": 5}, "fatigue": 0, "hunger": 100, "mental": 100, "max_hp": 50, "hp": 50, "skills": []}},
                 "base.yaml": {"base": {"space_total": 3, "space_used": 0, "modules": []}},
                 "inventory.yaml": {"inventory": {"equipment": {"main_weapon": {"attack": 20, "durability": 2, "ammo_resource": "ammo", "ammo_cost": 1, "rate_per_hour": 20}}, "resources": {"ammo": 20, "wood": 1}}},
                 "npcs.yaml": {"npcs": []}, "factions.yaml": {"factions": []}, "relationships.yaml": {"relationships": []}, "event_queue.yaml": {"event_queue": []},
-                "meta.yaml": {"meta": {"current_turn": 1, "game_day": 1, "time_of_day": "白天", "world_name": "注册表世界", "difficulty": "标准", "available_time_minutes": 240, "event_format_version": 2}},
+                "meta.yaml": {"meta": {"current_turn": 1, "game_day": 1, "time_of_day": "白天", "world_name": "注册表世界", "difficulty": "标准", "available_time_minutes": 240, "current_location": "edge", "current_encounter_id": "encounter-1", "active_encounters": [{"id": "encounter-1", "location_id": "edge", "target_ids": ["ice-zombie-instance"], "participants": ["player", "ice-zombie-instance"], "status": "active"}], "event_format_version": 2}},
             }
             for filename, value in values.items():
                 (root / filename).write_text(yaml.safe_dump(value, allow_unicode=True, sort_keys=False), encoding="utf-8")
@@ -230,7 +251,7 @@ class RuntimeIntegrationTests(unittest.TestCase):
             (root / "story.md").write_text("# 故事摘要\n", encoding="utf-8")
 
             engine = GameEngine(load_game_state(root))
-            combat = engine.execute_host_action({"action_id": "fight", "type": "COMBAT", "target": "ice-zombie"})
+            combat = engine.execute_host_action({"action_id": "fight", "type": "COMBAT", "target": "ice-zombie-instance"})
             self.assertEqual(combat["event"]["type"], "COMBAT_RESOLVED")
             self.assertEqual(engine.state.inventory["resources"]["ammo"], 19.0)
             self.assertEqual(engine.state.inventory["equipment"]["main_weapon"]["durability"], 1.0)
@@ -299,6 +320,9 @@ class RuntimeIntegrationTests(unittest.TestCase):
             maintenance = engine.apply_base_maintenance(1)
             self.assertEqual(maintenance["resolution"]["status"], "maintenance_shortage")
             self.assertEqual(engine.state.inventory["resources"]["wood"], 0)
+            engine.state.meta["current_location"] = "camp_core"
+            engine.state.meta["current_encounter_id"] = "encounter-direct"
+            engine.state.meta["active_encounters"] = [{"id": "encounter-direct", "location_id": "camp_core", "target_ids": ["ice-zombie"], "participants": ["player", "ice-zombie"], "status": "active"}]
             combat = engine.execute_combat({"id": "ice-zombie", "attributes": {"strength": 3, "constitution": 3, "agility": 3, "spirit": 3}}, weapon={"attack": 20, "durability": 2}, seed="integration-combat")
             self.assertEqual(combat["event"]["type"], "COMBAT_RESOLVED")
             self.assertEqual(engine.state.current_turn, 6)
@@ -328,9 +352,18 @@ class RuntimeIntegrationTests(unittest.TestCase):
             plan = {"action_id": "diluted", "type": "ACTION_PLAN", "plan_id": "diluted", "accept_dilution": True, "steps": [{"action_id": "a", "type": "SHORT_ACTION", "target": "site-a"}, {"action_id": "b", "type": "SHORT_ACTION", "target": "site-b"}]}
             preview = engine.preview_action_plan(plan)
             self.assertTrue(preview["legal"], preview)
+
             self.assertEqual(preview["dilution_multiplier"], 0.75)
             self.assertLess(preview["steps"][0]["preview"]["resolution"]["probability"], single["resolution"]["probability"])
             self.assertEqual(engine.state.inventory["resources"]["wood"], 2)
+
+            slot_state = minimal_state(world=world, inventory={"resources": {"wood": 4, "ammo": 20}, "equipment": {"main_weapon": {"attack": 20, "accuracy": 10, "durability": 10}}})
+            slot_state["base"]["space_total"] = 4
+            slot_engine = GameEngine(GameState(root / "slot", slot_state))
+            slot_preview = slot_engine.preview_action_plan({"action_id": "slot-plan", "type": "ACTION_PLAN", "plan_id": "slot-plan", "accept_dilution": True, "steps": [{"action_id": "slot-a", "type": "BUILD", "target": "module-a"}, {"action_id": "slot-b", "type": "BUILD", "target": "module-b"}]})
+            self.assertFalse(slot_preview["legal"])
+            self.assertEqual(slot_preview["components"]["action_slot_compatibility"], 0.5)
+            self.assertLess(slot_preview["components"]["attention_compatibility"], 1.0)
 
             sequential = {"action_id": "sequential", "type": "ACTION_PLAN", "plan_id": "sequential", "accept_dilution": True, "steps": [{"action_id": "m1", "type": "BUILD", "target": "module-a"}, {"action_id": "m2", "type": "BUILD", "target": "module-b"}]}
             invalid_preview = engine.preview_action_plan(sequential)
@@ -345,6 +378,22 @@ class RuntimeIntegrationTests(unittest.TestCase):
             engine.execute_action_plan(prioritized)
             self.assertEqual(engine.state.data["base"]["modules"][0]["id"], "module-b")
             self.assertEqual(engine.state.inventory["resources"]["wood"], 0)
+
+    def test_encounter_instances_expire_and_resolve(self):
+        target = {"id": "wolf-instance", "definition_id": "wolf", "status": "alive", "hp": 20, "location_id": "forest", "attributes": {"strength": 2, "constitution": 2, "agility": 2, "spirit": 2}}
+        state = minimal_state(
+            meta={"current_location": "forest", "current_encounter_id": "encounter-1", "active_encounters": [{"id": "encounter-1", "location_id": "forest", "target_ids": ["wolf-instance"], "participants": ["player", "wolf-instance"], "status": "active"}]},
+            world={"name": "遭遇生命周期世界", "difficulty": "标准", "enemy_definitions": {"wolf": {"id": "wolf", "status": "definition"}}, "encounter_entities": {"wolf-instance": target}},
+        )
+        projected = apply_event(state, standard_event("resolve", "COMBAT_RESOLVED", "player", "wolf-instance", {"encounter_updates": [{"id": "encounter-1", "target_ids": [], "participants": ["player"], "status": "resolved"}], "time_cost": 0}, 1, "Day 1 清晨"))
+        self.assertEqual(projected["meta"]["active_encounters"], [])
+        self.assertEqual(projected["meta"]["current_encounter_id"], None)
+        self.assertEqual(projected["meta"]["encounter_history"][0]["status"], "resolved")
+        expiring = deepcopy(state)
+        expiring["meta"]["active_encounters"][0]["expires_turn"] = 1
+        expired = apply_event(expiring, standard_event("expire", "ACTION_RESOLVED", "player", None, {"time_cost": 0}, 1, "Day 1 清晨"))
+        self.assertEqual(expired["meta"]["active_encounters"], [])
+        self.assertEqual(expired["meta"]["encounter_history"][0]["status"], "expired")
 
     def test_death_is_terminal_and_dead_targets_are_not_reusable(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -415,12 +464,14 @@ class RuntimeIntegrationTests(unittest.TestCase):
 
     def test_combat_requires_current_presence_or_active_encounter(self):
         target = {"id": "wolf", "status": "alive", "hp": 20, "max_hp": 20, "location_id": "forest", "attributes": {"strength": 2, "constitution": 2, "agility": 2, "spirit": 2}}
-        world = {"name": "地点世界", "difficulty": "标准", "combat_targets": {"wolf": target}}
+        world = {"name": "地点世界", "difficulty": "标准", "encounter_entities": {"wolf": target}}
         with tempfile.TemporaryDirectory() as temp:
             engine = GameEngine(GameState(Path(temp), minimal_state(world=world)))
             with self.assertRaises(ValueError):
                 engine.execute_host_action({"action_id": "wrong-place", "type": "COMBAT", "target": "wolf"})
-            engine.state.meta["active_encounters"] = [{"id": "encounter-1", "location_id": "forest", "target_ids": ["wolf"], "status": "active"}]
+            engine.state.meta["current_location"] = "forest"
+            engine.state.meta["current_encounter_id"] = "encounter-1"
+            engine.state.meta["active_encounters"] = [{"id": "encounter-1", "location_id": "forest", "target_ids": ["wolf"], "participants": ["player", "wolf"], "status": "active"}]
             preview = engine.preview_host_action({"action_id": "right-place", "type": "COMBAT", "target": "wolf"})
             self.assertTrue(preview["legal"], preview)
 

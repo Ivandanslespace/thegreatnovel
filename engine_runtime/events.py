@@ -92,7 +92,7 @@ def _apply_target_deltas(world: Dict[str, Any], target_deltas: Any) -> None:
             continue
         target_copy = None
         locations = []
-        for registry_name in ("targets", "combat_targets"):
+        for registry_name in ("encounter_entities", "targets", "combat_targets"):
             registry = world.get(registry_name)
             if isinstance(registry, Mapping):
                 key = target_id if target_id in registry else next(
@@ -158,7 +158,7 @@ def _apply_area_deltas(world: Dict[str, Any], area_deltas: Any) -> None:
             registry[key] = updated_area
 
 
-def _apply_encounter_additions(meta: Dict[str, Any], additions: Any) -> None:
+def _apply_encounter_additions(meta: Dict[str, Any], world: Dict[str, Any], additions: Any) -> None:
     if not isinstance(additions, list):
         return
     encounters = meta.setdefault("active_encounters", [])
@@ -168,8 +168,67 @@ def _apply_encounter_additions(meta: Dict[str, Any], additions: Any) -> None:
     for addition in additions:
         if not isinstance(addition, Mapping) or not addition.get("id"):
             continue
+        entity_additions = addition.get("entity_additions", [])
+        entities = world.setdefault("encounter_entities", {})
+        if not isinstance(entities, dict):
+            entities = {}
+            world["encounter_entities"] = entities
+        for entity in entity_additions if isinstance(entity_additions, list) else []:
+            if isinstance(entity, Mapping) and entity.get("id"):
+                entities[str(entity["id"])] = deepcopy(dict(entity))
+        encounter = {key: deepcopy(value) for key, value in addition.items() if key != "entity_additions"}
         if not any(isinstance(item, Mapping) and item.get("id") == addition.get("id") for item in encounters):
-            encounters.append(deepcopy(dict(addition)))
+            encounters.append(encounter)
+
+
+def _apply_encounter_updates(meta: Dict[str, Any], updates: Any) -> None:
+    if not isinstance(updates, list):
+        return
+    encounters = meta.setdefault("active_encounters", [])
+    if not isinstance(encounters, list):
+        encounters = []
+        meta["active_encounters"] = encounters
+    history = meta.setdefault("encounter_history", [])
+    for update in updates:
+        if not isinstance(update, Mapping) or not update.get("id"):
+            continue
+        encounter = next((item for item in encounters if isinstance(item, Mapping) and item.get("id") == update.get("id")), None)
+        if encounter is None:
+            continue
+        encounter.update(deepcopy(dict(update)))
+        if encounter.get("status", "active") != "active":
+            history.append(deepcopy(dict(encounter)))
+            encounters[:] = [item for item in encounters if not (isinstance(item, Mapping) and item.get("id") == encounter.get("id"))]
+            if meta.get("current_encounter_id") == encounter.get("id"):
+                meta["current_encounter_id"] = None
+    del history[:-100]
+
+
+def _cleanup_encounters(meta: Dict[str, Any]) -> None:
+    encounters = meta.setdefault("active_encounters", [])
+    if not isinstance(encounters, list):
+        meta["active_encounters"] = []
+        return
+    current_turn = int(meta.get("current_turn", 0))
+    current_location = meta.get("current_location")
+    history = meta.setdefault("encounter_history", [])
+    retained = []
+    for encounter in encounters:
+        if not isinstance(encounter, Mapping):
+            continue
+        expired = encounter.get("expires_turn") is not None and current_turn >= int(encounter["expires_turn"])
+        escaped = current_location is not None and encounter.get("location_id") not in {None, current_location}
+        if expired or escaped or encounter.get("status", "active") != "active":
+            closed = deepcopy(dict(encounter))
+            closed["status"] = "expired" if expired else "escaped" if escaped else closed.get("status")
+            closed["closed_turn"] = current_turn
+            history.append(closed)
+            if meta.get("current_encounter_id") == encounter.get("id"):
+                meta["current_encounter_id"] = None
+        else:
+            retained.append(encounter)
+    meta["active_encounters"] = retained
+    del history[:-100]
 
 
 def _apply_relationship_changes(updated: Dict[str, Any], changes: Any) -> None:
@@ -452,14 +511,17 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
     _add_unique(player.setdefault("knowledge", []), payload.get("knowledge_additions"))
     _add_unique(player.setdefault("discovered_locations", []), payload.get("discover_locations"))
     _add_unique(player.setdefault("status_effects", []), payload.get("status_additions"))
-    if payload.get("current_location"):
+    if "current_location" in payload and payload.get("current_location") is not None:
         meta["current_location"] = payload["current_location"]
+    if "current_encounter_id" in payload:
+        meta["current_encounter_id"] = payload.get("current_encounter_id")
     if payload.get("information_completeness") is not None:
         meta["last_information_completeness"] = float(payload["information_completeness"])
     _apply_target_deltas(world, payload.get("target_deltas"))
     _apply_actor_deltas(updated, payload.get("target_deltas"))
     _apply_area_deltas(world, payload.get("area_deltas"))
-    _apply_encounter_additions(meta, payload.get("encounter_additions"))
+    _apply_encounter_additions(meta, world, payload.get("encounter_additions"))
+    _apply_encounter_updates(meta, payload.get("encounter_updates"))
     _apply_relationship_changes(updated, payload.get("relationship_changes"))
     social_state = meta.setdefault("social_state", {"promises": [], "deceptions": []})
     if isinstance(social_state, dict):
@@ -551,6 +613,7 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
             skill["cooldown_remaining"] = max(0, int(cooldown_changes[skill["id"]]))
 
     meta["current_turn"] = int(record.get("turn", meta.get("current_turn", 0)))
+    _cleanup_encounters(meta)
     _advance_npcs_and_scheduled_events(updated)
     meta["event_format_version"] = max(2, int(meta.get("event_format_version", 1)))
     # 回放必须得到同一状态；不能在投影器里写入当前墙上时间。

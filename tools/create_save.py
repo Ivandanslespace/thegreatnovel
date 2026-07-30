@@ -508,7 +508,7 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
         )
         auto_generated_fields.append("generation_bundle")
     world["generation_bundle"] = bundle
-    for registry_name in ("locations", "targets", "combat_targets", "areas", "farm_areas", "build_catalog", "modules", "recipes", "disasters", "action_targets", "starting_inventory", "starting_npcs", "starting_factions", "starting_relationships"):
+    for registry_name in ("locations", "targets", "combat_targets", "enemy_definitions", "encounter_entities", "areas", "farm_areas", "build_catalog", "modules", "recipes", "disasters", "action_targets", "starting_inventory", "starting_npcs", "starting_factions", "starting_relationships"):
         if not world.get(registry_name) and bundle.get(registry_name) is not None:
             world[registry_name] = copy.deepcopy(bundle[registry_name])
 
@@ -642,6 +642,8 @@ def build_files(template_dir, world, talent):
             "day_elapsed_minutes": 0,
             "next_disaster_day": world["rules"]["disaster"]["cycle_days"],
             "active_encounters": [],
+            "current_encounter_id": None,
+            "encounter_history": [],
             "campaign_status": "active",
             "narrative_state": {"pressure_components": {}, "open_loops": [], "payoff_history": [], "event_pattern_history": [], "recent_irreversible_changes": [], "current_arc": {}},
             "pressure_level": 30,

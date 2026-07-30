@@ -10,7 +10,6 @@ from typing import Any, Dict, Mapping, Optional
 from .calculators import (
     ActionContext,
     apply_action_dilution,
-    apply_combat_dilution,
     calculate_base_defense,
     calculate_base_maintenance,
     calculate_build,
@@ -95,10 +94,16 @@ class GameEngine:
         encounters = self.state.meta.get("active_encounters", [])
         if not isinstance(encounters, list):
             return False
+        current_encounter_id = self.state.meta.get("current_encounter_id")
+        if not current_encounter_id:
+            return False
         for encounter in encounters:
-            if not isinstance(encounter, Mapping) or encounter.get("status", "active") != "active":
+            if not isinstance(encounter, Mapping) or encounter.get("id") != current_encounter_id or encounter.get("status", "active") != "active":
                 continue
-            if target_id is not None and target_id in encounter.get("target_ids", []):
+            if encounter.get("location_id") != self.state.meta.get("current_location"):
+                continue
+            participants = set(encounter.get("participants", [])) | set(encounter.get("target_ids", []))
+            if target_id is not None and target_id in participants:
                 return True
             if location_id is not None and encounter.get("location_id") == location_id:
                 return True
@@ -107,20 +112,29 @@ class GameEngine:
     def _target_presence_errors(self, action: Mapping[str, Any]) -> list[str]:
         action_type = str(action.get("type"))
         if action_type == "COMBAT":
-            target = self._registry_lookup(self.state.data.get("world", {}).get("targets"), action.get("target"))
+            target = self._registry_lookup(self.state.data.get("world", {}).get("encounter_entities"), action.get("target"))
+            target = target or self._registry_lookup(self.state.data.get("world", {}).get("targets"), action.get("target"))
             target = target or self._registry_lookup(self.state.data.get("world", {}).get("combat_targets"), action.get("target"))
             target = target or self._registry_lookup(self.state.data.get("npcs", []), action.get("target"))
+            if target and target.get("status") == "definition":
+                return ["目标只是怪物类型定义，必须先进入一个具体遭遇"]
             if target and target.get("status") in {"dead", "destroyed"}:
                 return ["目标已经死亡或不可战斗"]
-            location_id = target.get("location_id") if isinstance(target, Mapping) else None
-            if location_id and self.state.meta.get("current_location") != location_id and not self._active_encounter_allows(action.get("target"), location_id):
-                return [f"目标不在当前地点：需要 {location_id} 或有效遭遇实例"]
+            if not self._active_encounter_allows(action.get("target")):
+                return ["没有与该目标绑定的当前遭遇：必须先进入对应地点并加入遭遇"]
         if action_type == "BATCH_ACTION":
             area = self._registry_lookup(self.state.data.get("world", {}).get("areas"), action.get("target"))
             area = area or self._registry_lookup(self.state.data.get("world", {}).get("farm_areas"), action.get("target"))
             location_id = area.get("location_id") if isinstance(area, Mapping) else None
-            if location_id and self.state.meta.get("current_location") != location_id and not self._active_encounter_allows(location_id=location_id):
-                return [f"刷怪区域不在当前地点：需要 {location_id} 或有效遭遇实例"]
+            if location_id and self.state.meta.get("current_location") != location_id:
+                return [f"刷怪区域不在当前地点：需要先进入 {location_id}"]
+        if action_type == "REST" and action.get("target"):
+            locations = self.state.data.get("world", {}).get("locations", [])
+            target_location = self._registry_lookup(locations, action.get("target"))
+            if locations and target_location is None:
+                return [f"休息地点未注册：{action.get('target')}"]
+            if not locations and action.get("target") not in {self.state.meta.get("current_location"), "camp_core"}:
+                return [f"休息地点未注册：{action.get('target')}"]
         return []
 
     def _check_requirements(self, action: Mapping[str, Any]) -> list[str]:
@@ -138,7 +152,8 @@ class GameEngine:
         for key, value in supplied_requirements.items():
             requirements.setdefault(key, value)
         required_location = requirements.get("location")
-        if required_location and required_location != self.state.meta.get("current_location"):
+        registry_location_only = "location" in supplied_requirements
+        if required_location and required_location != self.state.meta.get("current_location") and (registry_location_only or action_type != "BATCH_ACTION"):
             errors.append(f"地点不符：需要 {required_location}")
         for item in requirements.get("items", []) if isinstance(requirements.get("items"), list) else []:
             item_id = item.get("id", item.get("name")) if isinstance(item, Mapping) else str(item)
@@ -171,6 +186,40 @@ class GameEngine:
         registry = self.state.data.get("world", {}).get("action_targets", {})
         return self._registry_lookup(registry, action.get("target")) or {}
 
+    def _spawn_exploration_encounter(self, action: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+        profile = self._action_target_profile(action)
+        definition_ids = profile.get("encounter_target_ids", []) if isinstance(profile.get("encounter_target_ids", []), list) else []
+        if not definition_ids:
+            return None
+        world = self.state.data.get("world", {})
+        definitions = world.get("enemy_definitions", {}) if isinstance(world.get("enemy_definitions", {}), Mapping) else {}
+        legacy_definitions = world.get("combat_targets", {}) if isinstance(world.get("combat_targets", {}), Mapping) else {}
+        entities = []
+        target_ids = []
+        turn = self.state.current_turn + 1
+        for index, definition_id in enumerate(definition_ids, start=1):
+            definition = self._registry_lookup(definitions, definition_id) or self._registry_lookup(legacy_definitions, definition_id)
+            if not definition:
+                continue
+            instance_id = f"{definition_id}_instance_{turn:04d}_{index}"
+            entity = deepcopy(dict(definition))
+            entity.update({"id": instance_id, "instance_id": instance_id, "definition_id": str(definition_id), "status": "alive", "spawned_turn": turn, "location_id": action.get("target")})
+            entities.append(entity)
+            target_ids.append(instance_id)
+        if not target_ids:
+            return None
+        encounter_id = f"encounter_{turn:04d}_{action.get('target')}"
+        return {
+            "id": encounter_id,
+            "location_id": action.get("target"),
+            "target_ids": target_ids,
+            "participants": ["player", *target_ids],
+            "status": "active",
+            "created_turn": turn,
+            "expires_turn": turn + 3,
+            "entity_additions": entities,
+        }
+
     def _domain_effects(self, action: Mapping[str, Any], resolution: Mapping[str, Any], dilution_multiplier: float = 1.0) -> Dict[str, Any]:
         action_type = str(action.get("type", ""))
         dilution_multiplier = max(0.25, min(1.0, float(dilution_multiplier)))
@@ -179,6 +228,8 @@ class GameEngine:
                 "fatigue_delta": -35.0,
                 "mental_delta": 20.0,
                 "hp_delta": 5.0,
+                "current_location": action.get("target") or self.state.meta.get("current_location"),
+                "current_encounter_id": None,
                 "proposed_events": [{"type": "REST_COMPLETED", "target": self.state.meta.get("current_location")}],
             }
         profile = self._action_target_profile(action)
@@ -208,11 +259,12 @@ class GameEngine:
             selected["promise_additions"] = [{"id": f"promise_{self.state.current_turn + 1}_{action.get('target')}", "npc_id": action.get("target"), "content": str(parameters.get("message") or action.get("goal") or action.get("approach") or "未注明承诺"), "created_turn": self.state.current_turn + 1, "due_turn": self.state.current_turn + 4, "status": "open"}]
         if action_type == "SOCIAL_INTERACTION" and any(token in relationship_intent for token in ("deceive", "欺骗", "隐瞒")):
             selected["deception_attempts"] = [{"id": f"deception_{self.state.current_turn + 1}_{action.get('target')}", "npc_id": action.get("target"), "content": str(parameters.get("message") or action.get("goal") or "未注明欺骗内容"), "detected": outcome not in {"大成功", "普通成功"}, "turn": self.state.current_turn + 1}]
-        if action_type == "EXPLORATION":
-            profile = self._action_target_profile(action)
-            target_ids = profile.get("encounter_target_ids", []) if isinstance(profile.get("encounter_target_ids", []), list) else []
-            if target_ids:
-                selected["encounter_additions"] = [{"id": f"encounter_{self.state.current_turn + 1}_{action.get('target')}", "location_id": action.get("target"), "target_ids": list(target_ids), "status": "active"}]
+        if action_type == "EXPLORATION" and outcome in {"大成功", "普通成功", "成功但付出代价", "失败但获得部分信息"}:
+            encounter = self._spawn_exploration_encounter(action)
+            if encounter:
+                selected["encounter_additions"] = [encounter]
+                selected["current_location"] = action.get("target")
+                selected["current_encounter_id"] = encounter["id"]
         proposed = []
         proposed.extend({"type": "AREA_DISCOVERED", "target": item} for item in selected.get("discover_locations", []))
         proposed.extend({"type": "KNOWLEDGE_GAINED", "target": item} for item in selected.get("knowledge_additions", []))
@@ -329,13 +381,17 @@ class GameEngine:
 
     def _lookup_target(self, target_id: Any) -> Mapping[str, Any]:
         world = self.state.data.get("world", {})
-        target = self._registry_lookup(world.get("targets"), target_id)
+        target = self._registry_lookup(world.get("encounter_entities"), target_id)
+        if target is None:
+            target = self._registry_lookup(world.get("targets"), target_id)
         if target is None:
             target = self._registry_lookup(world.get("combat_targets"), target_id)
         if target is None:
             target = self._registry_lookup(self.state.data.get("npcs", []), target_id)
         if target is None:
             raise ValueError(f"世界注册表中不存在战斗目标：{target_id}")
+        if target.get("status") == "definition":
+            raise ValueError(f"目标 {target_id} 只是怪物类型定义，必须先进入遭遇")
         if target.get("status") in {"dead", "destroyed"}:
             raise ValueError(f"战斗目标已经死亡：{target_id}")
         return target
@@ -431,9 +487,12 @@ class GameEngine:
             target = self._lookup_target(action.get("target"))
             environment = self._combat_environment(target, costs)
             weapon = self._combat_weapon()
-            resolution = calculate_combat(self.state.player, target, weapon=weapon, skill=skill, environment=environment, seed=self._host_seed(action))
-            apply_combat_dilution(resolution, dilution_multiplier)
-            return {"legal": not errors, "errors": errors, "resolution": resolution.to_dict(), "action_ledger": {"available_time_minutes": environment["available_time_minutes"], "actions": [{"type": "COMBAT", "target": action.get("target"), "time_minutes": costs["time_minutes"], "stamina_cost": costs["stamina_cost"], "mental_cost": costs["mental_cost"], "tags": list(action.get("tags", []))}]}}
+            resolution = calculate_combat(self.state.player, target, weapon=weapon, skill=skill, environment=environment, seed=self._host_seed(action), dilution_multiplier=dilution_multiplier)
+            combat_tags = list(action.get("tags", [])) if isinstance(action.get("tags", []), list) else []
+            for tag in ("major_action", "requires_full_attention"):
+                if tag not in combat_tags:
+                    combat_tags.append(tag)
+            return {"legal": not errors, "errors": errors, "resolution": resolution.to_dict(), "action_ledger": {"available_time_minutes": environment["available_time_minutes"], "actions": [{"type": "COMBAT", "target": action.get("target"), "time_minutes": costs["time_minutes"], "stamina_cost": costs["stamina_cost"], "mental_cost": costs["mental_cost"], "tags": combat_tags}]}}
         if action_type == "BUILD":
             module = self._lookup_module(action.get("target"))
             available_minutes = min(float(self.state.meta.get("available_time_minutes", 240)), float(costs["time_minutes"]))
@@ -446,14 +505,21 @@ class GameEngine:
             result = calculate_build(self.state.data.get("base", {}), module_for_build, self.state.inventory, available_minutes)
             result["quality_multiplier"] = normalized_dilution
             errors.extend(result.get("errors", []))
-            return {"legal": not errors, "errors": errors, "resolution": result, "action_ledger": {"available_time_minutes": available_minutes, "actions": [{"type": "BUILD", "target": action.get("target"), "time_minutes": result.get("time_required", costs["time_minutes"]), "stamina_cost": costs["stamina_cost"], "mental_cost": costs["mental_cost"], "tags": list(action.get("tags", []))}]}}
+            build_tags = list(action.get("tags", [])) if isinstance(action.get("tags", []), list) else []
+            for tag in ("major_action", "requires_full_attention"):
+                if tag not in build_tags:
+                    build_tags.append(tag)
+            return {"legal": not errors, "errors": errors, "resolution": result, "action_ledger": {"available_time_minutes": available_minutes, "actions": [{"type": "BUILD", "target": action.get("target"), "time_minutes": result.get("time_required", costs["time_minutes"]), "stamina_cost": costs["stamina_cost"], "mental_cost": costs["mental_cost"], "tags": build_tags}]}}
         if action_type == "BATCH_ACTION":
             area = self._lookup_area(action.get("target"))
             internal = self._batch_internal_action(action, area, costs)
             result = simulate_batch_action(
                 area=internal["area"], player_level=int(self.state.player.get("level", 1)), minutes=internal["minutes"], kill_success_rate=internal["kill_success_rate"] * max(0.25, min(1.0, dilution_multiplier)), ammo_available=internal["ammo_available"], ammo_per_kill=internal["ammo_per_kill"], weapon_rate_per_hour=internal["weapon_rate_per_hour"], recovery_efficiency=internal["recovery_efficiency"] * max(0.25, min(1.0, dilution_multiplier)), backpack_capacity_modifier=internal["backpack_capacity_modifier"], enemy_groups=internal["enemy_groups"], farmability_components=internal["farmability_components"], stop_conditions=internal["stop_conditions"]
             )
-            return {"legal": not errors, "errors": errors, "resolution": result.to_dict(), "action_ledger": {"available_time_minutes": internal["available_time_minutes"], "actions": [{"type": "BATCH_ACTION", "target": action.get("target"), "time_minutes": costs["time_minutes"], "stamina_cost": costs["stamina_cost"], "mental_cost": costs["mental_cost"], "tags": list(action.get("tags", []))}]}}
+            batch_tags = list(action.get("tags", [])) if isinstance(action.get("tags", []), list) else []
+            if "major_action" not in batch_tags:
+                batch_tags.append("major_action")
+            return {"legal": not errors, "errors": errors, "resolution": result.to_dict(), "action_ledger": {"available_time_minutes": internal["available_time_minutes"], "actions": [{"type": "BATCH_ACTION", "target": action.get("target"), "time_minutes": costs["time_minutes"], "stamina_cost": costs["stamina_cost"], "mental_cost": costs["mental_cost"], "tags": batch_tags}]}}
         return self.preview_action(action, dilution_multiplier=dilution_multiplier)
 
     @staticmethod
@@ -512,25 +578,77 @@ class GameEngine:
             self.state.pending_records = original_pending
         return previews, errors
 
-    @staticmethod
-    def _plan_factors(previews: list[Dict[str, Any]], available: float, errors: list[str]) -> Dict[str, float]:
+    def _plan_factors(self, previews: list[Dict[str, Any]], available: float, errors: list[str]) -> Dict[str, float]:
         used_time = sum(float(item["preview"].get("action_ledger", {}).get("actions", [{}])[0].get("time_minutes", 0)) for item in previews)
         time_compatibility = 1.0 if used_time <= available else available / max(used_time, 1.0)
         resource_error = any(token in error for error in errors for token in ("资源不足", "材料不足", "弹药不足", "武器耐久归零"))
         locations = set()
+        major_count = 0
+        short_count = 0
+        attention_count = 0
+        mental_load = 0.0
+        commitment_counts: Dict[str, int] = {}
+        opportunity_windows = set()
+        npc_targets = []
+        heavy_types = {"EXPLORATION", "COMBAT", "BATCH_ACTION", "BUILD", "RESEARCH", "REST"}
         for item in previews:
             step = item["action"]
+            ledger = item["preview"].get("action_ledger", {}) if isinstance(item["preview"].get("action_ledger", {}), Mapping) else {}
+            row = ledger.get("actions", [{}])[0] if isinstance(ledger.get("actions", [{}]), list) else {}
+            action_type = str(step.get("type"))
+            tags = {str(tag).lower() for tag in row.get("tags", step.get("tags", [])) if tag}
+            time_minutes = float(row.get("time_minutes", 0.0))
+            mental_load += float(row.get("mental_cost", 0.0))
+            is_major = time_minutes >= 60.0 or action_type in heavy_types or "major_action" in tags or "evening_major_action" in tags
+            if is_major:
+                major_count += 1
+            else:
+                short_count += 1
+            if "requires_full_attention" in tags or action_type in heavy_types:
+                attention_count += 1
+            for tag in tags:
+                if tag.startswith(("commitment:", "commit:", "立场:")):
+                    commitment_counts[tag] = commitment_counts.get(tag, 0) + 1
+                if tag.startswith(("opportunity:", "window:", "time_window:")):
+                    opportunity_windows.add(tag)
+            if step.get("target"):
+                npc = next((candidate for candidate in self.state.data.get("npcs", []) if isinstance(candidate, Mapping) and candidate.get("id", candidate.get("name")) == step.get("target")), None)
+                if npc is not None:
+                    npc_targets.append(str(step.get("target")))
             requirements = step.get("requirements", {}) if isinstance(step.get("requirements", {}), Mapping) else {}
             profile = item["preview"].get("target_profile", {}) if isinstance(item["preview"].get("target_profile", {}), Mapping) else {}
             locations.add(str(requirements.get("location", profile.get("location_id", "camp_core"))))
         action_types = {str(item["action"].get("type")) for item in previews}
+        capacity = int(self.state.player.get("action_slot_capacity", self.state.meta.get("action_slot_capacity", 1)) or 1)
+        slot_factor = 1.0 if major_count <= capacity else capacity / max(major_count, 1)
+        if short_count > 2:
+            slot_factor = min(slot_factor, 2.0 / short_count)
+        attention_factor = 1.0
+        if attention_count and len(previews) > 1:
+            attention_factor = 0.60
+        if mental_load > 16.0:
+            attention_factor = min(attention_factor, 16.0 / mental_load)
+        commitment_factor = 1.0
+        if any(count > 1 for count in commitment_counts.values()):
+            commitment_factor = 0.35
+        if sum(1 for item in previews if "evening_major_action" in {str(tag).lower() for tag in item["action"].get("tags", [])}) > 1:
+            commitment_factor = min(commitment_factor, 0.25)
+        opportunity_factor = 1.0 if len(opportunity_windows) <= 1 else 0.35
+        npc_factor = 1.0
+        if len(npc_targets) != len(set(npc_targets)):
+            npc_factor = 0.35
         return {
             "time_compatibility": max(0.0, min(1.0, time_compatibility)),
             "buffer_ratio": max(0.0, (available - used_time) / max(available, 1.0)),
             "resource_compatibility": 0.0 if resource_error else 1.0,
-            "location_proximity": 1.0 if len(locations) <= 1 else 0.7,
+            "location_proximity": 1.0 if len(locations) <= 1 else 0.8,
             "goal_compatibility": 1.0 if len(action_types) == len(previews) else 0.8,
-            "npc_availability": 1.0 if not any("NPC不可用" in error for error in errors) else 0.0,
+            "npc_availability": 0.0 if any("NPC不可用" in error for error in errors) else npc_factor,
+            "attention_compatibility": max(0.0, min(1.0, attention_factor)),
+            "action_slot_compatibility": max(0.0, min(1.0, slot_factor)),
+            "commitment_compatibility": commitment_factor,
+            "opportunity_window_compatibility": opportunity_factor,
+            "movement_compatibility": 1.0 if len(locations) <= 1 else 0.8,
         }
 
     def preview_action_plan(self, action: Mapping[str, Any]) -> Dict[str, Any]:
@@ -629,6 +747,11 @@ class GameEngine:
             current = float(self.state.inventory.get("resources", {}).get(resource, 0))
             if current < float(amount):
                 legal_errors.append(f"资源不足：{resource}")
+        action_tags = list(action.get("tags", [])) if isinstance(action.get("tags", []), list) else []
+        if str(action.get("type")) in {"EXPLORATION", "COMBAT", "BATCH_ACTION", "BUILD", "RESEARCH", "REST"} and "major_action" not in action_tags:
+            action_tags.append("major_action")
+        if str(action.get("type")) in {"EXPLORATION", "COMBAT", "BUILD", "RESEARCH"} and "requires_full_attention" not in action_tags:
+            action_tags.append("requires_full_attention")
         return {
             "legal": not legal_errors,
             "errors": legal_errors,
@@ -644,7 +767,7 @@ class GameEngine:
                     "time_minutes": time_cost,
                     "stamina_cost": stamina_cost,
                     "mental_cost": mental_cost,
-                    "tags": list(action.get("tags", [])),
+                    "tags": action_tags,
                 }],
             },
             "skill": skill,
@@ -836,13 +959,15 @@ class GameEngine:
             raise ValueError("战斗目标已经死亡")
         if self.state.meta.get("campaign_status") == "ended":
             raise ValueError("本局已经结束")
+        target_id = defender.get("id", defender.get("name"))
+        if not self._active_encounter_allows(target_id):
+            raise ValueError("没有与该目标绑定的当前遭遇：必须先进入对应地点并加入遭遇")
         weapon = weapon or self._combat_weapon()
         if skill:
             skill_errors = check_skill_use(skill, self.state.player, self.state.inventory)
             if skill_errors:
                 raise ValueError("技能不可用：" + "、".join(skill_errors))
-        resolution = calculate_combat(self.state.player, defender, weapon=weapon, skill=skill, environment=environment, seed=seed or str(self.state.meta.get("rng_seed", "combat")))
-        apply_combat_dilution(resolution, dilution_multiplier)
+        resolution = calculate_combat(self.state.player, defender, weapon=weapon, skill=skill, environment=environment, seed=seed or str(self.state.meta.get("rng_seed", "combat")), dilution_multiplier=dilution_multiplier)
         if not resolution.ammo_sufficient:
             raise ValueError("弹药不足")
         if weapon.get("durability") is not None and float(weapon.get("durability", 0)) <= 0:
@@ -859,7 +984,6 @@ class GameEngine:
         if "ammo_available" in weapon and not weapon.get("_ammo_from_resource"):
             equipment_updates["main_weapon"] = {"ammo_available": max(0.0, float(weapon.get("ammo_available", 0)) - resolution.ammo_consumed)}
         cooldown_changes = {skill.get("id", "skill"): int(skill.get("cooldown", 0))} if skill else {}
-        target_id = defender.get("id", defender.get("name"))
         target_hp_before = max(1.0, number_for_runtime(defender.get("hp", number_for_runtime(defender.get("constitution", 3)) * 10.0)))
         target_hp_after = max(0.0, target_hp_before - float(resolution.damage))
         target_died = target_hp_after <= 0
@@ -880,6 +1004,20 @@ class GameEngine:
             proposed_events.extend([{"type": "CHARACTER_DIED", "target": target_id}, {"type": "COMBAT_ENDED", "target": target_id}, {"type": "LOOT_GENERATED", "target": target_id}])
         if player_died:
             proposed_events.append({"type": "CHARACTER_DIED", "target": "player"})
+        encounter_updates = []
+        current_encounter_id = self.state.meta.get("current_encounter_id")
+        if current_encounter_id:
+            encounter = next((item for item in self.state.meta.get("active_encounters", []) if isinstance(item, Mapping) and item.get("id") == current_encounter_id), None)
+            if isinstance(encounter, Mapping):
+                remaining_targets = [item for item in encounter.get("target_ids", []) if not target_died or item != target_id]
+                remaining_participants = [item for item in encounter.get("participants", []) if not target_died or item != target_id]
+                encounter_updates.append({"id": current_encounter_id, "target_ids": remaining_targets, "participants": remaining_participants, "status": "resolved" if target_died and not remaining_targets else "active", "resolved_turn": turn if target_died and not remaining_targets else None})
+                if player_died:
+                    encounter_updates[-1]["status"] = "escaped"
+        if any(update.get("status") == "resolved" for update in encounter_updates):
+            proposed_events.append({"type": "ENCOUNTER_RESOLVED", "target": current_encounter_id})
+        elif any(update.get("status") == "escaped" for update in encounter_updates):
+            proposed_events.append({"type": "ENCOUNTER_ESCAPED", "target": current_encounter_id})
         event = standard_event(
             event_id=f"evt_{turn:04d}_001",
             event_type="COMBAT_RESOLVED",
@@ -901,6 +1039,7 @@ class GameEngine:
                 "player_delta": {"hp": -incoming_damage},
                 "experience_gain": experience_gain,
                 "proposed_events": proposed_events,
+                "encounter_updates": encounter_updates,
                 "combat_instance": {"id": f"combat_{turn:04d}", "participants": ["player", target_id], "round": 1, "status": "ended" if target_died or player_died else "active", "escape_allowed": True},
             },
             turn=turn,

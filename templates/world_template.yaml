@@ -59,6 +59,8 @@ world:
   locations: []
   targets: {}
   combat_targets: {}
+  enemy_definitions: {}
+  encounter_entities: {}
   areas: {}
   farm_areas: {}
   build_catalog: {}

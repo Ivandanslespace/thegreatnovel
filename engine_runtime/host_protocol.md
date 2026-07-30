@@ -55,6 +55,10 @@ LLM 只提交“玩家想做什么”。以下内容必须由 Python 计算，LL
 普通计划效果乘 0.75，同一时段三个以上主要行动乘 0.55；稀释会作用于成功率、资源/关系效果、
 研究信息完整度、建造质量和批量击杀效率。80以上才允许完整顺序完成。
 
+行动槽不是“只要时间塞得下就能全做”的容器：每个时段默认只有 1 个主要行动和 2 个短行动。
+Python 还会计算专注负荷、承诺标签冲突、机会窗口、NPC 是否被重复占用、地点移动兼容度；
+这些因子会共同降低 Combinability，低于阈值时要求排序或接受稀释。
+
 `parameters` 和 `stop_conditions` 只能表达玩家意图或停止条件，不能藏入数值结算。
 协议会递归扫描 JSON；出现引擎字段或未知顶层字段时，入口直接拒绝，不产生事件。
 
@@ -127,15 +131,19 @@ python tools/audit_report.py saves/世界名 --field player.fatigue
 - `EXPLORATION`、`RESEARCH`、`SOCIAL_INTERACTION`、`REST`：行动效果来自 `world.action_targets`，
   Python生成发现地点、知识、资源、关系和休息恢复事件。
 - `ACTION_PLAN`：Python按顺序在临时状态中预览；确认后以同一稀释参数在 SQLite 事务中原子提交。
-- `COMBAT`：目标必须存在于 `world.targets`、`world.combat_targets` 或 `npcs`，且目标不能已死亡；
-  带地点的敌人还必须处于当前地点或有效遭遇实例中。武器和弹药来自背包。
+- `COMBAT`：怪物类型来自 `world.enemy_definitions`，具体目标必须来自
+  `world.encounter_entities`；目标必须同时属于 `meta.current_encounter_id` 对应遭遇的
+  `participants/target_ids`，且遭遇地点等于玩家当前地点。死亡或过期遭遇不可继续战斗。
+  武器和弹药来自背包；稀释会重新计算命中、伤害、击倒、反击、状态效果和死亡风险。
 - `BUILD`：模块必须存在于 `world.build_catalog` 或 `world.modules`。
 - `BATCH_ACTION`：区域必须存在于 `world.areas` 或 `world.farm_areas`；敌群、密度、掉落、
   Farmability 参数来自区域注册表；Python按10分钟时间片更新击杀、弹药、耐久、区域人口、警戒和怪物适应，
   遇到停止条件立即截断。
 - `TALENT_CHOICE`：升级后只能从 `player.pending_decision.options` 中选择一个 Python 生成的候选，
   选择前其他行动全部拒绝；放弃项不会再次出现。
-- NPC与势力的日程、效用分数和自主资源变化由时间推进器写入状态，不由LLM补写。
+- 探索成功会生成带唯一实例 ID 的遭遇；战斗结束、玩家离开地点或遭遇到期时，遭遇会进入历史并
+  从 `active_encounters` 清理。NPC与势力的日程、效用分数和自主资源变化由时间推进器写入状态，
+  不由LLM补写。
 - 玩家死亡后写入 `campaign_status=ended`、`ending_id` 和死亡总结；普通行动全部拒绝，只允许
   `ENDING`、`RESTART`、`CHECKPOINT`、`LEGACY_CREATE` 终局处理动作。
 - 其他行动：成本由行动类型、技能定义、世界目标配置和当前状态派生。

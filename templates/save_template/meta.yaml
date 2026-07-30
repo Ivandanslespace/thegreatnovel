@@ -30,6 +30,8 @@ meta:
   ending_id: ""
   ending_summary: {}
   active_encounters: []
+  current_encounter_id: ""
+  encounter_history: []
   
   # 叙事状态
   pressure_level: 30          # 当前压力值(0-100)
