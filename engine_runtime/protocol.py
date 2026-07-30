@@ -8,6 +8,17 @@ from typing import Any, Dict, Mapping, Optional
 
 PROTOCOL_VERSION = "1.0"
 
+ATTRIBUTE_ALIASES = {
+    "strength": "strength",
+    "力量": "strength",
+    "constitution": "constitution",
+    "体质": "constitution",
+    "agility": "agility",
+    "敏捷": "agility",
+    "spirit": "spirit",
+    "精神": "spirit",
+}
+
 # LLM 只能描述意图；成本、难度、概率、结果和状态增量属于 Python 内部字段。
 ENGINE_ONLY_FIELDS = {
     "advantage", "resistance", "probability", "random_roll", "roll", "severity",
@@ -34,7 +45,7 @@ ALLOWED_ACTION_FIELDS = {
 
 NESTED_INTENT_FIELDS = {
     "requirements": {"location", "items", "level", "skill", "npc_available", "knowledge"},
-    "parameters": {"approach", "relationship_intent", "message", "order", "objective"},
+    "parameters": {"approach", "relationship_intent", "message", "order", "objective", "allocations"},
     "stop_conditions": {"ammo_below", "risk_above", "environment_change"},
 }
 
@@ -59,6 +70,7 @@ ACTION_PROFILES = {
     # 只处理已经发生的即时危险，不占用普通行动槽；运行时还会把
     # pending_reaction 的实际时间限制在 0-5 分钟内。
     "REACTION": {"time_minutes": 5.0, "stamina_cost": 1.0, "mental_cost": 1.0, "target_difficulty": 10.0},
+    "ATTRIBUTE_ALLOCATION": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
     "TALENT_CHOICE": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
     "ACTION_PLAN": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
     "ENDING": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
@@ -70,6 +82,25 @@ ACTION_PROFILES = {
 
 class ProtocolError(ValueError):
     """LLM 主机提交了不允许的输入。"""
+
+
+def canonicalize_attribute_allocations(value: Any) -> Dict[str, int]:
+    """把玩家选择的属性名转换为稳定的内部 ID，并拒绝非法点数。"""
+    if not isinstance(value, Mapping):
+        raise ProtocolError("parameters.allocations 必须是对象")
+    allocations: Dict[str, int] = {}
+    for raw_key, raw_amount in value.items():
+        key = ATTRIBUTE_ALIASES.get(str(raw_key).strip().lower())
+        if key is None:
+            raise ProtocolError(f"不支持的属性：{raw_key}")
+        if key in allocations:
+            raise ProtocolError(f"属性重复分配：{raw_key}")
+        if isinstance(raw_amount, bool) or not isinstance(raw_amount, int) or raw_amount <= 0:
+            raise ProtocolError(f"{raw_key} 分配点数必须是正整数")
+        allocations[key] = raw_amount
+    if not allocations:
+        raise ProtocolError("至少需要分配一点属性点")
+    return allocations
 
 
 def _find_forbidden(value: Any, path: str = "action") -> list[str]:
@@ -131,6 +162,15 @@ def validate_host_action(action: Mapping[str, Any]) -> None:
                 item_unknown = sorted(set(item) - {"id", "name", "quantity"})
                 if item_unknown:
                     errors.append(f"requirements.items[{index}] 含不允许字段：" + ", ".join(item_unknown))
+    if action_type == "ATTRIBUTE_ALLOCATION":
+        parameters = action.get("parameters")
+        if not isinstance(parameters, Mapping) or "allocations" not in parameters:
+            errors.append("ATTRIBUTE_ALLOCATION 必须在 parameters.allocations 提交属性分配")
+        else:
+            try:
+                canonicalize_attribute_allocations(parameters.get("allocations"))
+            except ProtocolError as exc:
+                errors.append(str(exc))
     if action_type not in ACTION_PROFILES:
         errors.append("type 必须是：" + ", ".join(sorted(ACTION_PROFILES)))
     if not str(action.get("action_id", "")).strip():

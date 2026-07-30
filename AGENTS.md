@@ -386,6 +386,12 @@ Lv.X → Lv.Y
 任一不通过 → 告知玩家原因，提供替代方案
 ```
 
+属性点分配是一个独立的零时间行动，不应被当作普通探索或社交行动的附带叙述：
+玩家说“力量 +2、精神 +2”时，LLM 必须提交
+`{"type":"ATTRIBUTE_ALLOCATION","parameters":{"allocations":{"strength":2,"spirit":2}}}`，
+再由 Python 校验余额并写入 `ATTRIBUTES_ALLOCATED` 事件。不能直接修改 `player.yaml`，也不能
+在普通行动结算失败时把属性分配当成已完成。
+
 ### 空间与基地硬约束
 
 - `TRAVEL` / `ENTER_LOCATION` 才能进入已注册地点；移动时间、体力和精神成本由 `world.locations` 派生。

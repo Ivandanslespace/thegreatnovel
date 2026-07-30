@@ -108,6 +108,7 @@ constraints:
 | 探索(新区域) | 120-240min | 15-25 | 10-20 | 主要行动 |
 | 移动/进入地点 | 由地点注册表决定 | 由地点注册表决定 | 由地点注册表决定 | 必须使用 `TRAVEL` / `ENTER_LOCATION` |
 | 返回基地/撤离 | 由地点注册表决定 | 由地点注册表决定 | 由地点注册表决定 | `RETURN_TO_BASE` / `EXTRACT` |
+| 属性点分配 | 0 | 0 | 0 | `ATTRIBUTE_ALLOCATION`；只消耗已有自由属性点 |
 
 ## 四、专注稀释（Dilution）
 

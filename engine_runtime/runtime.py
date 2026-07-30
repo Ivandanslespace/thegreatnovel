@@ -24,7 +24,12 @@ from .calculators import (
     skill_cost,
 )
 from .events import standard_event
-from .protocol import derive_action_costs, derive_risk_modifiers, validate_host_action
+from .protocol import (
+    canonicalize_attribute_allocations,
+    derive_action_costs,
+    derive_risk_modifiers,
+    validate_host_action,
+)
 from .state import GameState, load_game_state
 
 
@@ -910,6 +915,81 @@ class GameEngine:
         }
         return internal
 
+    def preview_attribute_allocation(self, action: Mapping[str, Any]) -> Dict[str, Any]:
+        """预览玩家分配自由属性点；这是零时间的直接状态操作，不走概率结算。"""
+        validate_host_action(action)
+        parameters = action.get("parameters", {}) if isinstance(action.get("parameters", {}), Mapping) else {}
+        allocations = canonicalize_attribute_allocations(parameters.get("allocations"))
+        try:
+            points_before = int(self.state.player.get("free_points", 0) or 0)
+        except (TypeError, ValueError):
+            points_before = 0
+        points_spent = sum(allocations.values())
+        errors = self._check_requirements(action)
+        if points_before < 0:
+            errors.append("当前未分配属性点状态无效")
+        if points_spent > points_before:
+            errors.append(f"属性点不足：需要 {points_spent} 点，当前只有 {points_before} 点")
+        resolution = {
+            "formula_version": "attribute_allocation_v1",
+            "action_type": "ATTRIBUTE_ALLOCATION",
+            "outcome": "属性点分配完成",
+            "allocation_success": not errors,
+            "allocations": deepcopy(allocations),
+            "points_before": points_before,
+            "points_spent": points_spent,
+            "points_after": points_before - points_spent,
+        }
+        return {
+            "legal": not errors,
+            "errors": errors,
+            "resolution": resolution,
+            "action_ledger": {
+                "available_time_minutes": float(self.state.meta.get("available_time_minutes", 720)),
+                "available_stamina": max(0.0, 100.0 - float(self.state.player.get("fatigue", 0))),
+                "available_mental": float(self.state.player.get("mental", 100)),
+                "actions": [{
+                    "type": "ATTRIBUTE_ALLOCATION",
+                    "target": None,
+                    "time_minutes": 0.0,
+                    "stamina_cost": 0.0,
+                    "mental_cost": 0.0,
+                    "tags": ["progression", "zero_time"],
+                }],
+            },
+        }
+
+    def execute_attribute_allocation(self, action: Mapping[str, Any], persist: bool = True) -> Dict[str, Any]:
+        """通过标准事件把已验证的属性点分配写入 SQLite 投影。"""
+        preview = self.preview_attribute_allocation(action)
+        if not preview["legal"]:
+            raise ValueError("属性点分配不合法：" + "、".join(preview["errors"]))
+        resolution = preview["resolution"]
+        allocations = deepcopy(resolution["allocations"])
+        turn = self.state.current_turn + 1
+        payload = {
+            "action": {"action_id": action.get("action_id"), "type": "ATTRIBUTE_ALLOCATION"},
+            "action_ledger": preview["action_ledger"],
+            "resolution": resolution,
+            "attribute_allocations": allocations,
+            "player_delta": {"attributes": allocations, "free_points": -int(resolution["points_spent"])},
+            "time_cost": 0.0,
+            "proposed_events": [{"type": "ATTRIBUTES_ALLOCATED", "target": "player", "allocations": allocations}],
+        }
+        event = standard_event(
+            event_id=f"evt_{turn:04d}_001",
+            event_type="ATTRIBUTES_ALLOCATED",
+            actor="player",
+            target="player",
+            data=payload,
+            turn=turn,
+            timestamp=f"Day {self.state.meta.get('game_day', 1)} {self.state.meta.get('time_of_day', '清晨')}",
+        )
+        self.state.apply_and_append(event, persist=persist)
+        if persist:
+            self.state.save()
+        return {"event": event, "resolution": resolution, "state": self.state.data}
+
     def preview_host_action(self, action: Mapping[str, Any], dilution_multiplier: float = 1.0) -> Dict[str, Any]:
         """预览唯一主机协议；专用行动的参数全部来自世界注册表。"""
         validate_host_action(action)
@@ -917,6 +997,8 @@ class GameEngine:
             return self.preview_action_plan(action)
         if str(action.get("type")) == "TALENT_CHOICE":
             return self.preview_talent_choice(action)
+        if str(action.get("type")) == "ATTRIBUTE_ALLOCATION":
+            return self.preview_attribute_allocation(action)
         if str(action.get("type")) in {"ENDING", "RESTART", "CHECKPOINT", "LEGACY_CREATE"}:
             return {"legal": True, "errors": [], "resolution": self._terminal_resolution(action), "action_ledger": {"available_time_minutes": float(self.state.meta.get("available_time_minutes", 720)), "actions": [{"type": action.get("type"), "target": action.get("target"), "time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "tags": ["terminal"]}]}}
         skill = self._find_skill(action)
@@ -1209,6 +1291,8 @@ class GameEngine:
 
     def preview_action(self, action: Mapping[str, Any], dilution_multiplier: float = 1.0) -> Dict[str, Any]:
         validate_host_action(action)
+        if str(action.get("type")) == "ATTRIBUTE_ALLOCATION":
+            return self.preview_attribute_allocation(action)
         skill = self._find_skill(action)
         costs = self._derive_action_costs(action, skill)
         movement_types = {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"}
@@ -1280,6 +1364,8 @@ class GameEngine:
             )
         if action_type in {"TRAVEL", "ENTER_LOCATION", "RETURN_TO_BASE", "EXTRACT", "LEAVE_ENCOUNTER"}:
             return bool(resolution.get("movement_success"))
+        if action_type == "ATTRIBUTE_ALLOCATION":
+            return int(resolution.get("points_spent", 0) or 0) > 0
         if action_type in {"REST", "REACTION", "TALENT_CHOICE"}:
             return True
         if action_type == "BUILD":
@@ -1356,7 +1442,7 @@ class GameEngine:
                     for step in preview.get("steps", []) if isinstance(step, Mapping)
                 ])
             else:
-                fingerprint = repr((action.get("type"), action.get("target"), resolution.get("outcome"), resolution.get("movement_success"), resolution.get("total_kills"), resolution.get("damage"), resolution.get("resource_changes"), resolution.get("knowledge_additions"), resolution.get("current_location")))
+                fingerprint = repr((action.get("type"), action.get("target"), resolution.get("outcome"), resolution.get("movement_success"), resolution.get("total_kills"), resolution.get("damage"), resolution.get("resource_changes"), resolution.get("knowledge_additions"), resolution.get("current_location"), resolution.get("allocations")))
             if fingerprint in fingerprints:
                 continue
             fingerprints.add(fingerprint)
@@ -1493,6 +1579,8 @@ class GameEngine:
             return self.execute_action_plan(action, persist=persist)
         if action_type == "TALENT_CHOICE":
             return self.execute_talent_choice(action, persist=persist)
+        if action_type == "ATTRIBUTE_ALLOCATION":
+            return self.execute_attribute_allocation(action, persist=persist)
         # 自由行动和已绑定选项都必须先经过一次不写入的内部审查；审查通过
         # 后本调用立即提交，不把“确认”再暴露给玩家。
         review = self.preview_host_action(action, dilution_multiplier=dilution_multiplier)

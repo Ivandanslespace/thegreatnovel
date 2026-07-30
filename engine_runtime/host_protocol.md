@@ -177,6 +177,11 @@ python tools/audit_report.py saves/世界名 --field player.fatigue
   遇到停止条件立即截断。
 - `TALENT_CHOICE`：升级后只能从 `player.pending_decision.options` 中选择一个 Python 生成的候选，
   选择前其他行动全部拒绝；放弃项不会再次出现。
+- `ATTRIBUTE_ALLOCATION`：玩家可把 `player.free_points` 中的整数点数分配给 `strength`、
+  `constitution`、`agility`、`spirit`（也接受中文属性名作为输入别名）。行动必须提交
+  `parameters.allocations`，总点数不得超过当前余额；它不占用时间、体力或精神，且只能由
+  Python 通过 `ATTRIBUTES_ALLOCATED` 事件更新属性和剩余点数。没有可分配点数、属性未知、
+  点数为零/负数/小数或超过余额时，本轮拒绝且不写事件。
 - 探索成功会生成带唯一实例 ID 的遭遇；战斗结束、玩家通过 `EXTRACT`/`LEAVE_ENCOUNTER` 离开或遭遇到期时，遭遇会进入历史并
   从 `active_encounters` 清理。NPC与势力的日程、效用分数和自主资源变化由时间推进器写入状态，
   不由LLM补写。

@@ -601,7 +601,7 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
             meta.pop("pending_reaction", None)
     if event_type in {"COMBAT_RESOLVED", "COMBAT_ENDED"}:
         meta["total_combats"] = int(meta.get("total_combats", 0)) + 1
-    if event_type in {"ACTION_RESOLVED", "EXPLORATION_RESOLVED"}:
+    if event_type in {"ACTION_RESOLVED", "EXPLORATION_RESOLVED", "ATTRIBUTES_ALLOCATED"}:
         meta["total_decisions"] = int(meta.get("total_decisions", 0)) + 1
         if str(payload.get("action", {}).get("type", "")) == "EXPLORATION":
             meta["total_explorations"] = int(meta.get("total_explorations", 0)) + 1

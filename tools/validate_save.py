@@ -738,7 +738,7 @@ def validate_action_economy(save_dir, data):
 def validate_formula_trace(save_dir, data):
     """标准引擎事件必须携带可复盘的公式结果，而不是只有叙述。"""
     findings = []
-    engine_event_types = {"ACTION_RESOLVED", "EXPLORATION_RESOLVED", "RESEARCH_RESOLVED", "SOCIAL_RESOLVED", "COMBAT_RESOLVED", "BATCH_ACTION_RESOLVED", "BUILDING_BUILT", "BASE_MAINTENANCE"}
+    engine_event_types = {"ACTION_RESOLVED", "EXPLORATION_RESOLVED", "RESEARCH_RESOLVED", "SOCIAL_RESOLVED", "COMBAT_RESOLVED", "BATCH_ACTION_RESOLVED", "BUILDING_BUILT", "BASE_MAINTENANCE", "ATTRIBUTES_ALLOCATED"}
     for event in data.get("events", []):
         if not requires_standard_event(data, event):
             continue

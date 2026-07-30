@@ -17,9 +17,11 @@ def player_facing_result(result: Mapping[str, Any]) -> dict[str, Any]:
     visible: dict[str, Any] = {}
     if resolution.get("outcome"):
         visible["outcome"] = resolution["outcome"]
+    if resolution.get("allocations"):
+        visible["attribute_allocations"] = deepcopy(resolution["allocations"])
     if payload.get("movement"):
         visible["movement"] = deepcopy(payload["movement"])
-    for key in ("resource_changes", "knowledge_additions", "discover_locations", "relationship_changes", "base_module", "reaction_effect"):
+    for key in ("resource_changes", "knowledge_additions", "discover_locations", "relationship_changes", "base_module", "reaction_effect", "attribute_allocations"):
         if payload.get(key) not in (None, {}, []):
             visible[key] = deepcopy(payload[key])
     if payload.get("player_died"):

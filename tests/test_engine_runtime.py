@@ -188,6 +188,95 @@ class FormulaTests(unittest.TestCase):
 
 
 class RuntimeIntegrationTests(unittest.TestCase):
+    def test_attribute_allocation_is_validated_and_projected(self):
+        player = {
+            "level": 1,
+            "exp": 0,
+            "exp_to_next": 100,
+            "attributes": {"strength": 5, "constitution": 5, "agility": 5, "spirit": 5},
+            "free_points": 4,
+            "fatigue": 0,
+            "mental": 100,
+            "max_hp": 50,
+            "hp": 50,
+            "skills": [],
+        }
+        action = {
+            "action_id": "allocate-opening-points",
+            "type": "ATTRIBUTE_ALLOCATION",
+            "parameters": {"allocations": {"力量": 2, "spirit": 2}},
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(player=player)))
+            preview = engine.preview_host_action(action)
+            self.assertTrue(preview["legal"], preview)
+            self.assertEqual(preview["resolution"]["allocations"], {"strength": 2, "spirit": 2})
+            self.assertEqual(preview["resolution"]["points_after"], 0)
+
+            result = engine.execute_host_action(action)
+            self.assertEqual(result["event"]["type"], "ATTRIBUTES_ALLOCATED")
+            self.assertEqual(engine.state.player["attributes"]["strength"], 7)
+            self.assertEqual(engine.state.player["attributes"]["spirit"], 7)
+            self.assertEqual(engine.state.player["free_points"], 0)
+            self.assertEqual(engine.state.current_turn, 1)
+            self.assertEqual(engine.state.meta["available_time_minutes"], 720)
+            self.assertEqual(player_facing_result(result)["attribute_allocations"], {"strength": 2, "spirit": 2})
+            self.assertTrue(engine.state.store.verify_projection(apply_event)["ok"])
+
+    def test_attribute_allocation_rejects_invalid_or_excess_points_without_event(self):
+        player = {
+            "attributes": {"strength": 5, "constitution": 5, "agility": 5, "spirit": 5},
+            "free_points": 1,
+            "fatigue": 0,
+            "mental": 100,
+            "skills": [],
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(player=player)))
+            excessive = {
+                "action_id": "allocate-too-much",
+                "type": "ATTRIBUTE_ALLOCATION",
+                "parameters": {"allocations": {"strength": 2}},
+            }
+            preview = engine.preview_host_action(excessive)
+            self.assertFalse(preview["legal"])
+            self.assertIn("属性点不足", "；".join(preview["errors"]))
+            with self.assertRaises(ValueError):
+                engine.execute_host_action(excessive)
+            self.assertEqual(engine.state.current_turn, 0)
+            self.assertEqual(engine.state.player["free_points"], 1)
+            with self.assertRaises(ProtocolError):
+                validate_host_action({
+                    "action_id": "allocate-unknown",
+                    "type": "ATTRIBUTE_ALLOCATION",
+                    "parameters": {"allocations": {"luck": 1}},
+                })
+
+    def test_attribute_allocation_option_is_executable_without_second_confirmation(self):
+        player = {
+            "attributes": {"strength": 5, "constitution": 5, "agility": 5, "spirit": 5},
+            "free_points": 2,
+            "fatigue": 0,
+            "mental": 100,
+            "skills": [],
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            engine = GameEngine(GameState(Path(temp), minimal_state(player=player, world=self._option_world())))
+            compiled = engine.compile_options([{
+                "id": "A",
+                "label": "分配属性",
+                "action": {
+                    "action_id": "stored-allocation",
+                    "type": "ATTRIBUTE_ALLOCATION",
+                    "parameters": {"allocations": {"agility": 2}},
+                },
+            }])
+            self.assertIn("A", compiled["options"])
+            result = engine.execute_player_choice("A")
+            self.assertEqual(result["event"]["type"], "ATTRIBUTES_ALLOCATED")
+            self.assertEqual(engine.state.player["attributes"]["agility"], 7)
+            self.assertEqual(engine.state.player["free_points"], 0)
+
     def _option_world(self):
         return {
             "name": "选项回归世界",
