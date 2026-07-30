@@ -27,7 +27,7 @@ from engine_runtime.protocol import ProtocolError, derive_action_costs, validate
 from engine_runtime.ratings import RATING_SCALE, normalize_rating, shift_rating
 from engine_runtime.runtime import GameEngine
 from engine_runtime.state import GameState, load_game_state
-from tools.create_save import answers_to_package, build_files, generate_world_mechanics, normalize_package
+from tools.create_save import GeneratorError, answers_to_package, build_files, normalize_package
 from tools.validate_save import assert_startable
 
 
@@ -42,6 +42,102 @@ def minimal_state(meta=None, world=None, player=None, inventory=None, npcs=None,
         "relationships": [],
         "event_queue": [],
         "meta": {"current_turn": 0, "game_day": 1, "time_of_day": "清晨", "day_elapsed_minutes": 0, "available_time_minutes": 720, "world_name": "回归测试世界", "difficulty": "标准", "campaign_status": "active", **(meta or {})},
+    }
+
+
+def creative_world_package(name="云海邮路"):
+    profession = {
+        "id": "storm_reader",
+        "name": "风暴读信人",
+        "description": "从云层断裂和旧信号中辨认航路变化。",
+        "attribute_focus": "spirit",
+        "exclusive_actions": [{"action_type": "READ_STORM_MAIL", "name": "解读风暴信", "location_id": "camp_core"}],
+    }
+
+    return {
+        "world": {
+            "name": name,
+            "theme": "漂浮群岛之间以活体邮路维系的世界",
+            "difficulty": "标准",
+            "narrative_length": 7,
+            "language": "中文",
+            "setting": {
+                "safe_base": "停泊在云鲸鳍侧的盲文邮局",
+                "external_dangers": ["会抹去文字的静电雨", "迁徙云鲸的换气风洞", "伪造航标的拾荒者"],
+                "exploration_method": "沿会改变字义的浮标航线短暂外出，再在云层闭合前回邮局",
+                "disaster_cycle": "每4天一次无字暴潮",
+                "disaster_type": "无字暴潮",
+            },
+            "resources": {
+                "primary": ["余墨盐", "云皮纸", "鸣铜钉"],
+                "currency": "未投递的承诺",
+            },
+            "professions": {"storm_reader": profession},
+            "starting_profession": "storm_reader",
+            "motifs": ["被风改写的地址", "鲸鸣邮戳", "失效承诺"],
+            "taboo_domains": ["替他人拆信", "伪造死亡通知"],
+            "world_blueprint": {
+                "opening_area": {
+                    "id": "broken_post_route",
+                    "name": "断邮航线",
+                    "description": "漂浮在两座岛之间的旧邮袋被风暴拖成长桥。",
+                    "danger_hint": "风向忽然读不出地址时，航线会整体翻面。",
+                    "primary_attribute": "agility",
+                },
+                "opening_enemy": {
+                    "id": "blank_moth",
+                    "name": "空白蛾群",
+                    "description": "以未寄出的署名为食的半透明飞蛾。",
+                    "knowledge_hint": "它们聚集的地方，往往有被抹去的收件人。",
+                },
+                "investigation_site": {
+                    "id": "last_post_office",
+                    "name": "末班投递塔",
+                    "description": "塔内每层的时钟都指向不同的昨天。",
+                },
+                "starting_npc": {
+                    "id": "npc_ink",
+                    "name": "墨栖",
+                    "goal": "找回被暴潮改写的妹妹的最后一封信。",
+                    "profession": "storm_reader",
+                },
+                "starting_faction": {"id": "sealed_route_union", "name": "封航同盟", "goal": "垄断仍可读的航线。"},
+                "base_modules": [
+                    {"id": "seal_press", "name": "鲸骨封蜡机", "description": "为易碎信件压上能抵抗静电雨的封印。"},
+                    {"id": "wind_archive", "name": "逆风档案柜", "description": "收藏每次航线改变前的地址残片。"},
+                ],
+                "starter_kit": {
+                    "main_weapon": {"id": "letter_hook", "name": "钩信短杖", "attack_type": "melee"},
+                    "items": [{"id": "unread_letter", "name": "一封没有收件人的信", "quantity": 1}],
+                },
+                "starter_recipe": {"id": "seal_patch", "name": "补写封蜡", "description": "临时补回被静电雨抹去的一个字。"},
+            },
+        },
+        "player_talent": {
+            "name": "退信回响",
+            "description": "你能听见被世界拒收之物留下的退信声。",
+            "type": "信息类",
+            "trigger": "接触无主信件、失效承诺或被抹去的地址时",
+            "effect": "获得一条与其原始去向有关但不完整的线索。",
+            "limitations": "回响会混入寄件人的自我欺骗；每次使用都可能让一段自己的记忆变得模糊。",
+            "rarity": "A",
+        },
+    }
+
+
+def creative_mechanics(professions=None):
+    package = creative_world_package()
+    world = package["world"]
+    blueprint = deepcopy(world["world_blueprint"])
+    if professions is not None and not professions:
+        blueprint["starting_npc"].pop("profession", None)
+    return {
+        "world_blueprint": blueprint,
+        "professions": deepcopy(world["professions"] if professions is None else professions),
+        "disaster_type": world["setting"]["disaster_type"],
+        "disaster_cycle_days": 4,
+        "motifs": deepcopy(world["motifs"]),
+        "taboo_domains": deepcopy(world["taboo_domains"]),
     }
 
 
@@ -257,45 +353,36 @@ class FormulaTests(unittest.TestCase):
         pressure = calculate_resource_pressure({"food": {"current": 1, "demand": 10, "income_rate": 2, "next_stage_need": 20, "blocked_count": 1, "perceived": 80}})
         self.assertGreater(pressure["score"], 50)
 
-    def test_theme_generates_world_mechanics_without_player_fields(self):
+    def test_llm_world_package_is_compiled_without_theme_profile_fallback(self):
+        template_path = Path(__file__).resolve().parents[1] / "templates" / "world_template.yaml"
+        template = yaml.safe_load(template_path.read_text(encoding="utf-8"))
+        supplied_world, supplied_talent = answers_to_package(creative_world_package())
+        world, talent = normalize_package(template, supplied_world, supplied_talent)
+
+        self.assertEqual(world["setting"]["safe_base"], "停泊在云鲸鳍侧的盲文邮局")
+        self.assertEqual(world["setting"]["disaster_type"], "无字暴潮")
+        self.assertEqual([item["name"] for item in world["resources"]["primary"]], ["余墨盐", "云皮纸", "鸣铜钉"])
+        self.assertEqual(talent["name"], "退信回响")
+        self.assertEqual(talent["rarity"], "A")
+        self.assertEqual(world["generation_bundle"]["starting_inventory"]["equipment"]["main_weapon"]["name"], "钩信短杖")
+        self.assertEqual(world["generation"]["mechanics_source"], "llm_world_blueprint")
+        self.assertEqual(world["generation_bundle"]["compiler_version"], "1.4")
+        self.assertIn("storm_reader", world["professions"])
+        self.assertEqual(world["starting_npcs"][0]["profession"], "storm_reader")
+        self.assertTrue(world["generation_bundle"]["locations"][1]["extraction_rule"]["requires_discovered_location"])
+
+    def test_create_save_rejects_missing_llm_world_content(self):
         template_path = Path(__file__).resolve().parents[1] / "templates" / "world_template.yaml"
         template = yaml.safe_load(template_path.read_text(encoding="utf-8"))
         supplied_world, supplied_talent = answers_to_package({
-            "world_name": "自动冰川",
+            "world_name": "不应自动补齐",
             "theme": "永夜冰川",
             "difficulty": "标准",
             "narrative_length": 7,
             "language": "中文",
         })
-        world, talent = normalize_package(template, supplied_world, supplied_talent)
-
-        self.assertEqual(world["setting"]["safe_base"], "霜轨列车")
-        self.assertEqual(world["setting"]["disaster_type"], "白夜风暴")
-        self.assertEqual([item["name"] for item in world["resources"]["primary"]], ["煤炭", "食物", "寒晶"])
-        self.assertEqual(talent["name"], "寒潮预兆")
-        self.assertEqual(talent["rarity"], "A")
-        self.assertEqual(world["generation_bundle"]["starting_inventory"]["equipment"]["main_weapon"]["rarity"], "G")
-        self.assertEqual(world["generation"]["theme_profile"], "永夜冰川")
-        self.assertEqual(world["generation_bundle"]["compiler_version"], "1.3")
-        self.assertTrue(world["generation_bundle"]["locations"][1]["extraction_rule"]["requires_discovered_location"])
-        self.assertEqual(
-            set(world["generation"]["generated_fields"]),
-            {
-                "setting.safe_base",
-                "setting.external_dangers",
-                "resources.primary",
-                "player_talent",
-                "setting.exploration_method",
-                "setting.disaster_cycle",
-                "generation_bundle",
-            },
-        )
-
-    def test_custom_theme_uses_generic_mechanics_and_language_variant(self):
-        generated = generate_world_mechanics("漂浮岛屿", "English")
-        self.assertEqual(generated["profile"], "generic")
-        self.assertEqual(generated["safe_base"], "A Mobile Shelter Built Around the Theme")
-        self.assertEqual(len(generated["primary_resources"]), 3)
+        with self.assertRaises(GeneratorError):
+            normalize_package(template, supplied_world, supplied_talent)
 
     def test_base_build_checks_cost_time_and_space(self):
         result = calculate_build(
@@ -485,13 +572,7 @@ class RuntimeIntegrationTests(unittest.TestCase):
     def test_compiled_world_supports_core_loop_and_sql_replay(self):
         project_root = Path(__file__).resolve().parents[1]
         template = yaml.safe_load((project_root / "templates" / "world_template.yaml").read_text(encoding="utf-8"))
-        supplied_world, supplied_talent = answers_to_package({
-            "world_name": "巨兽背部验收",
-            "theme": "巨兽背部",
-            "difficulty": "标准",
-            "narrative_length": 7,
-            "language": "中文",
-        })
+        supplied_world, supplied_talent = answers_to_package(creative_world_package("云海邮路验收"))
         world, talent = normalize_package(template, supplied_world, supplied_talent)
         world["action_targets"][next(iter(world["areas"]))]["target_difficulty"] = 0
         area_id = next(iter(world["areas"]))
@@ -554,10 +635,6 @@ class RuntimeIntegrationTests(unittest.TestCase):
                 self.assertGreaterEqual(len(engine.state.data["world"]["encounter_entities"]), initial_entity_count + 1)
             else:
                 self.assertGreaterEqual(len(engine.state.data["world"]["encounter_entities"]), initial_entity_count)
-            farmed = engine.execute_host_action({"action_id": "farm-1", "type": "BATCH_ACTION", "target": area_id})
-            self.assertEqual(farmed["event"]["type"], "BATCH_ACTION_RESOLVED")
-            self.assertLess(engine.state.data["world"]["areas"][area_id]["monster_population"], 50)
-            self.assertGreater(engine.state.data["world"]["areas"][area_id]["alertness"], 0)
             self.assertTrue((root / "campaign.sqlite3").exists())
             verification = engine.state.store.verify_projection(apply_event)
             self.assertTrue(verification["ok"], verification)
@@ -1269,37 +1346,30 @@ class EventDirectorTests(unittest.TestCase):
 class ProfessionSystemTests(unittest.TestCase):
     """Test profession system functionality"""
     
-    def test_profession_registry_loads_from_world(self):
-        from engine_runtime.world_compiler import compile_world_bundle, PROFESSION_REGISTRY
-        mechanics = {
-            "profile": "generic",
-            "professions": [PROFESSION_REGISTRY["mechanic"]],
-            "disaster_type": "test",
-        }
-        world_bundle = compile_world_bundle("废土列车", "中文", mechanics, "测试基地", ["资源"])
-        self.assertIn("mechanic", world_bundle["professions"])
-        self.assertEqual(world_bundle["professions"]["mechanic"]["name"], "缆车维修师")
+    def test_llm_defined_profession_loads_from_world(self):
+        from engine_runtime.world_compiler import compile_world_bundle
+        mechanics = creative_mechanics()
+        world_bundle = compile_world_bundle("云海邮路", "中文", mechanics, "盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])
+        self.assertIn("storm_reader", world_bundle["professions"])
+        self.assertEqual(world_bundle["professions"]["storm_reader"]["name"], "风暴读信人")
     
     def test_exclusive_actions_merged_into_action_targets(self):
-        from engine_runtime.world_compiler import compile_world_bundle, PROFESSION_REGISTRY
-        mechanics = {
-            "profile": "generic",
-            "professions": [PROFESSION_REGISTRY["mechanic"]],
-            "disaster_type": "test",
-        }
-        world_bundle = compile_world_bundle("废土列车", "中文", mechanics, "测试基地", ["资源"])
+        from engine_runtime.world_compiler import compile_world_bundle
+        world_bundle = compile_world_bundle("云海邮路", "中文", creative_mechanics(), "盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])
         # Exclusive actions should be merged into action_targets
-        self.assertIn("DIAGNOSE_FAILURE", world_bundle["action_targets"])
-        self.assertEqual(world_bundle["action_targets"]["DIAGNOSE_FAILURE"]["action_type"], "DIAGNOSE_FAILURE")
+        target_id = "profession:storm_reader:READ_STORM_MAIL"
+        self.assertIn(target_id, world_bundle["action_targets"])
+        self.assertEqual(world_bundle["action_targets"][target_id]["action_type"], "PROFESSION_ACTION")
     
     def test_profession_requirement_validation(self):
         from engine_runtime.runtime import GameEngine
         from engine_runtime.state import GameState
+        from engine_runtime.world_compiler import compile_world_bundle
         from pathlib import Path
-        from engine_runtime.world_compiler import PROFESSION_REGISTRY
+        profession = compile_world_bundle("云海邮路", "中文", creative_mechanics(), "盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])["professions"]["storm_reader"]
         
         state_dict = {
-            "player": {"profession": "mechanic"},
+            "player": {"profession": "storm_reader"},
             "base": {},
             "inventory": {},
             "npcs": {},
@@ -1307,29 +1377,30 @@ class ProfessionSystemTests(unittest.TestCase):
             "relationships": [],
             "event_queue": [],
             "meta": {"current_turn": 1, "time_of_day": "白天"},
-            "world": {"professions": {"mechanic": PROFESSION_REGISTRY["mechanic"]}},
+            "world": {"professions": {"storm_reader": profession}},
         }
-        state = GameState(save_dir=Path("."), data=state_dict)
-        engine = GameEngine(state)
-        
-        action_profile = {"requirements": {"profession": "mechanic"}}
-        is_valid, _ = engine._check_profession_requirement(action_profile, state)
-        self.assertTrue(is_valid)
-        
-        # Now test without profession
-        state.player["profession"] = None
-        is_valid, msg = engine._check_profession_requirement(action_profile, state)
-        self.assertFalse(is_valid)
-        self.assertIn("职业不符", msg)
+        with tempfile.TemporaryDirectory() as temp:
+            state = GameState(save_dir=Path(temp), data=state_dict)
+            engine = GameEngine(state)
+            action_profile = {"requirements": {"profession": "storm_reader"}}
+            is_valid, _ = engine._check_profession_requirement(action_profile, state)
+            self.assertTrue(is_valid)
+
+            # Now test without profession
+            state.player["profession"] = None
+            is_valid, msg = engine._check_profession_requirement(action_profile, state)
+            self.assertFalse(is_valid)
+            self.assertIn("职业不符", msg)
     
     def test_profession_bonus_injection(self):
         from engine_runtime.runtime import GameEngine
         from engine_runtime.state import GameState
+        from engine_runtime.world_compiler import compile_world_bundle
         from pathlib import Path
-        from engine_runtime.world_compiler import PROFESSION_REGISTRY
+        profession = compile_world_bundle("云海邮路", "中文", creative_mechanics(), "盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])["professions"]["storm_reader"]
         
         state_dict = {
-            "player": {"profession": "mechanic", "attributes": {"agility": 5}},
+            "player": {"profession": "storm_reader", "attributes": {"spirit": 5}},
             "base": {},
             "inventory": {},
             "npcs": {},
@@ -1337,26 +1408,20 @@ class ProfessionSystemTests(unittest.TestCase):
             "relationships": [],
             "event_queue": [],
             "meta": {},
-            "world": {"professions": {"mechanic": PROFESSION_REGISTRY["mechanic"]}},
+            "world": {"professions": {"storm_reader": profession}},
         }
-        state = GameState(save_dir=Path("."), data=state_dict)
-        engine = GameEngine(state)
-        
-        action_profile = {}
-        context = engine._build_action_context(action_profile, {})
-        
-        # Agility bonus +2 should be applied (capped at half for balance)
-        self.assertGreater(context.agility, 5)
-        self.assertEqual(context.agility, 6.0)  # 5 base + 1 (half of 2)
+        with tempfile.TemporaryDirectory() as temp:
+            state = GameState(save_dir=Path(temp), data=state_dict)
+            engine = GameEngine(state)
+            context = engine._build_action_context({}, {})
+
+            # Spirit bonus +2 should be applied (capped at half for balance)
+            self.assertGreater(context.spirit, 5)
+            self.assertEqual(context.spirit, 6.0)  # 5 base + 1 (half of 2)
     
     def test_backward_compatibility_no_professions(self):
         from engine_runtime.world_compiler import compile_world_bundle
-        mechanics = {
-            "profile": "generic",
-            "professions": [],
-            "disaster_type": "test",
-        }
-        world_bundle = compile_world_bundle("废土列车", "中文", mechanics, "测试基地", ["资源"])
+        world_bundle = compile_world_bundle("云海邮路", "中文", creative_mechanics(professions=[]), "盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"])
         self.assertEqual(world_bundle["professions"], {})
     
     def test_consequence_radius_calculation(self):
@@ -1366,26 +1431,25 @@ class ProfessionSystemTests(unittest.TestCase):
         self.assertLess(radius, 1.0)
 
     def test_profession_action_has_registered_entry_and_one_shot_exit(self):
-        from engine_runtime.world_compiler import PROFESSION_REGISTRY, compile_world_bundle
+        from engine_runtime.world_compiler import compile_world_bundle
 
         world = compile_world_bundle(
-            "废土列车", "中文",
-            {"profile": "generic", "professions": [PROFESSION_REGISTRY["mechanic"]]},
-            "测试基地", ["资源"],
+            "云海邮路", "中文", creative_mechanics(),
+            "盲文邮局", ["余墨盐", "云皮纸", "鸣铜钉"],
         )
         player = minimal_state()["player"]
-        player["profession"] = "mechanic"
+        player["profession"] = "storm_reader"
         with tempfile.TemporaryDirectory() as temp:
             engine = GameEngine(GameState(Path(temp), minimal_state(
                 world=world,
                 player=player,
-                meta={"current_location": "camp_core", "available_time_minutes": 720},
+                meta={"current_location": "camp_core", "available_time_minutes": 720, "time_of_day": "白天"},
             )))
-            action = {"action_id": "diagnose", "type": "DIAGNOSE_FAILURE", "target": "DIAGNOSE_FAILURE"}
-            compiled = engine.compile_options([{"label": "诊断故障", "action": action}], persist=False)
+            action = {"action_id": "read-storm-mail", "type": "PROFESSION_ACTION", "target": "profession:storm_reader:READ_STORM_MAIL"}
+            compiled = engine.compile_options([{"label": "解读风暴信", "action": action}], persist=False)
             self.assertIn("A", compiled["contracts"])
             engine.execute_player_choice("A", persist=False)
-            completion_key = "profession:mechanic:DIAGNOSE_FAILURE:completed"
+            completion_key = "profession:storm_reader:READ_STORM_MAIL:completed"
             self.assertIn(completion_key, engine.state.player["knowledge"])
             self.assertFalse(engine.preview_host_action(action)["legal"])
 

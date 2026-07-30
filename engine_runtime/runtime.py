@@ -92,17 +92,6 @@ class GameEngine:
                             # Cap at half bonus for balance
                             values[attr] = float(values.get(attr, 0.0)) + bonus * 0.5
         
-        # Apply profession-based action modifiers for specific actions
-        action_type = str(action.get("type") or target_profile.get("action_type") or "")
-        if current_profession_id == "mechanic" and action_type == "DIAGNOSE_FAILURE":
-            values["ability_match"] += 5
-            values["preparation"] += 3
-        elif current_profession_id == "contract_signer" and action_type == "DRAFT_CONTRACT":
-            values["intelligence"] += 5
-            values["preparation"] += 2
-        elif current_profession_id == "logger" and action_type == "HARVEST_DATA":
-            values["ability_match"] += 2
-        
         allowed = ActionContext.__dataclass_fields__
         return ActionContext(**{key: values[key] for key in allowed if key in values})
 

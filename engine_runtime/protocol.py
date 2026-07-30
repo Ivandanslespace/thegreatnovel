@@ -84,8 +84,10 @@ ACTION_PROFILES = {
     "MARKET_ORDER": {"time_minutes": 30.0, "stamina_cost": 2.0, "mental_cost": 4.0, "target_difficulty": 10.0},
     "VEHICLE_UPGRADE": {"time_minutes": 120.0, "stamina_cost": 15.0, "mental_cost": 10.0, "target_difficulty": 25.0},
     "REGIONAL_EVENT_ENTRY": {"time_minutes": 60.0, "stamina_cost": 10.0, "mental_cost": 8.0, "target_difficulty": 30.0},
-    # 职业专属行动的成本仍会由世界注册表覆盖；这里的值只作为注册表
-    # 不完整时的安全默认值，确保它们能够经过同一份主机协议结算。
+    # 职业专属行动的语义由当前世界定义；这里仅保留统一的协议类型和安全默认值。
+    "PROFESSION_ACTION": {"time_minutes": 30.0, "stamina_cost": 2.0, "mental_cost": 2.0, "target_difficulty": 15.0},
+    # 以下三个类型仅供旧存档兼容。新世界统一使用 PROFESSION_ACTION，
+    # 不再把某几个职业能力编码为全局行动类型。
     "DIAGNOSE_FAILURE": {"time_minutes": 30.0, "stamina_cost": 2.0, "mental_cost": 3.0, "target_difficulty": 15.0},
     "DRAFT_CONTRACT": {"time_minutes": 60.0, "stamina_cost": 1.0, "mental_cost": 4.0, "target_difficulty": 18.0},
     "HARVEST_DATA": {"time_minutes": 45.0, "stamina_cost": 1.0, "mental_cost": 2.0, "target_difficulty": 12.0},

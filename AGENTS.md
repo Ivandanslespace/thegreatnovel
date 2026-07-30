@@ -130,11 +130,12 @@ python tools/turn_controller.py saves/世界名 record \
 
 - **无存档 / 玩家选择新游戏**：进入世界创建流程。
 
-### 2. 世界创建（4项玩家决定 + 6项系统生成）
+### 2. 世界创建（4项玩家决定 + LLM 原创世界包）
 玩家只决定主题和表达偏好；不要要求玩家自行设计会直接影响数值结果的世界机制。
-以下六项必须由系统根据主题、世界规则和模板逻辑自动生成：安全基地、外部主要危险、
-基础资源、主角特殊天赋、探索方式、大型灾难周期。玩家可以在高级 YAML 世界包中显式
-覆盖这些字段，但交互式开局不询问它们。
+主持 LLM 必须在收到这四项后，为**本次世界**原创一份完整的世界包：安全基地、外部主要
+危险、基础资源、主角特殊天赋、探索方式、大型灾难、初始地点、敌人、NPC、势力、模块、
+职业（如有）、母题与禁忌。它们必须彼此能解释，而不是从预置职业、天赋或主题关键词库中
+挑选或拼贴。
 
 ```
 创建你的世界：
@@ -148,7 +149,7 @@ python tools/turn_controller.py saves/世界名 record \
 4. 游戏语言？
    参考：1=中文（默认） / 2=English / 3=日本語，也可以直接填写语言。
 
-系统随后根据主题自动生成并展示：
+LLM 随后根据主题原创并展示：
 - 安全基地
 - 外部主要危险
 - 3-5种基础资源
@@ -156,13 +157,16 @@ python tools/turn_controller.py saves/世界名 record \
 - 探索方式
 - 大型灾难类型与周期
 
-系统生成必须是确定性主题映射，并写入 `world.yaml` 的 `generation` 字段；不得由小说
-叙述临时发明这些机制。若主题没有专用档案，使用通用机制档案，并保留主题本身。
+LLM 的原创内容必须在创建时一次性写入 `world.yaml` 的 `world_blueprint` 与
+`player_talent`，并由 `tools/create_save.py` 编译、校验后固化。后续小说叙述不得临时
+发明未登记的机制。Python 可以派生数值成本、行动约束和注册表，但不得按主题关键词回填
+预设内容。
 ```
 
 收到回答后：
 1. 读取 `templates/world_template.yaml`
-2. 将4项玩家回答填入模板，并由 `tools/create_save.py` 根据主题补齐六项运行机制
+2. LLM 读取 `templates/world_template.yaml`，将4项玩家回答扩展为原创的完整世界包；
+   `tools/create_save.py --answers` 只编译、校验并固化该世界包
 3. 在 `saves/` 下创建以世界名命名的文件夹
 4. 生成初始存档文件（player.yaml, base.yaml, npcs.yaml, factions.yaml, relationships.yaml, inventory.yaml, event_log.md, story.md, novel_draft.md, conversation_log.md, decision_audit.jsonl, decision_audit.md, meta.yaml）
 5. 用小说口吻写出开局场景（长度 = narrative_length × 120字，上下浮动20%），包含：
@@ -1156,29 +1160,22 @@ collision_template:
 
 ```yaml
 professions:
-  - id: mechanic
-    name: 缆车维修师
-    category: production | combat | exploration | social | support
-    description: 擅长...
+  - id: <本世界唯一 ID>
+    name: <由 LLM 原创的职业名>
+    category: <职业在本世界的职能分类>
+    description: <为什么它只可能诞生于这个世界>
     capabilities:
-      - 诊断机械故障
-      - 紧急抢修
-      - 改装载具模块
+      - <世界内的专业能力>
     exclusive_actions:
-      - action_type: DIAGNOSE_FAILURE
-        target_ids: [...]
-        requirements: { profession: mechanic }
-        time_minutes: 30
-        stamina_cost: 2
-        mental_cost: 3
-        difficulty: 15
-    attribute_bonuses: { agility: 2 }
-    starting_skills: [...]
-    consequence_radius: 0.7  # How much this profession affects the world
-    world_hooks: [event_family_names]
-    autonomous_yield_profile: { average_hours_worked: 180, output_items: {...} }
-    comparative_weights: { efficiency: 0.3, ... }
+      - action_type: <语义行动 ID>
+        name: <玩家可见的行动名>
+        location_id: <已注册地点 ID>
+    attribute_focus: strength | constitution | agility | spirit
 ```
+
+职业的语义内容由 LLM 在本次世界创建时原创；编译器将每个 `exclusive_actions` 统一映射为
+`PROFESSION_ACTION`，并派生固定成本、职业校验与一次性完成出口。LLM 不得把难度、概率、
+消耗或属性数值写进职业定义，也不得调用预置职业库。
 
 ### 获得职业的方式
 

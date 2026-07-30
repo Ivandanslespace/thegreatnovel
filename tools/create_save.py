@@ -15,7 +15,6 @@ answers.yaml 可以是 world.yaml 形状的文件：
 import argparse
 import copy
 import json
-import random
 import re
 import shutil
 import sys
@@ -344,12 +343,12 @@ WORLD_MECHANIC_PROFILES = (
             "disaster_cycle": "每六天一次辐射尘暴",
             "disaster_type": "辐射尘暴",
             "talent": {
-                "name": "危险预兆",
-                "description": "能够从微弱的声音、气味和光线变化中识别附近危险。",
+                "name": "系统共鸣·解析",
+                "description": "你的系统面板与其他求生者不同，能够解析隐藏的物品属性、NPC 真实意图和区域规则的漏洞。",
                 "type": "信息类",
-                "trigger": "进入未侦察的废土地点时",
-                "effect": "获得一次关于主要威胁方向的有限提示",
-                "limitations": "提示不能直接揭示敌人数量、战力或完整伏击方案",
+                "trigger": "观察物品、NPC 对话或探索异常现象时",
+                "effect": "有概率看到其他人看不到的隐藏信息（物品真实价值、NPC 谎言标记、规则漏洞提示），并获得一次性'解析点数'用于主动查询",
+                "limitations": "每日解析次数有限（初始 3 次/天），且对高等级存在或强加密信息的解析可能失败；过度使用会引来'系统监察者'的注意",
             },
         },
         "en": {
@@ -360,12 +359,12 @@ WORLD_MECHANIC_PROFILES = (
             "disaster_cycle": "A Radiation Duststorm every six days",
             "disaster_type": "Radiation Duststorm",
             "talent": {
-                "name": "Danger Premonition",
-                "description": "Recognizes nearby danger through subtle changes in sound, smell, and light.",
+                "name": "System Resonance: Analysis",
+                "description": "Your system panel differs from other survivors—you can analyze hidden item properties, NPC true intentions, and loopholes in regional rules.",
                 "type": "Information",
-                "trigger": "Entering an unscouted wasteland location",
-                "effect": "Provides one limited hint about the direction of the main threat.",
-                "limitations": "Cannot reveal enemy count, strength, or the full ambush plan.",
+                "trigger": "When observing items, NPC dialogue, or exploring anomalous phenomena",
+                "effect": "Chance to see hidden information others cannot (true item value, NPC lie markers, rule loophole hints); gain one-time 'Analysis Points' for active queries",
+                "limitations": "Limited daily analyses (starts at 3/day); may fail against high-level entities or strongly encrypted info; overuse attracts 'System Overseer' attention",
             },
         },
     },
@@ -447,25 +446,6 @@ GENERIC_WORLD_MECHANICS = {
 
 class GeneratorError(ValueError):
     """输入不符合新游戏契约。"""
-
-
-def generate_world_mechanics(theme, language="中文"):
-    """根据主题确定性生成六项运行机制。
-
-    这是世界创建的唯一默认来源：交互式问卷不要求玩家填写这些字段，
-    但完整 YAML 仍可显式覆盖单个字段，便于高级用户制作自定义世界。
-    """
-    theme = str(theme or "").strip()
-    language = str(language or "中文").strip().lower()
-    locale = "en" if language in {"en", "english", "英文", "英语"} else "zh"
-    profile = GENERIC_WORLD_MECHANICS
-    for candidate in WORLD_MECHANIC_PROFILES:
-        if any(keyword in theme for keyword in candidate["keywords"]):
-            profile = candidate
-            break
-    mechanics = copy.deepcopy(profile[locale])
-    mechanics["profile"] = profile["id"]
-    return mechanics
 
 
 def load_yaml(path):
@@ -567,39 +547,11 @@ def normalize_prompt_answer(key, raw):
 
 
 def prompt_world():
-    print("创建你的世界（只需回答4项；基地、危险、资源、天赋、探索方式和灾难周期由系统根据主题生成）：")
-    answers = {}
-    for key, label, example in REQUIRED_QUESTIONS:
-        raw = normalize_prompt_answer(key, input(f"{label}（参考：{example}）："))
-        if key == "theme" and raw in {"随机", "随机生成", "random", "Random"}:
-            raw = random.choice(["永夜冰川", "巨兽背部", "废土列车", "深渊裂隙"])
-        if key == "difficulty" and not raw:
-            raw = "标准"
-        if key == "narrative_length" and not raw:
-            raw = "7"
-        if key == "language" and not raw:
-            raw = "中文"
-        answers[key] = raw
-
-    generated = generate_world_mechanics(answers["theme"], answers["language"])
-    answers.update({
-        "safe_base": generated["safe_base"],
-        "external_dangers": generated["external_dangers"],
-        "primary_resources": generated["primary_resources"],
-        "exploration_method": generated["exploration_method"],
-        "disaster_cycle": generated["disaster_cycle"],
-        "disaster_type": generated["disaster_type"],
-        "player_talent": generated["talent"],
-    })
-    world_name = re.sub(r'[<>:"/\\|?*]', "", answers["theme"]).replace("..", "").strip()
-    answers["world_name"] = world_name[:32] or "新世界"
-    print(
-        "系统已根据主题生成："
-        f"基地={generated['safe_base']}；危险={'、'.join(generated['external_dangers'])}；"
-        f"资源={'、'.join(generated['primary_resources'])}；"
-        f"探索={generated['exploration_method']}；灾难={generated['disaster_cycle']}。"
+    raise GeneratorError(
+        "交互式 CLI 只知道玩家偏好，不能替代 LLM 的世界创作。"
+        "请由主持 LLM 按 templates/world_template.yaml 创作完整 world_blueprint，"
+        "保存为 YAML 后使用 --answers 创建存档。"
     )
-    return answers
 
 
 def answers_to_package(raw):
@@ -633,6 +585,7 @@ def answers_to_package(raw):
 
 
 def normalize_package(template, supplied_world, supplied_talent, world_name_override=None):
+    """固化 LLM 创作包，而不从主题关键词回填任何世界内容。"""
     world = deep_merge(template["world"], supplied_world)
     talent = deep_merge(template.get("player_talent", {}), supplied_talent)
 
@@ -640,126 +593,110 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
         world["name"] = world_name_override
     world["name"] = safe_world_name(world.get("name"))
     world["theme"] = str(world.get("theme") or "").strip()
-    world["narrative_style"] = world.get("narrative_style") or "冷酷"
+    world["narrative_style"] = str(world.get("narrative_style") or "").strip()
     world["difficulty"] = str(world.get("difficulty") or "").strip()
     world["language"] = str(world.get("language") or "中文").strip()
-
-    generated = generate_world_mechanics(world["theme"], world["language"])
-
     try:
         world["narrative_length"] = int(world.get("narrative_length", 7))
     except (TypeError, ValueError) as exc:
         raise GeneratorError("narrative_length 必须是1到10的整数") from exc
 
-    auto_generated_fields = []
     setting = world.setdefault("setting", {})
     setting["safe_base"] = str(setting.get("safe_base") or "").strip()
-    if not setting["safe_base"]:
-        setting["safe_base"] = generated["safe_base"]
-        auto_generated_fields.append("setting.safe_base")
     setting["external_dangers"] = split_items(setting.get("external_dangers"))
-    if not setting["external_dangers"]:
-        setting["external_dangers"] = generated["external_dangers"]
-        auto_generated_fields.append("setting.external_dangers")
     setting["exploration_method"] = str(setting.get("exploration_method") or "").strip()
-    if not setting["exploration_method"]:
-        setting["exploration_method"] = generated["exploration_method"]
-        auto_generated_fields.append("setting.exploration_method")
     setting["disaster_cycle"] = str(setting.get("disaster_cycle") or "").strip()
-    if not setting["disaster_cycle"]:
-        setting["disaster_cycle"] = generated["disaster_cycle"]
-        auto_generated_fields.append("setting.disaster_cycle")
-    setting["disaster_type"] = str(setting.get("disaster_type") or generated["disaster_type"]).strip()
+    setting["disaster_type"] = str(setting.get("disaster_type") or "").strip()
 
     resources = world.setdefault("resources", {})
     resources["primary"] = normalize_resource_items(resources.get("primary"))
-    if not resources["primary"]:
-        resources["primary"] = normalize_resource_items(generated["primary_resources"])
-        auto_generated_fields.append("resources.primary")
     resources["secondary"] = normalize_resource_items(resources.get("secondary"))
     resources["rare"] = normalize_resource_items(resources.get("rare"))
-    resources["currency"] = str(resources.get("currency") or "交易筹码").strip()
-
-    cycle_days = first_number(setting["disaster_cycle"])
-    if cycle_days is None:
-        cycle_days = first_number(world.get("rules", {}).get("disaster", {}).get("cycle_days"))
-    if cycle_days is None or cycle_days < 1:
-        raise GeneratorError("灾难周期必须包含一个正整数天数")
-    disaster_rules = world.setdefault("rules", {}).setdefault("disaster", {})
-    disaster_rules["cycle_days"] = cycle_days
-    disaster_rules["first_event"] = disaster_rules.get("first_event") or f"第{cycle_days}天"
-    death_rules = world["rules"].setdefault("death", {})
-    death_rules["type"] = death_rules.get("type") or infer_death_mode(world["difficulty"])
-
-    talent = talent or {}
-    generated_talent = generated["talent"]
-    talent_was_incomplete = not str(talent.get("name") or "").strip()
-    talent["name"] = str(talent.get("name") or generated_talent["name"]).strip()
-    for field in ("description", "type", "trigger", "effect", "limitations"):
-        talent_was_incomplete = talent_was_incomplete or not str(talent.get(field) or "").strip()
-        talent[field] = str(talent.get(field) or generated_talent[field]).strip()
-    talent["rarity"] = normalize_rating(talent.get("rarity"), default="A")
-    if talent_was_incomplete:
-        auto_generated_fields.append("player_talent")
-
-    # 高级世界包可以显式启用或关闭职业；显式空表同样是有效选择，不能被
-    # 模板中的职业表重新覆盖。
-    profession_source = (
-        world["professions"]
-        if "professions" in world
-        else template.get("world", {}).get("professions", {})
-    )
-    
-    # 获取玩家选择的类型合同
-    genre_contract_choice = world.get("genre_contract", "1")  # 默认选项 1
-    selected_genre_contract = parse_genre_contract_choice(genre_contract_choice, world["theme"])
-    
-    supplied_bundle = world.get("generation_bundle")
-    if isinstance(supplied_bundle, dict) and supplied_bundle.get("compiler_version") == COMPILER_VERSION:
-        bundle = copy.deepcopy(supplied_bundle)
-    else:
-        bundle = compile_world_bundle(
-            theme=world["theme"],
-            language=world["language"],
-            mechanics={
-                "profile": generated["profile"],
-                "professions": profession_source,
-                "disaster_type": generated["disaster_type"],
-                "genre_contract": selected_genre_contract,
-            },
-            safe_base=setting["safe_base"],
-            primary_resources=[item["name"] for item in resources["primary"]],
-            genre_contract=selected_genre_contract,
-        )
-        auto_generated_fields.append("generation_bundle")
-    world["generation_bundle"] = bundle
-    for registry_name in ("locations", "targets", "combat_targets", "enemy_definitions", "encounter_entities", "areas", "farm_areas", "build_catalog", "modules", "recipes", "disasters", "action_targets", "professions", "starting_inventory", "starting_npcs", "starting_factions", "starting_relationships"):
-        if not world.get(registry_name) and bundle.get(registry_name) is not None:
-            world[registry_name] = copy.deepcopy(bundle[registry_name])
-
-    generation = world.setdefault("generation", {})
-    generation["mechanics_source"] = "theme_profile"
-    generation["theme_profile"] = generated["profile"]
-    generation["generated_fields"] = auto_generated_fields
+    resources["currency"] = str(resources.get("currency") or "").strip()
 
     if not world["theme"]:
         raise GeneratorError("世界主题不能为空")
     if not setting["safe_base"]:
-        raise GeneratorError("安全基地不能为空")
+        raise GeneratorError("LLM 世界包必须定义安全基地")
     if not setting["external_dangers"]:
-        raise GeneratorError("外部主要危险至少需要一项")
+        raise GeneratorError("LLM 世界包必须定义至少一项外部主要危险")
     if not setting["exploration_method"]:
-        raise GeneratorError("探索方式不能为空")
+        raise GeneratorError("LLM 世界包必须定义探索方式")
+    if not setting["disaster_cycle"] or not setting["disaster_type"]:
+        raise GeneratorError("LLM 世界包必须定义灾难类型与周期")
     if world["difficulty"] not in DIFFICULTIES:
         raise GeneratorError("difficulty 必须是：休闲、标准或硬核")
     if not 1 <= world["narrative_length"] <= 10:
         raise GeneratorError("narrative_length 必须在1到10之间")
     if not 3 <= len(resources["primary"]) <= 5:
         raise GeneratorError("基础资源必须是3到5种")
-    if not talent["name"] or any(not talent[field] for field in ("description", "type", "trigger", "effect", "limitations")):
-        raise GeneratorError("主角天赋必须填写 name/description/type/trigger/effect/limitations")
+
+    cycle_days = first_number(setting["disaster_cycle"])
+    if cycle_days is None or cycle_days < 1:
+        raise GeneratorError("灾难周期必须包含一个正整数天数")
+    disaster_rules = world.setdefault("rules", {}).setdefault("disaster", {})
+    disaster_rules["cycle_days"] = cycle_days
+    disaster_rules["first_event"] = str(disaster_rules.get("first_event") or f"第{cycle_days}天")
+    death_rules = world["rules"].setdefault("death", {})
+    death_rules["type"] = death_rules.get("type") or infer_death_mode(world["difficulty"])
     if death_rules["type"] not in DEATH_MODES:
         raise GeneratorError("rules.death.type 必须是 permanent/checkpoint/legacy")
+
+    talent = talent or {}
+    for field in ("name", "description", "type", "trigger", "effect", "limitations"):
+        talent[field] = str(talent.get(field) or "").strip()
+    talent["rarity"] = normalize_rating(talent.get("rarity"), default="A")
+    if any(not talent[field] for field in ("name", "description", "type", "trigger", "effect", "limitations")):
+        raise GeneratorError("LLM 世界包必须完整定义主角天赋的 name/description/type/trigger/effect/limitations")
+
+    profession_source = world.get("professions", {})
+    genre_contract_choice = world.get("genre_contract", "1")
+    selected_genre_contract = (
+        copy.deepcopy(genre_contract_choice)
+        if isinstance(genre_contract_choice, dict)
+        else parse_genre_contract_choice(genre_contract_choice, world["theme"])
+    )
+    supplied_bundle = world.get("generation_bundle")
+    if isinstance(supplied_bundle, dict) and supplied_bundle.get("compiler_version") == COMPILER_VERSION:
+        bundle = copy.deepcopy(supplied_bundle)
+        mechanics_source = "llm_compiled_bundle"
+    else:
+        try:
+            bundle = compile_world_bundle(
+                theme=world["theme"],
+                language=world["language"],
+                mechanics={
+                    "world_blueprint": world.get("world_blueprint"),
+                    "professions": profession_source,
+                    "disaster_type": setting["disaster_type"],
+                    "disaster_cycle_days": cycle_days,
+                    "creative_slots": world.get("creative_slots", {}),
+                    "motifs": world.get("motifs", []),
+                    "taboo_domains": world.get("taboo_domains", []),
+                },
+                safe_base=setting["safe_base"],
+                primary_resources=[item["name"] for item in resources["primary"]],
+                genre_contract=selected_genre_contract,
+            )
+        except ValueError as exc:
+            raise GeneratorError(f"LLM 世界蓝图不完整或不可编译：{exc}") from exc
+        mechanics_source = "llm_world_blueprint"
+    world["generation_bundle"] = bundle
+    for registry_name in ("locations", "targets", "combat_targets", "enemy_definitions", "encounter_entities", "areas", "farm_areas", "build_catalog", "modules", "recipes", "disasters", "action_targets", "professions", "starting_inventory", "starting_npcs", "starting_factions", "starting_relationships"):
+        if not world.get(registry_name) and bundle.get(registry_name) is not None:
+            world[registry_name] = copy.deepcopy(bundle[registry_name])
+    for content_name in ("motifs", "taboo_domains"):
+        if not world.get(content_name) and bundle.get(content_name) is not None:
+            world[content_name] = copy.deepcopy(bundle[content_name])
+
+    generation = world.setdefault("generation", {})
+    generation["mechanics_source"] = mechanics_source
+    generation["world_creator"] = "llm"
+    generation["generated_fields"] = []
+
+    starting_profession = world.get("starting_profession")
+    if starting_profession and str(starting_profession) not in world.get("professions", {}):
+        raise GeneratorError("starting_profession 必须是本世界 professions 中由 LLM 定义的职业")
     return world, talent
 
 
@@ -837,16 +774,7 @@ def build_files(template_dir, world, talent):
             "currency": 0,
         }
     }
-    # 为 starter NPC 分配职业（如果 bundle 中有 professions）
-    starter_npc_profession = None
     starting_npcs_list = copy.deepcopy(world.get("starting_npcs", bundle.get("starting_npcs", [])))
-    if starting_npcs_list and len(starting_npcs_list) > 0:
-        # 优先从 bundle 获取 professions（compiler 已整合 professions）
-        # 否则从 world.professions 获取（模板定义）
-        professions_dict = bundle.get("professions") or world.get("professions", {})
-        if professions_dict:
-            starter_npc_profession = random.choice(list(professions_dict.keys()))
-            starting_npcs_list[0]["profession"] = starter_npc_profession
     files["npcs.yaml"] = {"npcs": starting_npcs_list}
     files["factions.yaml"] = {"factions": copy.deepcopy(world.get("starting_factions", bundle.get("starting_factions", [])))}
     files["relationships.yaml"] = {"relationships": copy.deepcopy(world.get("starting_relationships", bundle.get("starting_relationships", [])))}

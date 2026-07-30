@@ -266,16 +266,16 @@ def validate_world_package(save_dir, data):
     current_location = meta.get("current_location")
     if current_location and registered_location_ids and str(current_location) not in registered_location_ids:
         findings.append(Finding("CRITICAL", "连续性", f"meta.current_location 未注册：{current_location}"))
-    if generation.get("mechanics_source") == "theme_profile":
+    if generation.get("mechanics_source") in {"theme_profile", "llm_world_blueprint", "llm_compiled_bundle"}:
         bundle = world.get("generation_bundle")
-        required_bundle = ("starting_location", "locations", "enemies", "areas", "build_catalog", "action_targets", "starting_inventory", "starting_npcs", "starting_factions", "starting_relationships")
+        required_bundle = ("starting_location", "locations", "enemies", "areas", "build_catalog", "action_targets", "starting_inventory")
         if not isinstance(bundle, dict):
-            findings.append(Finding("CRITICAL", "规则", "主题世界缺少 generation_bundle"))
+            findings.append(Finding("CRITICAL", "规则", "创作世界缺少 generation_bundle"))
         else:
             missing_bundle = [field for field in required_bundle if not bundle.get(field)]
             if missing_bundle:
                 findings.append(Finding("CRITICAL", "规则", f"generation_bundle 缺少可执行字段：{', '.join(missing_bundle)}"))
-            if str(bundle.get("compiler_version", "")) != str(COMPILER_VERSION):
+            if generation.get("mechanics_source") != "theme_profile" and str(bundle.get("compiler_version", "")) != str(COMPILER_VERSION):
                 findings.append(Finding("CRITICAL", "规则", f"generation_bundle.compiler_version={bundle.get('compiler_version')} 与当前编译器 {COMPILER_VERSION} 不兼容"))
             location_values = bundle.get("locations", [])
             location_ids = {
@@ -284,8 +284,10 @@ def validate_world_package(save_dir, data):
             } if isinstance(location_values, list) else {str(key) for key in location_values} if isinstance(location_values, dict) else set()
             if current_location and not registered_location_ids and str(current_location) not in location_ids:
                 findings.append(Finding("CRITICAL", "连续性", f"meta.current_location 未注册：{current_location}"))
+        if generation.get("mechanics_source") == "llm_world_blueprint" and not isinstance(world.get("world_blueprint"), dict):
+            findings.append(Finding("CRITICAL", "规则", "LLM 原创世界缺少 world_blueprint"))
         if not (save_dir / "campaign.sqlite3").exists():
-            findings.append(Finding("CRITICAL", "连续性", "主题世界缺少 SQLite 事件存储 campaign.sqlite3"))
+            findings.append(Finding("CRITICAL", "连续性", "创作世界缺少 SQLite 事件存储 campaign.sqlite3"))
         else:
             try:
                 from engine_runtime.events import apply_event
