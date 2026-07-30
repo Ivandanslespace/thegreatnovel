@@ -1398,6 +1398,12 @@ class GameEngine:
             return any(float(resolution.get(key, 0) or 0) != 0 for key in ("damage", "incoming_damage", "ammo_consumed", "durability_cost"))
         if action_type == "BATCH_ACTION":
             return any(float(resolution.get(key, 0) or 0) != 0 for key in ("total_kills", "total_experience", "ammo_consumed", "durability_cost")) or bool(resolution.get("recovered_resources"))
+        # 若目标注册表对任何结果分支定义了效果，则该行动潜在有实际效果，
+        # 不应因本次预览随机落在空分支上而被过滤。
+        profile = self._action_target_profile(action)
+        profile_effects = profile.get("effects", {}) if isinstance(profile.get("effects", {}), Mapping) else {}
+        if any(profile_effects.get(branch) for branch in ("success", "partial_failure", "failure")):
+            return True
         try:
             effects = self._domain_effects(action, resolution)
         except (TypeError, ValueError):

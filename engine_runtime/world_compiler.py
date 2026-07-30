@@ -186,6 +186,10 @@ def compile_world_bundle(
     action_targets[area_id]["primary_attribute"] = "agility"
     action_targets[research_id]["primary_attribute"] = "spirit"
     action_targets[npc_id]["primary_attribute"] = "spirit"
+    action_targets[area_id]["action_type"] = "EXPLORATION"
+    action_targets[research_id]["action_type"] = "RESEARCH"
+    action_targets[npc_id]["action_type"] = "SOCIAL_INTERACTION"
+    action_targets[npc_id]["is_npc"] = True
     for target_profile in action_targets.values():
         if target_profile.get("id") == area_id:
             target_profile["requirements"] = {"location": area_id}

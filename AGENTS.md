@@ -16,24 +16,26 @@ P0-4  非法选项不能展示。compile_options 丢弃 preview.legal==False。
 P0-5  玩家不能看到内部主持信息（Python/SQLite/preview/action_id等）。
 ```
 
-## 每回合工作流（统一入口）
+## 每回合工作流（两阶段）
 
 ```bash
-# 玩家选择了选项
-python tools/game_turn.py saves/世界名 --player-choice A \
-  --player-input '我选A。' --gm-response-file response.md
+# 阶段一 resolve：执行行动 + 生成选项 + 返回 NarrativePackage
+python tools/game_turn.py saves/世界名 resolve --player-choice A --player-input '我选A。'
+python tools/game_turn.py saves/世界名 resolve --action-json '{"action_id":"x","type":"EXPLORATION","target":"y"}' --player-input '原始输入'
+python tools/game_turn.py saves/世界名 resolve --generate-options-only
 
-# 玩家自由输入（LLM已解析为行动JSON）
-python tools/game_turn.py saves/世界名 \
-  --action-json '{"action_id":"x","type":"EXPLORATION","target":"y"}' \
-  --player-input '原始输入' --gm-response-file response.md
+# LLM 根据 NarrativePackage 写小说，保存为 response.md
+
+# 阶段二 record：校验小说 + 记录审计
+python tools/game_turn.py saves/世界名 record --player-input '我选A。' --gm-response-file response.md
 ```
 
-工具内部完成：执行行动 → 更新时间/世界 → 自动生成候选 → 编译选项（合法性门槛）→ 返回 NarrativePackage。
+resolve 内部完成：执行行动 → 自动生成候选（正确行动类型、过滤未发现地点、时段不符生成WAIT计划）→ 编译选项（合法性门槛，最多3个）→ 返回 NarrativePackage。
+record 内部完成：校验禁止词 → 校验选项标签一致 → 记录审计日志。
 
 **LLM只负责两件事：**
 1. 把自由输入解析为行动 JSON（意图字段，不填数值）
-2. 把 NarrativePackage 写成小说（narrative_length × 100~120字）
+2. 把 NarrativePackage 写成小说（narrative_length × 100~120字），展示其中的 visible_options
 
 LLM 不负责：保存选项、判断字母含义、选择工具入口、决定是否预览、拼接移动步骤、判断时段。
 
