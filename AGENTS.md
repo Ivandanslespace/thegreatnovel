@@ -66,7 +66,8 @@
   
   继续游戏？输入编号。或输入"新游戏"创建新世界。
   ```
-  玩家选择后，读取该存档下所有 .yaml 文件恢复状态，然后用一段小说叙述 recap 当前处境，继续游戏。
+  玩家选择后，以 `campaign.sqlite3` 的最新快照恢复状态；YAML/Markdown 只用于人类阅读和导出，
+  然后用一段小说叙述 recap 当前处境，继续游戏。
 
 - **无存档 / 玩家选择新游戏**：进入世界创建流程。
 
@@ -125,8 +126,8 @@
 每次互动遵循：
 
 ```
-读取当前状态 → 描写场景（narrative_length × 100~120字）→ 提供选择 → 等待玩家输入
-→ 解析意图 → 规则裁定 → 小说化结果 → 更新状态文件 → 下一轮
+读取 SQLite 当前状态 → 描写场景（narrative_length × 100~120字）→ 提供选择 → 等待玩家输入
+→ 解析意图 → Python预览/确认 → SQLite事务结算 → 导出视图 → 小说化结果 → 下一轮
 ```
 
 ## 交互格式
@@ -212,11 +213,12 @@ saves/{世界名}/
 ├── conversation_log.md ← 玩家原话、GM回答和Python事件审计
 ├── decision_audit.jsonl← 可查询的逐回合决策来源与状态差异
 ├── decision_audit.md   ← 人类可读的决策审计报告
+├── campaign.sqlite3    ← SQLite事件账本、快照与可重放事实源
 └── meta.yaml           ← 元数据（回合数、游戏时间、难度）
 ```
 
 ### 更新规则
-- **每次选择结算后**：更新 player.yaml, inventory.yaml, 以及受影响的其他文件
+- **每次选择结算后**：先由 Python 生成标准事件并在 `campaign.sqlite3` 中以事务提交；YAML、Markdown 和小说文件只是同步导出视图
 - **每次状态变化**：在 event_log.md 追加一条记录
 - **每次完成一轮叙述**：由 `tools/run_action.py` 自动追加 `novel_draft.md` 和
   `conversation_log.md`；开局回合使用 `tools/record_turn.py`
@@ -228,6 +230,8 @@ saves/{世界名}/
 - 使用 Read 工具读取 .yaml 文件
 - 主持运行期间禁止 LLM 使用 Write/Edit 直接更新存档；必须调用 `python tools/run_action.py`
   让 Python 通过标准事件完整更新 YAML、追加 `event_log.md`，并记录玩家输入和GM回答
+- 每个涉及多个小步骤的玩家输入必须先编译为 `ACTION_PLAN`：Python 计算每一步的属性、成本、合法性和可组合度，预览通过后以一个 SQLite 事务原子提交；LLM 不得自行计算或覆盖这些数值
+- `python tools/replay_campaign.py <存档路径>` 必须能从 SQLite 基础状态重放事件；`python tools/verify_projection.py <存档路径>` 必须通过后才能继续主持
 - `novel_draft.md` 只保留可复制的GM连续叙述；`conversation_log.md` 保留完整对话与审计数据
 - `decision_audit.jsonl` / `decision_audit.md` 必须区分 `player`、`llm`、`python`、`joint`，并记录
   `player_database_impact.state_diff`，用于多回合流程审计
@@ -394,9 +398,6 @@ Lv.X → Lv.Y
     {
       "type": "行动类型",
       "target": "目标",
-      "time_minutes": 0,
-      "stamina_cost": 0,
-      "mental_cost": 0,
       "tags": ["承诺标签"]
     }
   ],
@@ -410,13 +411,16 @@ Lv.X → Lv.Y
 }
 ```
 
+`time_minutes`、`stamina_cost`、`mental_cost`、属性匹配、难度、概率和结果均由 Python
+根据行动类型、世界注册表、技能、装备与当前状态派生；LLM 只能提交意图字段。
+
 解析后执行行动经济结算（→ engine/action_economy.md）：
 1. 逐项检查合法性（9步检查）
 2. 计算总成本 vs 当前可用资源（时间/体力/精神）
 3. 计算可组合度
 4. 告知玩家：哪些能完成、哪些只能部分完成、哪些必须放弃
 5. 玩家确认后，逐项结算，应用稀释修正
-6. 更新状态文件
+6. 由 SQLite 事务提交事件和快照，再导出 YAML/Markdown 视图
 
 ## 公式三级分类
 

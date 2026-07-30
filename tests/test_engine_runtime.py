@@ -17,12 +17,12 @@ from engine_runtime.calculators import (
     resolve_action,
     simulate_batch_action,
 )
-from engine_runtime.events import parse_events
+from engine_runtime.events import apply_event, parse_events
 from engine_runtime.narrative_log import record_narrative_turn
 from engine_runtime.protocol import ProtocolError, derive_action_costs, validate_host_action
 from engine_runtime.runtime import GameEngine
 from engine_runtime.state import load_game_state
-from tools.create_save import answers_to_package, generate_world_mechanics, normalize_package
+from tools.create_save import answers_to_package, build_files, generate_world_mechanics, normalize_package
 
 
 class FormulaTests(unittest.TestCase):
@@ -69,6 +69,8 @@ class FormulaTests(unittest.TestCase):
         self.assertEqual(updated["level"], 2)
         self.assertEqual(updated["free_points"], 2)
         self.assertTrue(updated["talent_choice_required"])
+        self.assertEqual(updated["pending_decision"]["type"], "TALENT_CHOICE")
+        self.assertEqual(len(updated["pending_decision"]["options"]), 3)
 
     def test_macro_economy_and_resource_pressure(self):
         farmability = calculate_farmability({"combat_advantage": 90, "enemy_information": 90, "kill_stability": 90, "sustainability": 90, "route_familiarity": 90, "extraction_ability": 90, "unknown_danger_penalty": 0})
@@ -117,6 +119,7 @@ class FormulaTests(unittest.TestCase):
                 "player_talent",
                 "setting.exploration_method",
                 "setting.disaster_cycle",
+                "generation_bundle",
             },
         )
 
@@ -138,6 +141,62 @@ class FormulaTests(unittest.TestCase):
 
 
 class RuntimeIntegrationTests(unittest.TestCase):
+    def test_compiled_world_supports_core_loop_and_sql_replay(self):
+        project_root = Path(__file__).resolve().parents[1]
+        template = yaml.safe_load((project_root / "templates" / "world_template.yaml").read_text(encoding="utf-8"))
+        supplied_world, supplied_talent = answers_to_package({
+            "world_name": "巨兽背部验收",
+            "theme": "巨兽背部",
+            "difficulty": "标准",
+            "narrative_length": 7,
+            "language": "中文",
+        })
+        world, talent = normalize_package(template, supplied_world, supplied_talent)
+        files = build_files(project_root / "templates" / "save_template", world, talent)
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for filename, content in files.items():
+                destination = root / filename
+                if filename.endswith((".yaml", ".yml")):
+                    destination.write_text(yaml.safe_dump(content, allow_unicode=True, sort_keys=False), encoding="utf-8")
+                else:
+                    destination.write_text(content, encoding="utf-8")
+            engine = GameEngine(load_game_state(root))
+            bundle = engine.state.data["world"]["generation_bundle"]
+            area_id = next(iter(bundle["areas"]))
+            enemy_id = next(iter(bundle["combat_targets"]))
+            module_id = next(iter(bundle["build_catalog"]))
+
+            plan = engine.execute_host_action({
+                "action_id": "plan-1",
+                "type": "ACTION_PLAN",
+                "plan_id": "plan-1",
+                "accept_dilution": True,
+                "steps": [
+                    {"action_id": "social-1", "type": "SOCIAL_INTERACTION", "target": bundle["starting_npcs"][0]["id"], "goal": "确认基地目标"},
+                    {"action_id": "research-1", "type": "RESEARCH", "target": next(key for key in bundle["action_targets"] if key not in {area_id, "camp_core", bundle["starting_npcs"][0]["id"]}), "goal": "建立第一条工程假设"},
+                ],
+            })
+            self.assertEqual(len(plan["events"]), 2)
+            self.assertEqual(engine.state.meta["time_of_day"], "白天")
+            explored = engine.execute_host_action({"action_id": "explore-1", "type": "EXPLORATION", "target": area_id, "risk_preference": "谨慎"})
+            self.assertEqual(explored["event"]["type"], "EXPLORATION_RESOLVED")
+            combat = engine.execute_host_action({"action_id": "combat-1", "type": "COMBAT", "target": enemy_id})
+            self.assertIn("target_deltas", combat["event"]["data"])
+            built = engine.execute_host_action({"action_id": "build-1", "type": "BUILD", "target": module_id})
+            self.assertEqual(built["event"]["type"], "BUILDING_BUILT")
+            rested = engine.execute_host_action({"action_id": "rest-1", "type": "REST", "target": "camp_core"})
+            self.assertEqual(rested["event"]["type"], "ACTION_RESOLVED")
+            self.assertEqual(engine.state.meta["game_day"], 2)
+            farmed = engine.execute_host_action({"action_id": "farm-1", "type": "BATCH_ACTION", "target": area_id})
+            self.assertEqual(farmed["event"]["type"], "BATCH_ACTION_RESOLVED")
+            self.assertLess(engine.state.data["world"]["areas"][area_id]["monster_population"], 50)
+            self.assertGreater(engine.state.data["world"]["areas"][area_id]["alertness"], 0)
+            self.assertTrue((root / "campaign.sqlite3").exists())
+            verification = engine.state.store.verify_projection(apply_event)
+            self.assertTrue(verification["ok"], verification)
+
     def test_host_dispatches_specialized_actions_and_consumes_derived_costs(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

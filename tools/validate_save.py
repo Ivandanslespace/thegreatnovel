@@ -17,6 +17,10 @@ import re
 from pathlib import Path
 from datetime import datetime
 
+PROJECT_DIR = Path(__file__).resolve().parent.parent
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
+
 try:
     import yaml
 except ImportError:
@@ -216,6 +220,37 @@ def validate_world_package(save_dir, data):
                 "CRITICAL", "规则",
                 f"player_talent 缺少字段：{', '.join(missing_talent)}"
             ))
+
+    generation = world.get("generation", {}) if isinstance(world.get("generation", {}), dict) else {}
+    if generation.get("mechanics_source") == "theme_profile":
+        bundle = world.get("generation_bundle")
+        required_bundle = ("starting_location", "locations", "enemies", "areas", "build_catalog", "action_targets", "starting_inventory", "starting_npcs", "starting_factions", "starting_relationships")
+        if not isinstance(bundle, dict):
+            findings.append(Finding("CRITICAL", "规则", "主题世界缺少 generation_bundle"))
+        else:
+            missing_bundle = [field for field in required_bundle if not bundle.get(field)]
+            if missing_bundle:
+                findings.append(Finding("CRITICAL", "规则", f"generation_bundle 缺少可执行字段：{', '.join(missing_bundle)}"))
+        if not (save_dir / "campaign.sqlite3").exists():
+            findings.append(Finding("CRITICAL", "连续性", "主题世界缺少 SQLite 事件存储 campaign.sqlite3"))
+        else:
+            try:
+                from engine_runtime.events import apply_event
+                from engine_runtime.persistence import SQLiteEventStore
+
+                store = SQLiteEventStore(save_dir / "campaign.sqlite3")
+                projection = store.verify_projection(apply_event)
+                if not projection.get("ok"):
+                    findings.append(Finding("CRITICAL", "连续性", "SQLite 事件重放结果与最新投影不一致"))
+                snapshot = store.latest_snapshot() or {}
+                view_keys = ("world", "player", "base", "inventory", "npcs", "factions", "relationships", "event_queue", "meta", "player_talent")
+                yaml_view = {key: data.get(key, {}) for key in view_keys}
+                sql_view = {key: snapshot.get(key, {}) for key in view_keys}
+                if yaml_view != sql_view:
+                    mismatches = [key for key in view_keys if yaml_view.get(key) != sql_view.get(key)]
+                    findings.append(Finding("CRITICAL", "连续性", "YAML 导出视图与 SQLite 最新快照不一致：" + ", ".join(mismatches)))
+            except (OSError, ValueError, RuntimeError) as exc:
+                findings.append(Finding("CRITICAL", "连续性", f"SQLite 投影校验失败：{exc}"))
 
     current_turn = meta.get("current_turn")
     if not isinstance(current_turn, int) or current_turn < 1:
@@ -639,7 +674,7 @@ def validate_action_economy(save_dir, data):
 def validate_formula_trace(save_dir, data):
     """标准引擎事件必须携带可复盘的公式结果，而不是只有叙述。"""
     findings = []
-    engine_event_types = {"ACTION_RESOLVED", "COMBAT_RESOLVED", "BATCH_ACTION_RESOLVED", "BUILDING_BUILT", "BASE_MAINTENANCE"}
+    engine_event_types = {"ACTION_RESOLVED", "EXPLORATION_RESOLVED", "RESEARCH_RESOLVED", "SOCIAL_RESOLVED", "COMBAT_RESOLVED", "BATCH_ACTION_RESOLVED", "BUILDING_BUILT", "BASE_MAINTENANCE"}
     for event in data.get("events", []):
         if not requires_standard_event(data, event):
             continue
@@ -692,6 +727,7 @@ def run_validation(save_path):
         "world": world_package.get("world", {}),
         "player_talent": world_package.get("player_talent", {}),
         "player": (load_yaml(save_dir / "player.yaml") or {}).get("player", {}),
+        "base": (load_yaml(save_dir / "base.yaml") or {}).get("base", {}),
         "inventory": (load_yaml(save_dir / "inventory.yaml") or {}).get("inventory", {}),
         "npcs": (load_yaml(save_dir / "npcs.yaml") or {}).get("npcs", []),
         "factions": (load_yaml(save_dir / "factions.yaml") or {}).get("factions", []),
@@ -701,6 +737,17 @@ def run_validation(save_path):
         "story_text": load_text(save_dir / "story.md"),
     }
     data["events"], data["event_parse_errors"] = parse_event_blocks(data["event_log_text"])
+    # 新存档以 SQLite events 表为事件事实源；Markdown 事件日志仅作为人类可读导出。
+    campaign_path = save_dir / "campaign.sqlite3"
+    if campaign_path.exists():
+        try:
+            from engine_runtime.persistence import SQLiteEventStore
+
+            sql_records = SQLiteEventStore(campaign_path).events()
+            data["events"] = [{"turn": int(record.get("turn", 0)), "data": record, "text": json.dumps(record, ensure_ascii=False)} for record in sql_records]
+            data["event_parse_errors"] = []
+        except (OSError, ValueError, RuntimeError) as exc:
+            data["event_parse_errors"] = [f"SQLite 事件读取失败：{exc}"]
 
     # 运行六类校验
     all_findings = []

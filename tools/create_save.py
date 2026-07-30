@@ -22,6 +22,10 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+PROJECT_DIR = Path(__file__).resolve().parent.parent
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
+
 try:
     import yaml
 except ImportError:
@@ -32,6 +36,9 @@ try:
     from validate_save import run_validation
 except ModuleNotFoundError:  # 支持从项目根目录 import tools.create_save
     from tools.validate_save import run_validation
+
+from engine_runtime.world_compiler import compile_world_bundle
+from engine_runtime.state import load_game_state
 
 
 DIFFICULTIES = {"休闲", "标准", "硬核"}
@@ -488,6 +495,23 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
     if talent_was_incomplete:
         auto_generated_fields.append("player_talent")
 
+    supplied_bundle = world.get("generation_bundle")
+    if isinstance(supplied_bundle, dict) and supplied_bundle.get("compiler_version"):
+        bundle = copy.deepcopy(supplied_bundle)
+    else:
+        bundle = compile_world_bundle(
+            theme=world["theme"],
+            language=world["language"],
+            mechanics=generated,
+            safe_base=setting["safe_base"],
+            primary_resources=[item["name"] for item in resources["primary"]],
+        )
+        auto_generated_fields.append("generation_bundle")
+    world["generation_bundle"] = bundle
+    for registry_name in ("locations", "targets", "combat_targets", "areas", "farm_areas", "build_catalog", "modules", "recipes", "disasters", "action_targets", "starting_inventory", "starting_npcs", "starting_factions", "starting_relationships"):
+        if not world.get(registry_name) and bundle.get(registry_name) is not None:
+            world[registry_name] = copy.deepcopy(bundle[registry_name])
+
     generation = world.setdefault("generation", {})
     generation["mechanics_source"] = "theme_profile"
     generation["theme_profile"] = generated["profile"]
@@ -520,6 +544,7 @@ def build_files(template_dir, world, talent):
     world_name = world["name"]
     safe_base = setting["safe_base"]
     phase = (world.get("phases") or [{"name": "新手期"}])[0].get("name", "新手期")
+    bundle = world.get("generation_bundle", {}) if isinstance(world.get("generation_bundle", {}), dict) else {}
     mysteries = [
         item.get("question", str(item)) if isinstance(item, dict) else str(item)
         for item in world.get("mysteries", [])[:5]
@@ -571,19 +596,24 @@ def build_files(template_dir, world, talent):
             "defense_log": [],
         }
     }
+    starting_inventory = copy.deepcopy(bundle.get("starting_inventory", {}))
+    inventory_resources = {item["name"]: 0 for item in primary_resources}
+    inventory_resources.update(starting_inventory.get("resources", {}) if isinstance(starting_inventory.get("resources", {}), dict) else {})
+    inventory_equipment = {"main_weapon": None, "off_hand": None, "helmet": None, "chest": None, "legs": None, "boots": None, "accessory_1": None, "accessory_2": None}
+    inventory_equipment.update(starting_inventory.get("equipment", {}) if isinstance(starting_inventory.get("equipment", {}), dict) else {})
     files["inventory.yaml"] = {
         "inventory": {
-            "equipment": {"main_weapon": None, "off_hand": None, "helmet": None, "chest": None, "legs": None, "boots": None, "accessory_1": None, "accessory_2": None},
-            "items": [],
-            "resources": {item["name"]: 0 for item in primary_resources},
+            "equipment": inventory_equipment,
+            "items": starting_inventory.get("items", []),
+            "resources": inventory_resources,
             "weight_current": 0,
             "weight_max": 50,
             "currency": 0,
         }
     }
-    files["npcs.yaml"] = {"npcs": []}
-    files["factions.yaml"] = {"factions": []}
-    files["relationships.yaml"] = {"relationships": []}
+    files["npcs.yaml"] = {"npcs": copy.deepcopy(world.get("starting_npcs", bundle.get("starting_npcs", [])))}
+    files["factions.yaml"] = {"factions": copy.deepcopy(world.get("starting_factions", bundle.get("starting_factions", [])))}
+    files["relationships.yaml"] = {"relationships": copy.deepcopy(world.get("starting_relationships", bundle.get("starting_relationships", [])))}
     files["event_queue.yaml"] = {"event_queue": []}
     files["meta.yaml"] = {
         "meta": {
@@ -604,12 +634,18 @@ def build_files(template_dir, world, talent):
             "runtime_metrics": {},
             "checkpoints_used": 0,
             "max_checkpoints": 3,
-            "current_location": safe_base,
+            "current_location": bundle.get("starting_location", "camp_core"),
+            "current_location_name": safe_base,
             "current_mode": "base",
             "in_combat": False,
+            "available_time_minutes": 720,
+            "day_elapsed_minutes": 0,
+            "next_disaster_day": world["rules"]["disaster"]["cycle_days"],
+            "narrative_state": {"pressure_components": {}, "open_loops": [], "payoff_history": [], "event_pattern_history": [], "recent_irreversible_changes": [], "current_arc": {}},
             "pressure_level": 30,
             "last_payoff_turn": 0,
             "active_mysteries": mysteries,
+            "active_mystery_records": [{"id": mystery, "importance": 1, "waiting_turns": 0, "reminder_count": 0, "visibility": 1, "progress": 0} for mystery in mysteries],
             "foreshadowing_active": [],
             "total_decisions": 0,
             "total_combats": 0,
@@ -626,7 +662,14 @@ def build_files(template_dir, world, talent):
         "type": "WORLD_CREATED",
         "actor": "system",
         "target": None,
-        "data": {"world_name": world_name, "theme": world["theme"], "safe_base": safe_base, "difficulty": world["difficulty"]},
+        "data": {
+            "world_name": world_name,
+            "theme": world["theme"],
+            "safe_base": safe_base,
+            "difficulty": world["difficulty"],
+            "generation_profile": world.get("generation", {}).get("theme_profile", "generic"),
+            "registry_counts": {key: len(bundle.get(key, {})) if isinstance(bundle.get(key), (dict, list)) else 0 for key in ("locations", "enemies", "areas", "build_catalog", "action_targets")},
+        },
         "turn": 1,
         "timestamp": "Day 1 清晨",
     }
@@ -693,6 +736,9 @@ def create_save(args):
             else:
                 with open(destination, "w", encoding="utf-8", newline="\n") as handle:
                     handle.write(content)
+
+        # 新存档从第一天起就初始化 SQLite 事实源；YAML/Markdown 只是可读投影。
+        load_game_state(target).save()
 
         result = run_validation(str(target))
         if result != 0:

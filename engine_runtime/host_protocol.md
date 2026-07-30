@@ -22,7 +22,6 @@ LLM 只提交“玩家想做什么”。以下内容必须由 Python 计算，LL
   "action_id": "scout-001",
   "type": "EXPLORATION",
   "target": "冰原边缘",
-  "primary_attribute": "agility",
   "skill_id": "optional-skill-id",
   "risk_preference": "谨慎",
   "tags": ["search"],
@@ -32,6 +31,25 @@ LLM 只提交“玩家想做什么”。以下内容必须由 Python 计算，LL
   "stop_conditions": {}
 }
 ```
+
+需要组合多个短行动时提交一个原子计划：
+
+```json
+{
+  "action_id": "plan-001",
+  "type": "ACTION_PLAN",
+  "plan_id": "plan-001",
+  "accept_dilution": true,
+  "steps": [
+    {"action_id": "step-1", "type": "SOCIAL_INTERACTION", "target": "npc-rivet", "goal": "确认路线"},
+    {"action_id": "step-2", "type": "RESEARCH", "target": "anchor-tower", "goal": "形成工程假设"}
+  ]
+}
+```
+
+计划步骤只能提交目标、目标、方法和风险偏好；属性、成本、顺序可行性和稀释程度由
+Python根据世界注册表计算。预览低于20的计划拒绝执行，20-49只能部分执行，50-79必须
+明确接受稀释，80以上才允许完整顺序完成。
 
 `parameters` 和 `stop_conditions` 只能表达玩家意图或停止条件，不能藏入数值结算。
 协议会递归扫描 JSON；出现引擎字段或未知顶层字段时，入口直接拒绝，不产生事件。
@@ -45,7 +63,8 @@ LLM 只提交“玩家想做什么”。以下内容必须由 Python 计算，LL
   → Python 预览（不写文件）
   → 若属于重大决策，展示预览并等待玩家确认
   → Python 执行专用结算器
-  → 写入标准事件、YAML和回合小说日志
+  → SQLite事务写入标准事件与快照
+  → 导出YAML、Markdown和回合小说视图
   → 执行后存档校验
   → 只根据 Python 返回值进行小说化叙述
 ```
@@ -54,10 +73,10 @@ LLM 只提交“玩家想做什么”。以下内容必须由 Python 计算，LL
 
 ```powershell
 # 预览，不写入
-python tools/run_action.py saves/世界名 --action-json '{"action_id":"scout-001","type":"EXPLORATION","target":"冰原边缘","primary_attribute":"agility","risk_preference":"谨慎"}' --dry-run
+python tools/run_action.py saves/世界名 --action-json '{"action_id":"scout-001","type":"EXPLORATION","target":"冰原边缘","risk_preference":"谨慎"}' --dry-run
 
 # 玩家确认后执行，并自动记录本回合
-python tools/run_action.py saves/世界名 --action-json '{"action_id":"scout-001","type":"EXPLORATION","target":"冰原边缘","primary_attribute":"agility","risk_preference":"谨慎"}' `
+python tools/run_action.py saves/世界名 --action-json '{"action_id":"scout-001","type":"EXPLORATION","target":"冰原边缘","risk_preference":"谨慎"}' `
   --player-input '我去侦察冰原边缘。' `
   --gm-response-file response.md `
   --intent-source player_free_text
@@ -101,10 +120,17 @@ python tools/audit_report.py saves/世界名 --field player.fatigue
 
 ## 专用行动数据来源
 
+- `EXPLORATION`、`RESEARCH`、`SOCIAL_INTERACTION`、`REST`：行动效果来自 `world.action_targets`，
+  Python生成发现地点、知识、资源、关系和休息恢复事件。
+- `ACTION_PLAN`：Python一次预览所有步骤，并在 SQLite 事务中原子提交。
 - `COMBAT`：目标必须存在于 `world.targets`、`world.combat_targets` 或 `npcs`；武器和弹药来自背包。
 - `BUILD`：模块必须存在于 `world.build_catalog` 或 `world.modules`。
 - `BATCH_ACTION`：区域必须存在于 `world.areas` 或 `world.farm_areas`；敌群、密度、掉落、
-  Farmability 参数来自区域注册表。
+  Farmability 参数来自区域注册表；Python按10分钟时间片更新击杀、弹药、耐久、区域人口、警戒和怪物适应，
+  遇到停止条件立即截断。
+- `TALENT_CHOICE`：升级后只能从 `player.pending_decision.options` 中选择一个 Python 生成的候选，
+  选择前其他行动全部拒绝；放弃项不会再次出现。
+- NPC与势力的日程、效用分数和自主资源变化由时间推进器写入状态，不由LLM补写。
 - 其他行动：成本由行动类型、技能定义、世界目标配置和当前状态派生。
 
 LLM 不得把完整目标、模块或区域对象塞进 `parameters` 以绕过注册表。
@@ -117,6 +143,8 @@ LLM 不得把完整目标、模块或区域对象塞进 `parameters` 以绕过�
 
 ## 保证范围
 
+SQLite 的 `campaign.sqlite3` 是事件和投影的事实源；`event_log.md`、YAML 和小说文件是导出视图。
+可以使用 `tools/replay_campaign.py` 重放事件，使用 `tools/verify_projection.py` 验证当前投影。
 这套协议在 LLM 通过 `tools/run_action.py` 调用引擎、且不直接写存档时，可以把越权输入
 拦截在入口并让状态只由 Python 事件更新。若把操作系统的任意文件写权限同时交给 LLM，
 任何纯提示词都无法提供绝对保证；因此主持器必须把本文件、`AGENTS.md` 和命令入口作为

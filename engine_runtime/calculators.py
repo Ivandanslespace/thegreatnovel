@@ -211,15 +211,23 @@ def resolve_action(player: Mapping[str, Any], context: ActionContext | Mapping[s
     })
     death_allowed = severity >= 86 and death_fairness >= 0.5
 
-    if probability > 0.9 and random_roll > 0.8:
+    # P 是“成功或更好”的累计概率；random_roll 必须真正参与所有结果分支。
+    # 大成功/普通成功/代价成功只是把 P 这段概率再细分，不能用概率区间替代随机判定。
+    critical_threshold = probability * 0.10
+    normal_threshold = probability * 0.65
+    costly_threshold = probability
+    partial_failure_threshold = probability + (1.0 - probability) * 0.25
+    severe_failure_threshold = probability + (1.0 - probability) * 0.90
+
+    if random_roll < critical_threshold:
         outcome = "大成功"
-    elif probability > 0.7:
+    elif random_roll < normal_threshold:
         outcome = "普通成功"
-    elif probability > 0.4:
+    elif random_roll < costly_threshold:
         outcome = "成功但付出代价"
-    elif probability > 0.2:
+    elif random_roll < partial_failure_threshold:
         outcome = "失败但获得部分信息"
-    elif probability > 0.05:
+    elif random_roll < severe_failure_threshold:
         outcome = "严重失败"
     elif death_allowed:
         outcome = "死亡"
@@ -241,7 +249,17 @@ def resolve_action(player: Mapping[str, Any], context: ActionContext | Mapping[s
         death_fairness=death_fairness,
         outcome=outcome,
         death_allowed=death_allowed,
-        components={"severity": severity_components, "death_fairness_inputs": {"risk_warning": context.risk_warning, "causal_chain": context.causal_chain, "avoidable": context.avoidable, "rule_consistency": context.rule_consistency, "player_responsibility": context.player_responsibility}},
+        components={
+            "severity": severity_components,
+            "death_fairness_inputs": {"risk_warning": context.risk_warning, "causal_chain": context.causal_chain, "avoidable": context.avoidable, "rule_consistency": context.rule_consistency, "player_responsibility": context.player_responsibility},
+            "outcome_thresholds": {
+                "critical": rounded(critical_threshold),
+                "normal": rounded(normal_threshold),
+                "costly": rounded(costly_threshold),
+                "partial_failure": rounded(partial_failure_threshold),
+                "severe_failure": rounded(severe_failure_threshold),
+            },
+        },
     )
 
 
@@ -305,7 +323,24 @@ def calculate_combat(attacker: Mapping[str, Any], defender: Mapping[str, Any], w
             if isinstance(effect, Mapping) and effect.get("type") in {"status", "debuff"}:
                 status_effects.append(deepcopy(dict(effect)))
     damage_ratio = damage / max(attribute_value(defender, "constitution") * 10.0, 1.0)
-    death_risk = rounded(clamp(damage_ratio * 100.0 + (100.0 - hit_probability) * 0.10, 0.0, 100.0))
+    target_hp = max(1.0, number(defender.get("hp"), attribute_value(defender, "constitution") * 10.0))
+    target_downed = damage >= target_hp
+
+    # 目标有攻击力时，未被击倒的目标会进行一次反击；旧的自定义目标没有
+    # attack 字段，因此保持原有单向攻击行为兼容。
+    defender_attack = max(0.0, number(defender.get("attack"), 0.0))
+    counterattack_hit = False
+    incoming_damage = 0.0
+    counterattack_probability = 0.0
+    if defender_attack > 0 and not target_downed and environment.get("counterattack", True):
+        defender_accuracy = attribute_value(defender, "agility") * 2.0 + number(defender.get("accuracy"), 0.0)
+        attacker_evasion = attribute_value(attacker, "agility") * 2.0 + number(attacker.get("equipment_evasion"), 0.0)
+        counterattack_probability = sigmoid((defender_accuracy - attacker_evasion) / k)
+        counterattack_hit = deterministic_roll(seed, "combat-counter-hit") < counterattack_probability
+        if counterattack_hit:
+            incoming_damage = rounded(max(0.0, defender_attack - number(attacker.get("armor"), 0.0) * 0.50))
+
+    death_risk = rounded(clamp(damage_ratio * 100.0 + incoming_damage / max(number(attacker.get("max_hp"), 50.0), 1.0) * 100.0, 0.0, 100.0))
     return CombatResolution(
         formula_version=FORMULA_VERSION,
         attacker_attack=rounded(attack),
@@ -323,7 +358,9 @@ def calculate_combat(attacker: Mapping[str, Any], defender: Mapping[str, Any], w
         weapon_durability_after=durability_after,
         status_effects=status_effects,
         death_risk=death_risk,
-        components={"base_attribute": base_attribute, "skill_modifier": skill_modifier, "equipment_modifier": equipment_modifier, "state_modifier": attacker_state, "environment_modifier": environment_modifier, "defender_state_modifier": defender_state, "injury_penalty": injury_penalty, "ammo_available": ammo_available, "durability_available": durability_available},
+        components={"base_attribute": base_attribute, "skill_modifier": skill_modifier, "equipment_modifier": equipment_modifier, "state_modifier": attacker_state, "environment_modifier": environment_modifier, "defender_state_modifier": defender_state, "injury_penalty": injury_penalty, "ammo_available": ammo_available, "durability_available": durability_available, "target_hp": target_hp, "counterattack_probability": rounded(counterattack_probability)},
+        incoming_damage=incoming_damage,
+        counterattack_hit=counterattack_hit,
     )
 
 
@@ -348,6 +385,34 @@ def level_threshold(level: int) -> int:
     return int(100 * (2 ** max(0, int(level) - 1)))
 
 
+def talent_options_for_level(level: int) -> List[Dict[str, Any]]:
+    """为升级生成稳定的三选一；候选由规则引擎生成，LLM 只能选择其一。"""
+    level = int(level)
+    return [
+        {
+            "id": f"level_{level}_field_sense",
+            "category": "信息类",
+            "name": "野外感知",
+            "description": "探索时更容易从环境中提取有效线索。",
+            "effect": {"action_modifiers": {"EXPLORATION": {"intelligence": 5, "unknown_risk": -3}}},
+        },
+        {
+            "id": f"level_{level}_iron_body",
+            "category": "个人类",
+            "name": "耐受强化",
+            "description": "体质永久提高一点，伤势和疲劳造成的行动阻力降低。",
+            "effect": {"attribute_bonus": {"constitution": 1}, "action_modifiers": {"COMBAT": {"preparation": 2}}},
+        },
+        {
+            "id": f"level_{level}_salvage_hand",
+            "category": "建设类",
+            "name": "回收巧手",
+            "description": "建造和修理时能把准备工作转化为更稳定的施工结果。",
+            "effect": {"action_modifiers": {"BUILD": {"preparation": 5}}},
+        },
+    ]
+
+
 def advance_progression(player: Mapping[str, Any], gained_exp: float) -> Dict[str, Any]:
     updated = deepcopy(dict(player))
     updated["level"] = int(number(updated.get("level"), 1))
@@ -366,6 +431,13 @@ def advance_progression(player: Mapping[str, Any], gained_exp: float) -> Dict[st
     updated["exp"] = rounded(updated["exp"])
     updated["levels_gained"] = levels_gained
     updated["talent_choice_required"] = levels_gained > 0
+    if levels_gained > 0:
+        updated["pending_decision"] = {
+            "type": "TALENT_CHOICE",
+            "level": updated["level"],
+            "options": talent_options_for_level(updated["level"]),
+            "must_resolve_before_continue": True,
+        }
     return updated
 
 
@@ -442,6 +514,7 @@ def farmability_mode(score: float) -> str:
 
 
 def simulate_batch_action(area: Mapping[str, Any], player_level: int, minutes: float, kill_success_rate: float, ammo_available: float, ammo_per_kill: float, weapon_rate_per_hour: float, recovery_efficiency: float, backpack_capacity_modifier: float, enemy_groups: Sequence[Mapping[str, Any]], farmability_components: Mapping[str, Any], stop_conditions: Optional[Mapping[str, Any]] = None) -> BatchResolution:
+    """按10分钟时间片模拟刷怪，任何中断条件在下一时间片前生效。"""
     farmability = calculate_farmability(farmability_components)
     hours = max(0.0, number(minutes)) / 60.0
     density = number(area.get("monster_density_per_hour"), number(area.get("monster_density"), 0.0))
@@ -449,47 +522,97 @@ def simulate_batch_action(area: Mapping[str, Any], player_level: int, minutes: f
     search_efficiency = clamp(number(area.get("search_efficiency"), 100.0)) / 100.0
     alertness_modifier = clamp(number(area.get("monster_alertness_modifier"), 100.0), 0.0, 200.0) / 100.0
     encounter_count = max(0.0, density * route_coverage * hours * search_efficiency * alertness_modifier)
-    kill_capacity = min(encounter_count * clamp(number(kill_success_rate), 0.0, 1.0), max(0.0, number(weapon_rate_per_hour)) * hours, max(0.0, number(ammo_available)) / max(1.0, number(ammo_per_kill)))
+    population = area.get("monster_population", area.get("population"))
+    population_remaining = max(0.0, number(population)) if population is not None else None
+    alertness = clamp(number(area.get("alertness", 0.0)))
+    adaptation = clamp(number(area.get("monster_adaptation", 0.0)))
+    alertness_gain = max(0.0, number(area.get("alertness_gain_per_kill", 1.5)))
+    adaptation_gain = max(0.0, number(area.get("adaptation_gain_per_kill", 0.5)))
+    starting_alertness_factor = max(0.25, 1.0 - alertness / 200.0)
+    starting_adaptation_factor = max(0.25, 1.0 - adaptation / 200.0)
     weights = [max(0.0, number(group.get("weight"), 1.0)) for group in enemy_groups]
     total_weight = sum(weights) or 1.0
     kills_by_level: Dict[str, float] = {}
     total_experience = 0.0
     theoretical_drops: Dict[str, float] = {}
-    for index, group in enumerate(enemy_groups):
-        share = weights[index] / total_weight
-        kills = kill_capacity * share
-        level = int(number(group.get("level"), player_level))
-        quality = str(group.get("quality", "普通"))
-        key = str(level)
-        kills_by_level[key] = rounded(kills_by_level.get(key, 0.0) + kills)
-        total_experience += calculate_experience(player_level, level, quality, kills)
-        for resource, amount in (group.get("drops", {}) or {}).items():
-            theoretical_drops[str(resource)] = theoretical_drops.get(str(resource), 0.0) + kills * number(amount)
+    stop_conditions = stop_conditions or {}
+    interruptions = []
+    total_kills = 0
+    processed_minutes = 0.0
+    processed_encounters = 0.0
+    encounter_pool = 0.0
+    slices = max(1, int(math.ceil(max(0.0, number(minutes)) / 10.0)))
+    for slice_index in range(slices):
+        slice_end = min(max(0.0, number(minutes)), (slice_index + 1) * 10.0)
+        slice_minutes = max(0.0, slice_end - processed_minutes)
+        slice_hours = slice_minutes / 60.0
+        slice_encounters = max(0.0, density * route_coverage * slice_hours * search_efficiency * alertness_modifier * starting_alertness_factor)
+        if population_remaining is not None:
+            slice_encounters = min(slice_encounters, population_remaining)
+        encounter_pool += slice_encounters
+        remaining_ammo = max(0.0, number(ammo_available) - total_kills * max(0.0, number(ammo_per_kill)))
+        cumulative_weapon_limit = max(0.0, number(weapon_rate_per_hour)) * (slice_end / 60.0)
+        cumulative_ammo_limit = max(0.0, number(ammo_available)) / max(1.0, number(ammo_per_kill))
+        cumulative_success_limit = encounter_pool * clamp(number(kill_success_rate), 0.0, 1.0) * starting_adaptation_factor
+        cumulative_capacity = math.floor(min(cumulative_success_limit, cumulative_weapon_limit, cumulative_ammo_limit) + 1e-9)
+        slice_kills = max(0, cumulative_capacity - total_kills)
+        total_kills += slice_kills
+        processed_minutes = slice_end
+        processed_encounters += slice_encounters
+        if population_remaining is not None:
+            population_remaining = max(0.0, population_remaining - slice_kills)
+        alertness = clamp(alertness + slice_kills * alertness_gain)
+        adaptation = clamp(adaptation + slice_kills * adaptation_gain)
+        if not enemy_groups:
+            slice_kills = 0
+        if slice_kills:
+            allocated = [int(math.floor(slice_kills * weight / total_weight)) for weight in weights]
+            for index in range(slice_kills - sum(allocated)):
+                allocated[index % len(allocated)] += 1
+            for index, group in enumerate(enemy_groups):
+                kills = allocated[index]
+                if kills <= 0:
+                    continue
+                level = int(number(group.get("level"), player_level))
+                quality = str(group.get("quality", "普通"))
+                key = str(level)
+                kills_by_level[key] = int(kills_by_level.get(key, 0) + kills)
+                total_experience += calculate_experience(player_level, level, quality, int(kills))
+                for resource, amount in (group.get("drops", {}) or {}).items():
+                    theoretical_drops[str(resource)] = theoretical_drops.get(str(resource), 0.0) + kills * number(amount)
+                for resource, amount in (group.get("rare_drops", {}) or {}).items():
+                    theoretical_drops[str(resource)] = theoretical_drops.get(str(resource), 0.0) + kills * number(amount)
+                    if stop_conditions.get("stop_on_rare_drop") or stop_conditions.get("rare_drop"):
+                        interruptions.append("发现稀有掉落")
+        consumed = total_kills * max(0.0, number(ammo_per_kill))
+        if stop_conditions.get("ammo_below") is not None and number(ammo_available) - consumed <= number(stop_conditions["ammo_below"]):
+            interruptions.append("弹药达到停止阈值")
+        slice_risk = clamp(sum(clamp(number(farmability_components.get(key)), 0.0, 100.0) for key in ("noise_exposure", "fatigue_risk", "injury_risk", "area_alertness", "daylight_change", "monster_adaptation")) / 6.0 + slice_index * 2.0)
+        if stop_conditions.get("risk_above") is not None and slice_risk >= number(stop_conditions["risk_above"]):
+            interruptions.append("刷怪风险达到停止阈值")
+        if stop_conditions.get("environment_change") and slice_index >= 0:
+            interruptions.append("环境变化")
+        if population_remaining is not None and population_remaining <= 0:
+            interruptions.append("区域怪物数量耗尽")
+        if interruptions:
+            break
     recovered = {resource: rounded(amount * clamp(recovery_efficiency, 0.0, 1.0) * clamp(backpack_capacity_modifier, 0.0, 1.0)) for resource, amount in theoretical_drops.items()}
     risk = rounded(clamp(sum(clamp(number(farmability_components.get(key)), 0.0, 100.0) for key in ("noise_exposure", "fatigue_risk", "injury_risk", "area_alertness", "daylight_change", "monster_adaptation")) / 6.0))
-    interruptions = []
-    stop_conditions = stop_conditions or {}
-    if stop_conditions.get("ammo_below") is not None and ammo_available - kill_capacity * ammo_per_kill <= number(stop_conditions["ammo_below"]):
-        interruptions.append("弹药达到停止阈值")
-    if stop_conditions.get("risk_above") is not None and risk >= number(stop_conditions["risk_above"]):
-        interruptions.append("刷怪风险达到停止阈值")
-    if stop_conditions.get("environment_change"):
-        interruptions.append("环境变化")
     return BatchResolution(
         formula_version=FORMULA_VERSION,
         farmability=farmability,
         mode=farmability_mode(farmability),
-        encounter_count=rounded(encounter_count),
+        encounter_count=rounded(processed_encounters),
         kills_by_level=kills_by_level,
-        total_kills=rounded(kill_capacity),
+        total_kills=int(total_kills),
         total_experience=rounded(total_experience),
         outcome="批量结算（已完成）" if not interruptions else "批量结算（触发中断）",
         recovered_resources=recovered,
-        ammo_consumed=rounded(kill_capacity * max(0.0, number(ammo_per_kill))),
-        durability_cost=rounded(kill_capacity),
+        ammo_consumed=rounded(total_kills * max(0.0, number(ammo_per_kill))),
+        durability_cost=rounded(total_kills),
         risk=risk,
         interruption_reasons=interruptions,
-        components={"density": density, "route_coverage": route_coverage, "effective_action_time_hours": hours, "search_efficiency": search_efficiency, "monster_alertness_modifier": alertness_modifier, "theoretical_drops": theoretical_drops},
+        components={"density": density, "route_coverage": route_coverage, "effective_action_time_hours": processed_minutes / 60.0, "time_slice_minutes": 10, "search_efficiency": search_efficiency, "monster_alertness_modifier": alertness_modifier, "population_remaining": population_remaining, "alertness_after": alertness, "monster_adaptation_after": adaptation, "theoretical_drops": theoretical_drops},
     )
 
 
@@ -611,7 +734,10 @@ def calculate_risk_credibility(values: Mapping[str, Any]) -> float:
 
 def calculate_narrative_metrics(state: Mapping[str, Any], event_history: Sequence[Mapping[str, Any]], payoff: Optional[Mapping[str, Any]] = None, decision: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     meta = state.get("meta", {}) if isinstance(state.get("meta"), Mapping) else {}
+    narrative_state = meta.get("narrative_state", {}) if isinstance(meta.get("narrative_state"), Mapping) else {}
     pressure = meta.get("pressure_inputs", {}) if isinstance(meta.get("pressure_inputs"), Mapping) else {}
+    if not pressure:
+        pressure = narrative_state.get("pressure_components", {}) if isinstance(narrative_state.get("pressure_components"), Mapping) else {}
     pressure_score = rounded(0.25 * clamp(number(pressure.get("survival_threat"))) + 0.20 * clamp(number(pressure.get("resource_scarcity"))) + 0.20 * clamp(number(pressure.get("time_pressure"))) + 0.15 * clamp(number(pressure.get("information_unknown"))) + 0.10 * clamp(number(pressure.get("interpersonal_conflict"))) + 0.10 * clamp(number(pressure.get("failure_accumulation"))))
     irreversible_types = {"LEVEL_UP", "CHARACTER_DIED", "AREA_DISCOVERED", "MYSTERY_RESOLVED", "FACTION_JOINED", "BASE_UPGRADED", "WORLD_EVENT"}
     total = len(event_history)
@@ -620,11 +746,13 @@ def calculate_narrative_metrics(state: Mapping[str, Any], event_history: Sequenc
     payoff = payoff or {}
     maturity = rounded(0.25 * clamp(number(payoff.get("scarcity_pressure"))) + 0.20 * clamp(number(payoff.get("setup_depth"))) + 0.20 * clamp(number(payoff.get("waiting_time"))) + 0.20 * clamp(number(payoff.get("cost_paid"))) + 0.15 * clamp(number(payoff.get("chapter_rhythm"))))
     impact = rounded(0.25 * clamp(number(payoff.get("relative_gain"))) + 0.25 * clamp(number(payoff.get("restriction_removed"))) + 0.20 * clamp(number(payoff.get("behavior_change"))) + 0.15 * clamp(number(payoff.get("long_term_value"))) + 0.15 * clamp(number(payoff.get("social_feedback"))))
-    novelty = rounded(clamp(100.0 - number(payoff.get("same_type_last_20")) * 15.0 - number(payoff.get("similar_structure_last_50")) * 85.0))
+    novelty = rounded(clamp(100.0 - number(payoff.get("same_type_last_20")) * 15.0 - number(payoff.get("similar_structure_last_50")) * 8.5))
     causality = rounded(0.30 * clamp(number(payoff.get("causal_chain"))) + 0.25 * clamp(number(payoff.get("rule_consistency"))) + 0.25 * clamp(number(payoff.get("cost_paid"))) + 0.20 * clamp(number(payoff.get("reward_foreshadowed"))))
     aftermath = rounded(0.30 * clamp(number(payoff.get("new_playable_system"))) + 0.25 * clamp(number(payoff.get("decision_change"))) + 0.25 * clamp(number(payoff.get("higher_resource_need"))) + 0.20 * clamp(number(payoff.get("social_market_effect"))))
     payoff_score = rounded(clamp(0.25 * maturity + 0.25 * impact + 0.15 * novelty + 0.15 * causality + 0.20 * aftermath - 0.10 * clamp(number(payoff.get("fatigue"))) - 0.10 * clamp(number(payoff.get("story_damage")))))
     mysteries = meta.get("active_mystery_records", []) if isinstance(meta.get("active_mystery_records"), list) else []
+    if not mysteries and isinstance(meta.get("active_mysteries"), list):
+        mysteries = [{"id": value, "importance": 1, "waiting_turns": 0, "reminder_count": 0, "visibility": 1, "progress": 0} for value in meta["active_mysteries"]]
     narrative_debt = []
     for mystery in mysteries:
         if isinstance(mystery, Mapping):

@@ -54,6 +54,23 @@ world:
     theme_profile: ""
     generated_fields: []
 
+  # 主题编译器生成的可执行世界注册表
+  generation_bundle: {}
+  locations: []
+  targets: {}
+  combat_targets: {}
+  areas: {}
+  farm_areas: {}
+  build_catalog: {}
+  modules: {}
+  recipes: []
+  disasters: []
+  action_targets: {}
+  starting_inventory: {}
+  starting_npcs: []
+  starting_factions: []
+  starting_relationships: []
+
   # 怪物生态
   monsters:
     day_creatures: []         # 白天怪物类型

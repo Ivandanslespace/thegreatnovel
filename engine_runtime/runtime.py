@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
@@ -12,6 +13,8 @@ from .calculators import (
     calculate_base_maintenance,
     calculate_build,
     calculate_combat,
+    calculate_combinability,
+    calculate_experience,
     calculate_narrative_metrics,
     check_skill_use,
     resolve_action,
@@ -30,7 +33,7 @@ class GameEngine:
     def _build_action_context(self, action: Mapping[str, Any], costs: Mapping[str, float]) -> ActionContext:
         risk = derive_risk_modifiers(action)
         world_targets = self.state.data.get("world", {}).get("action_targets", {}) if isinstance(self.state.data.get("world", {}).get("action_targets", {}), Mapping) else {}
-        target_profile = world_targets.get(action.get("target"), {}) if isinstance(world_targets, Mapping) else {}
+        target_profile = self._registry_lookup(world_targets, action.get("target")) or {}
         if not isinstance(target_profile, Mapping):
             target_profile = {}
         runtime_context = self.state.meta.get("runtime_context", {}) if isinstance(self.state.meta.get("runtime_context", {}), Mapping) else {}
@@ -52,7 +55,13 @@ class GameEngine:
             "rule_consistency": float(target_profile.get("rule_consistency", 1.0 if target_profile else 0.0)),
             "player_responsibility": float(target_profile.get("player_responsibility", 0.0)),
         }
-        values = {**defaults, "primary_attribute": action.get("primary_attribute", "spirit")}
+        talent_effects = self.state.player.get("talent_effects", {}) if isinstance(self.state.player.get("talent_effects", {}), Mapping) else {}
+        action_modifiers = talent_effects.get("action_modifiers", {}) if isinstance(talent_effects.get("action_modifiers", {}), Mapping) else {}
+        modifier = action_modifiers.get(str(action.get("type")), {}) if isinstance(action_modifiers.get(str(action.get("type")), {}), Mapping) else {}
+        for key in ("intelligence", "teammate_assistance", "environment_advantage", "preparation", "environment_penalty", "time_pressure", "unknown_risk"):
+            if key in modifier:
+                defaults[key] += float(modifier[key])
+        values = {**defaults, "primary_attribute": target_profile.get("primary_attribute", "spirit")}
         if action.get("skill_id"):
             skill = self._find_skill(action)
             values["skill_bonus"] = float(skill.get("level", 1)) * 2.0 if skill else 0.0
@@ -82,7 +91,14 @@ class GameEngine:
 
     def _check_requirements(self, action: Mapping[str, Any]) -> list[str]:
         errors: list[str] = []
-        requirements = action.get("requirements", {}) if isinstance(action.get("requirements"), Mapping) else {}
+        pending = self.state.player.get("pending_decision")
+        if pending and str(action.get("type")) != "TALENT_CHOICE":
+            errors.append("必须先完成升级三选一")
+        registry_requirements = self._action_target_profile(action).get("requirements", {})
+        requirements = dict(registry_requirements) if isinstance(registry_requirements, Mapping) else {}
+        supplied_requirements = action.get("requirements", {}) if isinstance(action.get("requirements"), Mapping) else {}
+        for key, value in supplied_requirements.items():
+            requirements.setdefault(key, value)
         required_location = requirements.get("location")
         if required_location and required_location != self.state.meta.get("current_location"):
             errors.append(f"地点不符：需要 {required_location}")
@@ -113,6 +129,115 @@ class GameEngine:
             errors.append(f"未掌握技能：{action['skill_id']}")
         return errors
 
+    def _action_target_profile(self, action: Mapping[str, Any]) -> Mapping[str, Any]:
+        registry = self.state.data.get("world", {}).get("action_targets", {})
+        return self._registry_lookup(registry, action.get("target")) or {}
+
+    def _domain_effects(self, action: Mapping[str, Any], resolution: Mapping[str, Any]) -> Dict[str, Any]:
+        action_type = str(action.get("type", ""))
+        if action_type == "REST":
+            return {
+                "fatigue_delta": -35.0,
+                "mental_delta": 20.0,
+                "hp_delta": 5.0,
+                "proposed_events": [{"type": "REST_COMPLETED", "target": self.state.meta.get("current_location")}],
+            }
+        profile = self._action_target_profile(action)
+        effects = profile.get("effects", {}) if isinstance(profile.get("effects", {}), Mapping) else {}
+        outcome = str(resolution.get("outcome", ""))
+        if outcome in {"大成功", "普通成功", "成功但付出代价"}:
+            selected = effects.get("success", {})
+        elif outcome == "失败但获得部分信息":
+            selected = effects.get("partial_failure", {})
+        else:
+            selected = effects.get("failure", {})
+        selected = deepcopy(dict(selected)) if isinstance(selected, Mapping) else {}
+        parameters = action.get("parameters", {}) if isinstance(action.get("parameters", {}), Mapping) else {}
+        relationship_intent = str(parameters.get("relationship_intent", "")).lower()
+        if action_type == "SOCIAL_INTERACTION" and any(token in relationship_intent for token in ("promise", "承诺", "保证")):
+            selected["promise_additions"] = [{"id": f"promise_{self.state.current_turn + 1}_{action.get('target')}", "npc_id": action.get("target"), "content": str(parameters.get("message") or action.get("goal") or action.get("approach") or "未注明承诺"), "created_turn": self.state.current_turn + 1, "due_turn": self.state.current_turn + 4, "status": "open"}]
+        if action_type == "SOCIAL_INTERACTION" and any(token in relationship_intent for token in ("deceive", "欺骗", "隐瞒")):
+            selected["deception_attempts"] = [{"id": f"deception_{self.state.current_turn + 1}_{action.get('target')}", "npc_id": action.get("target"), "content": str(parameters.get("message") or action.get("goal") or "未注明欺骗内容"), "detected": outcome not in {"大成功", "普通成功"}, "turn": self.state.current_turn + 1}]
+        proposed = []
+        proposed.extend({"type": "AREA_DISCOVERED", "target": item} for item in selected.get("discover_locations", []))
+        proposed.extend({"type": "KNOWLEDGE_GAINED", "target": item} for item in selected.get("knowledge_additions", []))
+        proposed.extend({"type": "RESOURCE_CHANGED", "target": item, "quantity": quantity} for item, quantity in (selected.get("resource_changes", {}) or {}).items())
+        proposed.extend({"type": "RELATIONSHIP_CHANGED", "target": item} for item in (selected.get("relationship_changes", {}) or {}))
+        selected["proposed_events"] = proposed
+        if action_type == "EXPLORATION":
+            selected["event_type"] = "EXPLORATION_RESOLVED"
+        elif action_type == "RESEARCH":
+            selected["event_type"] = "RESEARCH_RESOLVED"
+        elif action_type == "SOCIAL_INTERACTION":
+            selected["event_type"] = "SOCIAL_RESOLVED"
+        return selected
+
+    def _narrative_decision(self, action: Mapping[str, Any], preview: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+        profile = self._action_target_profile(action)
+        ledger = preview.get("action_ledger", {}) if isinstance(preview, Mapping) else {}
+        action_row = ledger.get("actions", [{}])[0] if isinstance(ledger.get("actions", [{}]), list) else {}
+        available = max(float(self.state.meta.get("available_time_minutes", 720)), 1.0)
+        time_ratio = min(1.0, max(0.0, float(action_row.get("time_minutes", 0.0)) / available))
+        unknown = min(1.0, max(0.0, float(profile.get("unknown_risk", 0.0)) / 30.0))
+        irreversible = 1.0 if str(action.get("type")) in {"COMBAT", "BUILD", "SOCIAL_INTERACTION"} else 0.5
+        risk_values = {
+            "cost_fulfillment": 1.0 if action_row else 0.5,
+            "failure_clarity": float(profile.get("causal_chain", 0.5)),
+            "enemy_effectiveness": float(profile.get("risk_warning", 0.5)),
+            "information_incompleteness": unknown,
+            "limited_protection": 0.8 if self.state.meta.get("difficulty") != "休闲" else 0.5,
+        }
+        return {
+            "consequence_difference": 0.8 if profile.get("effects") else 0.4,
+            "opportunity_cost": time_ratio,
+            "irreversibility": irreversible,
+            "information_uncertainty": unknown,
+            "value_impact": 0.7 if profile.get("effects") else 0.3,
+            "route_divergence": 0.8 if profile else 0.3,
+            "option_balance": 0.7,
+            "information_sufficiency": max(0.0, 1.0 - unknown),
+            "long_term_impact": irreversible,
+            "uncertainty": {"danger_unknown": unknown, "rule_unknown": 0.1, "motive_unknown": 0.3, "world_unknown": 0.5, "reward_unknown": unknown},
+            "risk_credibility": risk_values,
+            "combinability": {"time_remaining": 1.0 - time_ratio, "resource_compatibility": 1.0, "location_proximity": 1.0, "goal_compatibility": 1.0, "npc_availability": 1.0},
+            "permanent_growth": 0.8 if str(action.get("type")) in {"COMBAT", "BUILD"} else 0.0,
+            "world_change": 0.8 if str(action.get("type")) in {"EXPLORATION", "BUILD"} else 0.0,
+            "relationship_change": 0.8 if str(action.get("type")) == "SOCIAL_INTERACTION" else 0.0,
+            "information_change": 0.8 if str(action.get("type")) in {"EXPLORATION", "RESEARCH"} else 0.0,
+            "goal_progress": 0.7 if profile.get("effects") else 0.2,
+            "new_playable_system": 0.6 if profile.get("effects") else 0.0,
+        }
+
+    def _narrative_payoff(self, action: Mapping[str, Any], resolution: Mapping[str, Any]) -> Dict[str, Any]:
+        profile = self._action_target_profile(action)
+        outcome = str(resolution.get("outcome", ""))
+        positive = 0.0
+        effects = profile.get("effects", {}) if isinstance(profile.get("effects", {}), Mapping) else {}
+        for branch in ("success", "partial_failure"):
+            values = effects.get(branch, {}) if isinstance(effects.get(branch, {}), Mapping) else {}
+            positive += sum(max(0.0, float(value)) for value in (values.get("resource_changes", {}) or {}).values())
+        return {
+            "scarcity_pressure": float(self.state.meta.get("narrative_state", {}).get("pressure_components", {}).get("resource_scarcity", 0.0)),
+            "setup_depth": min(100.0, float(len(self.state.meta.get("active_mystery_records", []))) * 20.0),
+            "waiting_time": min(100.0, float(self.state.current_turn) * 5.0),
+            "cost_paid": min(100.0, float(resolution.get("severity", 0.0)) + (20.0 if outcome == "成功但付出代价" else 0.0)),
+            "chapter_rhythm": 50.0,
+            "relative_gain": min(100.0, positive * 10.0),
+            "restriction_removed": 50.0 if outcome in {"大成功", "普通成功"} else 0.0,
+            "behavior_change": 40.0 if profile.get("effects") else 0.0,
+            "long_term_value": 50.0 if profile.get("effects") else 0.0,
+            "social_feedback": 40.0 if str(action.get("type")) == "SOCIAL_INTERACTION" else 0.0,
+            "causal_chain": float(profile.get("causal_chain", 0.5)),
+            "rule_consistency": float(profile.get("rule_consistency", 0.5)),
+            "reward_foreshadowed": float(profile.get("risk_warning", 0.5)),
+            "new_playable_system": 60.0 if profile.get("effects") else 0.0,
+            "decision_change": 40.0 if outcome in {"大成功", "严重失败"} else 0.0,
+            "higher_resource_need": 30.0 if profile.get("effects") else 0.0,
+            "social_market_effect": 40.0 if str(action.get("type")) == "SOCIAL_INTERACTION" else 0.0,
+            "fatigue": float(self.state.player.get("fatigue", 0.0)),
+            "story_damage": 0.0,
+        }
+
     def _host_seed(self, action: Mapping[str, Any]) -> str:
         """由存档状态生成种子，主机不能覆盖。"""
         return (
@@ -137,7 +262,9 @@ class GameEngine:
             return None
         if isinstance(registry, Mapping):
             value = registry.get(identifier)
-            return value if isinstance(value, Mapping) else None
+            if isinstance(value, Mapping):
+                return value
+            return next((candidate for candidate in registry.values() if isinstance(candidate, Mapping) and candidate.get("id", candidate.get("name")) == identifier), None)
         if isinstance(registry, list):
             for value in registry:
                 if isinstance(value, Mapping) and value.get("id", value.get("name")) == identifier:
@@ -232,6 +359,10 @@ class GameEngine:
     def preview_host_action(self, action: Mapping[str, Any]) -> Dict[str, Any]:
         """预览唯一主机协议；专用行动的参数全部来自世界注册表。"""
         validate_host_action(action)
+        if str(action.get("type")) == "ACTION_PLAN":
+            return self.preview_action_plan(action)
+        if str(action.get("type")) == "TALENT_CHOICE":
+            return self.preview_talent_choice(action)
         skill = self._find_skill(action)
         costs = derive_action_costs(action, skill)
         errors = self._derived_budget_errors(action, costs)
@@ -256,6 +387,83 @@ class GameEngine:
             )
             return {"legal": not errors, "errors": errors, "resolution": result.to_dict(), "action_ledger": {"available_time_minutes": internal["available_time_minutes"], "actions": [{"type": "BATCH_ACTION", "target": action.get("target"), "time_minutes": costs["time_minutes"], "stamina_cost": costs["stamina_cost"], "mental_cost": costs["mental_cost"], "tags": list(action.get("tags", []))}]}}
         return self.preview_action(action)
+
+    @staticmethod
+    def _plan_step(step: Mapping[str, Any], plan_id: str, index: int) -> Dict[str, Any]:
+        normalized = {key: deepcopy(value) for key, value in step.items() if key in {"action_id", "type", "target", "skill_id", "risk_preference", "tags", "goal", "parameters", "requirements"}}
+        normalized["action_id"] = str(normalized.get("action_id") or f"{plan_id}-step-{index}")
+        if step.get("approach"):
+            parameters = normalized.setdefault("parameters", {})
+            if isinstance(parameters, dict):
+                parameters.setdefault("approach", step["approach"])
+        return normalized
+
+    def preview_action_plan(self, action: Mapping[str, Any]) -> Dict[str, Any]:
+        validate_host_action(action)
+        plan_id = str(action.get("plan_id"))
+        steps = [self._plan_step(step, plan_id, index) for index, step in enumerate(action.get("steps", []), start=1)]
+        available = float(self.state.meta.get("available_time_minutes", 720))
+        used_time = used_stamina = used_mental = 0.0
+        previews = []
+        errors = []
+        for step in steps:
+            preview = self.preview_host_action(step)
+            previews.append({"action": step, "preview": preview})
+            step_ledger = preview.get("action_ledger", {}).get("actions", [{}])[0]
+            used_time += float(step_ledger.get("time_minutes", 0))
+            used_stamina += float(step_ledger.get("stamina_cost", 0))
+            used_mental += float(step_ledger.get("mental_cost", 0))
+            errors.extend(f"{step['action_id']}：{error}" for error in preview.get("errors", []))
+        factors = {
+            "time_remaining": max(0.0, (available - used_time) / max(available, 1.0)),
+            "resource_compatibility": 1.0,
+            "location_proximity": 1.0 if len({str(item["action"].get("requirements", {}).get("location", "camp_core")) for item in previews}) <= 1 else 0.7,
+            "goal_compatibility": 1.0 if len({str(item["action"].get("type")) for item in previews}) == len(previews) else 0.8,
+            "npc_availability": 1.0 if not any("NPC不可用" in error for error in errors) else 0.0,
+        }
+        combinability = calculate_combinability(factors)
+        if combinability < 20:
+            errors.append("可组合度低于20，只能明确放弃部分步骤")
+        elif combinability < 50:
+            errors.append("可组合度为20-49，必须重新排序并只执行部分步骤")
+        elif combinability < 80 and not bool(action.get("accept_dilution")):
+            errors.append("可组合度为50-79，必须明确 accept_dilution=true 才能执行")
+        if used_time > available:
+            errors.append("计划总时间超过当前行动窗口")
+        if used_stamina + float(self.state.player.get("fatigue", 0)) > 100:
+            errors.append("计划总消耗超过体力")
+        if float(self.state.player.get("mental", 100)) - used_mental < 0:
+            errors.append("计划总消耗超过精神")
+        return {
+            "legal": not errors,
+            "errors": errors,
+            "plan_id": plan_id,
+            "combinability": combinability,
+            "components": factors,
+            "action_ledger": {"available_time_minutes": available, "available_stamina": max(0.0, 100.0 - float(self.state.player.get("fatigue", 0))), "available_mental": float(self.state.player.get("mental", 100)), "actions": [item["preview"].get("action_ledger", {}).get("actions", [{}])[0] for item in previews]},
+            "steps": previews,
+        }
+
+    def execute_action_plan(self, action: Mapping[str, Any], persist: bool = True) -> Dict[str, Any]:
+        preview = self.preview_action_plan(action)
+        if not preview["legal"]:
+            raise ValueError("行动计划不合法：" + "、".join(preview["errors"]))
+        before = deepcopy(self.state.data)
+        self.state.clear_pending()
+        results = []
+        try:
+            for item in preview["steps"]:
+                results.append(self.execute_host_action(item["action"], persist=False))
+            if persist:
+                self.state.commit_pending()
+                self.state.save()
+            else:
+                self.state.clear_pending()
+        except Exception:
+            self.state.data = before
+            self.state.clear_pending()
+            raise
+        return {"plan_id": preview["plan_id"], "combinability": preview["combinability"], "events": [item["event"] for item in results], "results": results, "state": self.state.data}
 
     def preview_action(self, action: Mapping[str, Any]) -> Dict[str, Any]:
         validate_host_action(action)
@@ -325,20 +533,38 @@ class GameEngine:
             "hunger_delta": 0.0,
             "resource_changes": {key: -float(value) for key, value in resource_costs.items()},
         }
+        domain_effects = self._domain_effects(action, preview["resolution"])
+        event_type = domain_effects.pop("event_type", "ACTION_RESOLVED")
+        domain_resource_changes = domain_effects.pop("resource_changes", {})
+        if isinstance(domain_resource_changes, Mapping):
+            for resource, delta in domain_resource_changes.items():
+                payload["resource_changes"][str(resource)] = (
+                    float(payload["resource_changes"].get(str(resource), 0.0))
+                    + float(delta)
+                )
+        payload.update(domain_effects)
+        payload["action"] = {key: action[key] for key in ("action_id", "type", "target") if key in action}
+        narrative_decision = self._narrative_decision(action, preview)
+        payload["runtime_metrics"] = calculate_narrative_metrics(
+            self.state.data,
+            [item["record"] for item in self.state.event_history()],
+            payoff=self._narrative_payoff(action, preview["resolution"]),
+            decision=narrative_decision,
+        )
+        payload["narrative_inputs"] = {"decision": narrative_decision, "payoff": self._narrative_payoff(action, preview["resolution"])}
         if cooldown_changes:
             payload["cooldown_changes"] = cooldown_changes
         event = standard_event(
             event_id=f"evt_{turn:04d}_001",
-            event_type="ACTION_RESOLVED",
+            event_type=event_type,
             actor="player",
             target=action.get("target"),
             data=payload,
             turn=turn,
             timestamp=timestamp,
         )
-        self.state.apply_and_append(event)
-        metrics = calculate_narrative_metrics(self.state.data, [item["record"] for item in self.state.event_history()])
-        self.state.meta["runtime_metrics"] = metrics
+        self.state.apply_and_append(event, persist=persist)
+        metrics = payload.get("runtime_metrics", {})
         self.state.meta["rng_seed"] = str(self.state.meta.get("rng_seed") or self.state.meta.get("world_name", "world"))
         if persist:
             self.state.save()
@@ -347,6 +573,10 @@ class GameEngine:
     def execute_host_action(self, action: Mapping[str, Any], persist: bool = True) -> Dict[str, Any]:
         """执行唯一允许由 LLM 主持器调用的入口。"""
         validate_host_action(action)
+        if str(action.get("type")) == "ACTION_PLAN":
+            return self.execute_action_plan(action, persist=persist)
+        if str(action.get("type")) == "TALENT_CHOICE":
+            return self.execute_talent_choice(action, persist=persist)
         skill = self._find_skill(action)
         costs = derive_action_costs(action, skill)
         errors = self._derived_budget_errors(action, costs)
@@ -372,6 +602,42 @@ class GameEngine:
             return self.execute_batch_action(self._batch_internal_action(action, area, costs), persist=persist)
         return self.execute_action(action, persist=persist)
 
+    def _talent_choice_id(self, action: Mapping[str, Any]) -> str:
+        parameters = action.get("parameters", {}) if isinstance(action.get("parameters", {}), Mapping) else {}
+        return str(action.get("target") or parameters.get("option_id") or "")
+
+    def preview_talent_choice(self, action: Mapping[str, Any]) -> Dict[str, Any]:
+        pending = self.state.player.get("pending_decision", {}) if isinstance(self.state.player.get("pending_decision", {}), Mapping) else {}
+        option_id = self._talent_choice_id(action)
+        options = pending.get("options", []) if isinstance(pending, Mapping) else []
+        selected = next((option for option in options if isinstance(option, Mapping) and str(option.get("id")) == option_id), None)
+        errors = []
+        if not pending or pending.get("type") != "TALENT_CHOICE":
+            errors.append("当前没有待处理的升级选择")
+        if selected is None:
+            errors.append("所选天赋不在 Python 生成的候选列表中")
+        return {"legal": not errors, "errors": errors, "resolution": {"options": deepcopy(options), "selected": deepcopy(selected)}, "action_ledger": {"available_time_minutes": float(self.state.meta.get("available_time_minutes", 720)), "actions": [{"type": "TALENT_CHOICE", "target": option_id, "time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "tags": ["mandatory_progression"]}]}}
+
+    def execute_talent_choice(self, action: Mapping[str, Any], persist: bool = True) -> Dict[str, Any]:
+        preview = self.preview_talent_choice(action)
+        if not preview["legal"]:
+            raise ValueError("天赋选择不合法：" + "、".join(preview["errors"]))
+        selected = preview["resolution"]["selected"]
+        turn = self.state.current_turn + 1
+        event = standard_event(
+            event_id=f"evt_{turn:04d}_001",
+            event_type="TALENT_CHOSEN",
+            actor="player",
+            target=selected.get("id"),
+            data={"action": {"action_id": action.get("action_id"), "type": "TALENT_CHOICE", "target": selected.get("id")}, "talent_choice": selected, "proposed_events": [{"type": "TALENT_CHOSEN", "target": selected.get("id")}], "time_cost": 0.0},
+            turn=turn,
+            timestamp=f"Day {self.state.meta.get('game_day', 1)} {self.state.meta.get('time_of_day', '清晨')}",
+        )
+        self.state.apply_and_append(event, persist=persist)
+        if persist:
+            self.state.save()
+        return {"event": event, "resolution": preview["resolution"], "state": self.state.data}
+
     def execute_combat(self, defender: Mapping[str, Any], weapon: Optional[Mapping[str, Any]] = None, skill: Optional[Mapping[str, Any]] = None, environment: Optional[Mapping[str, Any]] = None, seed: str = "", persist: bool = True) -> Dict[str, Any]:
         weapon = weapon or self._combat_weapon()
         if skill:
@@ -395,11 +661,32 @@ class GameEngine:
         if "ammo_available" in weapon and not weapon.get("_ammo_from_resource"):
             equipment_updates["main_weapon"] = {"ammo_available": max(0.0, float(weapon.get("ammo_available", 0)) - resolution.ammo_consumed)}
         cooldown_changes = {skill.get("id", "skill"): int(skill.get("cooldown", 0))} if skill else {}
+        target_id = defender.get("id", defender.get("name"))
+        target_hp_before = max(1.0, number_for_runtime(defender.get("hp", number_for_runtime(defender.get("constitution", 3)) * 10.0)))
+        target_hp_after = max(0.0, target_hp_before - float(resolution.damage))
+        target_died = target_hp_after <= 0
+        player_hp_before = number_for_runtime(self.state.player.get("hp", self.state.player.get("max_hp", 50)))
+        incoming_damage = 0.0 if target_died else float(resolution.incoming_damage)
+        player_hp_after = max(0.0, player_hp_before - incoming_damage)
+        player_died = player_hp_after <= 0
+        target_deltas = {str(target_id): {"hp": -float(resolution.damage)}} if target_id is not None and resolution.damage else {}
+        experience_gain = 0.0
+        if target_died:
+            experience_gain = calculate_experience(int(self.state.player.get("level", 1)), int(number_for_runtime(defender.get("level", 1))), str(defender.get("quality", "普通")))
+            for resource, quantity in (defender.get("drops", {}) or {}).items():
+                resource_changes[str(resource)] = resource_changes.get(str(resource), 0.0) + float(quantity)
+        proposed_events = [{"type": "DAMAGE_DEALT", "target": target_id, "quantity": resolution.damage}]
+        if incoming_damage:
+            proposed_events.append({"type": "DAMAGE_RECEIVED", "target": "player", "quantity": incoming_damage})
+        if target_died:
+            proposed_events.extend([{"type": "CHARACTER_DIED", "target": target_id}, {"type": "COMBAT_ENDED", "target": target_id}, {"type": "LOOT_GENERATED", "target": target_id}])
+        if player_died:
+            proposed_events.append({"type": "CHARACTER_DIED", "target": "player"})
         event = standard_event(
             event_id=f"evt_{turn:04d}_001",
             event_type="COMBAT_RESOLVED",
             actor="player",
-            target=defender.get("id", defender.get("name")),
+            target=target_id,
             data={
                 "resolution": resolution.to_dict(),
                 "action_ledger": {"available_time_minutes": (environment or {}).get("available_time_minutes", 30), "available_stamina": max(0.0, 100.0 - float(self.state.player.get("fatigue", 0))), "available_mental": float(self.state.player.get("mental", 100)), "actions": [{"type": "COMBAT", "target": defender.get("id", defender.get("name")), "time_minutes": (environment or {}).get("time_minutes", 30), "stamina_cost": stamina_cost, "mental_cost": mental_cost, "tags": ["combat"]}]},
@@ -409,13 +696,20 @@ class GameEngine:
                 "resource_changes": resource_changes,
                 "equipment_durability": {"main_weapon": resolution.weapon_durability_after} if resolution.weapon_durability_after is not None else {},
                 "equipment_updates": equipment_updates,
+                "target_deltas": target_deltas,
+                "target_died": target_died,
+                "player_died": player_died,
+                "player_delta": {"hp": -incoming_damage},
+                "experience_gain": experience_gain,
+                "proposed_events": proposed_events,
+                "combat_instance": {"id": f"combat_{turn:04d}", "participants": ["player", target_id], "round": 1, "status": "ended" if target_died or player_died else "active", "escape_allowed": True},
             },
             turn=turn,
             timestamp=f"Day {self.state.meta.get('game_day', 1)} {self.state.meta.get('time_of_day', '清晨')}",
         )
         if cooldown_changes:
             event["data"]["cooldown_changes"] = cooldown_changes
-        self.state.apply_and_append(event)
+        self.state.apply_and_append(event, persist=persist)
         if persist:
             self.state.save()
         return {"event": event, "resolution": resolution.to_dict(), "state": self.state.data}
@@ -440,6 +734,20 @@ class GameEngine:
         ammo_resource = action.get("ammo_resource")
         if ammo_resource:
             resource_changes[ammo_resource] = resource_changes.get(ammo_resource, 0) - result.ammo_consumed
+        equipment_durability = {}
+        main_weapon = self.state.inventory.get("equipment", {}).get("main_weapon") if isinstance(self.state.inventory.get("equipment", {}), Mapping) else None
+        if isinstance(main_weapon, Mapping) and main_weapon.get("durability") is not None:
+            equipment_durability["main_weapon"] = max(0.0, float(main_weapon.get("durability", 0)) - float(result.durability_cost))
+        proposed_events = [{"type": "BATCH_KILLS", "target": action.get("target"), "quantity": result.total_kills}]
+        proposed_events.extend({"type": "BATCH_INTERRUPTED", "target": action.get("target"), "reason": reason} for reason in result.interruption_reasons)
+        area = action.get("area", {}) if isinstance(action.get("area", {}), Mapping) else {}
+        area_deltas = {
+            str(action.get("target")): {
+                "monster_population": -result.total_kills,
+                "alertness": float(result.components.get("alertness_after", area.get("alertness", 0.0))) - float(area.get("alertness", 0.0)),
+                "monster_adaptation": float(result.components.get("monster_adaptation_after", area.get("monster_adaptation", 0.0))) - float(area.get("monster_adaptation", 0.0)),
+            }
+        } if action.get("target") else {}
         event = standard_event(
             event_id=f"evt_{turn:04d}_001",
             event_type="BATCH_ACTION_RESOLVED",
@@ -451,13 +759,16 @@ class GameEngine:
                 "resource_changes": resource_changes,
                 "fatigue_delta": action.get("stamina_cost", 0),
                 "mental_delta": -float(action.get("mental_cost", 0)),
-                "time_cost": float(action.get("minutes", 0)),
+                "time_cost": float(result.components.get("effective_action_time_hours", 0.0)) * 60.0,
                 "experience_gain": result.total_experience,
+                "equipment_durability": equipment_durability,
+                "area_deltas": area_deltas,
+                "proposed_events": proposed_events,
             },
             turn=turn,
             timestamp=f"Day {self.state.meta.get('game_day', 1)} {self.state.meta.get('time_of_day', '清晨')}",
         )
-        self.state.apply_and_append(event)
+        self.state.apply_and_append(event, persist=persist)
         if persist:
             self.state.save()
         return {"event": event, "resolution": result.to_dict(), "state": self.state.data}
@@ -474,11 +785,11 @@ class GameEngine:
             event_type="BUILDING_BUILT",
             actor="player",
             target=module.get("id", module.get("name")),
-            data={"resolution": result, "action_ledger": {"available_time_minutes": available_minutes, "available_stamina": max(0.0, 100.0 - float(self.state.player.get("fatigue", 0))), "available_mental": float(self.state.player.get("mental", 100)), "actions": [{"type": "BUILD", "target": module.get("id", module.get("name")), "time_minutes": result["time_required"], "stamina_cost": stamina_cost, "mental_cost": mental_cost, "tags": ["requires_full_attention"]}]}, "resource_changes": result["resource_changes"], "fatigue_delta": stamina_cost, "mental_delta": -mental_cost, "time_cost": float(result["time_required"]), "base_space_delta": result["space_cost"], "base_module": dict(module)},
+            data={"resolution": result, "action": {"action_id": module.get("id", module.get("name")), "type": "BUILD", "target": module.get("id", module.get("name"))}, "action_ledger": {"available_time_minutes": available_minutes, "available_stamina": max(0.0, 100.0 - float(self.state.player.get("fatigue", 0))), "available_mental": float(self.state.player.get("mental", 100)), "actions": [{"type": "BUILD", "target": module.get("id", module.get("name")), "time_minutes": result["time_required"], "stamina_cost": stamina_cost, "mental_cost": mental_cost, "tags": ["requires_full_attention"]}]}, "resource_changes": result["resource_changes"], "fatigue_delta": stamina_cost, "mental_delta": -mental_cost, "time_cost": float(result["time_required"]), "base_space_delta": result["space_cost"], "base_module": dict(module), "proposed_events": [{"type": "BASE_UPGRADED", "target": module.get("id", module.get("name"))}]},
             turn=turn,
             timestamp=f"Day {self.state.meta.get('game_day', 1)} {self.state.meta.get('time_of_day', '清晨')}",
         )
-        self.state.apply_and_append(event)
+        self.state.apply_and_append(event, persist=persist)
         if persist:
             self.state.save()
         return {"event": event, "resolution": result, "state": self.state.data}
@@ -491,12 +802,11 @@ class GameEngine:
             event_type="BASE_MAINTENANCE",
             actor="system",
             target="base",
-            data={"resolution": result, "resource_changes": result["resource_changes"], "base_durability_delta": result["durability_delta"], "days": days},
+            data={"resolution": result, "resource_changes": result["resource_changes"], "base_durability_delta": result["durability_delta"], "days": days, "time_cost": float(max(0.0, days)) * 720.0},
             turn=turn,
             timestamp=f"Day {self.state.meta.get('game_day', 1)} {self.state.meta.get('time_of_day', '清晨')}",
         )
-        self.state.apply_and_append(event)
-        self.state.meta["game_day"] = int(self.state.meta.get("game_day", 1)) + int(max(0, days))
+        self.state.apply_and_append(event, persist=persist)
         if persist:
             self.state.save()
         return {"event": event, "resolution": result, "state": self.state.data}

@@ -28,7 +28,8 @@ ENGINE_ONLY_FIELDS = {
 
 ALLOWED_ACTION_FIELDS = {
     "action_id", "type", "target", "primary_attribute", "skill_id", "requirements",
-    "risk_preference", "tags", "goal", "parameters", "stop_conditions",
+    "risk_preference", "tags", "goal", "approach", "parameters", "stop_conditions", "plan_id",
+    "steps", "priority_order", "accept_dilution",
 }
 
 NESTED_INTENT_FIELDS = {
@@ -36,6 +37,8 @@ NESTED_INTENT_FIELDS = {
     "parameters": {"approach", "relationship_intent", "message", "order", "objective"},
     "stop_conditions": {"ammo_below", "risk_above", "environment_change"},
 }
+
+ACTION_PLAN_FIELDS = {"action_id", "type", "target", "skill_id", "risk_preference", "tags", "goal", "approach", "parameters", "requirements"}
 
 ACTION_PROFILES = {
     "SHORT_ACTION": {"time_minutes": 30.0, "stamina_cost": 2.0, "mental_cost": 4.0, "target_difficulty": 10.0},
@@ -47,6 +50,8 @@ ACTION_PROFILES = {
     "BUILD": {"time_minutes": 120.0, "stamina_cost": 20.0, "mental_cost": 5.0, "target_difficulty": 20.0},
     "RESEARCH": {"time_minutes": 120.0, "stamina_cost": 5.0, "mental_cost": 20.0, "target_difficulty": 25.0},
     "REST": {"time_minutes": 360.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
+    "TALENT_CHOICE": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
+    "ACTION_PLAN": {"time_minutes": 0.0, "stamina_cost": 0.0, "mental_cost": 0.0, "target_difficulty": 0.0},
 }
 
 
@@ -79,12 +84,31 @@ def validate_host_action(action: Mapping[str, Any]) -> None:
         errors.append("不允许或未知字段：" + ", ".join(unknown))
     if forbidden:
         errors.append("LLM不得提交引擎字段：" + ", ".join(forbidden))
+    action_type = str(action.get("type", ""))
     for field, allowed_fields in NESTED_INTENT_FIELDS.items():
         nested = action.get(field)
         if isinstance(nested, Mapping):
             nested_unknown = sorted(set(nested) - allowed_fields)
             if nested_unknown:
                 errors.append(f"{field} 含不允许字段：" + ", ".join(nested_unknown))
+    if action_type == "ACTION_PLAN":
+        steps = action.get("steps")
+        if not isinstance(steps, list) or not steps:
+            errors.append("ACTION_PLAN 必须包含非空 steps")
+        else:
+            for index, step in enumerate(steps):
+                if not isinstance(step, Mapping):
+                    errors.append(f"steps[{index}] 必须是对象")
+                    continue
+                unknown_step = sorted(set(step) - ACTION_PLAN_FIELDS)
+                if unknown_step:
+                    errors.append(f"steps[{index}] 含不允许字段：" + ", ".join(unknown_step))
+                if str(step.get("type", "")) not in set(ACTION_PROFILES) - {"ACTION_PLAN"}:
+                    errors.append(f"steps[{index}].type 不是有效行动类型")
+        if not str(action.get("plan_id", "")).strip():
+            errors.append("ACTION_PLAN 缺少 plan_id")
+    elif action.get("steps") is not None:
+        errors.append("只有 ACTION_PLAN 才能提交 steps")
     requirements = action.get("requirements")
     if isinstance(requirements, Mapping) and isinstance(requirements.get("items"), list):
         for index, item in enumerate(requirements["items"]):
@@ -92,7 +116,6 @@ def validate_host_action(action: Mapping[str, Any]) -> None:
                 item_unknown = sorted(set(item) - {"id", "name", "quantity"})
                 if item_unknown:
                     errors.append(f"requirements.items[{index}] 含不允许字段：" + ", ".join(item_unknown))
-    action_type = str(action.get("type", ""))
     if action_type not in ACTION_PROFILES:
         errors.append("type 必须是：" + ", ".join(sorted(ACTION_PROFILES)))
     if not str(action.get("action_id", "")).strip():

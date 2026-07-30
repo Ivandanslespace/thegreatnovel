@@ -1,5 +1,6 @@
 # 游戏运行中的本地存档，不上传玩家世界状态
 saves/
+*.sqlite3
 
 # Python运行缓存
 __pycache__/

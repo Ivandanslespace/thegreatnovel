@@ -92,6 +92,8 @@ class CombatResolution:
     status_effects: List[Dict[str, Any]]
     death_risk: float
     components: Dict[str, Any] = field(default_factory=dict)
+    incoming_damage: float = 0.0
+    counterattack_hit: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -111,6 +113,8 @@ class CombatResolution:
             "weapon_durability_after": self.weapon_durability_after,
             "status_effects": self.status_effects,
             "death_risk": self.death_risk,
+            "incoming_damage": self.incoming_damage,
+            "counterattack_hit": self.counterattack_hit,
             "components": self.components,
         }
 

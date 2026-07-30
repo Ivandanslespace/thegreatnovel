@@ -4,14 +4,22 @@
 
 LLM 主持器必须遵守 [host_protocol.md](host_protocol.md)。`tools/run_action.py` 是唯一的
 主机行动入口；不要让 LLM 直接调用 `execute_action`、`execute_combat` 等内部方法或直接写存档。
+`campaign.sqlite3` 是事件源，YAML、Markdown 和小说文件是可读投影。
 
 ## 运行一次行动
 
 ```powershell
-python tools/run_action.py <存档目录> --action-json '{"action_id":"scout","type":"EXPLORATION","target":"区域名","primary_attribute":"agility","risk_preference":"谨慎"}' --player-input '我去侦察。' --gm-response-file response.md
+python tools/run_action.py <存档目录> --action-json '{"action_id":"scout","type":"EXPLORATION","target":"区域名","risk_preference":"谨慎"}' --player-input '我去侦察。' --gm-response-file response.md
 ```
 
 加 `--dry-run` 只预览，不写入 YAML 和 `event_log.md`。
+
+组合行动使用 `ACTION_PLAN`；Python会先计算可组合度，再在一次 SQLite 事务中提交所有步骤。
+
+```powershell
+python tools/replay_campaign.py <存档目录>
+python tools/verify_projection.py <存档目录>
+```
 
 执行成功后还会自动追加：
 
@@ -30,6 +38,8 @@ python tools/run_action.py <存档目录> --action-json '{"action_id":"scout","t
 - Python 生成 `data.resolution`、`data.action_ledger` 和状态增量。
 - 事件账本是唯一可追溯的结算记录；小说文本不能覆盖公式结果。
 - LLM 负责解析玩家意图、选择需要展示的选项和把已确定结果写成小说。
+- `EXPLORATION`、`RESEARCH`、`SOCIAL_INTERACTION`、`REST` 会生成正式领域效果事件。
+- `ACTION_PLAN` 由 `GameEngine.execute_host_action` 预览并原子提交。
 - `COMBAT`、`BUILD`、`BATCH_ACTION` 会由 `GameEngine.execute_host_action` 路由到专用结算器，
   数据来自世界注册表和当前状态，不来自 LLM 的数值参数。
 
@@ -40,7 +50,6 @@ python tools/run_action.py <存档目录> --action-json '{"action_id":"scout","t
   "action_id": "scout",
   "type": "EXPLORATION",
   "target": "区域名",
-  "primary_attribute": "agility",
   "risk_preference": "谨慎",
   "requirements": {}
 }
