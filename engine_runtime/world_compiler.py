@@ -209,8 +209,8 @@ def compile_world_bundle(
         }
     starting_inventory = {
         "resources": {**{resource_id: 2 for resource_id in resources}, "wood": 5, "ammo": 8},
-        "equipment": {"main_weapon": {"id": "starter_weapon", "name": "初始武器", "attack": 18, "accuracy": 8, "ammo_resource": "ammo", "ammo_cost": 1, "durability": 12, "attack_type": "ranged"}},
-        "items": [{"id": "field_kit", "name": "野外工具包", "quantity": 1}],
+        "equipment": {"main_weapon": {"id": "starter_weapon", "name": "初始武器", "rarity": "G", "attack": 18, "accuracy": 8, "ammo_resource": "ammo", "ammo_cost": 1, "durability": 12, "attack_type": "ranged"}},
+        "items": [{"id": "field_kit", "name": "野外工具包", "rarity": "G", "quantity": 1}],
     }
     starting_npc = {
         "id": npc_id,

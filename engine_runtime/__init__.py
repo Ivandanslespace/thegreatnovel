@@ -23,6 +23,7 @@ from .calculators import (
 )
 from .runtime import GameEngine, load_game_state
 from .narrative_log import record_narrative_turn
+from .ratings import RATING_SCALE, normalize_rating, shift_rating
 
 __all__ = [
     "FORMULA_VERSION",
@@ -46,5 +47,8 @@ __all__ = [
     "load_game_state",
     "resolve_action",
     "record_narrative_turn",
+    "RATING_SCALE",
+    "normalize_rating",
+    "shift_rating",
     "simulate_batch_action",
 ]

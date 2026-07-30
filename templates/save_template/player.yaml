@@ -29,7 +29,7 @@ player:
   talents: []                 # 已获得天赋列表
   # - name: ""
   #   type: ""
-  #   rarity: ""
+  #   rarity: G/F/E/D/C/B/A/S/SS/SSS
   #   effect: ""
   #   obtained_turn: 0
 

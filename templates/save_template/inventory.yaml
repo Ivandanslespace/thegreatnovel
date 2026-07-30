@@ -16,7 +16,7 @@ inventory:
   # - id: ""
   #   name: ""
   #   category: weapon/armor/consumable/resource/material/key/special
-  #   rarity: white/green/blue/purple/yellow
+  #   rarity: G/F/E/D/C/B/A/S/SS/SSS
   #   quantity: 1
   #   durability: null        # 装备类
   #   properties: []

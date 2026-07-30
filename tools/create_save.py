@@ -38,6 +38,7 @@ except ModuleNotFoundError:  # 支持从项目根目录 import tools.create_save
     from tools.validate_save import run_validation
 
 from engine_runtime.world_compiler import COMPILER_VERSION, compile_world_bundle
+from engine_runtime.ratings import normalize_rating
 from engine_runtime.state import load_game_state
 
 
@@ -492,6 +493,7 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
     for field in ("description", "type", "trigger", "effect", "limitations"):
         talent_was_incomplete = talent_was_incomplete or not str(talent.get(field) or "").strip()
         talent[field] = str(talent.get(field) or generated_talent[field]).strip()
+    talent["rarity"] = normalize_rating(talent.get("rarity"), default="A")
     if talent_was_incomplete:
         auto_generated_fields.append("player_talent")
 
@@ -571,7 +573,7 @@ def build_files(template_dir, world, talent):
             "fatigue": 0,
             "mental": 100,
             "max_mental": 100,
-            "talents": [{**talent, "rarity": "custom", "obtained_turn": 1}],
+            "talents": [{**talent, "obtained_turn": 1}],
             "skills": [],
             "class": None,
             "second_class": None,

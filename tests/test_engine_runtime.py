@@ -22,6 +22,7 @@ from engine_runtime.events import apply_event, parse_events, standard_event
 from engine_runtime.narrative_log import record_narrative_turn
 from engine_runtime.persistence import SQLiteEventStore
 from engine_runtime.protocol import ProtocolError, derive_action_costs, validate_host_action
+from engine_runtime.ratings import RATING_SCALE, normalize_rating, shift_rating
 from engine_runtime.runtime import GameEngine
 from engine_runtime.state import GameState, load_game_state
 from tools.create_save import answers_to_package, build_files, generate_world_mechanics, normalize_package
@@ -42,6 +43,14 @@ def minimal_state(meta=None, world=None, player=None, inventory=None, npcs=None,
 
 
 class FormulaTests(unittest.TestCase):
+    def test_talent_and_equipment_use_letter_ratings(self):
+        self.assertEqual(RATING_SCALE, ("G", "F", "E", "D", "C", "B", "A", "S", "SS", "SSS"))
+        self.assertEqual(normalize_rating("a"), "A")
+        self.assertEqual(normalize_rating("颜色", default="B"), "B")
+        self.assertEqual(shift_rating("A", 1), "S")
+        self.assertEqual(shift_rating("SSS", 1), "SSS")
+        self.assertEqual(shift_rating("G", -1), "G")
+
     def test_host_protocol_rejects_engine_values(self):
         validate_host_action({"action_id": "scout", "type": "EXPLORATION", "primary_attribute": "agility"})
         self.assertEqual(derive_action_costs({"action_id": "scout", "type": "EXPLORATION"})["time_minutes"], 120.0)
@@ -101,6 +110,7 @@ class FormulaTests(unittest.TestCase):
         self.assertTrue(updated["talent_choice_required"])
         self.assertEqual(updated["pending_decision"]["type"], "TALENT_CHOICE")
         self.assertEqual(len(updated["pending_decision"]["options"]), 3)
+        self.assertTrue(all(option["rarity"] == "B" for option in updated["pending_decision"]["options"]))
 
     def test_macro_economy_and_resource_pressure(self):
         farmability = calculate_farmability({"combat_advantage": 90, "enemy_information": 90, "kill_stability": 90, "sustainability": 90, "route_familiarity": 90, "extraction_ability": 90, "unknown_danger_penalty": 0})
@@ -139,6 +149,8 @@ class FormulaTests(unittest.TestCase):
         self.assertEqual(world["setting"]["disaster_type"], "白夜风暴")
         self.assertEqual([item["name"] for item in world["resources"]["primary"]], ["煤炭", "食物", "寒晶"])
         self.assertEqual(talent["name"], "寒潮预兆")
+        self.assertEqual(talent["rarity"], "A")
+        self.assertEqual(world["generation_bundle"]["starting_inventory"]["equipment"]["main_weapon"]["rarity"], "G")
         self.assertEqual(world["generation"]["theme_profile"], "永夜冰川")
         self.assertEqual(world["generation_bundle"]["compiler_version"], "1.1")
         self.assertTrue(world["generation_bundle"]["locations"][1]["extraction_rule"]["requires_discovered_location"])

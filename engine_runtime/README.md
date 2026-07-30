@@ -39,6 +39,7 @@ python tools/verify_projection.py <存档目录>
 - 事件账本是唯一可追溯的结算记录；小说文本不能覆盖公式结果。
 - LLM 负责解析玩家意图、选择需要展示的选项和把已确定结果写成小说。
 - `EXPLORATION`、`RESEARCH`、`SOCIAL_INTERACTION`、`REST` 会生成正式领域效果事件。
+- 天赋与装备的 `rarity` 统一使用 `G/F/E/D/C/B/A/S/SS/SSS`；怪物的普通/精英/首领品质仍是独立的经验计算维度。
 - `ACTION_PLAN` 由 `GameEngine.execute_host_action` 预览并原子提交。
 - `COMBAT`、`BUILD`、`BATCH_ACTION` 会由 `GameEngine.execute_host_action` 路由到专用结算器，
   数据来自世界注册表和当前状态，不来自 LLM 的数值参数。

@@ -28,6 +28,8 @@ except ImportError:
     print("需要 PyYAML: pip install pyyaml")
     sys.exit(1)
 
+from engine_runtime.ratings import RATING_INDEX
+
 
 # ─── 工具函数 ───────────────────────────────────────────────
 
@@ -211,7 +213,7 @@ def validate_world_package(save_dir, data):
     if not disaster.get("first_event"):
         findings.append(Finding("ERROR", "规则", "world.rules.disaster.first_event 不能为空"))
 
-    talent_fields = ("name", "description", "type", "trigger", "effect", "limitations")
+    talent_fields = ("name", "description", "type", "trigger", "effect", "limitations", "rarity")
     if not isinstance(talent, dict):
         findings.append(Finding("CRITICAL", "规则", "world.yaml 缺少 player_talent 对象"))
     else:
@@ -221,6 +223,23 @@ def validate_world_package(save_dir, data):
                 "CRITICAL", "规则",
                 f"player_talent 缺少字段：{', '.join(missing_talent)}"
             ))
+        elif talent.get("rarity") not in RATING_INDEX:
+            findings.append(Finding("ERROR", "规则", "player_talent.rarity 必须是 G/F/E/D/C/B/A/S/SS/SSS"))
+
+    player = data.get("player", {}) if isinstance(data.get("player", {}), dict) else {}
+    talent_list = player.get("talents", []) if isinstance(player.get("talents", []), list) else []
+    for index, item in enumerate(talent_list):
+        if isinstance(item, dict) and item.get("rarity") not in RATING_INDEX:
+            findings.append(Finding("ERROR", "规则", f"player.talents[{index}].rarity 必须是 G/F/E/D/C/B/A/S/SS/SSS"))
+    inventory = data.get("inventory", {}) if isinstance(data.get("inventory", {}), dict) else {}
+    equipment = inventory.get("equipment", {}) if isinstance(inventory.get("equipment", {}), dict) else {}
+    for slot, item in equipment.items():
+        if isinstance(item, dict) and item.get("rarity") not in RATING_INDEX:
+            findings.append(Finding("ERROR", "规则", f"inventory.equipment.{slot}.rarity 必须是 G/F/E/D/C/B/A/S/SS/SSS"))
+    items = inventory.get("items", []) if isinstance(inventory.get("items", []), list) else []
+    for index, item in enumerate(items):
+        if isinstance(item, dict) and item.get("rarity") not in RATING_INDEX:
+            findings.append(Finding("ERROR", "规则", f"inventory.items[{index}].rarity 必须是 G/F/E/D/C/B/A/S/SS/SSS"))
 
     generation = world.get("generation", {}) if isinstance(world.get("generation", {}), dict) else {}
     if generation.get("mechanics_source") == "theme_profile":
