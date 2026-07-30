@@ -1,8 +1,8 @@
 # 世界创建模板
-# GM根据玩家10问回答填入此模板，生成 world.yaml
+# 玩家只提供主题、难度、叙述长度和语言；其余运行机制由主题档案自动生成。
 
 world:
-  name: ""                    # 世界名称（玩家定义）
+  name: ""                    # 世界名称（默认由主题生成，可由高级入口覆盖）
   theme: ""                   # 主题描述
   narrative_style: ""         # 叙述风格（冷酷/幽默/史诗/日常）
   difficulty: ""              # 休闲/标准/硬核
@@ -11,15 +11,15 @@ world:
 
   # 核心设定
   setting:
-    safe_base: ""             # 安全基地是什么
-    external_dangers: []      # 外部主要危险（列表）
-    exploration_method: ""    # 探索方式
-    disaster_cycle: ""        # 灾难周期
-    disaster_type: ""         # 灾难类型
+    safe_base: ""             # 由主题档案生成
+    external_dangers: []      # 由主题档案生成
+    exploration_method: ""    # 由主题档案生成
+    disaster_cycle: ""        # 由主题档案生成
+    disaster_type: ""         # 由主题档案生成
 
   # 资源体系
   resources:
-    primary: []               # 基础资源（3-5种）
+    primary: []               # 由主题档案生成，3-5种
     secondary: []             # 中级资源
     rare: []                  # 稀有资源
     currency: ""              # 通用货币/交易媒介
@@ -47,6 +47,12 @@ world:
       player_level: true
       base_level: true
       talent_per_level: true  # 每级三选一
+
+  # 世界创建审计元数据（由 tools/create_save.py 写入）
+  generation:
+    mechanics_source: "theme_profile"
+    theme_profile: ""
+    generated_fields: []
 
   # 怪物生态
   monsters:

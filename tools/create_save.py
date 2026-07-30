@@ -15,6 +15,7 @@ answers.yaml 可以是 world.yaml 形状的文件：
 import argparse
 import copy
 import json
+import random
 import re
 import shutil
 import sys
@@ -27,27 +28,231 @@ except ImportError:
     print("需要 PyYAML: pip install pyyaml")
     sys.exit(1)
 
-from validate_save import run_validation
+try:
+    from validate_save import run_validation
+except ModuleNotFoundError:  # 支持从项目根目录 import tools.create_save
+    from tools.validate_save import run_validation
 
 
 DIFFICULTIES = {"休闲", "标准", "硬核"}
 DEATH_MODES = {"permanent", "checkpoint", "legacy"}
 REQUIRED_QUESTIONS = (
-    ("theme", "世界主题", "永夜冰川"),
-    ("safe_base", "玩家的安全基地", "不断行驶的雪地列车"),
-    ("external_dangers", "外部主要危险（用逗号分隔）", "冰尸、极寒、燃料不足"),
-    ("primary_resources", "最重要的基础资源（3-5种，用逗号分隔）", "煤炭、食物、寒晶"),
-    ("talent", "主角的特殊天赋名称", "预兆回响"),
-    ("exploration_method", "玩家通过什么方式探索", "列车停车时下车搜索"),
-    ("disaster_cycle", "每隔多久发生一次大型灾难", "每七天一次白夜风暴"),
-    ("difficulty", "游戏残酷程度（休闲/标准/硬核）", "标准"),
-    ("narrative_length", "每段叙述长度（1-10）", "7"),
-    ("language", "游戏语言（留空为中文）", "中文"),
+    ("theme", "世界主题", "永夜冰川 / 巨兽背部 / 废土列车 / 深渊裂隙；也可自定义"),
+    ("difficulty", "游戏残酷程度", "1=休闲，2=标准，3=硬核永久死亡"),
+    ("narrative_length", "每段叙述长度（1-10）", "1=极短，5=中等，7=标准，10=极长"),
+    ("language", "游戏语言", "1=中文，2=English，3=日本語；留空为中文"),
 )
+
+
+# 世界运行机制不是让玩家凭空填写的问卷答案，而是由主题映射得到。
+# 每个主题档案都必须同时给出基地、危险、资源、天赋、探索方式和灾难周期，
+# 这样同一主题在交互式创建和 YAML 创建中会得到同一套初始逻辑。
+WORLD_MECHANIC_PROFILES = (
+    {
+        "id": "永夜冰川",
+        "keywords": ("永夜", "冰川", "极寒", "冰雪", "雪原", "冻土"),
+        "zh": {
+            "safe_base": "霜轨列车",
+            "external_dangers": ["冰尸", "极寒", "燃料枯竭"],
+            "primary_resources": ["煤炭", "食物", "寒晶"],
+            "exploration_method": "列车停车后的安全窗口内下车搜索",
+            "disaster_cycle": "每七天一次白夜风暴",
+            "disaster_type": "白夜风暴",
+            "talent": {
+                "name": "寒潮预兆",
+                "description": "能够在短时间内感知附近极寒灾变的先兆。",
+                "type": "信息类",
+                "trigger": "进入新的冰雪区域或灾难倒计时进入预警期时",
+                "effect": "提前获得有限的环境危险提示",
+                "limitations": "提示不完整，且受疲劳与精神状态影响",
+            },
+        },
+        "en": {
+            "safe_base": "Frostrail Train",
+            "external_dangers": ["Ice Dead", "Extreme Cold", "Fuel Depletion"],
+            "primary_resources": ["Coal", "Food", "Cryo Crystals"],
+            "exploration_method": "Search outside the train during a safe stopping window",
+            "disaster_cycle": "A White-Night Storm every seven days",
+            "disaster_type": "White-Night Storm",
+            "talent": {
+                "name": "Coldfront Premonition",
+                "description": "Senses early signs of nearby cold-related disasters.",
+                "type": "Information",
+                "trigger": "Entering a new icy region or reaching a disaster warning window",
+                "effect": "Provides limited advance warnings about environmental hazards.",
+                "limitations": "Warnings are incomplete and affected by fatigue and mental state.",
+            },
+        },
+    },
+    {
+        "id": "巨兽背部",
+        "keywords": ("巨兽", "背部", "兽背", "巨兽背"),
+        "zh": {
+            "safe_base": "巨兽背部的移动营地",
+            "external_dangers": ["巨兽翻身", "寄生兽群", "食物短缺"],
+            "primary_resources": ["肉干", "骨材", "生命晶核"],
+            "exploration_method": "沿巨兽背部的索具和脊骨向未知区域搜索",
+            "disaster_cycle": "每五天一次巨兽迁徙暴动",
+            "disaster_type": "巨兽迁徙暴动",
+            "talent": {
+                "name": "脊动感知",
+                "description": "能够从脚下震动判断巨兽的情绪和即将发生的动作。",
+                "type": "信息类",
+                "trigger": "站在巨兽背部或其延伸结构上时",
+                "effect": "提前发现部分翻身、冲撞和迁徙征兆",
+                "limitations": "无法读取巨兽的完整意图，且在战斗中容易被噪声干扰",
+            },
+        },
+        "en": {
+            "safe_base": "A Moving Camp on the Behemoth's Back",
+            "external_dangers": ["Behemoth Rolls", "Parasite Swarms", "Food Shortage"],
+            "primary_resources": ["Dried Meat", "Bone Material", "Vital Cores"],
+            "exploration_method": "Search unknown regions along the behemoth's rigging and spine",
+            "disaster_cycle": "A Migration Rampage every five days",
+            "disaster_type": "Migration Rampage",
+            "talent": {
+                "name": "Spine Sense",
+                "description": "Reads the behemoth's mood and imminent movements through vibrations.",
+                "type": "Information",
+                "trigger": "Standing on the behemoth's back or its extensions",
+                "effect": "Detects some early signs of rolls, impacts, and migrations.",
+                "limitations": "Cannot read the behemoth's full intent and is disrupted by combat noise.",
+            },
+        },
+    },
+    {
+        "id": "废土列车",
+        "keywords": ("废土", "末日", "荒原", "列车", "辐射"),
+        "zh": {
+            "safe_base": "不断行驶的废土列车",
+            "external_dangers": ["掠夺者", "辐射尘暴", "燃料不足"],
+            "primary_resources": ["燃油", "净水", "废旧金属"],
+            "exploration_method": "列车停靠时下车搜索并在发车前撤离",
+            "disaster_cycle": "每六天一次辐射尘暴",
+            "disaster_type": "辐射尘暴",
+            "talent": {
+                "name": "危险预兆",
+                "description": "能够从微弱的声音、气味和光线变化中识别附近危险。",
+                "type": "信息类",
+                "trigger": "进入未侦察的废土地点时",
+                "effect": "获得一次关于主要威胁方向的有限提示",
+                "limitations": "提示不能直接揭示敌人数量、战力或完整伏击方案",
+            },
+        },
+        "en": {
+            "safe_base": "The Ever-Moving Wasteland Train",
+            "external_dangers": ["Raiders", "Radiation Duststorms", "Fuel Shortage"],
+            "primary_resources": ["Fuel", "Purified Water", "Scrap Metal"],
+            "exploration_method": "Search during train stops and retreat before departure",
+            "disaster_cycle": "A Radiation Duststorm every six days",
+            "disaster_type": "Radiation Duststorm",
+            "talent": {
+                "name": "Danger Premonition",
+                "description": "Recognizes nearby danger through subtle changes in sound, smell, and light.",
+                "type": "Information",
+                "trigger": "Entering an unscouted wasteland location",
+                "effect": "Provides one limited hint about the direction of the main threat.",
+                "limitations": "Cannot reveal enemy count, strength, or the full ambush plan.",
+            },
+        },
+    },
+    {
+        "id": "深渊裂隙",
+        "keywords": ("深渊", "裂隙", "地底", "虚空", "深层"),
+        "zh": {
+            "safe_base": "裂隙边缘的升降基地",
+            "external_dangers": ["裂隙潮汐", "深渊生物", "精神污染"],
+            "primary_resources": ["稳定晶核", "净化药剂", "锚定材料"],
+            "exploration_method": "通过升降平台进入裂隙层并沿锚点推进",
+            "disaster_cycle": "每三天一次裂隙潮汐",
+            "disaster_type": "裂隙潮汐",
+            "talent": {
+                "name": "裂隙回声",
+                "description": "能够听见裂隙中即将发生的局部变化。",
+                "type": "信息类",
+                "trigger": "靠近新的裂隙层或不稳定锚点时",
+                "effect": "获得关于空间变化或精神污染的预警",
+                "limitations": "回声可能混入旧事件，必须结合现场证据判断",
+            },
+        },
+        "en": {
+            "safe_base": "The Lift Base at the Rift's Edge",
+            "external_dangers": ["Rift Tides", "Abyssal Creatures", "Mental Contamination"],
+            "primary_resources": ["Stable Cores", "Purifying Agents", "Anchoring Material"],
+            "exploration_method": "Descend through lift platforms and advance between anchors",
+            "disaster_cycle": "A Rift Tide every three days",
+            "disaster_type": "Rift Tide",
+            "talent": {
+                "name": "Rift Echo",
+                "description": "Hears local changes that are about to occur within the rift.",
+                "type": "Information",
+                "trigger": "Approaching a new rift layer or unstable anchor",
+                "effect": "Warns of spatial changes or mental contamination.",
+                "limitations": "Echoes may contain old events and must be checked against evidence.",
+            },
+        },
+    },
+)
+
+
+GENERIC_WORLD_MECHANICS = {
+    "id": "generic",
+    "zh": {
+        "safe_base": "围绕主题建立的移动避难所",
+        "external_dangers": ["未知生物", "环境灾害", "基础资源枯竭"],
+        "primary_resources": ["食物", "工具材料", "核心能源"],
+        "exploration_method": "在安全窗口内离开基地搜索并按时撤回",
+        "disaster_cycle": "每七天一次大型灾难",
+        "disaster_type": "大型环境灾难",
+        "talent": {
+            "name": "危险预兆",
+            "description": "能够感知附近环境中不寻常的变化。",
+            "type": "信息类",
+            "trigger": "进入新的未知区域时",
+            "effect": "获得一条有限的危险提示",
+            "limitations": "提示不完整，不能替代侦察和规则结算",
+        },
+    },
+    "en": {
+        "safe_base": "A Mobile Shelter Built Around the Theme",
+        "external_dangers": ["Unknown Creatures", "Environmental Disasters", "Depleting Supplies"],
+        "primary_resources": ["Food", "Tool Materials", "Core Energy"],
+        "exploration_method": "Leave the shelter during safe windows, search, and return on time",
+        "disaster_cycle": "A Major Disaster every seven days",
+        "disaster_type": "Major Environmental Disaster",
+        "talent": {
+            "name": "Danger Premonition",
+            "description": "Senses unusual changes in the nearby environment.",
+            "type": "Information",
+            "trigger": "Entering a new unknown region",
+            "effect": "Provides one limited danger warning.",
+            "limitations": "Warnings are incomplete and cannot replace scouting or rule resolution.",
+        },
+    },
+}
 
 
 class GeneratorError(ValueError):
     """输入不符合新游戏契约。"""
+
+
+def generate_world_mechanics(theme, language="中文"):
+    """根据主题确定性生成六项运行机制。
+
+    这是世界创建的唯一默认来源：交互式问卷不要求玩家填写这些字段，
+    但完整 YAML 仍可显式覆盖单个字段，便于高级用户制作自定义世界。
+    """
+    theme = str(theme or "").strip()
+    language = str(language or "中文").strip().lower()
+    locale = "en" if language in {"en", "english", "英文", "英语"} else "zh"
+    profile = GENERIC_WORLD_MECHANICS
+    for candidate in WORLD_MECHANIC_PROFILES:
+        if any(keyword in theme for keyword in candidate["keywords"]):
+            profile = candidate
+            break
+    mechanics = copy.deepcopy(profile[locale])
+    mechanics["profile"] = profile["id"]
+    return mechanics
 
 
 def load_yaml(path):
@@ -139,31 +344,48 @@ def infer_base_type(name):
     return "other"
 
 
+def normalize_prompt_answer(key, raw):
+    raw = str(raw or "").strip()
+    if key == "difficulty":
+        raw = {"1": "休闲", "2": "标准", "3": "硬核"}.get(raw, raw)
+    elif key == "language":
+        raw = {"1": "中文", "2": "English", "3": "日本語"}.get(raw, raw)
+    return raw
+
+
 def prompt_world():
-    print("创建你的世界（先输入世界名称；之后是 AGENTS.md 规定的10问）：")
-    world_name = input("世界名称（留空则取主题）：").strip()
+    print("创建你的世界（只需回答4项；基地、危险、资源、天赋、探索方式和灾难周期由系统根据主题生成）：")
     answers = {}
     for key, label, example in REQUIRED_QUESTIONS:
-        raw = input(f"{label}（例：{example}）：").strip()
+        raw = normalize_prompt_answer(key, input(f"{label}（参考：{example}）："))
+        if key == "theme" and raw in {"随机", "随机生成", "random", "Random"}:
+            raw = random.choice(["永夜冰川", "巨兽背部", "废土列车", "深渊裂隙"])
         if key == "difficulty" and not raw:
             raw = "标准"
+        if key == "narrative_length" and not raw:
+            raw = "7"
         if key == "language" and not raw:
             raw = "中文"
         answers[key] = raw
 
-    if not world_name:
-        world_name = re.sub(r'[<>:"/\\|?*]', "", answers["theme"]).replace("..", "").strip()
-        world_name = world_name[:32] or "新世界"
-    talent_name = answers["talent"]
-    answers["world_name"] = world_name
-    answers["player_talent"] = {
-        "name": talent_name,
-        "description": f"围绕“{talent_name}”展开的初始天赋。",
-        "type": "信息类",
-        "trigger": "满足天赋规则时",
-        "effect": "由规则引擎按具体效果结算",
-        "limitations": "效果受世界规则、冷却与资源限制",
-    }
+    generated = generate_world_mechanics(answers["theme"], answers["language"])
+    answers.update({
+        "safe_base": generated["safe_base"],
+        "external_dangers": generated["external_dangers"],
+        "primary_resources": generated["primary_resources"],
+        "exploration_method": generated["exploration_method"],
+        "disaster_cycle": generated["disaster_cycle"],
+        "disaster_type": generated["disaster_type"],
+        "player_talent": generated["talent"],
+    })
+    world_name = re.sub(r'[<>:"/\\|?*]', "", answers["theme"]).replace("..", "").strip()
+    answers["world_name"] = world_name[:32] or "新世界"
+    print(
+        "系统已根据主题生成："
+        f"基地={generated['safe_base']}；危险={'、'.join(generated['external_dangers'])}；"
+        f"资源={'、'.join(generated['primary_resources'])}；"
+        f"探索={generated['exploration_method']}；灾难={generated['disaster_cycle']}。"
+    )
     return answers
 
 
@@ -204,25 +426,43 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
     if world_name_override:
         world["name"] = world_name_override
     world["name"] = safe_world_name(world.get("name"))
-    world["theme"] = str(world.get("theme", "")).strip()
+    world["theme"] = str(world.get("theme") or "").strip()
     world["narrative_style"] = world.get("narrative_style") or "冷酷"
-    world["difficulty"] = str(world.get("difficulty", "")).strip()
+    world["difficulty"] = str(world.get("difficulty") or "").strip()
     world["language"] = str(world.get("language") or "中文").strip()
+
+    generated = generate_world_mechanics(world["theme"], world["language"])
 
     try:
         world["narrative_length"] = int(world.get("narrative_length", 7))
     except (TypeError, ValueError) as exc:
         raise GeneratorError("narrative_length 必须是1到10的整数") from exc
 
+    auto_generated_fields = []
     setting = world.setdefault("setting", {})
-    setting["safe_base"] = str(setting.get("safe_base", "")).strip()
+    setting["safe_base"] = str(setting.get("safe_base") or "").strip()
+    if not setting["safe_base"]:
+        setting["safe_base"] = generated["safe_base"]
+        auto_generated_fields.append("setting.safe_base")
     setting["external_dangers"] = split_items(setting.get("external_dangers"))
-    setting["exploration_method"] = str(setting.get("exploration_method", "")).strip()
-    setting["disaster_cycle"] = str(setting.get("disaster_cycle", "")).strip()
-    setting["disaster_type"] = str(setting.get("disaster_type") or "大型灾难").strip()
+    if not setting["external_dangers"]:
+        setting["external_dangers"] = generated["external_dangers"]
+        auto_generated_fields.append("setting.external_dangers")
+    setting["exploration_method"] = str(setting.get("exploration_method") or "").strip()
+    if not setting["exploration_method"]:
+        setting["exploration_method"] = generated["exploration_method"]
+        auto_generated_fields.append("setting.exploration_method")
+    setting["disaster_cycle"] = str(setting.get("disaster_cycle") or "").strip()
+    if not setting["disaster_cycle"]:
+        setting["disaster_cycle"] = generated["disaster_cycle"]
+        auto_generated_fields.append("setting.disaster_cycle")
+    setting["disaster_type"] = str(setting.get("disaster_type") or generated["disaster_type"]).strip()
 
     resources = world.setdefault("resources", {})
     resources["primary"] = normalize_resource_items(resources.get("primary"))
+    if not resources["primary"]:
+        resources["primary"] = normalize_resource_items(generated["primary_resources"])
+        auto_generated_fields.append("resources.primary")
     resources["secondary"] = normalize_resource_items(resources.get("secondary"))
     resources["rare"] = normalize_resource_items(resources.get("rare"))
     resources["currency"] = str(resources.get("currency") or "交易筹码").strip()
@@ -239,9 +479,19 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
     death_rules["type"] = death_rules.get("type") or infer_death_mode(world["difficulty"])
 
     talent = talent or {}
-    talent["name"] = str(talent.get("name", "")).strip()
+    generated_talent = generated["talent"]
+    talent_was_incomplete = not str(talent.get("name") or "").strip()
+    talent["name"] = str(talent.get("name") or generated_talent["name"]).strip()
     for field in ("description", "type", "trigger", "effect", "limitations"):
-        talent[field] = str(talent.get(field, "")).strip()
+        talent_was_incomplete = talent_was_incomplete or not str(talent.get(field) or "").strip()
+        talent[field] = str(talent.get(field) or generated_talent[field]).strip()
+    if talent_was_incomplete:
+        auto_generated_fields.append("player_talent")
+
+    generation = world.setdefault("generation", {})
+    generation["mechanics_source"] = "theme_profile"
+    generation["theme_profile"] = generated["profile"]
+    generation["generated_fields"] = auto_generated_fields
 
     if not world["theme"]:
         raise GeneratorError("世界主题不能为空")

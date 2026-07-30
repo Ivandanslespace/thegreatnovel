@@ -22,6 +22,7 @@ from engine_runtime.narrative_log import record_narrative_turn
 from engine_runtime.protocol import ProtocolError, derive_action_costs, validate_host_action
 from engine_runtime.runtime import GameEngine
 from engine_runtime.state import load_game_state
+from tools.create_save import answers_to_package, generate_world_mechanics, normalize_package
 
 
 class FormulaTests(unittest.TestCase):
@@ -89,6 +90,41 @@ class FormulaTests(unittest.TestCase):
         self.assertEqual(batch.recovered_resources["food"], 20.0)
         pressure = calculate_resource_pressure({"food": {"current": 1, "demand": 10, "income_rate": 2, "next_stage_need": 20, "blocked_count": 1, "perceived": 80}})
         self.assertGreater(pressure["score"], 50)
+
+    def test_theme_generates_world_mechanics_without_player_fields(self):
+        template_path = Path(__file__).resolve().parents[1] / "templates" / "world_template.yaml"
+        template = yaml.safe_load(template_path.read_text(encoding="utf-8"))
+        supplied_world, supplied_talent = answers_to_package({
+            "world_name": "自动冰川",
+            "theme": "永夜冰川",
+            "difficulty": "标准",
+            "narrative_length": 7,
+            "language": "中文",
+        })
+        world, talent = normalize_package(template, supplied_world, supplied_talent)
+
+        self.assertEqual(world["setting"]["safe_base"], "霜轨列车")
+        self.assertEqual(world["setting"]["disaster_type"], "白夜风暴")
+        self.assertEqual([item["name"] for item in world["resources"]["primary"]], ["煤炭", "食物", "寒晶"])
+        self.assertEqual(talent["name"], "寒潮预兆")
+        self.assertEqual(world["generation"]["theme_profile"], "永夜冰川")
+        self.assertEqual(
+            set(world["generation"]["generated_fields"]),
+            {
+                "setting.safe_base",
+                "setting.external_dangers",
+                "resources.primary",
+                "player_talent",
+                "setting.exploration_method",
+                "setting.disaster_cycle",
+            },
+        )
+
+    def test_custom_theme_uses_generic_mechanics_and_language_variant(self):
+        generated = generate_world_mechanics("漂浮岛屿", "English")
+        self.assertEqual(generated["profile"], "generic")
+        self.assertEqual(generated["safe_base"], "A Mobile Shelter Built Around the Theme")
+        self.assertEqual(len(generated["primary_resources"]), 3)
 
     def test_base_build_checks_cost_time_and_space(self):
         result = calculate_build(
