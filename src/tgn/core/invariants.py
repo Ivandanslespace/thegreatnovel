@@ -53,6 +53,10 @@ def check_invariants(state: "GameState") -> None:
     # Phase 4 combat invariants
     if state.data.get("player") and "hp" in state.data.get("player", {}):
         _check_combat_invariants(state)
+    
+    # Phase 5 phase-cycle configuration invariants
+    if state.data.get("phase_cycle") is not None:
+        _check_phase_cycle_invariants(state)
 
 
 def _check_expedition_invariants(state: "GameState") -> None:
@@ -238,3 +242,67 @@ def _check_combat_invariants(state: "GameState") -> None:
                 raise InvariantError(
                     f"Active encounter requires player at target {target_location}, got {player_location}"
                 )
+
+
+def _check_phase_cycle_invariants(state: "GameState") -> None:
+    """Verify Phase 5 phase-cycle configuration validity."""
+    config = state.data["phase_cycle"]
+    
+    if not isinstance(config, dict):
+        raise InvariantError(f"phase_cycle must be dict, got {type(config).__name__}")
+    
+    # cycle_minutes: positive int, not bool
+    cycle = config.get("cycle_minutes")
+    if isinstance(cycle, bool):
+        raise InvariantError("phase_cycle.cycle_minutes must be int, not bool")
+    if not isinstance(cycle, int):
+        raise InvariantError(f"phase_cycle.cycle_minutes must be int, got {type(cycle).__name__}")
+    if cycle <= 0:
+        raise InvariantError(f"phase_cycle.cycle_minutes must be positive, got {cycle}")
+    
+    # boundary_minute: positive int, not bool, < cycle_minutes
+    boundary = config.get("boundary_minute")
+    if isinstance(boundary, bool):
+        raise InvariantError("phase_cycle.boundary_minute must be int, not bool")
+    if not isinstance(boundary, int):
+        raise InvariantError(f"phase_cycle.boundary_minute must be int, got {type(boundary).__name__}")
+    if boundary <= 0:
+        raise InvariantError(f"phase_cycle.boundary_minute must be positive, got {boundary}")
+    if boundary >= cycle:
+        raise InvariantError(
+            f"phase_cycle.boundary_minute must be < cycle_minutes, got {boundary} >= {cycle}"
+        )
+    
+    # phase_before / phase_after: non-empty strings, distinct
+    phase_before = config.get("phase_before")
+    if not isinstance(phase_before, str) or not phase_before:
+        raise InvariantError("phase_cycle.phase_before must be non-empty string")
+    
+    phase_after = config.get("phase_after")
+    if not isinstance(phase_after, str) or not phase_after:
+        raise InvariantError("phase_cycle.phase_after must be non-empty string")
+    
+    if phase_before == phase_after:
+        raise InvariantError("phase_cycle.phase_before and phase_after must differ")
+    
+    # blocked_actions_by_phase: mapping of str -> list of str
+    blocked = config.get("blocked_actions_by_phase")
+    if blocked is not None:
+        if not isinstance(blocked, dict):
+            raise InvariantError(
+                f"phase_cycle.blocked_actions_by_phase must be mapping, got {type(blocked).__name__}"
+            )
+        for phase_key, action_list in blocked.items():
+            if not isinstance(phase_key, str):
+                raise InvariantError(
+                    f"blocked_actions_by_phase key must be string, got {type(phase_key).__name__}"
+                )
+            if not isinstance(action_list, (list, tuple)):
+                raise InvariantError(
+                    f"blocked_actions_by_phase['{phase_key}'] must be list, got {type(action_list).__name__}"
+                )
+            for action in action_list:
+                if not isinstance(action, str):
+                    raise InvariantError(
+                        f"blocked_actions_by_phase['{phase_key}'] entries must be string, got {type(action).__name__}"
+                    )

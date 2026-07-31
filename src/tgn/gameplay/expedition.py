@@ -13,6 +13,7 @@ from ..actions.models import (
     ActionValidationError,
     ActionExecutionResult,
 )
+from .world_phase import is_action_blocked_by_phase, get_current_phase, minutes_until_phase_change
 
 
 # Fixed costs per spec
@@ -111,6 +112,9 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
                     duration_minutes=DROP_COST["time"],
                     stamina_cost=DROP_COST["stamina"]
                 ))
+    
+    # Phase 5: filter actions blocked by current world phase (opportunity layer only)
+    legal = [la for la in legal if not is_action_blocked_by_phase(state, la.action_type)]
     
     return tuple(legal)
 
@@ -476,6 +480,12 @@ def build_observation(state: GameState) -> dict[str, Any]:
             "enemy_max_hp": encounter["enemy_max_hp"],
             "enemy_attack": encounter["enemy_attack"],
         }
+    
+    # Phase 5: world phase visible only when phase_cycle config present
+    phase = get_current_phase(state)
+    if phase is not None:
+        observation["world_phase"] = phase
+        observation["minutes_until_phase_change"] = minutes_until_phase_change(state)
     
     # target_loot is always hidden (information asymmetry)
     

@@ -8,6 +8,7 @@ from typing import Any
 from .hashing import state_hash
 from .invariants import check_invariants
 from .models import DomainEvent, GameState
+from ..gameplay.world_phase import is_action_blocked_by_phase
 
 
 class ReducerError(Exception):
@@ -126,6 +127,10 @@ def _apply_time_advanced(state: GameState, event: DomainEvent) -> None:
 def _apply_expedition_dropped(state: GameState, event: DomainEvent) -> None:
     """Apply EXPEDITION_DROPPED event."""
     payload = event.payload
+    
+    # Phase 5: reducer anti-forgery — reject DROP if phase blocks it at decision start
+    if is_action_blocked_by_phase(state, "DROP"):
+        raise ReducerError("Cannot drop: action blocked by current world phase")
     
     # Verify state preconditions
     if state.data["expedition"]["active"]:
