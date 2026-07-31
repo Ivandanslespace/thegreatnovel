@@ -128,12 +128,14 @@ class TelemetryRecorder:
                    before: Dict[str, Any], options_before: Dict[str, str],
                    result: Dict[str, Any], after: Dict[str, Any], 
                    events_created: List[Dict[str, Any]],
-                   option_contracts: Optional[Dict[str, Dict]] = None) -> None:
+                   option_contracts: Optional[Dict[str, Dict]] = None,
+                   expected_time_cost: Optional[float] = None) -> None:
         self.turns.append({
             "decision": decision, "turn": turn,
             "requested_choice": requested_choice, "actual_choice": actual_choice,
             "reason_fallback": reason_fallback, "before": before, "options_before": options_before,
             "result": result, "after": after, "option_contracts": option_contracts or {},
+            "expected_time_cost": expected_time_cost,  # From action ledger preview
             "events_created": [dict(e) for e in events_created],
             "warnings": [],
         })
@@ -164,23 +166,26 @@ class AutoAuditor:
         return findings
     
     def _detect_time_jump_anomaly(self) -> List[Dict[str, Any]]:
-        """Detect time inconsistencies between expected and actual.
+        """Detect time inconsistencies between expected (from action ledger) and actual (state delta).
         
-        Instead of flagging any single action >60min (which is normal for WAIT/REST/BUILD),
-        we compare the sum of all action time costs against actual state time delta.
+        Crucial distinction:
+        - Expected time comes from action_ledger preview BEFORE execution
+        - Actual time comes from state timeline AFTER execution
+        
+        This catches real discrepancies where the engine didn't execute what it promised.
         """
         findings = []
         
-        if len(self.telemetry.turns) < 2:
-            return findings
-        
-        for i in range(1, len(self.telemetry.turns)):
-            turn = self.telemetry.turns[i]
+        # Can detect single round too - no need for >= 2 turns
+        for turn in self.telemetry.turns:
+            # Expected time from action ledger preview (independent source)
+            expected_time = turn.get("expected_time_cost")
             
-            # Expected time = this turn's recorded time_cost
-            expected_time = float(turn["result"].get("time_cost", 0) or 0)
+            # Skip if no contract data available
+            if expected_time is None:
+                continue
             
-            # Get actual absolute times from snapshots
+            # Actual time from state difference
             before = turn["before"]
             after = turn["after"]
             
@@ -201,10 +206,10 @@ class AutoAuditor:
                 findings.append({
                     "level": "P1",
                     "category": "TIME_JUMP_ANOMALY",
-                    "message": f"Decision {turn['decision']}: expected {expected_time:.1f}min, actual {actual_time:.1f}min (discrepancy={discrepancy:.1f}min)",
+                    "message": f"Decision {turn['decision']}: ledger promised {expected_time:.1f}min but state moved {actual_time:.1f}min (discrepancy={discrepancy:.1f}min)",
                     "detail": {
-                        "expected_minutes": expected_time,
-                        "actual_minutes": actual_time,
+                        "expected_from_ledger": expected_time,
+                        "actual_from_state": actual_time,
                         "discrepancy_minutes": discrepancy
                     }
                 })
@@ -224,12 +229,23 @@ class AutoAuditor:
         
         all_leaf_actions = set()
         all_offered_types = set()
+        all_executed_types = set()
         
         for turn in self.telemetry.turns:
             # Collect actual executed leaf actions
             leaf_actions = turn["result"].get("leaf_actions", [])
             if isinstance(leaf_actions, list):
                 all_leaf_actions.update(leaf_actions)
+            
+            # Track which action types were actually chosen by policy
+            requested_choice = turn.get("requested_choice")
+            if requested_choice:
+                result_leaf_actions = turn["result"].get("leaf_actions", [])
+                if isinstance(result_leaf_actions, list):
+                    all_executed_types.update(result_leaf_actions)
+                result_action_type = turn["result"].get("action_type", "")
+                if result_action_type:
+                    all_executed_types.add(result_action_type)
             
             # Try to get option_contracts first (preferred method)
             option_contracts = turn.get("option_contracts", {})
@@ -242,6 +258,14 @@ class AutoAuditor:
                         leaf_types = contract.get("leaf_types", [])
                         if isinstance(leaf_types, list):
                             all_offered_types.update(leaf_types)
+                        
+                        # Track which options were actually chosen by policy
+                        if opt_key == turn["requested_choice"]:
+                            # These types were both offered AND executed
+                            if offered_type:
+                                all_executed_types.add(offered_type)
+                            for lt in leaf_types:
+                                all_executed_types.add(lt)
             else:
                 # Fallback: parse labels (less reliable, mostly fails for Chinese labels)
                 options_before = turn.get("options_before", {})
@@ -252,16 +276,28 @@ class AutoAuditor:
                             if action_type in opt_label.upper():
                                 all_offered_types.add(action_type)
         
-        # Only report mechanisms that were offered but never executed
-        unreachable = all_offered_types - all_leaf_actions
+        # CRITICAL: Split into two distinct metrics
+        # 1. POLICY_COVERAGE_GAP: Offered but policy never selected (P2 - informational)
+        policy_coverage_gap = all_offered_types - all_executed_types
         
-        if unreachable:
+        # 2. MECHANISM_UNREACHABLE: True unreachable (never appeared as any option)
+        # DO NOT hardcode expected mechanisms - this assumes every world must have all types
+        # Instead, we only report mechanisms that were OFFERED but never EXECUTED by policy
+        # A truly unreachable mechanism would require checking against world.yaml registries
+        # which is complex; for now, POLICY_COVERAGE_GAP catches most strategy limitations
+        
+        # Report POLICY_COVERAGE_GAP (P2 - indicates strategy limitation)
+        if policy_coverage_gap:
             findings.append({
-                "level": "P1", 
-                "category": "MECHANISM_UNREACHABLE",
-                "message": f"Action types offered {len(unreachable)}x but never executed: {', '.join(sorted(unreachable))}",
-                "detail": {"unreachable_mechanisms": sorted(unreachable)}
+                "level": "P2", 
+                "category": "POLICY_COVERAGE_GAP",
+                "message": f"Action types offered to player but test strategy didn't select: {', '.join(sorted(policy_coverage_gap))}",
+                "detail": {"gap_mechanisms": sorted(policy_coverage_gap), "note": "This reflects strategy selection bias, not game design issues"}
             })
+        
+        # Note: TRUE MECHANISM_UNREACHABLE requires comparing enabled mechanisms from world.yaml
+        # Example checks: build_catalog empty → no BUILD needed, combat system disabled → no COMBAT needed
+        # For now, this is documented behavior rather than auto-detected
         
         return findings
     
@@ -524,8 +560,29 @@ class AutoplayRunner:
                         contract = {
                             "label": opt_data.get("label", ""),
                             "action_type": opt_data.get("action", {}).get("type", ""),
-                            "leaf_types": opt_data.get("action", {}).get("leaf_actions", []),
                         }
+                        
+                        # CRITICAL: For ACTION_PLAN, extract leaf types from preview.steps
+                        # Not from action.leaf_actions (which is empty for action plans)
+                        action_type = opt_data.get("action", {}).get("type", "")
+                        if action_type == "ACTION_PLAN":
+                            # Get actual steps from preview data
+                            preview = opt_data.get("preview", {})
+                            if isinstance(preview, dict):
+                                steps = preview.get("steps", [])
+                                if isinstance(steps, list):
+                                    leaf_types = [
+                                        step["action"]["type"]
+                                        for step in steps
+                                        if isinstance(step, dict) and "action" in step
+                                    ]
+                                    contract["leaf_types"] = leaf_types
+                                    contract["is_action_plan"] = True
+                        else:
+                            # Regular action - single leaf type
+                            contract["leaf_types"] = [action_type]
+                            contract["is_action_plan"] = False
+                        
                         option_contracts[opt_key] = contract
                 
                 option_labels = {k: v.get("label", "") for k, v in visible_options.items()}
@@ -544,6 +601,21 @@ class AutoplayRunner:
                 
                 selected_action = dict(pending_opts["options"].get(requested, {}).get("action", {}))
                 action_type = selected_action.get("type", "UNKNOWN")
+                
+                # Extract expected time cost from SELECTED OPTION's preview ledger (CRITICAL P0 FIX)
+                # NOT from result variable which may be undefined or stale from previous iteration
+                selected_option = pending_opts["options"].get(requested, {})
+                preview = selected_option.get("preview", {}) if isinstance(selected_option, dict) else {}
+                
+                expected_time_cost = None
+                ledger = preview.get("action_ledger", {}) if isinstance(preview, dict) else {}
+                if isinstance(ledger, dict):
+                    actions = ledger.get("actions", [])
+                    if isinstance(actions, list):
+                        expected_time_cost = sum(
+                            float(action.get("time_minutes", 0) or 0)
+                            for action in actions
+                        )
                 
                 # Execute
                 result = resolve_turn(engine, requested, None)
@@ -613,6 +685,7 @@ class AutoplayRunner:
                     },
                     after=after, events_created=[dict(e) for e in new_events],
                     option_contracts=option_contracts,
+                    expected_time_cost=expected_time_cost,
                 )
                 
                 self.all_new_events.extend(new_events)

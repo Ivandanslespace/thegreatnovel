@@ -3,11 +3,11 @@ schema_version: 1
 locale: zh-CN
 branch: main
 nodes_managed: true
-exported_at: "2026-07-31T07:23:09Z"
+exported_at: "2026-07-31T08:22:29Z"
 modules:
     "":
-        dir_name: TheGreatNovel 互动小说引擎根项目
-        title: TheGreatNovel 互动小说引擎根项目
+        dir_name: TheGreatNovel 叙事驱动文字游戏根项目
+        title: TheGreatNovel 叙事驱动文字游戏根项目
         scope:
             - AGENTS.md
             - answers_new_game.yaml

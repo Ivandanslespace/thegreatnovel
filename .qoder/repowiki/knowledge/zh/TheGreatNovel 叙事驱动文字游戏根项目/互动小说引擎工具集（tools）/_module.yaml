@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: tools
+title: 互动小说引擎工具集（tools）
+scope:
+    - tools/
+source_files: []
+depends_on: []
+related_to: []
