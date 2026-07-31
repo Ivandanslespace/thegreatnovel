@@ -275,13 +275,56 @@ TheGreatNovel 的主角可以很强，甚至可以有非常夸张的独特能力
 - 玩家与 NPC 的博弈方式；
 - 玩家对长期路线的规划方式。
 
-### 关键不是“别人没有”
+### 关键不是"别人没有"
 
 而是：
 
 > **如果把这个能力拿掉，玩家整套最优策略都应该改变。**
 
 这才叫独特能力。
+
+### V2 补充：能力来源不必只属于玩家自身
+
+长期来看，Capability 可以来自：
+
+```text
+Actor 自身
+Equipment
+Habitat（生存承载体）
+Relationship（关系）
+Team（团队配合）
+Environment（环境激活）
+Organization（组织授权）
+World Phase（世界阶段）
+```
+
+这带出一个重要原则：
+
+> **Capability 是一种"现在可以成立的行动可能性"，不应该默认等价于 `player.skills`。**
+
+例如：因为与某人形成高度配合，一个原本不可能执行的联合行动成立。或者：因为当前位于某类环境，某能力产生新的用途。
+
+### V2 补充：能力与环境发生关系
+
+好的能力可以利用：
+
+```text
+地点
+环境标签
+天气
+时间
+世界阶段
+附近实体
+关系
+```
+
+而不只是 `damage +20%`。
+
+设计目标：
+
+> 玩家理解世界以后，能够发现"这个能力在这里有另一种用法"。
+
+这与 Section 11"强奖励来自理解并利用系统"形成呼应。
 
 ---
 
@@ -554,6 +597,94 @@ basic_weapon
 
 **同一套 Engine，可以产生结构上真正不同的游戏，而不是同一个求生游戏套不同名词。**
 
+### V2 补充：不只是资源名不能硬编码，玩法结构也不能硬编码
+
+以前我们主要警惕：
+
+```text
+煤炭 → 电池
+废铁 → 生物材料
+怪物 → 机器人
+```
+
+这种名词换皮。
+
+现在进一步明确：即使资源名完全配置化，只要所有世界仍然固定变成：
+
+```text
+固定基地
+→ 离开基地
+→ SEARCH
+→ FIGHT
+→ EXTRACT
+→ 回基地
+→ 升级
+```
+
+它仍然属于**结构性换皮**。
+
+不同世界应当允许真正不同的：
+
+```text
+长期承载方式
+移动方式
+成长方式
+风险循环
+生产方式
+社会关系结构
+能力获得方式
+世界时间结构
+信息模型
+组织结构
+核心矛盾
+```
+
+### V2 补充：Engine 不应该认识主题
+
+Engine 长期应该理解的是：
+
+```text
+Actor
+Location
+Resource
+Action
+Event
+Time
+Capability
+Effect
+Status
+Relationship
+Knowledge
+Rule
+```
+
+而不是某个 WorldPack 的专有实体名、专有资源名、专有成长物名称、专有敌人种族名或专有仪式名。
+
+### V2 补充：反主题硬编码不仅检查名词，也检查假设
+
+一个 Feature 可能完全没有主题名，但仍然是硬编码。例如：
+
+```text
+Base 永远是固定地点
+Encounter 永远只发生在 expedition
+所有成长都有 player.level
+所有升级都必然三选一
+所有世界都有 day/night
+所有能力都属于 player
+所有秘密都对 player observation 可见
+所有世界最终都靠 loot → upgrade
+```
+
+这些都是 **structural hard-coding**。
+
+设计审查以后必须同时检查：
+
+```text
+theme vocabulary hard-coding
++
+structural assumption hard-coding
+```
+
 ---
 
 # 9. 稀缺性创造意义
@@ -608,7 +739,87 @@ basic_weapon
 
 玩家回头看十天前，会觉得：
 
-> “当时的我面对这个问题，只能做那几个选择；现在我有完全不同的解法。”
+> "当时的我面对这个问题，只能做那几个选择；现在我有完全不同的解法。"
+
+### V2 补充：成长不应默认只有 player level
+
+未来不同世界的成长可能存在：
+
+```text
+角色成长
+生存承载体成长
+技能熟练
+知识成长
+组织成长
+生产能力成长
+伙伴成长
+社会身份成长
+```
+
+重点不是列系统，重点是：
+
+> **成长应该被理解成某个长期能力空间发生变化。**
+
+如果一个成长系统只能回答"数值变大了吗？"但不能回答"玩家现在多了什么以前不可行的方案？"，它仍然是薄弱成长。
+
+### V2 补充：ProgressionTrack 作为设计语言
+
+为了避免把 `player.level` 当成宇宙统一成长模型，可以引入术语：
+
+> **ProgressionTrack：一个实体某一方面的长期成长轨迹。**
+
+例如可能是：角色能力、Habitat、技能、伙伴、组织。
+
+这不是要求所有世界必须有 ProgressionTrack class，而是未来避免单一成长模型时的抽象语言。
+
+### V2 补充：ProgressionGate — 成长瓶颈应该能够进入世界
+
+好的成长节点有时不应该 `EXP 满了 → 自动升级`，而可以：
+
+```text
+积累
+→ 遇到瓶颈
+→ 必须进入世界完成某件事
+→ 承担风险 / 消耗机会
+→ 解决 Gate
+→ 打开下一阶段
+```
+
+它可以支持：升级资源、资格考试、仪式、危险探索、击败目标、获得外部对象、完成承诺。
+
+核心价值：
+
+> **把成长和世界行动重新连接起来。**
+
+### V2 补充：永久 Build 选择
+
+成长中最有价值的一类选择是**永久或高成本可逆的 Build 分化**。
+
+真正的价值是：
+
+```text
+有限候选
++
+机会成本
++
+持久后果
++
+策略分化
+```
+
+候选可以 2 个、3 个、N 个、或世界中自己寻找。
+
+因此：**"Three-choice"不是设计价值本身。** 不要把"每一级三选一"写成项目宪法。
+
+### V2 补充：Progression Attachment
+
+某些成长不是系统直接送一个选项，而是玩家从世界中获得一个对象/印记/改造，并永久或长期绑定到自己的成长路线。
+
+它可以具有：来源、兼容条件、机会成本、有限位置、永久性、能力变化。
+
+泛化例子：义体、职业专精、魔法刻印、基因改造、传承、外部能力印记。
+
+这防止未来把"固定 UI 三选一"误认为所有 Build 的唯一来源。
 
 ---
 
@@ -829,11 +1040,50 @@ P25 → P38 → P57 → P48 → P63 → P76 → P71 → P90+
 
 玩家获得某条信息以后，应该产生：
 
-> “这意味着我要重新考虑我的计划。”
+> "这意味着我要重新考虑我的计划。"
 
 而不是：
 
-> “哦，又知道了一点世界观设定。”
+> "哦，又知道了一点世界观设定。"
+
+### V2 补充：World Truth ≠ Actor Knowledge
+
+世界知道某事实为真，不代表 Player、NPC-A、NPC-B、Narrator 当前视角都知道。
+
+未来系统应该能够支持：
+
+```text
+Fact X is true
+
+Player: knows X
+NPC A: knows X
+NPC B: does not know X
+NPC C: believes incorrect Y
+```
+
+### V2 补充：知识边界是角色真实性的一部分
+
+如果一个角色使用了自己不可能知道的信息，这和 NPC 瞬移、凭空获得资源一样，是世界一致性破坏。
+
+LLM 很容易因为拥有完整上下文而泄漏秘密、隐藏身份、其他 NPC 计划、未来事件。
+
+因此：
+
+> **信息权限必须像位置、资源、伤势一样受到世界规则约束。**
+
+概念层级：
+
+```text
+World Truth
+↓
+Knowledge / Visibility
+↓
+Observation（角色有资格知道的世界投影）
+```
+
+玩家和 Agent 看到的不应该是 raw GameState dump，而是角色有资格知道的世界投影。
+
+这使得秘密、调查、欺骗、信息优势和不确定性都能真正成立。
 
 ---
 
@@ -874,11 +1124,25 @@ NPC 应该会：
 
 玩家面对 NPC 时应该产生：
 
-> “他接下来会做什么？”
+> "他接下来会做什么？"
 
 而不只是：
 
-> “这个 NPC 能给我什么任务？”
+> "这个 NPC 能给我什么任务？"
+
+### V2 补充：Named Actor 与 Aggregate Population 是不同层级
+
+有些世界需要具体导师、队友、竞争者、父母、仇敌、长期盟友——他们必须有 persistent identity。
+
+另一些背景人口可以继续 aggregate。不要为了"世界活着"就要求模拟每个路人。
+
+设计目标：
+
+```text
+重要人物 individually persistent
++
+非重要人口可以 aggregate
+```
 
 ---
 
@@ -915,6 +1179,19 @@ NPC 应该会：
 
 这比单一好感度更接近真正的社会模拟。
 
+### V2 补充：关系可以产生能力
+
+某些 Capability / 行动可能来自关系本身：
+
+```text
+Actor A + Actor B + relationship / coordination
+→ Action C becomes possible
+```
+
+关系因此不只是对话 modifier，也可以改变：行动空间、风险、信息流、联合能力、资源获取。
+
+但不要把所有关系都强制复杂化。
+
 ---
 
 # 16. 承诺必须真实存在
@@ -945,6 +1222,14 @@ commitment 应该能够：
 - 关闭某些路线；
 - 创造 deadline；
 - 在违约时产生真实后果。
+
+### V2 补充：长期身份也是结构化后果
+
+加入组织、获得职业资格、成为导师/学徒、公开站队、成为某地居民、取得某种社会身份——应该能够影响：权限、NPC 态度、可进入地点、可获得资源、可接受行动、责任、敌对关系。
+
+设计原则：
+
+> **成长可以改变社会位置，而不仅仅改变战斗力。**
 
 ---
 
@@ -1009,6 +1294,16 @@ TheGreatNovel 不应该被固定选项限制成传统文字冒险。
          世界按照统一规则回应
 ```
 
+### V2 补充：自由行动需要 Action Semantics
+
+自由行动真正需要的是 Action semantics，而不是 LLM prose compliance。
+
+玩家说"我想诱敌、绕路、伪装、利用环境"——如果世界规则允许，应该能够被解释为已有 Capability / Cost / Time / Risk / Effect，或者明确拒绝。
+
+长期目标不是让 LLM"听起来合理，所以成功"，而是：
+
+> **"尝试被翻译成世界中的因果行动，然后由规则裁决。"**
+
 ---
 
 # 19. LLM 负责创造可能性，不负责随意修改规则
@@ -1045,6 +1340,12 @@ LLM：
 Engine：
 验证、记账、限制、推进、裁决
 ```
+
+### V2 补充：LLM 创造 candidate possibility，不决定结果
+
+LLM 可以创造 candidate possibility，但不能自己决定该 possibility 是否合法、是否成功、产生多少资源、造成多少伤害、需要多少时间、是否改变持久状态。
+
+如果 LLM 提议的新内容将影响未来玩法，必须先结构化、验证、进入正式状态/事件，才能成为事实。
 
 ---
 
@@ -1101,7 +1402,15 @@ TheGreatNovel 可以有非常复杂的底层状态。
 
 > **它会让玩家做出什么不同的决定？**
 
-如果答案是“不会”，就应该重新考虑是否需要。
+如果答案是"不会"，就应该重新考虑是否需要。
+
+### V2 补充：无意义抽象同样是无意义复杂度
+
+即使一个 abstraction 很优雅，如果当前只有一个 caller、一个世界、一个实际用途，就要问：它现在真的需要进入公共层吗？
+
+复杂度不仅包括 runtime feature，也包括：抽象层、registry、interface、plugin boundary、generic schema。
+
+> **TGN 必须同时抵抗 Hard-coding 与 Speculative Generalization。**
 
 ---
 
@@ -1276,6 +1585,20 @@ TheGreatNovel 可以有非常复杂的底层状态。
 
 逐渐降低。
 
+### V2 补充：Information Model 可以不同
+
+不同世界可以对玩家提供完全不同的信息精度：
+
+```text
+系统型世界：精确数值
+求生型世界：模糊风险
+写实型世界：几乎无 HUD 数值
+```
+
+因此 Engine / Design 不应该假定玩家永远知道敌人的准确 HP、准确成功率、升级准确收益。
+
+Information Model 应当是世界结构的一部分。
+
 ---
 
 # 26. 最优策略不能永久固定
@@ -1321,6 +1644,38 @@ TheGreatNovel 可以有非常复杂的底层状态。
 因此：
 
 成长不是把旧问题无限放大，而是让旧问题逐渐变成新问题的基础条件。
+
+### V2 补充：问题层级随成长变化
+
+玩家解决旧问题以后，旧问题应该消失、自动化、变得廉价、被委托或进入背景维护，然后产生新的高层问题。
+
+抽象循环：
+
+```text
+活下来 → 稳定生存 → 释放时间 → 提高生产/能力 → 形成关系 → 承担责任 → 组织与社会冲突 → 影响更大范围
+```
+
+重要：不要把这个 progression ladder 写成所有游戏强制路线。它只是说明：
+
+> 长周期玩法应该改变问题性质，而不是只增大数字。
+
+### V2 补充：Automation 的真正价值是释放行动权
+
+自动化不应该只是 `production +20%`。更重要的是：原本玩家必须花 3 小时亲自完成，现在系统/设施/NPC 可以处理，玩家获得 3 小时处理更高层问题。
+
+这直接连接 Section 3"时间是货币"：
+
+> **自动化的本质之一，是把时间重新交还给玩家。**
+
+### V2 补充：Upkeep / 持续代价
+
+强大的长期资产可以伴随长期负担（食物、能源、维护、工资、空间、注意力、政治成本）。
+
+设计价值：
+
+> **成长不应该无限免费叠加优势。**
+
+但这是可选机制，不要求所有能力都必须 upkeep。
 
 ---
 
@@ -1391,6 +1746,18 @@ P25 → P60 → P75 → P90+ → 新 cohort → P25–P35 → P60 → P75 → P9
 
 同时 Absolute Power 长期保持上升。
 
+### V2 补充：Autoplay 也应检查兼容性坍缩
+
+除了无限资源、固定最优策略、循环之外，还应该检查：
+
+**Strategy Collapse** — 所有 Agent 是否最终都采用同一动作循环？
+
+**World Structural Collapse** — 不同 WorldPack 是否最终都退化为 `search → fight → return → upgrade`？
+
+**Progression Collapse** — 不同成长路线是否最终只是数字高低不同？
+
+**Social Collapse** — NPC / 关系系统是否最终只提供奖励和任务？
+
 ---
 
 # 28. 可复现性很重要
@@ -1417,24 +1784,13 @@ action trace
 
 # 29. 创建世界必须像编译程序一样严格
 
-World Blueprint 不是一段“灵感文字”。
+World Blueprint 不是一段"灵感文字"。
 
 它实际上是：
 
 > **这个世界的可执行规则定义。**
 
-因此创建世界应该经历：
-
-```text
-Generate
-→ Parse
-→ Schema Validate
-→ Semantic Validate
-→ Compile
-→ Smoke Test
-→ Create Save
-→ Run
-```
+因此创建世界应该经历严格验证。
 
 不合法的世界应该：
 
@@ -1443,10 +1799,44 @@ Generate
 而不是运行十回合以后才发现：
 
 - 缺关键资源；
-- NPC 没行动模型；
+- NPC 没行动模型（仅当 Named Actor 功能启用时）；
 - 某个字段不存在；
 - 世界规则互相矛盾；
 - 某个模板偷偷 fallback 到废土默认值。
+
+### V2 补充：验证是严格的，物化是惰性的
+
+> **Validation is strict; materialization is lazy.**
+
+严格验证不等于提前生成整个宇宙。系统应当在**当前所需的可玩契约**无效时立即失败，但不应要求所有未来 NPC、区域、组织、配方、敌人、事件、地点在第一个决策之前就全部存在。
+
+推荐概念管线：
+
+```text
+World Request / WorldPack Draft
+        ↓
+Parse
+        ↓
+Schema Validate
+        ↓
+Semantic Validate
+        ↓
+Normalize / Bind deterministic IDs
+        ↓
+Bootstrap Minimal Playable World
+        ↓
+Bootstrap Smoke Test
+        ↓
+Create Campaign
+        ↓
+PLAYABLE NOW
+        ↓
+Lazy Materialization when new content becomes relevant
+        ↓
+Validate newly materialized content before it becomes world truth
+```
+
+验证遵循已启用的 Feature 契约。不要求未启用的 Feature 提供定义。
 
 ---
 
@@ -1734,9 +2124,60 @@ Boss 永远不行动
 
 如果一个规则必须靠反复提醒 LLM：
 
-> “请记得不要这样……”
+> "请记得不要这样……"
 
 才能成立，那么这个规则大概率应该进入 Engine。
+
+---
+
+## 35.11 结构性硬编码
+
+```text
+所有世界都有固定基地
+所有 encounter 都属于 expedition
+所有成长都基于 player.level
+所有升级都三选一
+所有世界都有 day/night
+```
+
+---
+
+## 35.12 为未来建立万能框架
+
+```text
+只有一个真实用例，
+却提前创建大型 Plugin/Effect/Progression framework
+```
+
+---
+
+## 35.13 玩家全知
+
+```text
+系统知道什么
+→ 玩家也自动知道什么
+```
+
+---
+
+## 35.14 NPC 上帝视角
+
+NPC 使用了自己从未获得的信息。
+
+---
+
+## 35.15 解决旧问题以后仍然要求玩家重复劳动
+
+```text
+已经建立自动生产能力
+但玩家仍被迫每天重复同样采集点击
+```
+
+---
+
+## 35.16 题材变化但策略不变化
+
+世界表面完全不同，但 autoplay 的最优策略完全一样。
 
 ---
 
@@ -1763,6 +2204,18 @@ Boss 永远不行动
 ### 5. 它会在 50 回合以后仍然有意义吗？
 
 如果不会，需要考虑长期演化。
+
+### V2 泛化检查
+
+### 6. 这条规则属于世界事实，还是某个题材内容？
+
+### 7. 换一个结构完全不同的世界，它仍然成立吗？
+
+### 8. 如果不成立，它应该属于 WorldPack / optional feature 吗？
+
+### 9. 我们是不是只有一个真实需求，却已经建立了通用框架？
+
+### 10. 它改变的是策略空间，还是只增加状态复杂度？
 
 ---
 
@@ -1817,6 +2270,30 @@ Boss 永远不行动
 - 是否存在稳定 exploit？
 - 是否能够 deterministic replay？
 
+### V2 新增：Theme Hard-coding
+
+- 是否出现具体题材 vocabulary 进入 Core？
+- 是否出现 world_type / genre 类型的大量 if/else？
+
+### V2 新增：Structural Hard-coding
+
+- 是否假设基地一定固定？
+- 是否假设 encounter 一定属于某个 loop？
+- 是否假设所有成长结构相同？
+- 是否假设所有能力属于玩家？
+
+### V2 新增：Knowledge Boundary
+
+- Observation 是否泄漏隐藏事实？
+- NPC 是否拥有不合理知识？
+- Narrator 是否把 engine-private truth 暴露给角色？
+
+### V2 新增：Premature Abstraction
+
+- 新 abstraction 有几个真实 caller？
+- 是不是为"以后可能需要"创建？
+- 是否有更小的 local solution？
+
 ---
 
 # 38. 推荐的项目北极星指标
@@ -1867,11 +2344,27 @@ Boss 永远不行动
 
 50 / 100 / 300 turn 后是否仍出现新的决策结构，而不只是重复资源循环。
 
+### V2 新增候选指标
+
+**Structural World Divergence** — 不同 WorldPack 是否产生不同的核心行动循环和长期策略。
+
+**Capability Diversity** — 不同成长是否真正打开不同解法，而不是数字差。
+
+**Knowledge Integrity** — 角色是否只使用自己合理知道的信息。
+
+**Problem-Layer Transition** — 50 / 100 / 300 turn 后，玩家是否仍然解决同一种问题。
+
+**Automation Leverage** — 成长是否真正减少低层重复劳动并释放时间。
+
+**Theme Leakage** — Core 中是否逐步积累 WorldPack-specific vocabulary / assumptions。
+
+这些是设计观测方向，不必要求目前代码全部实现。
+
 ---
 
 # 39. 最终的系统哲学
 
-TheGreatNovel 最终可以归纳成六句话。
+TheGreatNovel 最终可以归纳成八句话（原有六条系统哲学，加上 V2 两条扩展原则）。
 
 ## 规则先于剧情
 
@@ -1897,6 +2390,14 @@ TheGreatNovel 最终可以归纳成六句话。
 
 小说只是这些因果最后呈现出来的形式。
 
+## V2 新增：信息属于知道它的人
+
+World Truth 不等于角色全知。秘密、调查、误解和欺骗需要真实知识边界。
+
+## V2 新增：不为题材写 Engine
+
+Engine 维护跨世界因果，具体题材属于 WorldPack 和经过真实需求证明的 Feature。
+
 ---
 
 # 40. 项目宣言
@@ -1915,7 +2416,9 @@ TheGreatNovel 最终可以归纳成六句话。
 >
 > LLM 的职责不是替玩家制造胜利，而是把规则运行后产生的复杂经历，变成值得继续读下去的故事。
 >
-> **最终，我们希望玩家不是在“选择下一段文字”，而是在一个真实运转的世界里留下自己的历史。**
+> **最终，我们希望玩家不是在"选择下一段文字"，而是在一个真实运转的世界里留下自己的历史。**
+
+我们也不希望第一种成功世界成为下一种世界的牢笼。TGN 应允许完全不同的世界拥有不同的生存方式、成长方式、社会结构与长期目标，而不要求它们服从同一套题材模板。
 
 ---
 
@@ -1929,4 +2432,121 @@ TheGreatNovel 最终可以归纳成六句话。
 6. **不同世界必须拥有不同的生存与成长逻辑，而不是换皮。**
 7. **LLM 可以创造可能性，但不能随意篡改规则和状态。**
 8. **玩家最终获得的爽感，应来自理解世界、做出判断并赢得结果。**
+
+### V2 额外记住的 4 条架构价值
+
+9. **世界真实存在什么，不代表每个角色都知道什么。**
+10. **不要把第一个世界的玩法结构写成 Engine 的宇宙规则。**
+11. **抽象必须由真实需求提炼，不能为了"以后可能需要"提前造万能框架。**
+12. **Feature 可以是可选的，但一旦启用，就必须成为可验证、可重放的真实世界规则。**
+
+---
+
+# 42. V2：反主题硬编码与结构性硬编码
+
+本次修订通过多个"生存经济型"和"角色成长社会型"世界进行兼容性压力测试，得到核心结论：
+
+TheGreatNovel 不只是要避免不同生存主题换皮。它还必须避免某一种基地结构、某一种成长方式、某一种战斗方式、某一种社会结构、某一种信息模型、某一种长期游戏循环偷偷成为 Engine 的默认世界观。
+
+设计审查必须同时检查 theme vocabulary hard-coding 和 structural assumption hard-coding。
+
+---
+
+# 43. V2：抽象必须被真实需求挣出来
+
+错误路线 A：第一个世界需要木筏 → Core 直接写 BoatSystem。
+
+错误路线 B：未来可能存在一百种载具 → 现在建立 UniversalHabitatPluginFramework。
+
+两者都错误。正确路线：
+
+```text
+实现第一个真实 vertical slice
+↓
+实现第二个结构不同的真实需求
+↓
+观察真正重复的因果结构
+↓
+提取最小公共抽象
+```
+
+> **Abstraction Must Be Earned.**
+
+Feature Module 是概念边界，不意味着现在需要建立动态插件框架。明确禁止把设计价值误读成：现在去写 PluginManager、DynamicModuleLoader、DependencyResolver、UniversalRegistry。
+
+---
+
+# 44. V2：Core / Feature Module / WorldPack 的责任边界
+
+长期概念上：
+
+```text
+Core：尽量维护跨世界稳定的因果规则
+↓
+Feature Modules：多个世界可能复用但不是所有世界都需要
+↓
+WorldPack：具体题材、资源、能力内容、组织内容、敌人内容、阶段参数
+↓
+Narrative / LLM Edge：提出 / 解释 / 描写 / 玩家决策 / 未来角色规划
+```
+
+这是责任边界，不是现在必须存在的 package hierarchy。
+
+**Optional Does Not Mean Unimportant** — 如果 WorldPack 启用了某个 Feature（如 Market），就不能只是 Narrator 说"市场价格上涨了"而实际状态没变化。启用以后仍然必须接受 State、Event、Rule、Replay 约束。
+
+> **Optional Feature ≠ Soft Fiction。**
+
+---
+
+# 45. V2：Compatibility Pressure Test
+
+不是要求现在实现所有世界。而是在设计一个"通用"概念时问：
+
+> 如果换成一个结构完全不同的世界，这个概念还成立吗？
+
+至少使用三种压力类型思考：
+
+**Type A — Survival / Expedition**：资源、机会成本、风险、撤离、环境。
+
+**Type B — Mobile Habitat / Economy**：移动生存承载体、生产、自动化、维护、市场、聚居地、世界尺度增长。
+
+**Type C — Character Progression / Social**：多轨成长、成长瓶颈、永久 Build、训练、导师、NPC、秘密、团队、组织、社会身份。
+
+重要：这些只是兼容性压力类型，不是三个固定 genre enum。不要把它们设计成代码类型。
+
+如果一个所谓通用抽象只能解释当前第一世界，它还不能证明自己是 Core。
+
+---
+
+# 46. V2：World Truth、Knowledge 与 Observation
+
+World Truth ≠ Actor Knowledge 是正式价值观，不只是 future feature。
+
+世界知道某事实为真，不代表每个角色都知道。信息权限必须像位置、资源、伤势一样受到世界规则约束。
+
+Knowledge / Visibility 和秘密、NPC、调查、信息差、Narrator、LLM Player 直接相关。
+
+---
+
+# 47. V2：成长结构的泛化原则
+
+Habitat（长期生存承载体）不一定是固定地点。它可能是固定建筑、列车、船、大型生物、飞船、潜艇、移动城市。但不是所有世界都需要 Habitat——它是 optional world structure，不是 Player 强制字段。
+
+ProgressionTrack / ProgressionGate / Progression Attachment 是候选抽象语言，用于避免把 player.level 和三选一当成宇宙统一成长模型。它们是否最终成为 code-level abstraction，要由 MVP_REWRITE_SPEC、实际 vertical slices、第二/第三 WorldPack 验证。
+
+---
+
+# 48. V2：Local Simplicity, Global Escape Hatches
+
+当前实现应该尽量简单：one player、one enemy、one base、one progression path 都可以。
+
+但命名和 contract 不应该宣称"永远只能一个"。
+
+例如 Phase 4 encounter 暂时服务 expedition 是允许的。但设计文档要明确：
+
+> 这是当前 vertical slice 的局部约束，而不是所有 Encounter 的世界定义。
+
+世界尺度可以成长（个人 → 团队 → Habitat → Settlement → Organization → Region），但 Core 不提前模拟文明。长期可扩展性不等于当前就模拟所有尺度。
+
+> **Compatibility ≠ Implement Everything。今天不要把第一个世界的偶然结构误认为宇宙规则。**
 

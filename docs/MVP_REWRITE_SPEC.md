@@ -1,9 +1,13 @@
 # TheGreatNovel MVP 重构框架与自动游戏测试系统设计
 
 > 日期：2026-07-31  
-> 目标：从当前“大而全、持续修 Bug”的架构退回一个可验证、可重放、可自动测试的最小核心，然后通过多种 LLM 自动游玩结果，一层一层增加功能。  
-> 当前代码库：`Ivandanslespace/thegreatnovel`，审查基准为 2026-07-31 `main` 最新提交附近（最新看到的提交：`4141e905...`）。  
+> 目标：从当前"大而全、持续修 Bug"的架构退回一个可验证、可重放、可自动测试的最小核心，然后通过确定性验证与 scripted autoplay 一层一层增加功能（LLM autoplay 在 LLM Player 层建立后引入）。  
+> 原始 Legacy 审查基线：2026-07-31 `main`，最初审查时约为 `4141e905...`。  
+> 当前开发线：`mvp-rewrite`。  
+> 当前工程阶段：Phase 4 frozen；下一 active implementation phase 由 Section 52 V2 Active Roadmap 定义。  
 > 参考作品：用户上传的《全民纜車求生，我一級一個三選一》。
+
+> **V2 修订说明 (2026-07-31)：** 本文档经过增量架构修订。第一 WorldPack 仍可以是缆车求生 Demo，但它的 Base / Expedition / Day-Night / Three-choice 属于第一批 vertical slice 局部实现，不是整个 Engine 的宇宙规则。V2 新增反主题/结构性硬编码原则、反过度抽象原则、Knowledge boundary、Habitat 可选抽象、ProgressionTrack/Gate、Feature Module 责任边界、Compatibility Pressure Test，并更新 Phase 5+ 路线图。原有工程架构内容（EventStore、Replay、Test Pyramid、Autoplay、ExploitAgent 等）完整保留。
 
 ---
 
@@ -52,7 +56,7 @@ MVP 第一阶段甚至**不要支持 LLM 自动生成世界**。
 2. **任何 Bug 都可以从记录中 100% 重放。**
 3. **LLM 只能做玩家或叙事者，不能偷偷修改游戏事实。**
 4. **同一份状态 + 同一个 action + 同一个 seed，必须得到同一个游戏结果。**
-5. **任何新功能在进入主干以前，都必须经过 scripted bot + 多种 LLM 自动玩家。**
+5. **任何新功能在进入主干以前，都必须经过 deterministic contract/scenario tests 和 scripted bot autoplay。Phase 8 建立 LLM Player 以后，暴露给玩家决策的 Feature 还必须经过相应的 LLM autoplay / model matrix。**
 6. **自动测试发现的 Bug，最终必须转化成不依赖 LLM 的确定性 regression test。**
 
 一句话定义新架构：
@@ -266,7 +270,11 @@ migration 改
 
 # 2. 从参考小说中，MVP 真正应该学习什么
 
-参考小说最值得学习的不是“缆车”这个皮肤，而是它前期极其清晰的系统循环。
+> **First Pressure World, Not Universal Template**
+>
+> The mechanisms below are concrete first-world pressure tests. They demonstrate scarcity, opportunity cost, extraction, progression and public-world feedback. They are not universal Engine requirements.
+
+参考小说最值得学习的不是"缆车"这个皮肤，而是它前期极其清晰的系统循环。
 
 ## 2.1 一个绝对安全 / 相对安全的基地
 
@@ -506,6 +514,12 @@ Choice = Gain + Opportunity Cost
 
 # 3. 新 MVP 的明确 Scope
 
+> **Historical / Conceptual Capability Tiers**
+>
+> This section records the original capability-layer thinking. It is not the active implementation sequence.
+>
+> The authoritative execution roadmap is Section 52: V2 Active Roadmap.
+
 ---
 
 # 3.1 MVP 0：只证明“游戏循环成立”
@@ -735,6 +749,8 @@ WorldPack Schema v1
 
 这时候 validator 不再依靠想象设计，而是来自 3 个已经跑通的真实实现。
 
+具体 future bootstrap / lazy-materialization contract 见 Section 62。
+
 ---
 
 # 4. 新系统最核心的架构
@@ -785,9 +801,33 @@ Event Commit
 Snapshot
 ```
 
+### V2 补充：Knowledge / Visibility 边界
+
+长期架构中，Observation 之前应有 Knowledge / Visibility 层：
+
+```text
+GameState / World Truth
+        ↓
+Knowledge / Visibility
+        ↓
+Observation
+        ↓
+Human / Bot / LLM Player
+```
+
+这不是要求现在创建 Knowledge package 或 DB schema。这是架构边界方向：player/agent 看到的是角色有资格知道的世界投影，不是 raw GameState dump。
+
 ---
 
-# 5. 推荐的新目录
+# 5. Historical Bootstrap Layout / 当前目录设计来源
+
+> The layout below records the original clean-room bootstrap recommendation.
+>
+> The mvp-rewrite repository already has an evolved src/tgn implementation.
+>
+> Do NOT reorganize the current repository merely to match this historical tree.
+>
+> Current repository reality + frozen contracts take precedence.
 
 建议不是在现有 `engine_runtime/` 里继续拆。
 
@@ -795,8 +835,6 @@ Snapshot
 
 ```text
 thegreatnovel/
-│
-├─ legacy/                       # 可选；也可以只保留 legacy git tag
 │
 ├─ src/
 │  └─ tgn/
@@ -862,6 +900,12 @@ thegreatnovel/
 ├─ pyproject.toml
 └─ DESIGN.md
 ```
+
+Legacy reference policy:
+
+- Legacy exists only through Git branch/tag.
+- Do not copy legacy/history/old_engine directories into mvp-rewrite.
+- Legacy is reference material, never a runtime dependency.
 
 ---
 
@@ -1105,6 +1149,12 @@ Reducer 必须是纯函数：
 无随机 random()
 ```
 
+### V2 补充：Reducer 也是 event-truth / anti-forgery boundary
+
+Action layer 拒绝一个行为，不意味着一个语法正确的伪造 event 可以绕过相同的世界不变量。
+
+Reducer 必须独立验证 event payload 与 engine-computed result 一致。Normal Action validation 通过不等于 Reducer 可以信任 event payload。
+
 ---
 
 # 9.1 RNG 怎么做
@@ -1143,9 +1193,23 @@ hash("42|18|combat")
 
 不要让 LLM 自己描述：
 
-> “我搜房间、顺便制作武器、和 NPC 聊天、最后休息。”
+> "我搜房间、顺便制作武器、和 NPC 聊天、最后休息。"
 
 然后系统全执行。
+
+### V2 补充：Canonical Legality Contract
+
+State-dependent legality 有且只有一个 canonical source：
+
+```text
+get_legal_actions(state)
+      ↓
+validate_action (consumes canonical legality + parameter/schema validation)
+      ↓
+execute_action (does not invent another state legality layer)
+```
+
+Observation 只展示 canonical legal actions。Autoplay 只消费 canonical legal actions。不要出现 Observation/Validator/Executor/Bot 各有一套 legality。
 
 ---
 
@@ -2213,6 +2277,16 @@ fix
 
 建议提供三个矩阵。
 
+> **Matrix availability is phase-dependent.**
+>
+> Before Phase 8: Smoke/Nightly use deterministic scripted agents only.
+>
+> Phase 8+: LLM agents are added to Nightly when the LLM Player contract exists.
+>
+> Phase 9+: Multi-model/persona coverage becomes part of the active matrix.
+>
+> A pre-Phase-8 release/freeze does not require nonexistent LLM infrastructure. A pre-Phase-12 release/freeze does not require multiple WorldPacks. Release gates are always scoped to features/phases that currently exist + their explicit Feature Contracts.
+
 ---
 
 # 39.1 Smoke
@@ -2667,6 +2741,13 @@ autoplay_metrics:
 4. 自动玩家如何触达它？
 5. 如何知道它坏了？
 6. 如何知道它值得保留？
+7. 哪些假设是当前 WorldPack / vertical slice 局部的？
+8. 哪些行为是跨世界契约？
+9. 是否引入了主题词汇硬编码？
+10. 是否引入了结构性硬编码？
+11. 当前有多少真实 use case 需要这个抽象？
+12. 更小的 local implementation 能否关闭当前 vertical slice？
+13. 是否仅因为未来系统可能需要就引入 registry/framework？
 
 答不出来：
 
@@ -2687,12 +2768,42 @@ IMPLEMENT
 ↓
 BOT AUTOPLAY
 ↓
-LLM AUTOPLAY
+LLM AUTOPLAY (Phase 8 之后且 feature 暴露给 LLM player 时)
 ↓
 METRIC DIFF
 ↓
 MERGE
 ```
+
+### V2 补充：Phase 8 之前与之后
+
+**Phase 8 之前**（LLM Player 尚不存在）：
+
+```text
+Feature Contract
+↓
+Deterministic Unit / Contract Tests
+↓
+Scenario Tests
+↓
+Minimal Implementation
+↓
+Scripted Bot Autoplay
+↓
+Telemetry / Auditor
+↓
+Replay / Persistence
+↓
+Failure Bundle / Regression
+↓
+External Review
+↓
+Freeze
+```
+
+LLM autoplay: NOT REQUIRED（因为 LLM Player 尚不存在）。
+
+**Phase 8 及之后**：对暴露给 player decision-making 的 feature，增加 LLM Autoplay 和 Multi-model/persona testing。但确定性 scripted bots 始终强制保留。LLM 永远不替代确定性回归资产。
 
 ---
 
@@ -2733,6 +2844,71 @@ regression
 
 ---
 
+# 51.1 Coding Agent / Acceptance Integrity Contract
+
+Acceptance criteria are immutable during implementation.
+
+Evidence hierarchy:
+
+```text
+Runtime behavior
+> Behavioral scenario tests
+> Replay / state hash
+> Code inspection
+> Completion report
+```
+
+Do not weaken tests to match implementation. Do not add tautological verification. Do not create tests solely to execute uncovered lines. Do not reinterpret coverage thresholds. Do not self-approve a phase.
+
+Implementation result wording: "implementation candidate complete — ready for external review." External review decides acceptance.
+
+Coverage is a hard threshold where a phase specifies one. Coverage is not the purpose of tests. Correct: unverified contract → meaningful behavior/tamper/scenario test → coverage follows. Wrong: uncovered line → meaningless execution test.
+
+### Phase Freeze Lifecycle
+
+```text
+Feature Contract
+↓
+Implementation Candidate
+↓
+Deterministic Verification
+↓
+External Review
+↓
+Acceptance Fixes if required
+↓
+Full Regression
+↓
+Annotated Freeze Tag
+↓
+Next Phase
+```
+
+If a fix changes code after review, the new commit must be reviewed before freeze. Do not freeze an unreviewed cleanup commit.
+
+Freeze itself changes: 0 production files, 0 tests, 0 commits. Freeze tag must be annotated.
+
+Do not create completion canvas/report artifacts unless explicitly requested.
+
+### Future Knowledge Integrity Finding
+
+Once Phase 7.5 Knowledge exists: `KNOWLEDGE_BOUNDARY_VIOLATION` — Player/NPC/Agent receives or uses engine truth that the actor has not legitimately learned. Before Knowledge feature exists: detector inactive / not applicable. Once enabled: treat as integrity-level failure.
+
+### Future Architecture Metrics
+
+```text
+Problem-Layer Transition: Turn 10/100/300 是否仍然解决同一种问题？
+Theme Leakage: Core 是否逐步积累 WorldPack-specific vocabulary/assumptions？
+Cross-World Structural Divergence: 不同 WorldPack 是否产生不同核心循环？
+Knowledge Integrity: 角色是否只使用合理知道的信息？
+Progression Strategy Divergence: 不同成长是否真正打开不同解法？
+Automation Leverage: 成长是否真正减少低层重复劳动？
+```
+
+这些是 future architecture/design metrics，不是当前 hard gate。
+
+---
+
 # 52. 推荐的实现阶段
 
 ---
@@ -2740,6 +2916,17 @@ regression
 # Current Implementation Status / Roadmap Alignment
 
 ## Current Implementation Status
+
+**Status Index:**
+
+```text
+Phase 1 — frozen (phase1-core-v1)
+Phase 2 — frozen (phase2-action-v1)
+Phase 3 — implemented / accepted historical gameplay slice
+Phase 3.5–3.7 — narration/voice infrastructure introduced and frozen (phase-3.7-frozen)
+Phase 4 — deterministic risk slice frozen (phase-4-frozen)
+Next active phase — Phase 5: World Clock + World Phase / Hazard Window
+```
 
 The implementation deliberately split the original "Phase 2 — Minimal Action Engine" into smaller, independently verifiable stages.
 
@@ -2809,9 +2996,15 @@ These were **deferred**, not removed. The remaining gameplay-oriented parts of t
 
 ---
 
-### Next: Phase 3 — Minimal Expedition Vertical Slice
+### Historical Phase 3 Implementation Plan — Completed
 
-Phase 3 is the first real gameplay vertical slice proving CableCar loop.
+> This subsection records the planning contract used before Phase 3 implementation.
+>
+> Phase 3 is no longer the next phase. Phase 3 has been implemented and its accepted behavior is now regression history.
+>
+> The current next implementation phase is defined only by the V2 Active Roadmap below: Phase 5 — World Clock + World Phase / Hazard Window.
+
+Phase 3 was the first real gameplay vertical slice proving CableCar loop.
 
 **Target loop:**
 
@@ -2831,7 +3024,7 @@ Single Exploration Location
 CableCar Base
 ```
 
-**Phase 3 should introduce only the minimum concepts:**
+**The Phase 3 plan introduced only the minimum concepts:**
 
 * one CableCar base location
 * one exploration location
@@ -2843,7 +3036,7 @@ CableCar Base
 * EXTRACT action — return from the expedition to CableCar base with carried loot
 * existing WAIT (from Phase 2)
 
-**Phase 3 must NOT yet include:**
+**The Phase 3 scope intentionally excluded:**
 
 * combat system
 * enemy entities
@@ -2962,9 +3155,9 @@ base
 
 ### A. State-dependent Legal Actions / Observation
 
-**Current status:** Phase 2 proves that an ActionIntent can be validated against a static whitelist.
+**Historical status at Phase 3 planning time:** Phase 2 had proved that an ActionIntent could be validated against a static whitelist.
 
-**Phase 3 requirement:** Engine must derive Legal Actions from GameState.
+**Historical Phase 3 requirement:** Engine was required to derive Legal Actions from GameState.
 
 ```text
 GameState
@@ -2992,9 +3185,9 @@ already extracted from this location
 
 A static `LEGAL_ACTION_TYPES = {"WAIT"}` was sufficient for Phase 2 but is NOT the final architecture.
 
-**Do NOT implement the builder in this task.** Just document the requirement.
+**Historical planning note:** At the time this contract was written, implementation of the builder was intentionally deferred to the Phase 3 implementation task.
 
-Phase 3 will introduce state-based legality incrementally through minimal concepts only.
+Phase 3 introduced state-based legality incrementally through minimal concepts only.
 
 ---
 
@@ -3070,7 +3263,7 @@ enemy defeated ✓
 but reward event missing ✗
 ```
 
-**Do NOT implement multi-event persistence now.** Do NOT add `append_decision()` now. Do NOT modify EventStore. The purpose is only to preserve the future contract without contradicting Phase 3's single-event approach.
+**Historical planning note:** During Phase 3 planning, multi-event persistence, `append_decision()`, and EventStore changes were intentionally deferred. The purpose of this section was to preserve the future atomic multi-event contract without expanding Phase 3's single-event implementation.
 
 ---
 
@@ -3114,6 +3307,8 @@ death
 
 # Phase 5 — Day/Night
 
+> **Original roadmap — superseded from Phase 5 onward. See V2 Active Roadmap below.**
+
 加入：
 
 ```text
@@ -3128,6 +3323,8 @@ base defense
 
 # Phase 6 — Upgrade
 
+> **Original roadmap — superseded.**
+
 加入：
 
 ```text
@@ -3138,6 +3335,8 @@ player level
 ---
 
 # Phase 7 — Three-choice Talent
+
+> **Original roadmap — superseded.**
 
 加入：
 
@@ -3205,7 +3404,205 @@ regional feed
 
 ---
 
-# 53. 现有代码：保留 / 重写 / 暂停
+## V2 Active Roadmap (supersedes original Phase 5–12)
+
+> Original roadmap placed Narrator at Phase 10 and Day/Night at Phase 5.
+> Actual development introduced narration/voice infrastructure earlier (Phase 3.6–3.7).
+> These are now frozen infrastructure assets.
+> Future roadmap continues from repository reality.
+
+### Implementation Notes for Completed Phases
+
+- Phase 1–2: Frozen as documented above.
+- Phase 3: Expedition loop implemented. Narrator/Voice infrastructure introduced early (Phase 3.5–3.7).
+- Phase 4: Deterministic risk vertical slice (FIGHT/FLEE/HP/death). Frozen as `phase-4-frozen`.
+- Phase 4 local contract: encounter currently requires expedition active + player at target. This is a vertical slice constraint, not a universal engine law.
+
+---
+
+### Phase 5 — World Clock + World Phase / Hazard Window
+
+**Product question:**
+
+> Does spending time cause the world to cross a meaningful temporal boundary that changes the player's decision space?
+
+**Contract:**
+
+```text
+canonical game time crosses one meaningful boundary
+phase/window is deterministically derived or resolved
+at least one gameplay rule changes
+player Observation makes the changed condition understandable
+legal action / cost / opportunity changes meaningfully
+replay reproduces the exact boundary behavior
+scripted autoplay reaches both sides of the boundary
+```
+
+First concrete implementation may use Day → Night. But Day/Night is the first WorldPack configuration, not the universal abstraction. Universal architectural language: World Clock, World Phase, Hazard Window / Opportunity Window.
+
+The existing first-world base may participate in phase-specific rules, but Phase 5 does not introduce a generalized Habitat system.
+
+**Phase 5 exclusions:**
+
+```text
+no habitat upgrade system
+no base-defense combat
+no non-expedition hostile encounter
+no generalized EncounterContext framework
+no NPC scheduling
+no weather framework
+no seasons
+no universal condition-expression language
+no production/upkeep
+```
+
+Frozen Phase 4 local contract (active encounter requires expedition active + player at target) remains unchanged during Phase 5. Phase 5 must NOT generalize it. Habitat defense / travel combat / settlement conflict are future abstraction pressures, not Phase 5 requirements.
+
+Do NOT implement: seasons, weather graphs, 100 hazard types, condition expressions, dynamic scripting.
+
+---
+
+### Phase 6 — ProgressionTrack + ProgressionGate
+
+**Contract:**
+
+```text
+progression is not only player.level
+progression can stop at a meaningful gate and require world interaction
+after progression, new strategy/action becomes viable/legal/meaningful
+```
+
+First implementation: player progression + habitat progression (two tracks).
+
+ProgressionGate minimal: resource X + resource Y → upgrade unlocks.
+
+Product test: before progression strategy X impossible; after progression X becomes viable. Not just HP 100→110.
+
+Do NOT build UniversalProgressionGraph.
+
+---
+
+### Phase 7 — Permanent Build Choice / Build Acquisition
+
+**Contract:**
+
+```text
+limited candidate set + opportunity cost + persistent consequence + strategy divergence
+```
+
+Three-choice talent remains valid as first WorldPack's first concrete vertical slice. But three-choice is configuration, not universal engine rule. Future choice sources may be: 2 options, 3 options, N options, world-acquired opportunity, milestone, mentor offer.
+
+Build Divergence test: from same pre-choice state, at least two builds produce different legal actions / preferred strategy / state hashes after several decisions.
+
+ProgressionAttachment is a future seam only — do not build attachment framework now.
+
+---
+
+### Phase 7.5 — Named Actor + Relationship + Knowledge Vertical Slice
+
+**Contract:**
+
+```text
+1 persistent named NPC with identity, location, simple goal, minimal relationship, minimal knowledge
+1 deterministic autonomous behavior (world actor moves/acts when player absent)
+1 knowledge boundary proof: World Truth ≠ Actor Knowledge
+Observation respects knowledge boundary
+NPC behavior cannot use unknown facts
+```
+
+Do NOT implement: 100 NPC, society simulation, LLM NPC, memory vector DB, agent planner.
+
+Named Actor first version: deterministic `if condition: action` is sufficient.
+
+Knowledge is gameplay truth (if it affects future decisions), not rendering preference. But first version only does one secret/fact.
+
+---
+
+### Phase 8 — LLM Player
+
+Preserved from original. Updated precondition: LLM Player now faces survival decisions, risk, progression, one persistent relationship, one knowledge boundary — not only SEARCH/FIGHT/FLEE.
+
+LLM Player permissions remain strict: sees only Observation + legal actions; outputs action selection; cannot mutate state, emit authoritative events, decide damage/reward/hidden truth.
+
+RecordedDecision Replay: LLM run → record decisions → replay with recorded decisions → 0 network → same Engine state hashes.
+
+---
+
+### Phase 9 — Multi-model Matrix
+
+Preserved from original. Focus: model × persona × scenario × seed × prompt. Analyze: failure fingerprints, illegal output rates, over-caution, risk-seeking, loop patterns, knowledge misuse.
+
+---
+
+### Phase 10 — Capability Action Vertical Slice
+
+**Contract:**
+
+```text
+growth-produced new Capability enters truly executable Action
+1 capability only (non-basic combat/interaction action)
+source, availability, cost, target, effect, event, state change, observation, replay, autoplay
+```
+
+Capability source not locked to player.skills — long-term may come from actor, equipment, progression, relationship, team, habitat, environment, world phase. Phase 10 implements one source only.
+
+Do NOT build: EffectSystem Mega Framework, AbilityGraph, SkillTree framework.
+
+---
+
+### Narration Infrastructure — already introduced earlier
+
+Narrator / Guard / Voice Pack already exist as frozen infrastructure (Phase 3.6–3.7). Frozen contract: facts first, prose second, voice affects style only, guard independent from voice.
+
+---
+
+### Phase 11 — Public World Lite
+
+Content: aggregate population, few external peers, announcement, regional/public feed. Purpose: player feels world externally has other independent participants and group states. Not MMO simulation.
+
+Named Actor (Phase 7.5) and Public World peer are different subsystems — do not conflate.
+
+---
+
+### Phase 12 — Second Structurally Different WorldPack
+
+**Architecture Gate**, not content demo.
+
+Must use: same Engine, same EventStore, same Replay, same Autoplay Harness.
+
+Must challenge at least two structural assumptions from first world (e.g., fixed habitat, expedition-centric encounter, level-style progression, day-night-centric phase, survival economy focus, limited NPC importance).
+
+Anti-Hardcoding Gate: if Core diff shows `if world_type == ...` or world-specific nouns in core → NOT COMPLETE.
+
+Anti-Overgeneralization Gate: if 20 abstraction layers / plugin manager / universal schema added when two simple local variants suffice → NOT COMPLETE.
+
+---
+
+### Long-Horizon Optional Modules (not in current MVP phases)
+
+These require WorldPack-driven demand before implementation:
+
+- Production / Automation / Upkeep
+- Bonded Entity (companion/pet/summon/drone)
+- Organization (guild/academy/sect/faction)
+- Market / Trade
+- Settlement / Civilization scale
+
+Production first slice: 1 producer, 1 recipe, minimal input/output, 1 deterministic duration. Must pass state/event/time/replay/autoplay.
+
+Each other future optional module must receive its own minimal Feature Contract when a real WorldPack requires it. Do not predefine a universal slice shape for unrelated systems.
+
+---
+
+# 53. Historical Legacy Guidance — 保留的思想 / 当时暂停的系统
+
+> This section records the original clean-room migration decisions.
+>
+> It is NOT an instruction to copy, import, or refactor Legacy modules into mvp-rewrite.
+>
+> Legacy remains reference-only through Git history/branch/tag.
+>
+> Current implementation work follows src/tgn and the V2 Active Roadmap.
 
 ## 应该保留“思想”，但重写实现
 
@@ -3581,13 +3978,49 @@ Generator Test
 生成成功后：
 
 ```text
-Compile
+Compile / Normalize
 Validate
 Scenario Smoke
 Bot Autoplay
 ```
 
 而不是生成世界后直接让 LLM 开玩。
+
+### V2 补充：Bootstrap + Lazy Materialization
+
+"Compile / normalize" 意味着 validate and bind the minimum playable deterministic contract，不意味着 generate every location/NPC/faction/recipe/event/enemy before Decision 1。
+
+未来世界创建管线：
+
+```text
+Natural-language request
+        ↓
+WorldSeed / WorldPack Draft
+        ↓
+Schema Validation
+        ↓
+Semantic Validation
+        ↓
+Normalize / Bind IDs and contracts
+        ↓
+Bootstrap Minimal Playable World
+        ↓
+Bootstrap Smoke Test
+        ↓
+Create Campaign
+        ↓
+PLAYABLE IMMEDIATELY
+        ↓
+Lazy Materialization on demand
+        ↓
+Validate new material before it becomes canonical truth
+```
+
+此处 Lazy Materialization 指 WORLD CONTENT（区域、NPC、事件等），不仅是 Section 45.2 的 lazy named-peer materialization。
+
+Legacy full-world compiler pattern remains intentionally rejected。
+
+原则保留：manual WorldPacks first → 3-5 proven worlds → stable protocol → LLM generator last。
 
 ---
 
@@ -3908,16 +4341,26 @@ PR #6 combat
 [ ] hard assertions
 [ ] scenario tests
 [ ] bot autoplay
-[ ] LLM autoplay
+[ ] LLM autoplay — required only after Phase 8 exists and when the feature is exposed to LLM player behavior
 [ ] metrics
 [ ] documentation
 ```
 
 少一个都不是 Done。
 
+Core universal closure（所有 Phase 强制）：state, events, reducer, legal actions where applicable, observation where applicable, persistence, replay, hard assertions, scenario tests, scripted bot autoplay where gameplay-reachable, regression evidence。
+
+Feature Contract 必须明确说明某层为何 not applicable。不要用 "where applicable" 逃避真实契约。
+
 ---
 
 # 73. 第一个真正应该实现的世界：CableCar Mini
+
+> **Historical First-World Content Target**
+>
+> The content examples below remain useful as CableCar-specific scenarios. They do not define the current implementation order.
+>
+> Current phase sequencing is governed by the V2 Active Roadmap (Section 52).
 
 建议不要把 294 章内容全部实现。
 
@@ -4151,10 +4594,12 @@ A+B+C
 ```text
 所有 P0 = 0
 现有 replay = 100%
-核心 12 scenarios pass
+核心 scenarios pass
 多策略 bot 无 fatal degeneration
-至少 2~3 类 LLM 行为可以连续跑 50~100 decisions
+phase-specific hard gates = PASS
 ```
+
+Phase 8 之后额外要求：至少 2~3 类 LLM 行为可以连续跑 50~100 decisions。
 
 以后再加 feature。
 
@@ -4261,6 +4706,10 @@ flowchart TB
 ---
 
 # 79. 我对当前项目的具体迁移建议
+
+> **Historical Bootstrap Plan — Superseded**
+>
+> This sequence describes the original clean-room bootstrap proposal and must not be used as the current implementation roadmap. Current execution order: Section 52 — V2 Active Roadmap.
 
 如果由我实际开始动手，我会按这个顺序：
 
@@ -4384,6 +4833,28 @@ REST
 
 ---
 
+## V2 新增原则 6
+
+> **第一 WorldPack 的局部结构不能偷偷成为 universal Engine law。**
+
+## V2 新增原则 7
+
+> **抽象必须由真实 vertical slice 驱动，并优先由第二个结构不同的 use case 验证。**
+
+## V2 新增原则 8
+
+> **Optional Feature 一旦启用，仍然必须进入 State/Event/Replay truth。**
+
+## V2 新增原则 9
+
+> **World Truth 与 Actor Knowledge 必须能够分离。**
+
+## V2 新增原则 10
+
+> **Generality 与 simplicity 必须同时守住：避免 hard-coding，也避免 speculative framework。**
+
+---
+
 # 81. MVP 成功标准
 
 不是：
@@ -4415,6 +4886,20 @@ NPC
 > 在一个稳定骨架上增加经过验证的 Feature。
 
 而不是继续把结构压在一个已经越来越难理解的大系统上。
+
+### V2 补充：架构成功标准
+
+```text
+same stable Engine supports at least two structurally different WorldPacks
+
+second WorldPack does not require large world_type-specific branching in Core
+
+second WorldPack also does not trigger construction of a universal mega-framework
+
+bugs remain deterministically replayable
+
+optional features remain real State/Event/Replay mechanics when enabled
+```
 
 ---
 
@@ -4491,6 +4976,10 @@ Design metric 和 integrity assertion 混在一起
 
 # Appendix D — 推荐第一版 Issue / Milestone 列表
 
+> **Historical First-Pass Issue / Milestone List — Superseded**
+>
+> Do not create new issues from this list. Current work ordering is controlled by Section 52 V2 Active Roadmap.
+
 ```text
 MVP-001 Create clean package skeleton
 MVP-002 Event model
@@ -4562,3 +5051,121 @@ Any such change must:
 # Appendix E — 最终一句项目定义
 
 > **TheGreatNovel 不是一个"让 LLM 自由写小说"的系统。它应该是一个可重放的世界模拟器：LLM 在一个真实、有限、持续运行的规则世界中做选择，而小说只是这个世界运行留下的叙事记录。**
+
+---
+
+# Appendix F — V2 Architecture Principles
+
+## F.1 反主题硬编码与反结构性硬编码
+
+设计审查必须同时检查：
+
+```text
+theme vocabulary hard-coding (world-specific nouns in Core)
++
+structural assumption hard-coding (fixed base, expedition-only encounter, player.level-only progression, three-choice-only build, day/night-only phase)
+```
+
+Engine 长期应理解：Actor, Location, Resource, Action, Event, Time, Capability, Effect, Status, Relationship, Knowledge, Rule。而不是主题实体。
+
+## F.2 反过度抽象 (Abstraction Must Be Earned)
+
+错误 A：第一个世界需要木筏 → Core 直接写 BoatSystem。
+错误 B：未来可能存在一百种载具 → 现在建立 UniversalHabitatPluginFramework。
+
+正确路线：实现第一个真实 vertical slice → 实现第二个结构不同的真实需求 → 观察真正重复的因果结构 → 提取最小公共抽象。
+
+Feature Module 是概念边界，不意味着现在需要建立动态插件框架。禁止：PluginManager、DynamicModuleLoader、DependencyResolver、UniversalRegistry。
+
+## F.3 Feature Module Boundary
+
+```text
+Deterministic Core
++
+Optional Feature Modules (多个世界可能复用但不是所有世界都需要)
++
+WorldPack (具体题材、资源、能力内容、参数)
++
+Narrative / LLM Edge (提出/解释/描写/玩家决策)
+```
+
+这是责任边界，不是现在必须存在的 package hierarchy。
+
+**Optional Feature ≠ Soft Fiction.** 启用以后仍然必须接受 State、Event、Rule、Replay 约束。
+
+## F.4 World Truth ≠ Actor Knowledge
+
+World Truth ≠ Actor Knowledge 是正式架构原则。Observation 是角色有资格知道的世界投影，不是 raw GameState dump。
+
+Named Actor 不能使用自己不知道的事实。LLM 不能获得 engine-private information。Knowledge 如果影响 future decisions，就是 gameplay truth，不是 rendering preference。
+
+## F.5 Habitat 作为可选抽象
+
+Habitat（长期生存承载体）不一定是固定地点。可能是：固定建筑、列车、船、大型生物、飞船、移动城市。
+
+但不是所有世界都需要 Habitat。它是 optional world structure，不是 Player 强制字段。当前 `base` 继续作为第一世界有效实现，不需要 rename。
+
+## F.6 ProgressionTrack / ProgressionGate
+
+ProgressionTrack：某实体某一方面的长期成长轨迹。避免把 player.level 当成宇宙统一成长模型。
+
+ProgressionGate：成长瓶颈必须进入世界，要求世界行动。把成长和世界行动重新连接起来。
+
+Three-choice 是配置，不是宇宙规则。ProgressionAttachment 只是 future seam。
+
+## F.7 Compatibility Pressure Test
+
+设计"通用"概念时问：如果换成一个结构完全不同的世界，这个概念还成立吗？
+
+至少思考三类压力形态：
+- Type A — Survival / Expedition
+- Type B — Mobile Habitat / Economy
+- Type C — Character Progression / Social
+
+这些只是 architecture thought tests，不是三个固定 genre enum，不要设计成代码类型。
+
+## F.8 Canonical Legality Contract
+
+```text
+get_legal_actions(state)
+      ↓
+validate_action(state, intent)
+      ↓
+execute_action(state, intent)
+```
+
+get_legal_actions 是 state-dependent player legality 的 canonical source。Observation 只展示这个结果。Autoplay 只消费这个结果。不要出现 Observation/Validator/Executor/Bot 各有一套 legality。
+
+## F.9 Reducer 是 Anti-Forgery Boundary
+
+Reducer 同时是 event truth / anti-forgery boundary。Normal Action layer 拒绝一个行为，不等于 forged event 可以直接修改事实。
+
+## F.10 Coverage 是 Hard Gate，不是测试目的
+
+禁止：coverage missing lines → tests only execute lines → no meaningful contract。
+正确：unverified behavior → contract test → coverage follows。
+
+Acceptance thresholds immutable during implementation.
+
+## F.11 Feature Promotion Rule
+
+一个 world-specific/local mechanic 被提升为公共 Feature abstraction 之前，最好至少经过 Use Case A + structurally different Use Case B，确认共享的是 causal structure 而不是名字看起来类似。
+
+## F.12 Cross-World Strategy Collapse
+
+当第二/第三 WorldPack 出现以后：如果不同世界最终都退化为 `search → fight → extract → upgrade`，即使代码没有世界专有名词，仍然说明存在 structural hard-coding。
+
+## F.13 MVP 0–6 与 Phase 0+ 的关系
+
+```text
+MVP 0–6 = historical / conceptual capability tiers
+Phase 0+ = actual execution roadmap
+```
+
+两者不是平行执行计划。
+
+## F.14 Local Simplicity, Global Escape Hatches
+
+当前实现应该尽量简单（one player, one enemy, one base, one progression path 都可以）。但命名和 contract 不应该宣称"永远只能一个"。
+
+> **Do not hard-code the first world. Do not pre-build every future world. Prove one causal slice at a time.**
