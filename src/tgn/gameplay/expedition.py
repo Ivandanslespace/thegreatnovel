@@ -14,6 +14,7 @@ from ..actions.models import (
     ActionExecutionResult,
 )
 from .world_phase import is_action_blocked_by_phase, get_current_phase, minutes_until_phase_change
+from .progression import can_advance_track, get_track_stage, get_gate_cost, progression_enabled
 
 
 # Fixed costs per spec
@@ -22,6 +23,8 @@ SEARCH_COST = {"time": 30, "stamina": 2}
 EXTRACT_COST = {"time": 15, "stamina": 0}
 FIGHT_COST = {"time": 10, "stamina": 1}
 FLEE_COST = {"time": 15, "stamina": 0}
+UPGRADE_COST = {"time": 5, "stamina": 0}
+REST_COST = {"time": 20, "stamina": 0}
 
 
 def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
@@ -85,6 +88,30 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
                     duration_minutes=DROP_COST["time"],
                     stamina_cost=DROP_COST["stamina"]
                 ))
+        
+        # Phase 6: progression actions at base (expedition inactive)
+        if player["location_id"] == exp["base_location_id"]:
+            if can_advance_track(state, "player"):
+                legal.append(LegalAction(
+                    action_type="UPGRADE_PLAYER",
+                    duration_minutes=UPGRADE_COST["time"],
+                    stamina_cost=UPGRADE_COST["stamina"],
+                ))
+            if can_advance_track(state, "base"):
+                legal.append(LegalAction(
+                    action_type="UPGRADE_BASE",
+                    duration_minutes=UPGRADE_COST["time"],
+                    stamina_cost=UPGRADE_COST["stamina"],
+                ))
+            # REST: unlocked by player stage >= 1, only when stamina < max
+            player_stage = get_track_stage(state, "player")
+            max_stamina = player.get("max_stamina", 0)
+            if player_stage is not None and player_stage >= 1 and stamina < max_stamina:
+                legal.append(LegalAction(
+                    action_type="REST",
+                    duration_minutes=REST_COST["time"],
+                    stamina_cost=REST_COST["stamina"],
+                ))
     else:
         # On expedition
         if player["location_id"] == exp["target_location_id"]:
@@ -114,9 +141,20 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
                 ))
     
     # Phase 5: filter actions blocked by current world phase (opportunity layer only)
-    legal = [la for la in legal if not is_action_blocked_by_phase(state, la.action_type)]
+    # Phase 6: base stage >= 1 overrides the DROP phase-window block
+    base_stage = get_track_stage(state, "base")
+    base_overrides_drop = base_stage is not None and base_stage >= 1
     
-    return tuple(legal)
+    filtered = []
+    for la in legal:
+        if is_action_blocked_by_phase(state, la.action_type):
+            if la.action_type == "DROP" and base_overrides_drop:
+                filtered.append(la)
+            # else: blocked by phase, omit
+        else:
+            filtered.append(la)
+    
+    return tuple(filtered)
 
 
 def validate_action(
@@ -127,7 +165,8 @@ def validate_action(
     errors: list[ActionValidationError] = []
     
     # Check action type is supported
-    if intent.action_type not in ["WAIT", "DROP", "SEARCH", "EXTRACT", "FIGHT", "FLEE"]:
+    if intent.action_type not in ["WAIT", "DROP", "SEARCH", "EXTRACT", "FIGHT", "FLEE",
+                                   "UPGRADE_PLAYER", "UPGRADE_BASE", "REST"]:
         errors.append(ActionValidationError(
             code="UNKNOWN_ACTION",
             message=f"Unknown action type: {intent.action_type}",
@@ -192,6 +231,14 @@ def validate_action(
                 field=f"params.{key}",
             ))
     
+    elif intent.action_type in ("UPGRADE_PLAYER", "UPGRADE_BASE", "REST"):
+        for key in intent.params:
+            errors.append(ActionValidationError(
+                code="UNEXPECTED_PARAMETER",
+                message=f"{intent.action_type} does not accept parameter: {key}",
+                field=f"params.{key}",
+            ))
+    
     if errors:
         return ActionValidationResult(valid=False, action=None, errors=tuple(errors))
     
@@ -217,8 +264,9 @@ def execute_action(
 ) -> "ActionExecutionResult":
     """Execute validated action, produce event, apply via reducer."""
     
-    # Handle Phase 3/4 actions directly
-    if intent.action_type in ["DROP", "SEARCH", "EXTRACT", "FIGHT", "FLEE"]:
+    # Handle Phase 3/4/6 actions directly
+    if intent.action_type in ["DROP", "SEARCH", "EXTRACT", "FIGHT", "FLEE",
+                               "UPGRADE_PLAYER", "UPGRADE_BASE", "REST"]:
         return _execute_phase3_action(state, intent)
     
     # WAIT: validate via canonical source, then produce TIME_ADVANCED
@@ -409,6 +457,56 @@ def _execute_phase3_action(
             },
         )
     
+    elif intent.action_type == "UPGRADE_PLAYER":
+        gate = state.data["progression_gates"]["player"]
+        event = DomainEvent(
+            event_seq=state.event_seq + 1,
+            event_type="PLAYER_PROGRESSION_ADVANCED",
+            game_minute=state.game_minute + UPGRADE_COST["time"],
+            decision_seq=state.decision_seq + 1,
+            action_id=validated.action_id,
+            actor_id=validated.actor_id,
+            payload={
+                "from_stage": gate["from_stage"],
+                "to_stage": gate["to_stage"],
+                "resource_cost": dict(gate["cost"]),
+                "time": UPGRADE_COST["time"],
+            },
+        )
+    
+    elif intent.action_type == "UPGRADE_BASE":
+        gate = state.data["progression_gates"]["base"]
+        event = DomainEvent(
+            event_seq=state.event_seq + 1,
+            event_type="BASE_PROGRESSION_ADVANCED",
+            game_minute=state.game_minute + UPGRADE_COST["time"],
+            decision_seq=state.decision_seq + 1,
+            action_id=validated.action_id,
+            actor_id=validated.actor_id,
+            payload={
+                "from_stage": gate["from_stage"],
+                "to_stage": gate["to_stage"],
+                "resource_cost": dict(gate["cost"]),
+                "time": UPGRADE_COST["time"],
+            },
+        )
+    
+    elif intent.action_type == "REST":
+        player = state.data["player"]
+        event = DomainEvent(
+            event_seq=state.event_seq + 1,
+            event_type="REST_RESOLVED",
+            game_minute=state.game_minute + REST_COST["time"],
+            decision_seq=state.decision_seq + 1,
+            action_id=validated.action_id,
+            actor_id=validated.actor_id,
+            payload={
+                "stamina_before": player["stamina"],
+                "stamina_after": player["max_stamina"],
+                "time": REST_COST["time"],
+            },
+        )
+    
     # Apply via reducer
     from ..core.reducer import reduce_event
     
@@ -486,6 +584,18 @@ def build_observation(state: GameState) -> dict[str, Any]:
     if phase is not None:
         observation["world_phase"] = phase
         observation["minutes_until_phase_change"] = minutes_until_phase_change(state)
+    
+    # Phase 6: progression visible only when progression enabled
+    if progression_enabled(state):
+        prog_tracks = {}
+        for track_id in state.data["progression"]["tracks"]:
+            stage = get_track_stage(state, track_id)
+            cost = get_gate_cost(state, track_id)
+            prog_tracks[track_id] = {
+                "stage": stage,
+                "next_cost": cost,
+            }
+        observation["progression"] = {"tracks": prog_tracks}
     
     # target_loot is always hidden (information asymmetry)
     

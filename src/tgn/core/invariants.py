@@ -57,6 +57,12 @@ def check_invariants(state: "GameState") -> None:
     # Phase 5 phase-cycle configuration invariants
     if state.data.get("phase_cycle") is not None:
         _check_phase_cycle_invariants(state)
+    
+    # Phase 6 progression invariants
+    has_progression = state.data.get("progression") is not None
+    has_gates = state.data.get("progression_gates") is not None
+    if has_progression or has_gates:
+        _check_progression_invariants(state, has_progression, has_gates)
 
 
 def _check_expedition_invariants(state: "GameState") -> None:
@@ -306,3 +312,65 @@ def _check_phase_cycle_invariants(state: "GameState") -> None:
                     raise InvariantError(
                         f"blocked_actions_by_phase['{phase_key}'] entries must be string, got {type(action).__name__}"
                     )
+
+
+def _check_progression_invariants(state: "GameState", has_progression: bool, has_gates: bool) -> None:
+    """Verify Phase 6 progression configuration validity."""
+    # Both must exist together
+    if has_progression and not has_gates:
+        raise InvariantError("progression exists without progression_gates")
+    if has_gates and not has_progression:
+        raise InvariantError("progression_gates exists without progression")
+    
+    progression = state.data["progression"]
+    gates = state.data["progression_gates"]
+    
+    if not isinstance(progression, dict):
+        raise InvariantError(f"progression must be dict, got {type(progression).__name__}")
+    
+    tracks = progression.get("tracks")
+    if not isinstance(tracks, dict):
+        raise InvariantError(f"progression.tracks must be dict, got {type(tracks).__name__}")
+    
+    for track_id, stage in tracks.items():
+        if not isinstance(track_id, str) or not track_id:
+            raise InvariantError("progression track id must be non-empty string")
+        if isinstance(stage, bool):
+            raise InvariantError(f"progression.tracks['{track_id}'] must be int, not bool")
+        if not isinstance(stage, int):
+            raise InvariantError(f"progression.tracks['{track_id}'] must be int, got {type(stage).__name__}")
+        if stage < 0:
+            raise InvariantError(f"progression.tracks['{track_id}'] must be >= 0, got {stage}")
+    
+    if not isinstance(gates, dict):
+        raise InvariantError(f"progression_gates must be dict, got {type(gates).__name__}")
+    
+    for track_id, gate in gates.items():
+        if not isinstance(track_id, str) or not track_id:
+            raise InvariantError("progression_gates key must be non-empty string")
+        if track_id not in tracks:
+            raise InvariantError(f"progression_gates['{track_id}'] refers to nonexistent track")
+        if not isinstance(gate, dict):
+            raise InvariantError(f"progression_gates['{track_id}'] must be dict")
+        
+        from_stage = gate.get("from_stage")
+        if isinstance(from_stage, bool) or not isinstance(from_stage, int) or from_stage < 0:
+            raise InvariantError(f"gate '{track_id}' from_stage must be int >= 0")
+        
+        to_stage = gate.get("to_stage")
+        if isinstance(to_stage, bool) or not isinstance(to_stage, int):
+            raise InvariantError(f"gate '{track_id}' to_stage must be int")
+        if to_stage != from_stage + 1:
+            raise InvariantError(f"gate '{track_id}' to_stage must be from_stage + 1")
+        
+        cost = gate.get("cost")
+        if not isinstance(cost, dict) or not cost:
+            raise InvariantError(f"gate '{track_id}' cost must be non-empty mapping")
+        
+        for resource, qty in cost.items():
+            if not isinstance(resource, str) or not resource:
+                raise InvariantError(f"gate '{track_id}' cost resource must be non-empty string")
+            if isinstance(qty, bool):
+                raise InvariantError(f"gate '{track_id}' cost['{resource}'] must be int, not bool")
+            if not isinstance(qty, int) or qty <= 0:
+                raise InvariantError(f"gate '{track_id}' cost['{resource}'] must be positive int")

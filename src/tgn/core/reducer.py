@@ -81,6 +81,16 @@ def reduce_event(state: GameState, event: DomainEvent) -> GameState:
     elif event.event_type == "EXPEDITION_FLED":
         _apply_expedition_fled(new_state, event)
     
+    # Phase 6 progression events
+    elif event.event_type == "PLAYER_PROGRESSION_ADVANCED":
+        _apply_progression_advanced(new_state, event, "player")
+    
+    elif event.event_type == "BASE_PROGRESSION_ADVANCED":
+        _apply_progression_advanced(new_state, event, "base")
+    
+    elif event.event_type == "REST_RESOLVED":
+        _apply_rest_resolved(new_state, event)
+    
     else:
         raise ReducerError(f"Unknown event type '{event.event_type}'.")
     
@@ -129,8 +139,12 @@ def _apply_expedition_dropped(state: GameState, event: DomainEvent) -> None:
     payload = event.payload
     
     # Phase 5: reducer anti-forgery — reject DROP if phase blocks it at decision start
+    # Phase 6: base stage >= 1 overrides the phase-window DROP block
     if is_action_blocked_by_phase(state, "DROP"):
-        raise ReducerError("Cannot drop: action blocked by current world phase")
+        from ..gameplay.progression import get_track_stage
+        base_stage = get_track_stage(state, "base")
+        if base_stage is None or base_stage < 1:
+            raise ReducerError("Cannot drop: action blocked by current world phase")
     
     # Verify state preconditions
     if state.data["expedition"]["active"]:
@@ -405,3 +419,150 @@ def _apply_expedition_fled(state: GameState, event: DomainEvent) -> None:
     # End expedition, return to base
     exp["active"] = False
     player["location_id"] = exp["base_location_id"]
+
+
+# Phase 6 progression event handlers
+
+def _apply_progression_advanced(state: GameState, event: DomainEvent, track_id: str) -> None:
+    """Apply PLAYER_PROGRESSION_ADVANCED or BASE_PROGRESSION_ADVANCED event."""
+    payload = event.payload
+    player = state.data["player"]
+    exp = state.data["expedition"]
+    
+    # Preconditions
+    if player.get("hp", 1) <= 0:
+        raise ReducerError(f"Cannot upgrade {track_id}: player is dead")
+    
+    if player["location_id"] != exp["base_location_id"]:
+        raise ReducerError(f"Cannot upgrade {track_id}: not at base")
+    
+    if exp["active"]:
+        raise ReducerError(f"Cannot upgrade {track_id}: expedition active")
+    
+    encounter = exp.get("encounter")
+    if encounter and encounter.get("active"):
+        raise ReducerError(f"Cannot upgrade {track_id}: active encounter")
+    
+    # Verify progression state
+    progression = state.data.get("progression")
+    if progression is None:
+        raise ReducerError(f"Cannot upgrade {track_id}: progression not enabled")
+    
+    gates = state.data.get("progression_gates")
+    if gates is None:
+        raise ReducerError(f"Cannot upgrade {track_id}: progression_gates not configured")
+    
+    gate = gates.get(track_id)
+    if gate is None:
+        raise ReducerError(f"Cannot upgrade {track_id}: no gate defined")
+    
+    current_stage = progression["tracks"].get(track_id)
+    if current_stage is None:
+        raise ReducerError(f"Cannot upgrade {track_id}: track not found")
+    
+    # Anti-forgery: verify from_stage matches current
+    if payload.get("from_stage") != current_stage:
+        raise ReducerError(
+            f"Forged from_stage: expected {current_stage}, got {payload.get('from_stage')}"
+        )
+    
+    # Anti-forgery: verify to_stage == from_stage + 1
+    expected_to = current_stage + 1
+    if payload.get("to_stage") != expected_to:
+        raise ReducerError(
+            f"Forged to_stage: expected {expected_to}, got {payload.get('to_stage')}"
+        )
+    
+    # Anti-forgery: verify gate from_stage matches
+    if current_stage != gate["from_stage"]:
+        raise ReducerError(f"Cannot upgrade {track_id}: gate not applicable at stage {current_stage}")
+    
+    # Anti-forgery: verify resource cost matches gate
+    expected_cost = gate["cost"]
+    if payload.get("resource_cost") != expected_cost:
+        raise ReducerError(
+            f"Forged resource_cost: expected {expected_cost}, got {payload.get('resource_cost')}"
+        )
+    
+    # Verify resources available
+    inventory = state.data.get("inventory", {})
+    for resource, qty in expected_cost.items():
+        if inventory.get(resource, 0) < qty:
+            raise ReducerError(f"Cannot upgrade {track_id}: insufficient {resource}")
+    
+    # Verify time cost
+    if payload.get("time") != 5:
+        raise ReducerError(f"Upgrade time cost must be 5, got {payload.get('time')}")
+    
+    expected_minute = state.game_minute + 5
+    if event.game_minute != expected_minute:
+        raise ReducerError(f"Game minute mismatch: expected {expected_minute}, got {event.game_minute}")
+    
+    # Apply: consume resources + advance track
+    for resource, qty in expected_cost.items():
+        inventory[resource] -= qty
+        if inventory[resource] == 0:
+            del inventory[resource]
+    
+    progression["tracks"][track_id] = expected_to
+    state.game_minute = expected_minute
+
+
+def _apply_rest_resolved(state: GameState, event: DomainEvent) -> None:
+    """Apply REST_RESOLVED event."""
+    payload = event.payload
+    player = state.data["player"]
+    exp = state.data["expedition"]
+    
+    # Preconditions
+    if player.get("hp", 1) <= 0:
+        raise ReducerError("Cannot rest: player is dead")
+    
+    if player["location_id"] != exp["base_location_id"]:
+        raise ReducerError("Cannot rest: not at base")
+    
+    if exp["active"]:
+        raise ReducerError("Cannot rest: expedition active")
+    
+    encounter = exp.get("encounter")
+    if encounter and encounter.get("active"):
+        raise ReducerError("Cannot rest: active encounter")
+    
+    # Verify player progression >= 1
+    progression = state.data.get("progression")
+    if progression is None:
+        raise ReducerError("Cannot rest: progression not enabled")
+    
+    player_stage = progression["tracks"].get("player", 0)
+    if player_stage < 1:
+        raise ReducerError("Cannot rest: player track < 1")
+    
+    # Verify stamina not already full
+    stamina = player["stamina"]
+    max_stamina = player["max_stamina"]
+    if stamina >= max_stamina:
+        raise ReducerError("Cannot rest: stamina already full")
+    
+    # Anti-forgery: verify stamina_before
+    if payload.get("stamina_before") != stamina:
+        raise ReducerError(
+            f"Forged stamina_before: expected {stamina}, got {payload.get('stamina_before')}"
+        )
+    
+    # Anti-forgery: verify stamina_after == max_stamina
+    if payload.get("stamina_after") != max_stamina:
+        raise ReducerError(
+            f"Forged stamina_after: expected {max_stamina}, got {payload.get('stamina_after')}"
+        )
+    
+    # Verify time cost
+    if payload.get("time") != 20:
+        raise ReducerError(f"Rest time cost must be 20, got {payload.get('time')}")
+    
+    expected_minute = state.game_minute + 20
+    if event.game_minute != expected_minute:
+        raise ReducerError(f"Game minute mismatch: expected {expected_minute}, got {event.game_minute}")
+    
+    # Apply
+    player["stamina"] = max_stamina
+    state.game_minute = expected_minute
