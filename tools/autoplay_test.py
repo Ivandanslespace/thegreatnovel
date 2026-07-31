@@ -53,8 +53,9 @@ class ABCPolicy(Policy):
     """ABC 循环策略 - 推荐用于回归测试"""
     sequence = ["A", "B", "C"]
     
-    def choose(self, turn: int, visible_options: dict[str, dict]) -> Optional[str]:
-        preferred = self.sequence[turn % len(self.sequence)]
+    def choose(self, turn: int, visible_options: dict[str, dict], pending_options: dict = None) -> Optional[str]:
+        # P1-3: 修正索引从 (turn-1)%3 开始
+        preferred = self.sequence[(turn - 1) % len(self.sequence)]
         
         if preferred in visible_options:
             return preferred
@@ -74,7 +75,7 @@ class RandomPolicy(Policy):
         import random
         self.random = random.Random(seed)
     
-    def choose(self, turn: int, visible_options: dict[str, dict]) -> Optional[str]:
+    def choose(self, turn: int, visible_options: dict[str, dict], pending_options: dict = None) -> Optional[str]:
         if not visible_options:
             return None
         
@@ -85,20 +86,24 @@ class RandomPolicy(Policy):
 class AggressivePolicy(Policy):
     """激进策略 - 优先战斗/探索/高风险行动"""
     
-    HIGH_RISK_TYPES = {"COMBAT", "EXPLORATION", "TRAVEL", "EXTRACTION"}
+    HIGH_RISK_TYPES = {"COMBAT", "EXPLORATION", "TRAVEL", "EXTRACT", "RETURN_TO_BASE"}
     
-    def choose(self, turn: int, visible_options: dict[str, dict]) -> Optional[str]:
+    def choose(self, turn: int, visible_options: dict[str, dict], pending_options: dict = None) -> Optional[str]:
         if not visible_options:
             return None
         
-        # 检查每个选项的类型
-        for key, opt in visible_options.items():
-            action = opt.get("action", {})
-            action_type = str(action.get("type", ""))
-            if action_type in self.HIGH_RISK_TYPES:
-                return key
+        # P1-2: 读取 pending_options 中的 action contract
+        if isinstance(pending_options, dict) and pending_options.get("options"):
+            for key in visible_options.keys():
+                opt = pending_options["options"].get(key, {})
+                if isinstance(opt, dict):
+                    action = opt.get("action", {})
+                    if isinstance(action, dict):
+                        action_type = str(action.get("type", ""))
+                        if action_type in self.HIGH_RISK_TYPES:
+                            return key
         
-        # Fallback
+        # Fallback: 优先第一个可用
         return next(iter(visible_options.keys()), None)
 
 
@@ -107,18 +112,22 @@ class BuilderPolicy(Policy):
     
     PRIORITY_TYPES = {"BUILD", "BASE_MANAGEMENT", "SOCIAL_INTERACTION", "RESEARCH", "TRADE"}
     
-    def choose(self, turn: int, visible_options: dict[str, dict]) -> Optional[str]:
+    def choose(self, turn: int, visible_options: dict[str, dict], pending_options: dict = None) -> Optional[str]:
         if not visible_options:
             return None
         
-        # 检查每个选项的类型
-        for key, opt in visible_options.items():
-            action = opt.get("action", {})
-            action_type = str(action.get("type", ""))
-            if action_type in self.PRIORITY_TYPES:
-                return key
+        # P1-2: 读取 pending_options 中的 action contract
+        if isinstance(pending_options, dict) and pending_options.get("options"):
+            for key in visible_options.keys():
+                opt = pending_options["options"].get(key, {})
+                if isinstance(opt, dict):
+                    action = opt.get("action", {})
+                    if isinstance(action, dict):
+                        action_type = str(action.get("type", ""))
+                        if action_type in self.PRIORITY_TYPES:
+                            return key
         
-        # Fallback
+        # Fallback: 优先第一个可用
         return next(iter(visible_options.keys()), None)
 
 
@@ -366,32 +375,53 @@ class AutoAuditor:
         findings = []
         
         active_encounter = None
+        encountered_turns = []
         
-        for turn in self.telemetry.turns:
+        for i, turn in enumerate(self.telemetry.turns):
             after = turn["after"]
             current_encounter = after.get("current_encounter_id")
             
             if current_encounter and not active_encounter:
+                # 进入新 encounter
                 active_encounter = {
                     "encounter_id": current_encounter,
                     "entered_at": turn["decision"],
+                    "turn_index": i,
                 }
+            elif current_encounter and active_encounter:
+                # 可能切换或异常
+                if current_encounter != active_encounter["encounter_id"]:
+                    # 没有经过 None 直接切换到另一个 encounter - 异常
+                    findings.append({
+                        "level": "P0",
+                        "category": "ENCOUNTER_UNEXPECTED_SWITCH",
+                        "message": f"Encounter 在未退出当前遭遇时切换到新的 encounter",
+                        "from_encounter": active_encounter["encounter_id"],
+                        "to_encounter": current_encounter,
+                        "at_decision": turn["decision"],
+                    })
+                    # 更新为新的 encounter
+                    active_encounter["encounter_id"] = current_encounter
+                    active_encounter["entered_at"] = turn["decision"]
             elif not current_encounter and active_encounter:
-                findings.append({
-                    "level": "P0",
-                    "category": "ENCOUNTER_OPEN_END",
-                    "message": f"Encounter {active_encounter['encounter_id']} 在第 {active_encounter['entered_at']} 轮进入，但未检测到退出事件",
+                # 正常关闭 encounters
+                closed_encounters = {
                     "encounter_id": active_encounter["encounter_id"],
                     "entered_at": active_encounter["entered_at"],
-                })
+                    "closed_at": turn["decision"],
+                    "duration": turn["decision"] - active_encounter["entered_at"],
+                }
                 active_encounter = None
+            elif not current_encounter and not active_encounter:
+                # 无 encounter 活动
+                pass
         
-        # 检查结束时的状态
+        # 检查测试结束时的状态
         if active_encounter:
             findings.append({
                 "level": "P0",
                 "category": "ENCOUNTER_STILL_ACTIVE",
-                "message": f"Encounter {active_encounter['encounter_id']} 在游戏结束时仍未退出",
+                "message": f"Encounter {active_encounter['encounter_id']} 在第 {active_encounter['entered_at']} 轮进入，测试结束时仍未退出",
                 "encounter_id": active_encounter["encounter_id"],
                 "entered_at": active_encounter["entered_at"],
                 "still_active_after": len(self.telemetry.turns),
@@ -539,7 +569,234 @@ def create_policy(policy_name: str, seed: int = 42) -> Policy:
     return policies[policy_name]()
 
 
+class AutoplayRunner:
+    """单个测试运行的执行器 - 封装状态和数据采集"""
+    
+    def __init__(self, save_dir: Path, output_dir: Path):
+        self.save_dir = save_dir
+        self.output_dir = output_dir
+        self.telemetry = TelemetryRecorder()
+        self.initial_state = None
+        self.final_state = None
+        self.events_before_all = []
+        self.all_new_events = []
+        
+    def run(self, turns: int, policy: Policy, seed: int = 42) -> Dict[str, Any]:
+        """运行测试并返回结果字典
+        
+        Returns:
+            {
+                "status": "success" | "failed" | "timeout",
+                "turns_completed": int,
+                "total_turns": int,
+                "telemetry": TelemetryRecorder,
+                "initial_state": dict,
+                "final_state": dict,
+                "events": list,
+            }
+        """
+        try:
+            # 加载游戏状态 (仅第一次)
+            state = load_game_state(self.save_dir)
+            engine = GameEngine(state)
+            
+            # 保存初始状态快照
+            self.initial_state = self._capture_snapshot(engine)
+            
+            # 记录起始事件数
+            self.events_before_all = engine.state.store.events()
+            
+            # 生成初始选项
+            generate_options_only = False
+            pending = engine.state.meta.get("pending_options", {})
+            if not pending or not pending.get("options"):
+                generate_options_only = True
+            
+            for decision in range(1, turns + 1):
+                # 如果没有待选项，只生成一次
+                if generate_options_only:
+                    result = resolve_turn(engine, "", None, generate_options_only=True)
+                    generate_options_only = False
+                
+                # 检查是否有错误
+                if "error" in result:
+                    self.telemetry.add_warning(
+                        "P0", 
+                        "OPTIONS_GENERATION_FAILED",
+                        f"决策 {decision}: {result.get('error', '未知错误')}"
+                    )
+                    break
+                
+                visible_options = result.get("visible_options", {})
+                option_labels = {k: v.get("label", "") for k, v in visible_options.items()}
+                
+                # 选择选项 (使用同一个 policy 实例)
+                requested = policy.choose(decision, visible_options)
+                
+                if requested is None:
+                    self.telemetry.add_warning(
+                        "P1", 
+                        "NO_CHOICE_MADE",
+                        f"决策 {decision}: 策略无法选择，可用选项：{list(visible_options.keys())}"
+                    )
+                    break
+                
+                # 记录执行前状态 (从 SQLite 读取 raw events)
+                events_before_run = engine.state.store.events()
+                events_count_before = len(events_before_run)
+                
+                # 记录 before 快照
+                before = self._capture_snapshot(engine)
+                before["events_count"] = events_count_before
+                
+                # 获取待执行的 action contract
+                pending_opts = engine.state.meta.get("pending_options", {})
+                selected_action = {}
+                if isinstance(pending_opts, dict) and pending_opts.get("options"):
+                    opt = pending_opts["options"].get(requested, {})
+                    if isinstance(opt, dict):
+                        selected_action = dict(opt.get("action", {}))
+                
+                # 执行回合
+                result = resolve_turn(engine, requested, None)
+                
+                # 记录 after 快照
+                after = self._capture_snapshot(engine)
+                
+                # 采集新事件 (这才是真实数据源!)
+                events_after_run = engine.state.store.events()
+                new_events = events_after_run[events_count_before:]
+                
+                # 提取 action_type 和 time_cost 从原始事件
+                action_type = selected_action.get("type", "UNKNOWN")
+                time_cost = 0.0
+                
+                for evt in new_events:
+                    if isinstance(evt, dict):
+                        data = evt.get("data", {})
+                        if isinstance(data, dict):
+                            # 从 payload 中提取 time_cost
+                            if "time_cost" in data:
+                                time_cost = float(data["time_cost"])
+                                break
+                
+                # 记录 telemetry
+                self.telemetry.record_turn(
+                    turn=engine.state.current_turn,
+                    decision=decision,
+                    requested_choice=requested,
+                    actual_choice=requested,
+                    reason_fallback=None,
+                    before=before,
+                    options_before=option_labels,
+                    result={
+                        "action_type": action_type,
+                        "time_cost": time_cost,
+                        "outcome": result.get("resolved", {}).get("resolution", {}).get("outcome", ""),
+                    },
+                    after=after,
+                    events_created=[dict(e) for e in new_events],
+                )
+                
+                # 收集所有事件
+                self.all_new_events.extend(new_events)
+                
+                # 进度输出
+                if decision % 10 == 0:
+                    print(f"   决策 {decision}/{turns} ✓")
+            
+            # 保存最终状态快照
+            self.final_state = self._capture_snapshot(engine)
+            
+            return {
+                "status": "success",
+                "turns_completed": len(self.telemetry.turns),
+                "total_turns": turns,
+                "telemetry": self.telemetry,
+                "initial_state": self.initial_state,
+                "final_state": self.final_state,
+                "events": self.all_new_events,
+                "output_dir": self.output_dir,
+            }
+        
+        except Exception as e:
+            import traceback
+            
+            # 保存失败现场
+            failure_dir = self.output_dir / "failure"
+            failure_dir.mkdir(parents=True, exist_ok=True)
+            
+            with open(failure_dir / "traceback.txt", "w", encoding="utf-8") as f:
+                f.write(traceback.format_exc())
+            
+            # 尝试保存崩溃前的状态
+            try:
+                if 'engine' in locals():
+                    failure_dir.joinpath("before_state.json").write_text(
+                        json.dumps(self._capture_snapshot(engine), ensure_ascii=False, indent=2)
+                    )
+                    failure_dir.joinpath("pending_options.json").write_text(
+                        json.dumps(engine.state.meta.get("pending_options", {}), ensure_ascii=False, indent=2)
+                    )
+            except:
+                pass
+            
+            return {
+                "status": "failed",
+                "error": str(e),
+                "output_dir": self.output_dir,
+            }
+    
+    def _capture_snapshot(self, engine: GameEngine) -> Dict[str, Any]:
+        """捕获完整的 state 快照"""
+        player = engine.state.player
+        meta = engine.state.meta
+        inventory = engine.state.inventory
+        
+        # 完整的 snapshot
+        return {
+            "current_turn": engine.state.current_turn,
+            "world_turn": engine.state.world_turn,
+            "game_day": meta.get("game_day"),
+            "day_elapsed_minutes": meta.get("day_elapsed_minutes"),
+            "time_of_day": meta.get("time_of_day"),
+            "available_time_minutes": meta.get("available_time_minutes"),
+            
+            "current_location": meta.get("current_location"),
+            "current_encounter_id": meta.get("current_encounter_id"),
+            "active_encounters": meta.get("active_encounters", []),
+            
+            "hp": player.get("hp"),
+            "max_hp": player.get("max_hp"),
+            "fatigue": player.get("fatigue"),
+            "mental": player.get("mental"),
+            "hunger": player.get("hunger"),
+            
+            "level": player.get("level"),
+            "exp": player.get("exp"),
+            
+            "resources": dict(inventory.get("resources", {})),
+            
+            "event_queue_size": len(meta.get("event_queue", [])),
+            "promise_count": len(meta.get("social_state", {}).get("promises", [])),
+            
+            "peer_action_history_size": len(engine.state.data.get("population_state", {}).get("turn_history", [])),
+            "channel_feed_size": len(engine.state.data.get("public_system_state", {}).get("channel_feed", [])),
+            
+            "total_decisions": meta.get("total_decisions"),
+            "total_combats": meta.get("total_combats"),
+        }
+
+
+
+
 def main():
+    # P1-9: 添加 Python path 初始化以确保模块导入
+    current_file = Path(__file__).resolve()
+    project_root = current_file.parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+    
     parser = argparse.ArgumentParser(description="Autoplay Test Engine")
     parser.add_argument("--save", type=str, required=True, help="存档目录")
     parser.add_argument("--turns", type=int, default=50, help="模拟回合数")
@@ -569,72 +826,93 @@ def main():
         shutil.rmtree(temp_save_dir)
     shutil.copytree(base_path, temp_save_dir)
     
-    # 初始化遥测
-    telemetry = TelemetryRecorder()
-    
-    # 加载游戏状态
-    print(f"🎮 开始模拟 {args.turns} 轮...")
     try:
+        runner = AutoplayRunner(temp_save_dir, output_dir)
+        
+        # 加载游戏状态 (仅一次)
         state = load_game_state(temp_save_dir)
         engine = GameEngine(state)
         
+        # 生成初始选项
+        generate_options_only = False
+        pending = engine.state.meta.get("pending_options", {})
+        if not pending or not pending.get("options"):
+            generate_options_only = True
+        
+        # 创建策略实例 (一次，而不是每轮) - P1-1
+        policy = create_policy(args.policy, args.seed)
+        
+        print(f"🎮 开始模拟 {args.turns} 轮...")
+        
         for decision in range(1, args.turns + 1):
-            policy = create_policy(args.policy, args.seed)
+            # 如果没有待选项，只生成一次 - P1-4
+            if generate_options_only:
+                result = resolve_turn(engine, "", None, generate_options_only=True)
+                generate_options_only = False
             
-            # 生成选项
-            result = resolve_turn(engine, "", None, generate_options_only=True)
-            
+            # 检查是否有错误
             if "error" in result or "visible_options" not in result:
-                telemetry.add_warning("P0", "OPTIONS_GENERATION_FAILED", 
-                                     f"决策 {decision}: {result.get('error', '未知错误')}")
+                runner.telemetry.add_warning(
+                    "P0", 
+                    "OPTIONS_GENERATION_FAILED",
+                    f"决策 {decision}: {result.get('error', '未知错误')}"
+                )
                 break
             
             visible_options = result.get("visible_options", {})
             option_labels = {k: v.get("label", "") for k, v in visible_options.items()}
             
-            # 选择选项
-            requested = policy.choose(decision, visible_options)
+            # 选择选项 - P1-2: Aggressive/Builder 需要读取 pending options 的 action
+            requested = policy.choose(decision, visible_options, engine.state.meta.get("pending_options", {}))
             
             if requested is None:
-                telemetry.add_warning("P1", "NO_CHOICE_MADE",
-                                     f"决策 {decision}: 策略无法选择，可用选项：{list(visible_options.keys())}")
+                runner.telemetry.add_warning(
+                    "P1", 
+                    "NO_CHOICE_MADE",
+                    f"决策 {decision}: 策略无法选择，可用选项：{list(visible_options.keys())}"
+                )
                 break
             
-            # 执行回合
-            before = {
-                "turn": engine.state.current_turn,
-                "world_turn": engine.state.world_turn,
-                "game_day": engine.state.meta.get("game_day"),
-                "time_of_day": engine.state.meta.get("time_of_day"),
-                "available_time": engine.state.meta.get("available_time_minutes"),
-                "location": engine.state.meta.get("current_location"),
-                "hp": engine.state.player.get("hp"),
-                "mental": engine.state.player.get("mental"),
-            }
+            # 记录执行前状态 (从 SQLite 读取 raw events) - P0-1
+            events_before_run = engine.state.store.events()
+            events_count_before = len(events_before_run)
             
+            # 记录 before 快照 - P0-2
+            before = runner._capture_snapshot(engine)
+            before["events_count"] = events_count_before
+            
+            # 获取待执行的 action contract
+            pending_opts = engine.state.meta.get("pending_options", {})
+            selected_action = {}
+            if isinstance(pending_opts, dict) and pending_opts.get("options"):
+                opt = pending_opts["options"].get(requested, {})
+                if isinstance(opt, dict):
+                    selected_action = dict(opt.get("action", {}))
+            
+            # 执行回合
             result = resolve_turn(engine, requested, None)
             
-            # 收集数据
-            after = {
-                "turn": engine.state.current_turn,
-                "world_turn": engine.state.world_turn,
-                "game_day": engine.state.meta.get("game_day"),
-                "time_of_day": engine.state.meta.get("time_of_day"),
-                "available_time": engine.state.meta.get("available_time_minutes"),
-                "location": engine.state.meta.get("current_location"),
-                "hp": engine.state.player.get("hp"),
-                "mental": engine.state.player.get("mental"),
-            }
+            # 记录 after 快照
+            after = runner._capture_snapshot(engine)
             
-            events_created = []
-            if "resolved" in result:
-                resolved = result["resolved"]
-                event = resolved.get("event", {})
-                if isinstance(event, dict):
-                    events_created.append(dict(event))
-                events_created.extend(resolved.get("events", []))
+            # 采集新事件 (这才是真实数据源!) - P0-1
+            events_after_run = engine.state.store.events()
+            new_events = events_after_run[events_count_before:]
             
-            telemetry.record_turn(
+            # 提取 action_type 和 time_cost 从原始事件
+            action_type = selected_action.get("type", "UNKNOWN")
+            time_cost = 0.0
+            
+            for evt in new_events:
+                if isinstance(evt, dict):
+                    data = evt.get("data", {})
+                    if isinstance(data, dict):
+                        if "time_cost" in data:
+                            time_cost = float(data["time_cost"])
+                            break
+            
+            # 记录 telemetry
+            runner.telemetry.record_turn(
                 turn=engine.state.current_turn,
                 decision=decision,
                 requested_choice=requested,
@@ -642,55 +920,98 @@ def main():
                 reason_fallback=None,
                 before=before,
                 options_before=option_labels,
-                result=result.get("resolved", {}),
+                result={
+                    "action_type": action_type,
+                    "time_cost": time_cost,
+                    "outcome": result.get("resolved", {}).get("resolution", {}).get("outcome", ""),
+                },
                 after=after,
-                events_created=events_created,
+                events_created=[dict(e) for e in new_events],
             )
+            
+            # 收集所有事件
+            runner.all_new_events.extend(new_events)
             
             # 进度输出
             if decision % 10 == 0:
                 print(f"   决策 {decision}/{args.turns} ✓")
+        
+        # 保存最终状态快照
+        runner.final_state = runner._capture_snapshot(engine)
         
     except Exception as e:
         print(f"❌ 异常：{e}")
         import traceback
         traceback.print_exc()
         
-        # 保存失败现场
+        # P1-8: 增强失败现场保存
         failure_dir = output_dir / "failure"
         failure_dir.mkdir(exist_ok=True)
         
         with open(failure_dir / "traceback.txt", "w", encoding="utf-8") as f:
             f.write(traceback.format_exc())
         
-        sys.exit(1)
+        return
     
-    # 清理临时文件
-    shutil.rmtree(temp_save_dir)
+    finally:
+        # 清理临时文件
+        if temp_save_dir.exists():
+            shutil.rmtree(temp_save_dir)
     
     # 运行审计
     print(f"🔍 运行自动审计...")
-    auditor = AutoAuditor(telemetry)
+    auditor = AutoAuditor(runner.telemetry)
     findings = auditor.audit()
     
+    # 统一统计所有 warning - P0-4
+    all_findings = runner.telemetry.warnings + findings
+    
     # 添加审计报告
-    telemetry.warnings.extend(findings)
+    runner.telemetry.warnings.extend(findings)
     
     # 生成报告
     print(f"📊 生成报告...")
     
+    # 计算统计数据
+    completed = len(runner.telemetry.turns) == args.turns
+    has_p0 = any(f["level"] == "P0" for f in all_findings)
+    
+    # 确定退出码 - P0-4
+    exit_code = 0
+    if not completed:
+        exit_code = 2  # 未跑完
+    elif has_p0:
+        exit_code = 2  # 有 P0 问题
+    
     # 保存原始数据
     with open(output_dir / "turns.jsonl", "w", encoding="utf-8") as f:
-        f.write(telemetry.to_jsonl())
+        f.write(runner.telemetry.to_jsonl())
+    
+    # run.json 包含完整状态信息
+    run_data = {
+        "summary": runner.telemetry.get_summary(),
+        "findings": all_findings,
+        "start_time": timestamp,
+        "policy": args.policy,
+        "turns_requested": args.turns,
+        "turns_completed": len(runner.telemetry.turns),
+        "completed_normally": completed,
+        "has_p0_issues": has_p0,
+        "exit_code": exit_code,
+    }
     
     with open(output_dir / "run.json", "w", encoding="utf-8") as f:
-        json.dump({
-            "summary": telemetry.get_summary(),
-            "findings": findings,
-            "start_time": timestamp,
-            "policy": args.policy,
-            "turns": args.turns,
-        }, f, ensure_ascii=False, indent=2)
+        json.dump(run_data, f, ensure_ascii=False, indent=2)
+    
+    # P1-7: 实现 initial/final state snapshots
+    with open(output_dir / "initial_state.json", "w", encoding="utf-8") as f:
+        json.dump(runner.initial_state, f, ensure_ascii=False, indent=2)
+    
+    with open(output_dir / "final_state.json", "w", encoding="utf-8") as f:
+        json.dump(runner.final_state, f, ensure_ascii=False, indent=2)
+    
+    with open(output_dir / "events.json", "w", encoding="utf-8") as f:
+        json.dump([dict(e) for e in runner.all_new_events], f, ensure_ascii=False, indent=2)
     
     # 生成 Markdown 报告
     report_lines = []
@@ -701,12 +1022,13 @@ def main():
     
     # 结果概览
     report_lines.append("## Result\n")
-    report_lines.append(f"- 决策完成：{len(telemetry.turns)}/{args.turns}\n")
-    report_lines.append(f"- 发现警告：{len(findings)}\n")
+    report_lines.append(f"- 决策完成：{len(runner.telemetry.turns)}/{args.turns}\n")
+    report_lines.append(f"- 是否完整跑完：{'是' if completed else '否'}\n")
+    report_lines.append(f"- 发现警告：{len(all_findings)}\n")
     
-    p0_count = sum(1 for f in findings if f["level"] == "P0")
-    p1_count = sum(1 for f in findings if f["level"] == "P1")
-    p2_count = sum(1 for f in findings if f["level"] == "P2")
+    p0_count = sum(1 for f in all_findings if f["level"] == "P0")
+    p1_count = sum(1 for f in all_findings if f["level"] == "P1")
+    p2_count = sum(1 for f in all_findings if f["level"] == "P2")
     
     report_lines.append(f"- P0 问题：{p0_count}\n")
     report_lines.append(f"- P1 问题：{p1_count}\n")
@@ -715,7 +1037,7 @@ def main():
     # 机制覆盖
     report_lines.append("## Coverage\n")
     mechanism_counts: Dict[str, int] = {}
-    for turn in telemetry.turns:
+    for turn in runner.telemetry.turns:
         mech = turn["result"].get("action_type", "UNKNOWN")
         mechanism_counts[mech] = mechanism_counts.get(mech, 0) + 1
     
@@ -725,10 +1047,10 @@ def main():
     report_lines.append("\n")
     
     # 问题列表
-    if findings:
+    if all_findings:
         report_lines.append("## Findings\n\n")
         
-        for finding in findings:
+        for finding in all_findings:
             level = finding["level"]
             category = finding["category"]
             message = finding["message"]
@@ -738,15 +1060,14 @@ def main():
             report_lines.append(f"{message}\n\n")
     
     # 最终状态
-    if telemetry.turns:
-        last_turn = telemetry.turns[-1]["after"]
+    if runner.final_state:
         report_lines.append("## Final State\n")
-        report_lines.append(f"- Turn: {last_turn.get('turn')}\n")
-        report_lines.append(f"- World Turn: {last_turn.get('world_turn')}\n")
-        report_lines.append(f"- Day: {last_turn.get('game_day')}\n")
-        report_lines.append(f"- Location: {last_turn.get('location')}\n")
-        report_lines.append(f"- HP: {last_turn.get('hp')}\n")
-        report_lines.append(f"- Mental: {last_turn.get('mental')}\n\n")
+        report_lines.append(f"- Turn: {runner.final_state.get('current_turn')}\n")
+        report_lines.append(f"- World Turn: {runner.final_state.get('world_turn')}\n")
+        report_lines.append(f"- Day: {runner.final_state.get('game_day')}\n")
+        report_lines.append(f"- Location: {runner.final_state.get('current_location')}\n")
+        report_lines.append(f"- HP: {runner.final_state.get('hp')}/...\n")
+        report_lines.append(f"- Mental: {runner.final_state.get('mental')}\n\n")
     
     report_text = "\n".join(report_lines)
     
@@ -756,12 +1077,16 @@ def main():
     # 打印简要摘要
     print(f"\n✅ 完成！输出目录：{output_dir.absolute()}\n")
     print("== 报告摘要 ==")
+    print(f"完成：{len(runner.telemetry.turns)}/{args.turns}")
     print(f"P0 问题：{p0_count}")
     print(f"P1 问题：{p1_count}")
     print(f"P2 问题：{p2_count}")
     
     if p0_count > 0:
         print(f"\n⚠️  发现 {p0_count} 个 P0 级问题，请详细检查！")
+    
+    # 设置全局 exit code (供 Suite 读取) - P0-4
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

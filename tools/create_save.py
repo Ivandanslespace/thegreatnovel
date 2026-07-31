@@ -699,6 +699,7 @@ def build_files(template_dir, world, talent):
             "world_name": world_name,
             "created_at": now,
             "current_turn": 1,
+            "world_turn": 1,  # P0-5: 初始化 world_turn 与 current_turn 同步
             "game_day": 1,
             "time_of_day": "清晨",
             "phase": phase,

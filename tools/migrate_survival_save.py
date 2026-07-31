@@ -8,6 +8,7 @@ This script:
 3. Archives stale channel messages
 4. Initializes peer_players in SQLite
 5. Preserves all valid player progress (inventory, base, XP, etc.)
+6. Adds world_turn field to meta.yaml (P0-5)
 
 Usage:
     python tools/migrate_survival_save.py saves/灰烬列车
@@ -254,24 +255,28 @@ def migrate_save(save_path_str: str):
     print(f"{'='*60}")
 
     # Step 1: Backup
-    print("\n[1/5] Creating backup...")
+    print("\n[1/6] Creating backup...")
     step_backup(save_dir)
 
     # Step 2: Fix ranking
-    print("\n[2/5] Fixing ranking state...")
+    print("\n[2/6] Fixing ranking state...")
     step_fix_ranking(save_dir)
 
     # Step 3: Archive channel messages
-    print("\n[3/5] Archiving channel messages...")
+    print("\n[3/6] Archiving channel messages...")
     step_archive_channel(save_dir)
 
     # Step 4: Fix rival state
-    print("\n[4/5] Fixing rival state...")
+    print("\n[4/6] Fixing rival state...")
     step_fix_rival(save_dir)
 
     # Step 5: Initialize peer players
-    print("\n[5/5] Initializing peer players in SQLite...")
+    print("\n[5/6] Initializing peer players in SQLite...")
     step_init_peers(save_dir)
+
+    # P0-5: Add world_turn field to meta.yaml
+    print("\n[6/6] Adding world_turn field...")
+    step_add_world_turn(save_dir)
 
     print(f"\n{'='*60}")
     print("Migration complete!")
