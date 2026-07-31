@@ -45,8 +45,8 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
     
     if not exp["active"]:
         # Not on expedition
-        if player["location_id"] == exp["base_location_id"]:
-            # At base, can DROP only if stamina sufficient
+        if player["location_id"] == exp["base_location_id"] and not exp["target_searched"]:
+            # At base and target not yet searched, can DROP only if stamina sufficient
             if stamina >= DROP_COST["stamina"]:
                 legal.append(LegalAction(
                     action_type="DROP",
@@ -73,18 +73,13 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
                 stamina_cost=EXTRACT_COST["stamina"]
             ))
         elif player["location_id"] == exp["base_location_id"]:
-            # Early extract at base - can retry DROP if target unsearched and stamina ok
+            # At base while expedition active - can retry DROP if target unsearched and stamina ok
             if not exp["target_searched"] and stamina >= DROP_COST["stamina"]:
                 legal.append(LegalAction(
                     action_type="DROP",
                     duration_minutes=DROP_COST["time"],
                     stamina_cost=DROP_COST["stamina"]
                 ))
-            legal.append(LegalAction(
-                action_type="EXTRACT",
-                duration_minutes=EXTRACT_COST["time"],
-                stamina_cost=EXTRACT_COST["stamina"]
-            ))
     
     return tuple(legal)
 
@@ -105,6 +100,11 @@ def validate_action(
         ))
         return ActionValidationResult(valid=False, action=None, errors=tuple(errors))
     
+    # WAIT reuses Phase 2 validation contract completely
+    if intent.action_type == "WAIT":
+        from tgn.actions.validation import validate_action as base_validate
+        return base_validate(state, intent)
+    
     # Get legal actions - this is THE source of truth for legality
     legal_actions = get_legal_actions(state)
     legal_action_types = tuple(la.action_type for la in legal_actions)
@@ -117,22 +117,32 @@ def validate_action(
         ))
         return ActionValidationResult(valid=False, action=None, errors=tuple(errors))
     
-    # Validate parameters specific to each action type
-    # (This is separate from legality checks)
-    if intent.action_type == "WAIT":
-        _validate_wait_params(state, intent, errors)
-    
     elif intent.action_type == "DROP":
-        # No params for DROP
-        pass
+        # No params allowed for DROP
+        for key in intent.params:
+            errors.append(ActionValidationError(
+                code="UNEXPECTED_PARAMETER",
+                message=f"DROP does not accept parameter: {key}",
+                field=f"params.{key}",
+            ))
     
     elif intent.action_type == "SEARCH":
-        # No params for SEARCH  
-        pass
+        # No params allowed for SEARCH
+        for key in intent.params:
+            errors.append(ActionValidationError(
+                code="UNEXPECTED_PARAMETER",
+                message=f"SEARCH does not accept parameter: {key}",
+                field=f"params.{key}",
+            ))
     
     elif intent.action_type == "EXTRACT":
-        # No params for EXTRACT
-        pass
+        # No params allowed for EXTRACT
+        for key in intent.params:
+            errors.append(ActionValidationError(
+                code="UNEXPECTED_PARAMETER",
+                message=f"EXTRACT does not accept parameter: {key}",
+                field=f"params.{key}",
+            ))
     
     if errors:
         return ActionValidationResult(valid=False, action=None, errors=tuple(errors))
@@ -182,7 +192,7 @@ def execute_action(
         
         # Produce TIME_ADVANCED event (existing Phase 2 pattern)
         event = DomainEvent.advance_time(
-            game_minute=state.game_minute + validated.duration_minutes,
+            game_minute=state.game_minute,
             minutes=validated.duration_minutes,
             event_seq=state.event_seq + 1,
             decision_seq=state.decision_seq + 1,
@@ -246,7 +256,7 @@ def _execute_phase3_action(
     if intent.action_type == "WAIT":
         # Use existing time advance event
         event = DomainEvent.advance_time(
-            game_minute=state.game_minute + validated.duration_minutes,
+            game_minute=state.game_minute,
             minutes=validated.duration_minutes,
             event_seq=state.event_seq + 1,
             decision_seq=state.decision_seq + 1,
@@ -279,7 +289,6 @@ def _execute_phase3_action(
             actor_id=validated.actor_id,
             payload={
                 "loot_gained": dict(state.data["expedition"]["target_loot"]),
-                "location_match": True,
                 "time": SEARCH_COST["time"],
                 "stamina_cost": SEARCH_COST["stamina"],
             },
@@ -295,7 +304,6 @@ def _execute_phase3_action(
             actor_id=validated.actor_id,
             payload={
                 "carried_loot": dict(state.data["expedition"]["carried_loot"]),
-                "carried_matches": True,
                 "time": EXTRACT_COST["time"],
             },
         )
@@ -311,61 +319,6 @@ def _execute_phase3_action(
         events=(event,),
         final_state=new_state,
     )
-
-
-def _validate_wait_params(
-    state: GameState,
-    intent: ActionIntent,
-    errors: list[ActionValidationError],
-) -> None:
-    """Validate WAIT action parameters only (legality checked elsewhere)."""
-    params = intent.params
-    
-    # Require minutes
-    if "minutes" not in params:
-        errors.append(ActionValidationError(
-            code="MISSING_FIELD",
-            message="Missing required field: minutes",
-            field="params.minutes",
-        ))
-        return
-    
-    minutes = params["minutes"]
-    
-    # Validate types (bool rejection like Phase 2)
-    if isinstance(minutes, bool):
-        errors.append(ActionValidationError(
-            code="INVALID_TYPE",
-            message="minutes must be integer, not boolean",
-            field="params.minutes",
-        ))
-        return
-    
-    if not isinstance(minutes, int):
-        errors.append(ActionValidationError(
-            code="INVALID_TYPE",
-            message=f"minutes must be integer, got {type(minutes).__name__}",
-            field="params.minutes",
-        ))
-        return
-    
-    if minutes <= 0:
-        errors.append(ActionValidationError(
-            code="INVALID_VALUE",
-            message=f"minutes must be > 0, got {minutes}",
-            field="params.minutes",
-        ))
-        return
-    
-    # Reject unexpected parameters
-    unexpected = set(params.keys()) - {"minutes"}
-    if unexpected:
-        for field_name in unexpected:
-            errors.append(ActionValidationError(
-                code="UNEXPECTED_PARAMETER",
-                message=f"Unexpected parameter: {field_name}",
-                field=f"params.{field_name}",
-            ))
 
 
 @dataclass(frozen=True)

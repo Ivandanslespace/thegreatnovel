@@ -89,6 +89,8 @@ def _check_expedition_invariants(state: "GameState") -> None:
             raise InvariantError(f"inventory must be dict, got {type(inventory).__name__}")
         
         for resource, qty in inventory.items():
+            if not isinstance(resource, str):
+                raise InvariantError(f"inventory resource ID must be string, got {type(resource).__name__}")
             if isinstance(qty, bool):
                 raise InvariantError(f"inventory[{resource}] must be int, not bool")
             if not isinstance(qty, int):
@@ -104,6 +106,8 @@ def _check_expedition_invariants(state: "GameState") -> None:
                 raise InvariantError(f"{container_name} must be dict, got {type(container).__name__}")
             
             for resource, qty in container.items():
+                if not isinstance(resource, str):
+                    raise InvariantError(f"{container_name} resource ID must be string, got {type(resource).__name__}")
                 if isinstance(qty, bool):
                     raise InvariantError(f"{container_name}[{resource}] must be int, not bool")
                 if not isinstance(qty, int):

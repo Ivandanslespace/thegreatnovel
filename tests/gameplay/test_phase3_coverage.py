@@ -75,12 +75,14 @@ class TestEdgeCases:
         assert any(e.code == "INVALID_VALUE" for e in result.errors)
     
     def test_validate_wait_with_unexpected_params(self, base_state):
-        """WAIT with unexpected params rejected."""
+        """WAIT with extra params accepted (Phase 2 contract only validates minutes)."""
         intent = ActionIntent("test", "p", "WAIT", {"minutes": 60, "extra": "param"})
         result = validate_action(base_state, intent)
         
-        assert not result.valid
-        assert any(e.code == "UNEXPECTED_PARAMETER" for e in result.errors)
+        # Phase 2 WAIT contract only validates minutes field, ignores extras
+        assert result.valid
+        assert result.action is not None
+        assert result.action.params == {"minutes": 60}
     
     def test_reducer_rejects_search_when_inactive(self, base_state):
         """SEARCH rejected when expedition not active."""

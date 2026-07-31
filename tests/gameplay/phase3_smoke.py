@@ -99,6 +99,23 @@ with TemporaryDirectory() as tmpdir:
         print(f"  event_seq={final_state_3.event_seq}")
         print(f"  decision_seq={final_state_3.decision_seq}")
         
+        # Explicit assertions per spec #8
+        assert final_state_3.game_minute == 55, f"Expected game_minute=55, got {final_state_3.game_minute}"
+        assert final_state_3.event_seq == 3, f"Expected event_seq=3, got {final_state_3.event_seq}"
+        assert final_state_3.decision_seq == 3, f"Expected decision_seq=3, got {final_state_3.decision_seq}"
+        assert final_state_3.data["player"]["stamina"] == 0, f"Expected stamina=0, got {final_state_3.data['player']['stamina']}"
+        assert final_state_3.data["player"]["location_id"] == "base-1", f"Expected location=base-1, got {final_state_3.data['player']['location_id']}"
+        assert final_state_3.data["expedition"]["active"] is False, f"Expected active=False, got {final_state_3.data['expedition']['active']}"
+        assert final_state_3.data["inventory"] == {"salvage": 2}, f"Expected inventory={{'salvage': 2}}, got {final_state_3.data['inventory']}"
+        assert final_state_3.data["expedition"]["carried_loot"] == {}, f"Expected carried_loot={{}}, got {final_state_3.data['expedition']['carried_loot']}"
+        assert final_state_3.data["expedition"]["target_loot"] == {}, f"Expected target_loot={{}}, got {final_state_3.data['expedition']['target_loot']}"
+        assert final_state_3.data["expedition"]["target_searched"] is True, f"Expected target_searched=True, got {final_state_3.data['expedition']['target_searched']}"
+        
+        # Verify only WAIT is legal
+        final_legal_actions = get_legal_actions(final_state_3)
+        final_action_types = [a.action_type for a in final_legal_actions]
+        assert final_action_types == ["WAIT"], f"Expected only WAIT legal, got {final_action_types}"
+        
     finally:
         store.close()
     

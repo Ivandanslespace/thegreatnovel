@@ -86,7 +86,7 @@ class DomainEvent:
             actor_id=kwargs.get("actor_id"),
             action_id=kwargs.get("action_id"),
             payload={"minutes": minutes},
-            **{k: v for k, v in kwargs.items() if k not in ["game_minute", "minutes", "event_seq", "decision_seq"]},
+            **{k: v for k, v in kwargs.items() if k not in ["game_minute", "minutes", "event_seq", "decision_seq", "actor_id", "action_id"]},
         )
     
     def to_dict(self) -> dict[str, Any]:
