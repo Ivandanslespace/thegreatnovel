@@ -2758,11 +2758,10 @@ This is an intentional scope reduction following YAGNI, not a change in architec
 - canonical state hashing (SHA256 via canonical JSON)
 - SQLite EventStore (mutable persistence layer)
 - atomic event + snapshot persistence (transactional writes)
-- pure replay (verify_persistence_integrity)
-- persistence integrity verification (hash chain validation)
+- pure replay (`replay_events`, `verify_replay`)
+- persistence integrity verification (`verify_persistence_integrity`)
 - corruption detection (detect tampering)
 - multi-campaign isolation (independent campaigns)
-- action metadata protection (engine controls all seq fields)
 
 **Phase 1 contracts are frozen.** All these must remain deterministic, replayable, and verifiable forever.
 
@@ -2839,9 +2838,9 @@ CableCar Base
 * expedition active/inactive state machine
 * minimal stamina (costs actions)
 * minimal inventory / carried loot container
-* DROP action (return to base)
-* SEARCH action (at location)
-* EXTRACT action (get loot from location)
+* DROP action — leave CableCar base and enter the single exploration location
+* SEARCH action — search the exploration location and obtain carried loot  
+* EXTRACT action — return from the expedition to CableCar base with carried loot
 * existing WAIT (from Phase 2)
 
 **Phase 3 must NOT yet include:**
@@ -2868,6 +2867,7 @@ CableCar Base
 
 For historical reference, the original high-level roadmap remains:
 
+# Phase 0 — Archive
 
 当前 `main`：
 
@@ -2998,11 +2998,41 @@ Phase 3 will introduce state-based legality incrementally through minimal concep
 
 ---
 
-### B. Atomic Multi-Event Decision Commit
+### B. Future Contract: Atomic Multi-Event Decisions
 
-**Current status:** Phase 2 actions produce exactly one DomainEvent per accepted action.
+**Phase 3 intentional rule:** One accepted Action → one DomainEvent.
 
-**Future requirement:** Gameplay actions may produce multiple events sharing one decision_seq:
+Phase 3 deliberately uses a minimal event-per-decision model:
+
+```text
+one accepted Action
+→ one decision_seq (e.g., 42)  
+→ one semantic DomainEvent
+```
+
+Examples of future semantic event directions (not implementation requirements):
+
+```text
+DROP          → EXPEDITION_DROPPED
+SEARCH        → SEARCH_RESOLVED  
+EXTRACT       → EXPEDITION_EXTRACTED
+WAIT          → TIME_ADVANCED
+```
+
+These names are **illustrative contract direction only**. The important rule is:
+
+```text
+one Phase 3 decision
+→ one semantic event  
+→ Reducer applies all deterministic state effects
+→ existing Phase 1 append_transition remains sufficient
+```
+
+This is an intentional YAGNI choice. Phase 3 does NOT modify the frozen Phase 1 persistence layer.
+
+However, the architecture must preserve this future capability:
+
+**Future requirement** (after Phase 3): Gameplay actions may produce N > 1 events sharing one decision_seq:
 
 ```text
 one accepted Action
@@ -3040,7 +3070,7 @@ enemy defeated ✓
 but reward event missing ✗
 ```
 
-**Do NOT implement the persistence API in this task.** Document the constraint. Phase 3 vertical slice should keep to single-event actions to defer complexity.
+**Do NOT implement multi-event persistence now.** Do NOT add `append_decision()` now. Do NOT modify EventStore. The purpose is only to preserve the future contract without contradicting Phase 3's single-event approach.
 
 ---
 
