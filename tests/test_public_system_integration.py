@@ -63,11 +63,13 @@ class PublicSystemIntegrationTests(unittest.TestCase):
             db_path = Path(tmpdir) / "campaign.sqlite3"
             store = SQLiteEventStore(db_path, "test_campaign_integration")
             
-            # Initialize empty campaign
+            # Initialize with proper initial_public_states
+            from engine_runtime.public_survival import initial_public_states
+            
             dummy_data = {
                 "meta": {"campaign_id": "test_campaign_integration", "world_name": "test"},
                 "world": world,
-                "player": {},
+                **initial_public_states(world),  # Add required public state keys
             }
             store.initialize(dummy_data)
             
@@ -121,13 +123,19 @@ class PublicSystemIntegrationTests(unittest.TestCase):
             reloaded_peers = load_peer_agents(mock_state, "test_campaign_integration")
             self.assertGreaterEqual(len(reloaded_peers), 1, "SQLite should still contain peer agent")
             
-            # 4. Verify peer action history increased
+            # 4. Verify peer action history increased (should be > 0)
             peer_with_history = next((p for p in reloaded_peers if p.id == "peer_inserted_manual"), None)
             if peer_with_history:
-                self.assertGreaterEqual(
-                    len(peer_with_history.action_history), 0,
+                self.assertGreater(
+                    len(peer_with_history.action_history),
+                    0,
                     "Peer action history should be recorded"
                 )
+                
+                # Verify history record structure
+                first_action = peer_with_history.action_history[0]
+                self.assertIn("turn", first_action)
+                self.assertIn("action_type", first_action)
 
 
 if __name__ == "__main__":

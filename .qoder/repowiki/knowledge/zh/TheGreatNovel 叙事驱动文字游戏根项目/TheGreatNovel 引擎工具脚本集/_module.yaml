@@ -1,8 +1,0 @@
-schema_version: 1
-module_path: tools
-title: TheGreatNovel 引擎工具脚本集
-scope:
-    - tools/
-source_files: []
-depends_on: []
-related_to: []

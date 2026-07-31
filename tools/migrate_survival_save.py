@@ -239,6 +239,44 @@ def step_init_peers(save_dir: Path):
     print(f"  Peer players: {len(peers)} entities initialized in SQLite")
 
 
+def step_add_world_turn(save_dir: Path):
+    """Add world_turn field to meta.yaml if missing (P0-5)"""
+    from . import load_yaml, save_yaml
+    
+    meta_path = save_dir / "meta.yaml"
+    if not meta_path.exists():
+        print("  [skip] meta.yaml not found")
+        return
+    
+    raw = load_yaml(meta_path)
+    meta = raw.get("meta", raw)
+    
+    if "world_turn" in meta:
+        print(f"  [skip] world_turn already present: {meta['world_turn']}")
+        return
+    
+    # Initialize world_turn with current_turn value
+    current_turn = int(meta.get("current_turn", 1))
+    meta["world_turn"] = current_turn
+    
+    # Write back
+    save_yaml(meta_path, {"meta": meta})
+    print(f"  Added world_turn: {current_turn}")
+
+
+def step_backup(save_dir: Path):
+    """Create backup of all files including SQLite"""
+    suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = save_dir / f"backup_before_migration_{suffix}"
+    
+    if backup_path.exists():
+        print(f"  [skip] Backup already exists: {backup_path.name}")
+        return
+    
+    shutil.copytree(save_dir, backup_path)
+    print(f"  Backup created: {backup_path.name}")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -277,7 +315,7 @@ def migrate_save(save_path_str: str):
     # P0-5: Add world_turn field to meta.yaml
     print("\n[6/6] Adding world_turn field...")
     step_add_world_turn(save_dir)
-
+    
     print(f"\n{'='*60}")
     print("Migration complete!")
     print(f"{'='*60}")
