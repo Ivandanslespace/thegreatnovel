@@ -4254,6 +4254,41 @@ MVP-028 Second WorldPack
 
 ---
 
+## Phase 1 — FROZEN
+
+Baseline tag: `phase1-core-v1`
+
+Validated contracts:
+
+- deterministic GameState
+- DomainEvent  
+- pure reducer
+- canonical state hashing
+- SQLite EventStore
+- atomic event + snapshot persistence
+- pure replay
+- persistence integrity verification
+- corruption detection
+- multi-campaign isolation
+
+Freeze rule:
+
+Later phases must treat these Phase 1 contracts as stable.
+
+Do not weaken, redesign, bypass, or replace Phase 1 persistence / replay / hashing contracts merely to make later features easier to implement.
+
+A Phase 1 contract may only change when a later phase has an explicit documented requirement that makes the change necessary.
+
+Any such change must:
+
+1. be minimal;
+2. preserve deterministic replay;
+3. preserve persistence integrity;
+4. keep all Phase 1 regression tests green;
+5. be explicitly reported as a Phase 1 contract change.
+
+---
+
 # Appendix E — 最终一句项目定义
 
-> **TheGreatNovel 不是一个“让 LLM 自由写小说”的系统。它应该是一个可重放的世界模拟器：LLM 在一个真实、有限、持续运行的规则世界中做选择，而小说只是这个世界运行留下的叙事记录。**
+> **TheGreatNovel 不是一个"让 LLM 自由写小说"的系统。它应该是一个可重放的世界模拟器：LLM 在一个真实、有限、持续运行的规则世界中做选择，而小说只是这个世界运行留下的叙事记录。**
