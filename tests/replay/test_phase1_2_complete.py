@@ -259,19 +259,21 @@ class TestCorruptionDetectionAllTypes:
             finally:
                 store.close()
             
-            # Now corrupt snapshot - BOTH state_json AND state_hash to detect corruption
+            # Now corrupt snapshot - ONLY state_json, keep original state_hash
+            # This proves state-only corruption is detected via content hash mismatch
             conn = sqlite3.connect(str(db_path))
             conn.execute("""UPDATE snapshots SET 
-                           state_json='{"fake":"state"}',
-                           state_hash='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+                           state_json='{"fake":"state"}'
                            WHERE campaign_id='camp_sst' AND event_seq=2""")
             conn.commit()
             conn.close()
             
             result = verify_persistence_integrity("camp_sst", db_path)
             assert not result.success
-            assert ("snapshot" in result.error_message.lower() or 
-                    "doesn't match" in result.error_message.lower())
+            assert result.failed_event_seq == 2
+            # Verify error specifically mentions snapshot content hash mismatch
+            assert ("content" in result.error_message.lower() and 
+                    "hash" in result.error_message.lower())
     
     def test_snapshot_hash_tampering_detected(self):
         """Snapshot state_hash tampering must be detected."""
