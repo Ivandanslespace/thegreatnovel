@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from ..core.models import DomainEvent, GameState
@@ -15,6 +15,11 @@ from ..actions.models import (
 )
 from .world_phase import is_action_blocked_by_phase, get_current_phase, minutes_until_phase_change
 from .progression import can_advance_track, get_track_stage, get_gate_cost, progression_enabled
+from .build_choice import (
+    build_choice_enabled, build_choice_available, get_selected_build,
+    has_selected_build, get_available_build_ids, get_rest_duration,
+    BUILD_CHOICE_TIME,
+)
 
 
 # Fixed costs per spec
@@ -107,11 +112,22 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
             player_stage = get_track_stage(state, "player")
             max_stamina = player.get("max_stamina", 0)
             if player_stage is not None and player_stage >= 1 and stamina < max_stamina:
+                rest_time = get_rest_duration(state)
                 legal.append(LegalAction(
                     action_type="REST",
-                    duration_minutes=REST_COST["time"],
+                    duration_minutes=rest_time,
                     stamina_cost=REST_COST["stamina"],
                 ))
+            
+            # Phase 7: CHOOSE_BUILD variants at base (expedition inactive)
+            if build_choice_available(state):
+                for build_id in get_available_build_ids(state):
+                    legal.append(LegalAction(
+                        action_type="CHOOSE_BUILD",
+                        duration_minutes=BUILD_CHOICE_TIME,
+                        stamina_cost=0,
+                        params={"build_id": build_id},
+                    ))
     else:
         # On expedition
         if player["location_id"] == exp["target_location_id"]:
@@ -131,6 +147,21 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
                 duration_minutes=EXTRACT_COST["time"],
                 stamina_cost=EXTRACT_COST["stamina"]
             ))
+            
+            # Phase 7: field_rest allows REST at target
+            encounter = exp.get("encounter")
+            if has_selected_build(state, "field_rest"):
+                player_stage = get_track_stage(state, "player")
+                max_stamina = player.get("max_stamina", 0)
+                if (player_stage is not None and player_stage >= 1
+                        and stamina < max_stamina
+                        and not (encounter and encounter.get("active"))):
+                    rest_time = get_rest_duration(state)
+                    legal.append(LegalAction(
+                        action_type="REST",
+                        duration_minutes=rest_time,
+                        stamina_cost=REST_COST["stamina"],
+                    ))
         elif player["location_id"] == exp["base_location_id"]:
             # At base while expedition active - can retry DROP if target unsearched and stamina ok
             if not exp["target_searched"] and stamina >= DROP_COST["stamina"]:
@@ -142,13 +173,17 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
     
     # Phase 5: filter actions blocked by current world phase (opportunity layer only)
     # Phase 6: base stage >= 1 overrides the DROP phase-window block
+    # Phase 7: window_runner build also overrides the DROP phase-window block
     base_stage = get_track_stage(state, "base")
-    base_overrides_drop = base_stage is not None and base_stage >= 1
+    drop_override = (
+        (base_stage is not None and base_stage >= 1)
+        or has_selected_build(state, "window_runner")
+    )
     
     filtered = []
     for la in legal:
         if is_action_blocked_by_phase(state, la.action_type):
-            if la.action_type == "DROP" and base_overrides_drop:
+            if la.action_type == "DROP" and drop_override:
                 filtered.append(la)
             # else: blocked by phase, omit
         else:
@@ -166,7 +201,7 @@ def validate_action(
     
     # Check action type is supported
     if intent.action_type not in ["WAIT", "DROP", "SEARCH", "EXTRACT", "FIGHT", "FLEE",
-                                   "UPGRADE_PLAYER", "UPGRADE_BASE", "REST"]:
+                                   "UPGRADE_PLAYER", "UPGRADE_BASE", "REST", "CHOOSE_BUILD"]:
         errors.append(ActionValidationError(
             code="UNKNOWN_ACTION",
             message=f"Unknown action type: {intent.action_type}",
@@ -176,6 +211,32 @@ def validate_action(
     
     # ALL actions derive state legality from get_legal_actions (single source)
     legal_actions = get_legal_actions(state)
+    
+    # For CHOOSE_BUILD: match action_type AND params exactly
+    if intent.action_type == "CHOOSE_BUILD":
+        matched_la = None
+        for la in legal_actions:
+            if la.action_type == "CHOOSE_BUILD" and la.params == intent.params:
+                matched_la = la
+                break
+        if matched_la is None:
+            errors.append(ActionValidationError(
+                code="ACTION_NOT_LEGAL_IN_STATE",
+                message=f"CHOOSE_BUILD with params {intent.params} not legal in current state",
+            ))
+            return ActionValidationResult(valid=False, action=None, errors=tuple(errors))
+        # Use engine-authoritative params (detached copy)
+        validated = ValidatedAction(
+            action_id=intent.action_id,
+            actor_id=intent.actor_id,
+            action_type="CHOOSE_BUILD",
+            params=dict(matched_la.params),
+            duration_minutes=matched_la.duration_minutes,
+            stamina_cost=matched_la.stamina_cost,
+        )
+        return ActionValidationResult(valid=True, action=validated)
+    
+    # For non-CHOOSE_BUILD: type-only matching (existing behavior)
     legal_action_types = tuple(la.action_type for la in legal_actions)
     
     if intent.action_type not in legal_action_types:
@@ -264,9 +325,9 @@ def execute_action(
 ) -> "ActionExecutionResult":
     """Execute validated action, produce event, apply via reducer."""
     
-    # Handle Phase 3/4/6 actions directly
+    # Handle Phase 3/4/6/7 actions directly
     if intent.action_type in ["DROP", "SEARCH", "EXTRACT", "FIGHT", "FLEE",
-                               "UPGRADE_PLAYER", "UPGRADE_BASE", "REST"]:
+                               "UPGRADE_PLAYER", "UPGRADE_BASE", "REST", "CHOOSE_BUILD"]:
         return _execute_phase3_action(state, intent)
     
     # WAIT: validate via canonical source, then produce TIME_ADVANCED
@@ -493,17 +554,32 @@ def _execute_phase3_action(
     
     elif intent.action_type == "REST":
         player = state.data["player"]
+        rest_time = get_rest_duration(state)
         event = DomainEvent(
             event_seq=state.event_seq + 1,
             event_type="REST_RESOLVED",
-            game_minute=state.game_minute + REST_COST["time"],
+            game_minute=state.game_minute + rest_time,
             decision_seq=state.decision_seq + 1,
             action_id=validated.action_id,
             actor_id=validated.actor_id,
             payload={
                 "stamina_before": player["stamina"],
                 "stamina_after": player["max_stamina"],
-                "time": REST_COST["time"],
+                "time": rest_time,
+            },
+        )
+    
+    elif intent.action_type == "CHOOSE_BUILD":
+        event = DomainEvent(
+            event_seq=state.event_seq + 1,
+            event_type="BUILD_SELECTED",
+            game_minute=state.game_minute + BUILD_CHOICE_TIME,
+            decision_seq=state.decision_seq + 1,
+            action_id=validated.action_id,
+            actor_id=validated.actor_id,
+            payload={
+                "build_id": validated.params["build_id"],
+                "time": BUILD_CHOICE_TIME,
             },
         )
     
@@ -526,6 +602,7 @@ class LegalAction:
     action_type: str
     duration_minutes: int | None
     stamina_cost: int
+    params: dict = field(default_factory=dict)
 
 
 # Observation Builder - returns player-visible info
@@ -596,6 +673,10 @@ def build_observation(state: GameState) -> dict[str, Any]:
                 "next_cost": cost,
             }
         observation["progression"] = {"tracks": prog_tracks}
+    
+    # Phase 7: build visible only when build feature enabled
+    if build_choice_enabled(state):
+        observation["build"] = {"selected": get_selected_build(state)}
     
     # target_loot is always hidden (information asymmetry)
     

@@ -63,6 +63,12 @@ def check_invariants(state: "GameState") -> None:
     has_gates = state.data.get("progression_gates") is not None
     if has_progression or has_gates:
         _check_progression_invariants(state, has_progression, has_gates)
+    
+    # Phase 7 build choice invariants
+    has_build_choice = state.data.get("build_choice") is not None
+    has_build = state.data.get("build") is not None
+    if has_build_choice or has_build:
+        _check_build_invariants(state, has_build_choice, has_build)
 
 
 def _check_expedition_invariants(state: "GameState") -> None:
@@ -374,3 +380,71 @@ def _check_progression_invariants(state: "GameState", has_progression: bool, has
                 raise InvariantError(f"gate '{track_id}' cost['{resource}'] must be int, not bool")
             if not isinstance(qty, int) or qty <= 0:
                 raise InvariantError(f"gate '{track_id}' cost['{resource}'] must be positive int")
+
+
+def _check_build_invariants(state: "GameState", has_build_choice: bool, has_build: bool) -> None:
+    """Verify Phase 7 build choice configuration validity."""
+    from ..gameplay.build_choice import SUPPORTED_BUILDS
+    
+    if has_build_choice and not has_build:
+        raise InvariantError("build_choice exists without build")
+    if has_build and not has_build_choice:
+        raise InvariantError("build exists without build_choice")
+    
+    config = state.data["build_choice"]
+    build = state.data["build"]
+    
+    if not isinstance(config, dict):
+        raise InvariantError(f"build_choice must be dict, got {type(config).__name__}")
+    
+    # required_track
+    required_track = config.get("required_track")
+    if not isinstance(required_track, str) or not required_track:
+        raise InvariantError("build_choice.required_track must be non-empty string")
+    
+    # required_track must refer to existing progression track
+    progression = state.data.get("progression")
+    if progression is not None:
+        tracks = progression.get("tracks", {})
+        if required_track not in tracks:
+            raise InvariantError(f"build_choice.required_track '{required_track}' not in progression tracks")
+    
+    # required_stage
+    required_stage = config.get("required_stage")
+    if isinstance(required_stage, bool):
+        raise InvariantError("build_choice.required_stage must be int, not bool")
+    if not isinstance(required_stage, int) or required_stage < 0:
+        raise InvariantError(f"build_choice.required_stage must be int >= 0, got {required_stage}")
+    
+    # candidates
+    candidates = config.get("candidates")
+    if not isinstance(candidates, (list, tuple)):
+        raise InvariantError(f"build_choice.candidates must be list, got {type(candidates).__name__}")
+    if len(candidates) < 2:
+        raise InvariantError(f"build_choice.candidates must have >= 2 entries, got {len(candidates)}")
+    
+    seen = set()
+    for c in candidates:
+        if not isinstance(c, str) or not c:
+            raise InvariantError("build_choice candidate must be non-empty string")
+        if c in seen:
+            raise InvariantError(f"duplicate build candidate '{c}'")
+        seen.add(c)
+        if c not in SUPPORTED_BUILDS:
+            raise InvariantError(f"unsupported build candidate '{c}'")
+    
+    # build mapping
+    if not isinstance(build, dict):
+        raise InvariantError(f"build must be dict, got {type(build).__name__}")
+    
+    selected = build.get("selected")
+    if selected is not None:
+        if not isinstance(selected, str):
+            raise InvariantError(f"build.selected must be None or string, got {type(selected).__name__}")
+        if selected not in candidates:
+            raise InvariantError(f"build.selected '{selected}' not in candidates")
+        # If selected, trigger must already be satisfied
+        if progression is not None:
+            current_stage = progression.get("tracks", {}).get(required_track)
+            if current_stage is None or current_stage < required_stage:
+                raise InvariantError("build.selected set but trigger progression not satisfied")

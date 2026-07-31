@@ -91,6 +91,10 @@ def reduce_event(state: GameState, event: DomainEvent) -> GameState:
     elif event.event_type == "REST_RESOLVED":
         _apply_rest_resolved(new_state, event)
     
+    # Phase 7 build event
+    elif event.event_type == "BUILD_SELECTED":
+        _apply_build_selected(new_state, event)
+    
     else:
         raise ReducerError(f"Unknown event type '{event.event_type}'.")
     
@@ -140,10 +144,16 @@ def _apply_expedition_dropped(state: GameState, event: DomainEvent) -> None:
     
     # Phase 5: reducer anti-forgery — reject DROP if phase blocks it at decision start
     # Phase 6: base stage >= 1 overrides the phase-window DROP block
+    # Phase 7: window_runner build also overrides the phase-window DROP block
     if is_action_blocked_by_phase(state, "DROP"):
         from ..gameplay.progression import get_track_stage
+        from ..gameplay.build_choice import has_selected_build
         base_stage = get_track_stage(state, "base")
-        if base_stage is None or base_stage < 1:
+        drop_override = (
+            (base_stage is not None and base_stage >= 1)
+            or has_selected_build(state, "window_runner")
+        )
+        if not drop_override:
             raise ReducerError("Cannot drop: action blocked by current world phase")
     
     # Verify state preconditions
@@ -518,12 +528,6 @@ def _apply_rest_resolved(state: GameState, event: DomainEvent) -> None:
     if player.get("hp", 1) <= 0:
         raise ReducerError("Cannot rest: player is dead")
     
-    if player["location_id"] != exp["base_location_id"]:
-        raise ReducerError("Cannot rest: not at base")
-    
-    if exp["active"]:
-        raise ReducerError("Cannot rest: expedition active")
-    
     encounter = exp.get("encounter")
     if encounter and encounter.get("active"):
         raise ReducerError("Cannot rest: active encounter")
@@ -536,6 +540,23 @@ def _apply_rest_resolved(state: GameState, event: DomainEvent) -> None:
     player_stage = progression["tracks"].get("player", 0)
     if player_stage < 1:
         raise ReducerError("Cannot rest: player track < 1")
+    
+    # Phase 7: two valid location contexts
+    # A: inactive expedition + at base
+    # B: field_rest selected + active expedition + at target
+    from ..gameplay.build_choice import has_selected_build, get_rest_duration
+    
+    at_base_inactive = (
+        player["location_id"] == exp["base_location_id"] and not exp["active"]
+    )
+    field_rest_at_target = (
+        has_selected_build(state, "field_rest")
+        and exp["active"]
+        and player["location_id"] == exp["target_location_id"]
+    )
+    
+    if not at_base_inactive and not field_rest_at_target:
+        raise ReducerError("Cannot rest: invalid location context")
     
     # Verify stamina not already full
     stamina = player["stamina"]
@@ -555,14 +576,81 @@ def _apply_rest_resolved(state: GameState, event: DomainEvent) -> None:
             f"Forged stamina_after: expected {max_stamina}, got {payload.get('stamina_after')}"
         )
     
-    # Verify time cost
-    if payload.get("time") != 20:
-        raise ReducerError(f"Rest time cost must be 20, got {payload.get('time')}")
+    # Verify time cost (quick_rest = 10, default = 20)
+    expected_time = get_rest_duration(state)
+    if payload.get("time") != expected_time:
+        raise ReducerError(f"Rest time cost must be {expected_time}, got {payload.get('time')}")
     
-    expected_minute = state.game_minute + 20
+    expected_minute = state.game_minute + expected_time
     if event.game_minute != expected_minute:
         raise ReducerError(f"Game minute mismatch: expected {expected_minute}, got {event.game_minute}")
     
     # Apply
     player["stamina"] = max_stamina
+    state.game_minute = expected_minute
+
+
+# Phase 7 build selection handler
+
+def _apply_build_selected(state: GameState, event: DomainEvent) -> None:
+    """Apply BUILD_SELECTED event."""
+    payload = event.payload
+    player = state.data["player"]
+    exp = state.data["expedition"]
+    
+    # Preconditions
+    if player.get("hp", 1) <= 0:
+        raise ReducerError("Cannot choose build: player is dead")
+    
+    if player["location_id"] != exp["base_location_id"]:
+        raise ReducerError("Cannot choose build: not at base")
+    
+    if exp["active"]:
+        raise ReducerError("Cannot choose build: expedition active")
+    
+    encounter = exp.get("encounter")
+    if encounter and encounter.get("active"):
+        raise ReducerError("Cannot choose build: active encounter")
+    
+    # Verify build feature configured
+    build_choice = state.data.get("build_choice")
+    if build_choice is None:
+        raise ReducerError("Cannot choose build: build_choice not configured")
+    
+    build = state.data.get("build")
+    if build is None:
+        raise ReducerError("Cannot choose build: build not configured")
+    
+    # Verify not already selected (permanence)
+    if build.get("selected") is not None:
+        raise ReducerError("Cannot choose build: already selected")
+    
+    # Verify trigger progression
+    required_track = build_choice["required_track"]
+    required_stage = build_choice["required_stage"]
+    
+    progression = state.data.get("progression")
+    if progression is None:
+        raise ReducerError("Cannot choose build: progression not enabled")
+    
+    current_stage = progression["tracks"].get(required_track)
+    if current_stage is None or current_stage < required_stage:
+        raise ReducerError("Cannot choose build: trigger progression not met")
+    
+    # Verify build_id is a configured candidate
+    build_id = payload.get("build_id")
+    candidates = build_choice.get("candidates", [])
+    if build_id not in candidates:
+        raise ReducerError(f"Cannot choose build: '{build_id}' not in candidates")
+    
+    # Verify time cost
+    if payload.get("time") != 1:
+        raise ReducerError(f"Build choice time cost must be 1, got {payload.get('time')}")
+    
+    expected_minute = state.game_minute + 1
+    if event.game_minute != expected_minute:
+        raise ReducerError(f"Game minute mismatch: expected {expected_minute}, got {event.game_minute}")
+    
+    # Apply
+    build["selected"] = build_id
     state.game_minute = expected_minute
