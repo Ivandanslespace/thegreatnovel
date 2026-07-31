@@ -27,12 +27,15 @@ class ValidatedAction:
     
     Contains only safe, validated data that can be used to construct
     a DomainEvent. duration_minutes is confirmed by validator/resolver.
+    
+    Phase 3 added stamina_cost.
     """
     action_id: str
     actor_id: str
     action_type: str
     params: dict[str, Any]
     duration_minutes: int
+    stamina_cost: int = 0  # Phase 3 addition
 
 
 @dataclass(frozen=True)

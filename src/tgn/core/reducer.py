@@ -62,8 +62,19 @@ def reduce_event(state: GameState, event: DomainEvent) -> GameState:
     # Only TIME_ADVANCED is valid in Phase 1
     if event.event_type == "TIME_ADVANCED":
         _apply_time_advanced(new_state, event)
+    
+    # Phase 3 expedition events (minimal extension per spec #19)
+    elif event.event_type == "EXPEDITION_DROPPED":
+        _apply_expedition_dropped(new_state, event)
+    
+    elif event.event_type == "SEARCH_RESOLVED":
+        _apply_search_resolved(new_state, event)
+    
+    elif event.event_type == "EXPEDITION_EXTRACTED":
+        _apply_expedition_extracted(new_state, event)
+    
     else:
-        raise ReducerError(f"Unknown event type '{event.event_type}'. Phase 1 only supports 'TIME_ADVANCED'.")
+        raise ReducerError(f"Unknown event type '{event.event_type}'. Phase 1 only supports 'TIME_ADVANCED'. Phase 3 adds expedition events.")
     
     # Update sequence number
     new_state.event_seq = event.event_seq
@@ -94,3 +105,62 @@ def _apply_time_advanced(state: GameState, event: DomainEvent) -> None:
         )
     
     state.game_minute = actual_minute
+
+
+# Phase 3 expedition events handlers (minimal extension per spec #19)
+
+def _apply_expedition_dropped(state: GameState, event: DomainEvent) -> None:
+    """Apply EXPEDITION_DROPPED event."""
+    payload = event.payload
+    
+    # Validate payload matches state
+    if payload.get("destination") != state.data["expedition"]["target_location_id"]:
+        raise ReducerError(f"Dropped to wrong destination: {payload.get('destination')}")
+    
+    state.data["player"]["location_id"] = payload["destination"]
+    state.data["expedition"]["active"] = True
+    state.data["player"]["stamina"] -= payload["stamina_cost"]
+    state.game_minute += payload["time"]
+
+
+def _apply_search_resolved(state: GameState, event: DomainEvent) -> None:
+    """Apply SEARCH_RESOLVED event."""
+    payload = event.payload
+    
+    # Validate payload
+    if payload.get("loot_gained") != state.data["expedition"]["target_loot"]:
+        raise ReducerError(f"Loot mismatch: expected {state.data['expedition']['target_loot']}, got {payload.get('loot_gained')}")
+    
+    if not payload.get("location_match"):
+        raise ReducerError(f"Location mismatch during search")
+    
+    state.data["player"]["stamina"] -= payload["stamina_cost"]
+    state.game_minute += payload["time"]
+    
+    # Move target_loot to carried_loot
+    state.data["expedition"]["carried_loot"] = dict(payload["loot_gained"])
+    state.data["expedition"]["target_loot"] = {}
+    state.data["expedition"]["target_searched"] = True
+
+
+def _apply_expedition_extracted(state: GameState, event: DomainEvent) -> None:
+    """Apply EXPEDITION_EXTRACTED event."""
+    payload = event.payload
+    
+    # Validate payload
+    if not payload.get("carried_matches"):
+        raise ReducerError(f"Carried loot mismatch during extract")
+    
+    state.game_minute += payload["time"]
+    
+    # Move carried_loot to inventory
+    for resource, qty in payload["carried_loot"].items():
+        if resource in state.data["inventory"]:
+            state.data["inventory"][resource] += qty
+        else:
+            state.data["inventory"][resource] = qty
+    
+    # Clear carried
+    state.data["expedition"]["carried_loot"] = {}
+    state.data["expedition"]["active"] = False
+    state.data["player"]["location_id"] = state.data["expedition"]["base_location_id"]
