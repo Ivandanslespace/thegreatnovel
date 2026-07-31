@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .models import NarrationContext
-from .voice import WritingVoiceProfile, DEFAULT_VOICE
+from .voice import WritingVoiceProfile
 
 
 def build_narrator_prompt(
@@ -28,7 +28,7 @@ def build_narrator_prompt(
     Facts ALWAYS override voice requirements.
     """
     if voice_profile is None:
-        voice_profile = DEFAULT_VOICE
+        raise ValueError("voice_profile is required - NarratorService must provide a voice profile")
     
     sections = []
     

@@ -1,11 +1,8 @@
 """Tests for Writing Voice contract."""
 
 import pytest
-from tgn.narrator.voice import (
-    WritingVoiceProfile,
-    JINGXUAN_WRITING_VOICE,
-    DEFAULT_VOICE,
-)
+from tgn.narrator.voice import WritingVoiceProfile
+from tgn.narrator.voices.jingxuan import JINGXUAN_WRITING_VOICE
 from tgn.narrator.prompt import build_narrator_prompt
 from tgn.narrator.context import build_narration_context
 
@@ -25,9 +22,10 @@ class TestWritingVoiceProfile:
         assert JINGXUAN_WRITING_VOICE is not None
         assert JINGXUAN_WRITING_VOICE.name == "jingxuan"
     
-    def test_default_voice_is_jingxuan(self):
-        """DEFAULT_VOICE is JINGXUAN_WRITING_VOICE."""
-        assert DEFAULT_VOICE is JINGXUAN_WRITING_VOICE
+    def test_default_voice_id_is_cablecar(self):
+        """DEFAULT_VOICE_ID is cablecar_survival (Phase 3.7 change)."""
+        from tgn.narrator.voice import DEFAULT_VOICE_ID
+        assert DEFAULT_VOICE_ID == "cablecar_survival"
 
 
 class TestJingxuanVoiceInstructions:
@@ -86,7 +84,7 @@ class TestVoiceInPrompt:
     
     def test_prompt_contains_jingxuan_voice_section(self, drop_context):
         """Prompt contains [WRITING VOICE — JINGXUAN] section."""
-        prompt = build_narrator_prompt(drop_context)
+        prompt = build_narrator_prompt(drop_context, JINGXUAN_WRITING_VOICE)
         
         assert "[WRITING VOICE" in prompt
         assert "JINGXUAN" in prompt
@@ -120,13 +118,6 @@ class TestVoiceInPrompt:
         assert prompt1 != prompt2
         assert "JINGXUAN" in prompt1
         assert "CUSTOM" in prompt2
-    
-    def test_prompt_uses_default_voice_when_none_specified(self, drop_context):
-        """Prompt uses DEFAULT_VOICE when no voice profile is specified."""
-        prompt_with_default = build_narrator_prompt(drop_context, DEFAULT_VOICE)
-        prompt_without_voice = build_narrator_prompt(drop_context)
-        
-        assert prompt_with_default == prompt_without_voice
 
 
 class TestStyleVsFactPriority:

@@ -7,7 +7,12 @@ from typing import Any
 from ..autoplay.models import AutoplayRunResult, StopReason, WatchFrame
 from .context import build_narration_context
 from .prompt import build_narrator_prompt
-from .voice import WritingVoiceProfile, DEFAULT_VOICE
+from .voice import (
+    WritingVoiceProfile,
+    VoiceRegistry,
+    DEFAULT_VOICE_ID,
+    create_builtin_registry,
+)
 from .guard import validate_narration, NarrationValidationError
 from .models import NarratedFrame, NarrationError, NarrationRunResult, NarratorClient
 
@@ -26,15 +31,47 @@ class NarratorService:
     The narrator is PRESENTATION ONLY. It cannot modify game state.
     Voice profile determines HOW to write, facts determine WHAT happened.
     Facts ALWAYS override voice requirements.
+    
+    Voice selection:
+    - NarratorService does not know about specific voice types
+    - Voice selection delegated to VoiceRegistry
+    - Adding new voices does not require modifying this service
     """
     
     def __init__(
         self,
         client: NarratorClient,
+        voice_id: str | None = None,
+        voice_registry: VoiceRegistry | None = None,
         voice_profile: WritingVoiceProfile | None = None,
     ):
+        """
+        Initialize narrator service.
+        
+        Args:
+            client: LLM client for generating narration
+            voice_id: Voice pack ID (default: DEFAULT_VOICE_ID)
+            voice_registry: Registry to look up voices (default: built-in registry)
+            voice_profile: Direct voice profile (overrides voice_id and registry)
+        
+        Note:
+            For backward compatibility, voice_profile can be passed directly.
+            Preferred usage: voice_id + voice_registry
+        """
         self.client = client
-        self.voice_profile = voice_profile if voice_profile is not None else DEFAULT_VOICE
+        
+        # Direct profile takes precedence (backward compatibility)
+        if voice_profile is not None:
+            self.voice_profile = voice_profile
+        else:
+            # Use registry-based selection
+            if voice_registry is None:
+                voice_registry = create_builtin_registry()
+            
+            if voice_id is None:
+                voice_id = DEFAULT_VOICE_ID
+            
+            self.voice_profile = voice_registry.get(voice_id)
     
     def narrate_frame(
         self,

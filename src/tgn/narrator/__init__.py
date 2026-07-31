@@ -9,7 +9,23 @@ from .models import (
 )
 from .context import build_narration_context
 from .prompt import build_narrator_prompt
-from .voice import WritingVoiceProfile, JINGXUAN_WRITING_VOICE, DEFAULT_VOICE
+from .voice import (
+    WritingVoiceProfile,
+    VoiceRegistry,
+    VoiceNotFoundError,
+    DuplicateVoiceError,
+    DEFAULT_VOICE_ID,
+    create_builtin_registry,
+)
+from .voice_loader import (
+    load_voice_pack,
+    load_voice_packs,
+    validate_voice_id,
+    InvalidVoicePackError,
+    VoicePackManifestError,
+    VoicePackSecurityError,
+)
+from .voices import CABLECAR_SURVIVAL_VOICE, JINGXUAN_WRITING_VOICE
 from .guard import validate_narration, NarrationValidationError
 from .service import NarratorService, narrate_run
 from .render import render_narrated_run, write_narrated_run_text
@@ -31,8 +47,21 @@ __all__ = [
     
     # Voice
     "WritingVoiceProfile",
+    "VoiceRegistry",
+    "VoiceNotFoundError",
+    "DuplicateVoiceError",
+    "DEFAULT_VOICE_ID",
+    "create_builtin_registry",
+    "CABLECAR_SURVIVAL_VOICE",
     "JINGXUAN_WRITING_VOICE",
-    "DEFAULT_VOICE",
+    
+    # Voice Loader
+    "load_voice_pack",
+    "load_voice_packs",
+    "validate_voice_id",
+    "InvalidVoicePackError",
+    "VoicePackManifestError",
+    "VoicePackSecurityError",
     
     # Guard
     "validate_narration",

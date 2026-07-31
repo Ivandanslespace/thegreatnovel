@@ -3,23 +3,30 @@
 import pytest
 from tgn.narrator.prompt import build_narrator_prompt
 from tgn.narrator.context import build_narration_context
+from tgn.narrator.voices.cablecar_survival import CABLECAR_SURVIVAL_VOICE
+
+
+@pytest.fixture
+def voice_profile():
+    """Provide a voice profile for prompt tests."""
+    return CABLECAR_SURVIVAL_VOICE
 
 
 class TestNarratorPrompt:
     """Tests for build_narrator_prompt."""
     
-    def test_prompt_contains_non_negotiable_rules(self, drop_context):
+    def test_prompt_contains_non_negotiable_rules(self, drop_context, voice_profile):
         """Prompt contains non-negotiable fact rules."""
-        prompt = build_narrator_prompt(drop_context)
+        prompt = build_narrator_prompt(drop_context, voice_profile)
         
         assert "NON-NEGOTIABLE RULES" in prompt
         assert "禁止创造新的" in prompt
         assert "禁止改变给定数值" in prompt
         assert "禁止暗示尚未发生的未来事实" in prompt
     
-    def test_prompt_contains_facts(self, drop_context):
+    def test_prompt_contains_facts(self, drop_context, voice_profile):
         """Prompt contains verified facts."""
-        prompt = build_narrator_prompt(drop_context)
+        prompt = build_narrator_prompt(drop_context, voice_profile)
         
         assert "FACTS" in prompt
         assert "DROP" in prompt
@@ -27,53 +34,53 @@ class TestNarratorPrompt:
         assert "base-1 → site-1" in prompt
         assert "3 → 2" in prompt
     
-    def test_prompt_forbids_inventing_rewards(self, drop_context):
+    def test_prompt_forbids_inventing_rewards(self, drop_context, voice_profile):
         """Prompt explicitly forbids inventing rewards."""
-        prompt = build_narrator_prompt(drop_context)
+        prompt = build_narrator_prompt(drop_context, voice_profile)
         
         assert "奖励" in prompt
         assert "禁止" in prompt
     
-    def test_prompt_forbids_future_information(self, drop_context):
+    def test_prompt_forbids_future_information(self, drop_context, voice_profile):
         """Prompt explicitly forbids future information."""
-        prompt = build_narrator_prompt(drop_context)
+        prompt = build_narrator_prompt(drop_context, voice_profile)
         
         assert "未来事实" in prompt
     
-    def test_drop_prompt_does_not_contain_salvage(self, drop_context):
+    def test_drop_prompt_does_not_contain_salvage(self, drop_context, voice_profile):
         """DROP prompt does NOT contain salvage (future loot)."""
-        prompt = build_narrator_prompt(drop_context)
+        prompt = build_narrator_prompt(drop_context, voice_profile)
         
         # salvage should not appear in DROP prompt
         assert "salvage" not in prompt
     
-    def test_search_prompt_contains_salvage(self, search_context):
+    def test_search_prompt_contains_salvage(self, search_context, voice_profile):
         """SEARCH prompt contains salvage (discovered loot)."""
-        prompt = build_narrator_prompt(search_context)
+        prompt = build_narrator_prompt(search_context, voice_profile)
         
         # salvage should appear in SEARCH prompt
         assert "salvage" in prompt
         assert "loot_gained" in prompt
     
-    def test_prompt_does_not_dump_game_state(self, drop_context):
+    def test_prompt_does_not_dump_game_state(self, drop_context, voice_profile):
         """Prompt does not dump raw game state."""
-        prompt = build_narrator_prompt(drop_context)
+        prompt = build_narrator_prompt(drop_context, voice_profile)
         
         # Should not contain raw game state fields
         assert "target_loot" not in prompt
         assert "event_seq" not in prompt
         assert "decision_seq" not in prompt
     
-    def test_prompt_is_deterministic(self, drop_context):
+    def test_prompt_is_deterministic(self, drop_context, voice_profile):
         """Same context produces same prompt."""
-        prompt1 = build_narrator_prompt(drop_context)
-        prompt2 = build_narrator_prompt(drop_context)
+        prompt1 = build_narrator_prompt(drop_context, voice_profile)
+        prompt2 = build_narrator_prompt(drop_context, voice_profile)
         
         assert prompt1 == prompt2
     
-    def test_prompt_with_previous_narration(self, search_context, drop_narration):
+    def test_prompt_with_previous_narration(self, search_context, voice_profile, drop_narration):
         """Prompt includes previous narration when provided."""
-        prompt = build_narrator_prompt(search_context, previous_text=drop_narration)
+        prompt = build_narrator_prompt(search_context, voice_profile, previous_text=drop_narration)
         
         assert "PREVIOUS NARRATION" in prompt
         assert drop_narration in prompt
