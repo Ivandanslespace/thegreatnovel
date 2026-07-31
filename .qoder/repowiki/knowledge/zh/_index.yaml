@@ -3,11 +3,15 @@ schema_version: 1
 locale: zh-CN
 branch: main
 nodes_managed: true
+<<<<<<< Updated upstream
 exported_at: "2026-07-31T09:23:31Z"
+=======
+exported_at: "2026-07-31T09:54:36Z"
+>>>>>>> Stashed changes
 modules:
     "":
-        dir_name: TheGreatNovel 叙事驱动文字游戏根项目
-        title: TheGreatNovel 叙事驱动文字游戏根项目
+        dir_name: TheGreatNovel 叙事驱动文字游戏项目根
+        title: TheGreatNovel 叙事驱动文字游戏项目根
         scope:
             - AGENTS.md
             - answers_new_game.yaml
@@ -33,8 +37,13 @@ modules:
         depends_on: []
         related_to: []
     engine_runtime:
+<<<<<<< Updated upstream
         dir_name: TheGreatNovel 可执行规则引擎
         title: TheGreatNovel 可执行规则引擎
+=======
+        dir_name: TheGreatNovel 引擎运行时
+        title: TheGreatNovel 引擎运行时
+>>>>>>> Stashed changes
         scope:
             - engine_runtime/
         source_files: []

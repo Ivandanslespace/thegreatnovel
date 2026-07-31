@@ -483,9 +483,15 @@ def advance_public_states(state, action_result: Mapping[str, Any]) -> tuple[dict
 
     # === PHASE 2: CDF 排名计算（替换旧的 fake formula）===
     # 计算主角本回合五维得分
-    # Extract ranking config from world.generation_bundle or mechanics
+    # Extract ranking config from world.generation_bundle.mechanics.ranking (统一路径)
     world_gen = world.get("generation_bundle", {}) if isinstance(world.get("generation_bundle", {}), Mapping) else {}
-    ranking_config = world_gen.get("ranking_config") if world_gen else None
+    
+    # P0-4: 统一从 mechanics.ranking 读取配置（而不是旧地址 ranking_config）
+    ranking_config = None
+    if world_gen:
+        mechanics = world_gen.get("mechanics", {})
+        if isinstance(mechanics, Mapping):
+            ranking_config = mechanics.get("ranking")
     
     protag_dims = calculate_dimension_scores(dict(action_result), ranking_config)
         

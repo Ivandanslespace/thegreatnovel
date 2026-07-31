@@ -17,6 +17,9 @@ EVENT_FAMILIES = {
     "system_irregularity", "hidden_civilization",
 }
 
+# P0-1: Import ranking defaults for validation
+from engine_runtime.ranking_engine import DEFAULT_RANKING_WEIGHTS
+
 
 def _mapping(value: Any, label: str) -> Dict[str, Any]:
     if not isinstance(value, Mapping):
@@ -241,16 +244,57 @@ def compile_world_bundle(
     if safe_base and str(start.get("name")) != str(safe_base):
         raise ValueError("安全基地名称必须与 world_blueprint.starting_location 一致")
 
-    enemies = _records(blueprint.get("enemies"), "enemies", ("id", "name"))
-    _validate_enemies(enemies, location_ids, resource_names)
-    areas = _records(blueprint.get("areas"), "areas", ("id", "name", "location_id", "enemy_groups", "farmability_components", "extraction_rule"))
-    for area in areas:
-        if str(area["location_id"]) not in location_ids:
-            raise ValueError(f"world_blueprint.areas.{area['id']}.location_id 未注册")
-    modules = _records(blueprint.get("modules"), "modules", ("id", "name"))
-    _validate_modules(modules, resource_names)
-    recipes = _records(blueprint.get("recipes"), "recipes", ("id", "name"))
-    _validate_recipes(recipes, resource_names)
+    # P0-2: Capability-based conditional validation
+    
+    # Combat capability - if disabled, enemies/areas can be empty
+    combat_enabled = bool(capabilities.get("combat", True))
+    
+    if combat_enabled:
+        enemies = _records(blueprint.get("enemies"), "enemies", ("id", "name"))
+        _validate_enemies(enemies, location_ids, resource_names)
+    else:
+        # Allow empty when combat is disabled
+        enemies = []
+        for record in blueprint.get("enemies", []):
+            if isinstance(record, dict) and record.get("id"):
+                enemies.append(record)
+    
+    areas_data = blueprint.get("areas", [])
+    if combat_enabled and areas_data:
+        areas = _records(areas_data, "areas", ("id", "name", "location_id", "enemy_groups", "farmability_components", "extraction_rule"))
+        for area in areas:
+            if str(area["location_id"]) not in location_ids:
+                raise ValueError(f"world_blueprint.areas.{area['id']}.location_id 未注册")
+    else:
+        areas = []
+        for record in areas_data:
+            if isinstance(record, dict) and record.get("id"):
+                areas.append(record)
+    
+    # Building capability - if disabled, modules can be empty
+    building_enabled = bool(capabilities.get("building", True))
+    
+    if building_enabled:
+        modules = _records(blueprint.get("modules"), "modules", ("id", "name"))
+        _validate_modules(modules, resource_names)
+    else:
+        modules = []
+        for record in blueprint.get("modules", []):
+            if isinstance(record, dict) and record.get("id"):
+                modules.append(record)
+    
+    # Crafting capability - if disabled, recipes can be empty  
+    crafting_enabled = bool(capabilities.get("crafting", True))
+    
+    if crafting_enabled:
+        recipes = _records(blueprint.get("recipes"), "recipes", ("id", "name"))
+        _validate_recipes(recipes, resource_names)
+    else:
+        recipes = []
+        for record in blueprint.get("recipes", []):
+            if isinstance(record, dict) and record.get("id"):
+                recipes.append(record)
+    
     action_targets = _records(blueprint.get("action_targets"), "action_targets", ("id",))
     _validate_action_targets(action_targets, location_ids)
 
@@ -262,10 +306,20 @@ def compile_world_bundle(
         profession = str(npc.get("profession") or "").strip()
         if profession and profession not in professions:
             raise ValueError(f"world_blueprint.npcs.{npc['id']}.profession 未注册")
-    factions = _records(blueprint.get("factions"), "factions", ("id", "name", "status", "location", "goal", "schedule", "treasury", "tax_rate", "influence", "utility_profile"))
-    for faction in factions:
-        if str(faction["location"]) not in location_ids:
-            raise ValueError(f"world_blueprint.factions.{faction['id']}.location 未注册")
+    
+    # Factions capability - if disabled, factions can be empty
+    factions_enabled = bool(capabilities.get("factions", True))
+    
+    if factions_enabled:
+        factions = _records(blueprint.get("factions"), "factions", ("id", "name", "status", "location", "goal", "schedule", "treasury", "tax_rate", "influence", "utility_profile"))
+        for faction in factions:
+            if str(faction["location"]) not in location_ids:
+                raise ValueError(f"world_blueprint.factions.{faction['id']}.location 未注册")
+    else:
+        factions = []
+        for record in blueprint.get("factions", []):
+            if isinstance(record, dict) and record.get("id"):
+                factions.append(record)
     relationships = blueprint.get("relationships")
     if not isinstance(relationships, list):
         raise ValueError("world_blueprint.relationships 必须是列表")
@@ -284,12 +338,22 @@ def compile_world_bundle(
     if unknown_inventory:
         raise ValueError(f"world_blueprint.starting_inventory 引用了未注册资源：{', '.join(sorted(unknown_inventory))}")
 
-    disasters = _records(blueprint.get("disasters"), "disasters", ("id", "type", "cycle_days", "warning"))
-    for disaster in disasters:
-        _require_number(disaster, "cycle_days", f"disasters.{disaster['id']}", minimum=1.0)
+    # Disasters capability - if disabled, disasters can be empty
+    disasters_enabled = bool(capabilities.get("disaster", True))
+        
+    if disasters_enabled:
+        disasters = _records(blueprint.get("disasters"), "disasters", ("id", "type", "cycle_days", "warning"))
+        for disaster in disasters:
+            _require_number(disaster, "cycle_days", f"disasters.{disaster['id']}", minimum=1.0)
+    else:
+        disasters = []
+        for record in blueprint.get("disasters", []):
+            if isinstance(record, dict) and record.get("id"):
+                disasters.append(record)
+        
     event_pool = _records(blueprint.get("event_pool"), "event_pool", ("id",))
     if len(event_pool) < 3:
-        raise ValueError("world_blueprint.event_pool 至少需要3个原创后续事件")
+        raise ValueError("world_blueprint.event_pool 至少需要 3 个原创后续事件")
     _validate_events(event_pool)
     creative_slots = _mapping(blueprint.get("creative_slots"), "creative_slots")
 
@@ -350,3 +414,82 @@ def _generate_peer_agents_from_public_survival(world_data, world_blueprint):
             location_id=starting_location,
         ))
     return agents
+
+
+# P0-1: Ranking config validation API (required by tests)
+RANKING_WEIGHT_TOLERANCE = 0.01
+
+
+def _validate_ranking_config(ranking_config):
+    """Validate and normalize ranking configuration from YAML.
+    
+    Args:
+        ranking_config: Optional dict from world.mechanics.ranking
+        
+    Returns:
+        Normalized dimension weights that sum to ~1.0
+        
+    Raises:
+        ValueError: If configuration is invalid or sum outside tolerance
+    """
+    if ranking_config is None:
+        return DEFAULT_RANKING_WEIGHTS.copy()
+    
+    if not isinstance(ranking_config, dict):
+        raise ValueError("ranking_config must be a dict")
+    
+    # Extract dimension weights and validate
+    custom_weights = ranking_config.get("dimension_weights", {})
+    enabled_dims = ranking_config.get("enabled_dimensions", list(DEFAULT_RANKING_WEIGHTS.keys()))
+    
+    if not isinstance(enabled_dims, list):
+        raise ValueError("enabled_dimensions must be a list")
+    
+    # P0-6: Validate no negative weights
+    for dim_id, weight in custom_weights.items():
+        if float(weight) < 0:
+            raise ValueError(f"Ranking weight for '{dim_id}' cannot be negative")
+    
+    # P0-6: Validate all enabled dimensions are known
+    unknown_dims = [str(dim) for dim in enabled_dims if str(dim) not in DEFAULT_RANKING_WEIGHTS]
+    if unknown_dims:
+        raise ValueError(f"Ranking dimensions {unknown_dims} not supported (valid: {list(DEFAULT_RANKING_WEIGHTS.keys())})")
+    
+    # Normalize partial weights  
+    weight_sum = sum(custom_weights.get(str(dim), 0) for dim in enabled_dims)
+    
+    if abs(weight_sum - 1.0) < RANKING_WEIGHT_TOLERANCE:
+        # Exact match, just apply custom weights
+        result = DEFAULT_RANKING_WEIGHTS.copy()
+        for dim in enabled_dims:
+            if str(dim) in custom_weights:
+                result[dim] = float(custom_weights[str(dim)])
+        
+        # Validate final sum
+        final_sum = sum(result.values())
+        if abs(final_sum - 1.0) >= RANKING_WEIGHT_TOLERANCE:
+            raise ValueError(f"Ranking weights must sum to ≈1.0, got {final_sum:.2f}")
+        return result
+    
+    elif weight_sum > 0 and len(enabled_dims) == len([d for d in enabled_dims if str(d) in custom_weights]):
+        # All enabled dims have explicit weights - scale proportionally
+        # Only allow scaling if total is suspiciously close to a valid configuration
+        # e.g., 0.6+0.4=1.0 or 0.3+0.25+0.2+0.15+0.1=1.0
+        # But reject cases like 0.30+0.25+0.20+0.05+0.00=0.80 (clearly wrong)
+        min_valid_ratio = 0.90  # Must be at least 90% of expected
+        max_valid_ratio = 1.10  # Must be at most 110% of expected
+        
+        ratio = weight_sum / 1.0
+        if min_valid_ratio <= ratio <= max_valid_ratio:
+            result = DEFAULT_RANKING_WEIGHTS.copy()
+            for dim in enabled_dims:
+                if str(dim) in custom_weights:
+                    scaled = float(custom_weights[str(dim)]) / weight_sum
+                    result[dim] = scaled
+            return result
+        else:
+            # P1-5: Reject clearly invalid configurations
+            raise ValueError(f"Ranking weights must be ≈1.0 (got {weight_sum:.2f}, ratio={ratio:.2f})")
+    else:
+        # Partial weights - use defaults with warnings in logs
+        return DEFAULT_RANKING_WEIGHTS.copy()

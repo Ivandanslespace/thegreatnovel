@@ -147,12 +147,14 @@ def calculate_dimension_scores(action_result: Dict[str, Any],
     
     scores = {k: 0.0 for k in DEFAULT_RANKING_WEIGHTS.keys()}
     
-    # Get scaling factors from merged config
-    combat_multiplier = scales.get("combat_multiplier", 0.1)
-    resource_multiplier = scales.get("resource_multiplier", 0.5)
-    base_bonus = scales.get("base_bonus", 20.0)
-    information_bonus = scales.get("information_bonus", 25.0)
-    social_bonus = scales.get("social_bonus", 20.0)
+    # P0-5: Get scaling factors from _scales sub-dict (not top level)
+    scale_cfg = scales.get("_scales", {}) if isinstance(scales, Mapping) else {}
+    
+    combat_multiplier = scale_cfg.get("combat_multiplier", 0.1)
+    resource_multiplier = scale_cfg.get("resource_multiplier", 0.5)
+    base_bonus = scale_cfg.get("base_bonus", 20.0)
+    information_bonus = scale_cfg.get("information_bonus", 25.0)
+    social_bonus = scale_cfg.get("social_bonus", 20.0)
     
     # Combat 维度
     if action_result.get("action_type") == "COMBAT":
