@@ -6,8 +6,12 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+
+from ..core.hashing import canonical_json, state_hash
+from ..core.models import DomainEvent, GameState
 
 
 class EventStoreError(Exception):
@@ -25,6 +29,16 @@ class CampaignRecord:
     initial_state_json: str = ""
     initial_state_hash: str = ""
     created_at: str = ""
+
+
+@dataclass
+class SnapshotRecord:
+    """Snapshot record returned by persistence layer."""
+    campaign_id: str
+    event_seq: int
+    state: dict[str, Any]
+    state_hash: str
+    created_at: str
 
 
 SCHEMA = """
@@ -118,16 +132,11 @@ class EventStore:
         campaign_id: str,
         initial_state: dict[str, Any],
         seed: str = "",
-        initial_state_hash: str = "",
     ) -> CampaignRecord:
-        """Initialize a new campaign."""
-        from ..core.hashing import canonical_json, state_hash
-        
-        if not initial_state_hash:
-            initial_state_hash = state_hash(initial_state)
-        
+        """Initialize a new campaign. Hash computed internally."""
+        initial_state_hash = state_hash(initial_state)
         initial_state_json = canonical_json(initial_state)
-        now = __import__("datetime").datetime.now().isoformat()
+        now = datetime.now().isoformat()
         
         record = CampaignRecord(
             campaign_id=campaign_id,
@@ -156,14 +165,20 @@ class EventStore:
         
         return record
     
-    def append_event(
+    def append_transition(
         self,
         campaign_id: str,
-        event_dict: dict[str, Any],
-        state_hash_before: str,
-        state_hash_after: str,
+        event: DomainEvent,
+        state_before: GameState,
+        state_after: GameState,
     ) -> None:
-        """Append a single event and snapshot atomically."""
+        """Append a transition atomically. Hashes computed internally."""
+        # Compute hashes internally - caller cannot fake them
+        hash_before = state_hash(state_before.__dict__)
+        hash_after = state_hash(state_after.__dict__)
+        snapshot_state = state_after.__dict__
+        snapshot_json = canonical_json(snapshot_state)
+        
         with self.transaction() as cursor:
             # Insert event
             cursor.execute(
@@ -173,44 +188,43 @@ class EventStore:
                     payload_json, state_hash_before, state_hash_after, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    event_dict["event_id"],
+                    event.event_id,
                     campaign_id,
-                    event_dict["event_seq"],
-                    event_dict["decision_seq"],
-                    event_dict["game_minute"],
-                    event_dict["event_type"],
-                    event_dict.get("actor_id"),
-                    event_dict.get("action_id"),
-                    event_dict.get("causation_id"),
-                    event_dict.get("correlation_id"),
-                    json.dumps(event_dict["payload"], ensure_ascii=False),
-                    state_hash_before,
-                    state_hash_after,
-                    event_dict.get("created_at", __import__("datetime").datetime.now().isoformat()),
+                    event.event_seq,
+                    event.decision_seq,
+                    event.game_minute,
+                    event.event_type,
+                    event.actor_id,
+                    event.action_id,
+                    event.causation_id,
+                    event.correlation_id,
+                    json.dumps(event.payload, ensure_ascii=False),
+                    hash_before,
+                    hash_after,
+                    event.created_at,
                 ),
             )
             
-            # Insert snapshot
-            from ..core.hashing import canonical_json
-            
+            # Insert snapshot using regular INSERT (not OR REPLACE)
+            # This enforces immutability of facts
             cursor.execute(
-                """INSERT OR REPLACE INTO snapshots
+                """INSERT INTO snapshots
                    (campaign_id, event_seq, state_json, state_hash, created_at)
                    VALUES (?, ?, ?, ?, ?)""",
                 (
                     campaign_id,
-                    event_dict["event_seq"],
-                    canonical_json(event_dict.get("_state_snapshot", {})),
-                    state_hash_after,
-                    __import__("datetime").datetime.now().isoformat(),
+                    event.event_seq,
+                    snapshot_json,
+                    hash_after,
+                    datetime.now().isoformat(),
                 ),
             )
     
-    def latest_snapshot(self, campaign_id: str) -> dict[str, Any] | None:
-        """Load the most recent snapshot for a campaign."""
+    def latest_snapshot_record(self, campaign_id: str) -> SnapshotRecord | None:
+        """Load the most recent snapshot as a typed record."""
         cursor = self.connection.cursor()
         cursor.execute(
-            """SELECT state_json FROM snapshots 
+            """SELECT * FROM snapshots 
                WHERE campaign_id = ?
                ORDER BY event_seq DESC LIMIT 1""",
             (campaign_id,),
@@ -221,10 +235,16 @@ class EventStore:
         if row is None:
             return None
         
-        return json.loads(row["state_json"])
+        return SnapshotRecord(
+            campaign_id=row["campaign_id"],
+            event_seq=row["event_seq"],
+            state=json.loads(row["state_json"]),
+            state_hash=row["state_hash"],
+            created_at=row["created_at"],
+        )
     
-    def all_events(self, campaign_id: str) -> list[dict[str, Any]]:
-        """Load all events for a campaign in sequence order."""
+    def all_event_records(self, campaign_id: str) -> list[dict[str, Any]]:
+        """Load all event records as dictionaries with full fields."""
         cursor = self.connection.cursor()
         cursor.execute(
             """SELECT * FROM events 
@@ -235,24 +255,32 @@ class EventStore:
         rows = cursor.fetchall()
         cursor.close()
         
-        return [
-            {
-                "event_id": row["event_id"],
-                "event_seq": row["event_seq"],
-                "decision_seq": row["decision_seq"],
-                "game_minute": row["game_minute"],
-                "event_type": row["event_type"],
-                "actor_id": row["actor_id"],
-                "action_id": row["action_id"],
-                "causation_id": row["causation_id"],
-                "correlation_id": row["correlation_id"],
-                "payload": json.loads(row["payload_json"]),
-                "state_hash_before": row["state_hash_before"],
-                "state_hash_after": row["state_hash_after"],
-                "created_at": row["created_at"],
-            }
-            for row in rows
-        ]
+        results = []
+        for row in rows:
+            try:
+                results.append(
+                    {
+                        "event_id": row["event_id"],
+                        "campaign_id": row["campaign_id"],
+                        "event_seq": row["event_seq"],
+                        "decision_seq": row["decision_seq"],
+                        "game_minute": row["game_minute"],
+                        "event_type": row["event_type"],
+                        "actor_id": row["actor_id"],
+                        "action_id": row["action_id"],
+                        "causation_id": row["causation_id"],
+                        "correlation_id": row["correlation_id"],
+                        "payload": json.loads(row["payload_json"]),
+                        "state_hash_before": row["state_hash_before"],
+                        "state_hash_after": row["state_hash_after"],
+                        "created_at": row["created_at"],
+                    }
+                )
+            except json.JSONDecodeError as e:
+                # Malformed JSON in persisted record - indicate corruption
+                raise ValueError(f"Malformed JSON in event {row['event_seq']}: {e}") from e
+        
+        return results
     
     def get_campaign(self, campaign_id: str) -> CampaignRecord | None:
         """Load campaign metadata."""

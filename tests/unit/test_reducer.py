@@ -79,7 +79,12 @@ class TestReducerBasic:
         state = GameState.initial()
         state.event_seq = 5
         
-        event = DomainEvent(event_seq=7)  # Gap!
+        event = DomainEvent(
+            event_seq=7,  # Gap!
+            event_type="TIME_ADVANCED",
+            game_minute=100,
+            payload={"minutes": 100}
+        )
         
         with pytest.raises(ReducerError) as exc_info:
             reduce_event(state, event)
@@ -91,7 +96,12 @@ class TestReducerBasic:
         state = GameState.initial()
         state.event_seq = 10
         
-        event = DomainEvent(event_seq=10)  # Duplicate!
+        event = DomainEvent(
+            event_seq=10,  # Duplicate!
+            event_type="TIME_ADVANCED",
+            game_minute=120,
+            payload={"minutes": 120}
+        )
         
         with pytest.raises(ReducerError) as exc_info:
             reduce_event(state, event)
@@ -112,7 +122,9 @@ class TestReducerSequenceConstraints:
         event = DomainEvent(
             event_seq=6,
             decision_seq=1,  # Less than current 3
-            payload={},
+            event_type="TIME_ADVANCED",
+            game_minute=100,
+            payload={"minutes": 100}
         )
         
         with pytest.raises(ReducerError):

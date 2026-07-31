@@ -1,12 +1,38 @@
 """Replay and verification tests."""
 
 import pytest
-from tgn.core import GameState, DomainEvent, state_hash
-from tgn.storage import replay_campaign, ReplayResult
+from tgn.core import GameState, DomainEvent, state_hash, reduce_event
+from tgn.storage import replay_events, verify_replay, ReplayResult
+
+
+def _build_event_records(initial: GameState, events: list[DomainEvent]) -> list[dict]:
+    """Helper ONLY for persistence tests that need persisted record format.
+    
+    This is NOT needed for pure replay tests using replay_events().
+    Only used when testing verify_persistence_integrity() which requires DB records.
+    """
+    current_state = initial.__dict__.copy()
+    records = []
+    
+    for evt in events:
+        record = evt.__dict__.copy()
+        record["state_hash_before"] = state_hash(current_state)
+        
+        try:
+            next_state = reduce_event(GameState(**current_state), evt)
+            record["state_hash_after"] = state_hash(next_state.__dict__)
+            current_state = next_state.__dict__.copy()
+        except Exception as e:
+            # If reducer fails (e.g., sequence gap), use placeholder
+            record["state_hash_after"] = f"failed:{str(e)}"
+        
+        records.append(record)
+    
+    return records
 
 
 class TestBasicReplay:
-    """Basic replay functionality tests."""
+    """Basic replay functionality tests - using pure replay."""
     
     def test_replay_single_event(self):
         """Single event replay should work."""
@@ -19,7 +45,8 @@ class TestBasicReplay:
             ),
         ]
         
-        result = replay_campaign(initial.__dict__, events)
+        # Use pure replay - no need for persisted record format
+        result = replay_events(initial, events)
         
         assert result.success
         assert result.final_state["game_minute"] == 60
@@ -38,7 +65,8 @@ class TestBasicReplay:
                        event_type="TIME_ADVANCED", payload={"minutes": 60}),
         ]
         
-        result = replay_campaign(initial.__dict__, events)
+        # Pure replay - direct DomainEvent input
+        result = replay_events(initial, events)
         
         assert result.success
         assert result.final_state["game_minute"] == 180
@@ -51,18 +79,20 @@ class TestBasicReplay:
         events = [
             DomainEvent(event_seq=1, decision_seq=0, game_minute=120,
                        event_type="TIME_ADVANCED", payload={"minutes": 120}),
-            DomainEvent(event_seq=2, decision_seq=1, game_minute=120, payload={}),
+            DomainEvent(event_seq=2, decision_seq=1, game_minute=180,
+                       event_type="TIME_ADVANCED", payload={"minutes": 60}),
         ]
         
-        hash1 = replay_campaign(initial.__dict__, events).actual_hash
-        hash2 = replay_campaign(initial.__dict__, events).actual_hash
-        hash3 = replay_campaign(initial.__dict__, events).actual_hash
+        # Pure replay - deterministic by design
+        hash1 = replay_events(initial, events).actual_hash
+        hash2 = replay_events(initial, events).actual_hash
+        hash3 = replay_events(initial, events).actual_hash
         
         assert hash1 == hash2 == hash3
 
 
 class TestReplayDivergenceLocalization:
-    """Tests that identify exactly which event causes failure."""
+    """Tests that identify exactly which event causes failure - using pure replay."""
     
     def test_failure_on_missing_middle_event(self):
         """Missing event in middle should fail at that seq number."""
@@ -75,7 +105,7 @@ class TestReplayDivergenceLocalization:
                        event_type="TIME_ADVANCED", payload={"minutes": 60}),  # Gap!
         ]
         
-        result = replay_campaign(initial.__dict__, events)
+        result = replay_events(initial, events)
         
         assert not result.success
         assert result.failed_event_seq == 3
@@ -92,7 +122,7 @@ class TestReplayDivergenceLocalization:
                        event_type="TIME_ADVANCED", payload={"minutes": 10}),  # Duplicate!
         ]
         
-        result = replay_campaign(initial.__dict__, events)
+        result = replay_events(initial, events)
         
         assert not result.success
         assert result.failed_event_seq == 1
@@ -100,12 +130,17 @@ class TestReplayDivergenceLocalization:
 
 
 class TestCorruptionDetection:
-    """Critical tests for detecting data corruption."""
+    """Tests for detecting corrupted events during replay.
+    
+    These tests use pure replay with intentionally bad events to simulate
+    what would be detected from corrupted persisted records.
+    """
     
     def test_detect_modified_payload(self):
         """Modified event payload will cause game_minute mismatch."""
         initial = GameState.initial(seed="corrupt-payload")
         
+        # Original events should succeed
         original_events = [
             DomainEvent(event_seq=1, decision_seq=0, game_minute=60,
                        event_type="TIME_ADVANCED", payload={"minutes": 60}),
@@ -113,19 +148,17 @@ class TestCorruptionDetection:
                        event_type="TIME_ADVANCED", payload={"minutes": 60}),
         ]
         
-        # Replay originals - should succeed
-        original_result = replay_campaign(initial.__dict__, original_events)
+        original_result = replay_events(initial, original_events)
         assert original_result.success
         
         # Corrupted - wrong minutes will cause game_minute mismatch
         corrupted_events = [
-            DomainEvent(event_seq=1, decision_seq=0, game_minute=60,
-                       event_type="TIME_ADVANCED", payload={"minutes": 60}),
-            DomainEvent(event_seq=2, decision_seq=0, game_minute=120,
-                       event_type="TIME_ADVANCED", payload={"minutes": 999}),  # Wrong!
+            original_events[0],
+            DomainEvent(event_seq=2, decision_seq=0, game_minute=999,  # Wrong!
+                       event_type="TIME_ADVANCED", payload={"minutes": 999}),
         ]
         
-        corrupted_result = replay_campaign(initial.__dict__, corrupted_events)
+        corrupted_result = replay_events(initial, corrupted_events)
         assert not corrupted_result.success  # Should fail
     
     def test_detect_reordered_events(self):
@@ -140,7 +173,7 @@ class TestCorruptionDetection:
                        event_type="TIME_ADVANCED", payload={"minutes": 60}),
         ]
         
-        # Wrong order
+        # Wrong order (seq 2 before seq 1)
         reversed_events = [
             DomainEvent(event_seq=2, decision_seq=0, game_minute=120,
                        event_type="TIME_ADVANCED", payload={"minutes": 60}),
@@ -148,8 +181,8 @@ class TestCorruptionDetection:
                        event_type="TIME_ADVANCED", payload={"minutes": 60}),
         ]
         
-        result_ordered = replay_campaign(initial.__dict__, ordered_events)
-        result_reversed = replay_campaign(initial.__dict__, reversed_events)
+        result_ordered = replay_events(initial, ordered_events)
+        result_reversed = replay_events(initial, reversed_events)
         
         assert result_ordered.success
         assert not result_reversed.success
@@ -168,7 +201,8 @@ class TestHashVerification:
                        event_type="TIME_ADVANCED", payload={"minutes": 60}),
         ]
         
-        result = replay_campaign(initial.__dict__, events)
+        # Pure replay with correct events should succeed
+        result = replay_events(initial, events)
         
         assert result.success
         assert result.expected_hash == result.actual_hash
@@ -218,7 +252,7 @@ class TestReplayWithHistory:
                        event_type="TIME_ADVANCED", payload={"minutes": 60}),
         ]
         
-        result = replay_campaign(initial.__dict__, events, state_at_each_step=True)
+        result = replay_events(initial, events, state_at_each_step=True)
         
         assert hasattr(result, 'history')
         assert len(result.history) == 3  # Initial + 2 steps

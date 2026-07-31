@@ -44,7 +44,7 @@ class DomainEvent:
     Immutable domain event representing a fact about the game world.
     
     Required fields for full provenance:
-    - event_id: unique identifier
+    - event_id: unique identifier  
     - event_seq: sequence number (monotonically increasing)
     - decision_seq: which player decision triggered this (if any)
     - game_minute: game time when this occurred
@@ -55,11 +55,12 @@ class DomainEvent:
     - correlation_id: groups related events
     - payload: event-specific data
     """
-    event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    event_seq: int = 0
+    # Make these REQUIRED by putting them BEFORE optional fields
+    event_seq: int = field(compare=True)  # REQUIRED
+    event_type: str = field(compare=True)  # REQUIRED  
+    game_minute: int = field(compare=True)  # REQUIRED
     decision_seq: int = 0
-    game_minute: int = 0
-    event_type: str = ""
+    event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     actor_id: str | None = None
     action_id: str | None = None
     causation_id: str | None = None
@@ -80,11 +81,12 @@ class DomainEvent:
         return cls(
             event_seq=event_seq,
             event_type="TIME_ADVANCED",
+            game_minute=game_minute + minutes,
+            decision_seq=kwargs.get("decision_seq", 0),
             actor_id=kwargs.get("actor_id"),
             action_id=kwargs.get("action_id"),
-            game_minute=game_minute + minutes,
             payload={"minutes": minutes},
-            **{k: v for k, v in kwargs.items() if k not in ["game_minute", "minutes", "event_seq"]},
+            **{k: v for k, v in kwargs.items() if k not in ["game_minute", "minutes", "event_seq", "decision_seq"]},
         )
     
     def to_dict(self) -> dict[str, Any]:
@@ -105,5 +107,10 @@ class DomainEvent:
     
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "DomainEvent":
-        """Reconstruct from dictionary."""
-        return cls(**data)
+        """Reconstruct from dictionary. Filters out extra persistence fields."""
+        # Only include fields that DomainEvent actually has
+        keys = set(data.keys()) & {"event_id", "event_seq", "decision_seq", "game_minute", 
+                                   "event_type", "actor_id", "action_id", "causation_id", 
+                                   "correlation_id", "payload", "created_at"}
+        filtered_data = {k: data[k] for k in keys}
+        return cls(**filtered_data)

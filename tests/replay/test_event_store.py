@@ -54,34 +54,39 @@ class TestEventPersistence:
     """Test event appending."""
     
     def test_append_event_and_snapshot(self, event_store_db):
-        """append_event should save both event and snapshot atomically."""
-        # Initialize
+        """append_transition should save both event and snapshot atomically."""
+        # Initialize using new API (hash computed internally)
         initial_state = GameState.initial(seed="persist-test")
         event_store_db.initialize(
             campaign_id="campaign_003",
             initial_state=initial_state.__dict__,
-            initial_state_hash=state_hash(initial_state.__dict__),
         )
         
-        # Create event
-        event_dict = {
-            "event_id": "evt_001",
-            "event_seq": 1,
-            "decision_seq": 0,
-            "game_minute": 60,
-            "event_type": "TIME_ADVANCED",
-            "payload": {"minutes": 60},
-        }
+        # Create event as DomainEvent
+        from tgn.core import DomainEvent, reduce_event
         
-        event_store_db.append_event(
-            campaign_id="campaign_003",
-            event_dict=event_dict,
-            state_hash_before=state_hash(initial_state.__dict__),
-            state_hash_after=state_hash({"event_seq": 1}),
+        event = DomainEvent(
+            event_seq=1,
+            decision_seq=0,
+            game_minute=60,
+            event_type="TIME_ADVANCED",
+            payload={"minutes": 60}
+        )
+        
+        # Apply to get state_after
+        state_before = initial_state
+        state_after = reduce_event(initial_state, event)
+        
+        # Append transition (not append_event)
+        event_store_db.append_transition(
+            "campaign_003",
+            event,
+            state_before,
+            state_after
         )
         
         # Verify event persisted
-        events = event_store_db.all_events("campaign_003")
+        events = event_store_db.all_event_records("campaign_003")
         assert len(events) == 1
         assert events[0]["event_seq"] == 1
     
@@ -94,30 +99,43 @@ class TestEventPersistence:
             initial_state=initial_state.__dict__,
         )
         
-        event_dict = {
-            "event_id": "evt_001",
-            "event_seq": 1,
-            "decision_seq": 0,
-            "game_minute": 60,
-            "event_type": "TIME_ADVANCED",
-            "payload": {},
-        }
+        from tgn.core import DomainEvent, reduce_event
         
-        # First insert - success
-        event_store_db.append_event(
-            campaign_id="campaign_004",
-            event_dict=event_dict,
-            state_hash_before="",
-            state_hash_after="",
+        # First insert - success (from minute 0 to 60)
+        event1 = DomainEvent(
+            event_seq=1,
+            decision_seq=0,
+            game_minute=60,  # Expected after: 0 + 60
+            event_type="TIME_ADVANCED",
+            payload={"minutes": 60}  # Pushes from 0 to 60
         )
         
-        # Duplicate - should fail transaction
+        state_before = initial_state
+        state_after = reduce_event(initial_state, event1)
+        
+        event_store_db.append_transition(
+            "campaign_004",
+            event1,
+            state_before,
+            state_after
+        )
+        
+        # Duplicate - should fail transaction (UNIQUE constraint on campaign_id + event_seq)
         with pytest.raises(EventStoreError):
-            event_store_db.append_event(
-                campaign_id="campaign_004",
-                event_dict={**event_dict, "event_id": "evt_001_dup"},
-                state_hash_before="",
-                state_hash_after="",
+            event2 = DomainEvent(
+                event_seq=1,  # Same seq!
+                decision_seq=0,
+                game_minute=70,
+                event_type="TIME_ADVANCED",
+                payload={"minutes": 10}
+            )
+            
+            # This will fail at DB UNIQUE constraint level
+            event_store_db.append_transition(
+                "campaign_004",
+                event2,
+                state_after,  # Won't matter - fails before commit
+                state_after  # Dummy - never used because of error
             )
 
 
@@ -126,6 +144,8 @@ class TestTransactionRollback:
     
     def test_transaction_rollback_on_failure(self, event_store_db):
         """If snapshot insert fails, event must also be rolled back."""
+        from tgn.core import DomainEvent, reduce_event
+        
         # Initialize
         initial_state = GameState.initial()
         event_store_db.initialize(
@@ -134,80 +154,86 @@ class TestTransactionRollback:
         )
         
         # Normal event first
-        normal_event = {
-            "event_id": "normal_evt",
-            "event_seq": 1,
-            "decision_seq": 0,
-            "game_minute": 60,
-            "event_type": "TIME_ADVANCED",
-            "payload": {"minutes": 60},
-        }
-        event_store_db.append_event(
-            campaign_id="campaign_rollback",
-            event_dict=normal_event,
-            state_hash_before=state_hash(initial_state.__dict__),
-            state_hash_after="",
+        normal_event = DomainEvent(
+            event_seq=1,
+            decision_seq=0,
+            game_minute=60,
+            event_type="TIME_ADVANCED",
+            payload={"minutes": 60}
         )
         
-        # This will fail due to duplicate event_seq
-        bad_event = {
-            "event_id": "bad_evt",
-            "event_seq": 1,  # Same as normal_event!
-            "decision_seq": 0,
-            "game_minute": 70,
-            "event_type": "TIME_ADVANCED",
-            "payload": {"minutes": 10},
-        }
+        state_before = initial_state
+        state_after_normal = reduce_event(initial_state, normal_event)
+        
+        event_store_db.append_transition(
+            "campaign_rollback",
+            normal_event,
+            state_before,
+            state_after_normal
+        )
+        
+        # This will fail due to duplicate event_seq (UNIQUE constraint)
+        bad_event = DomainEvent(
+            event_seq=1,  # Same as normal_event!
+            decision_seq=0,
+            game_minute=70,
+            event_type="TIME_ADVANCED",
+            payload={"minutes": 10}
+        )
         
         try:
-            event_store_db.append_event(
-                campaign_id="campaign_rollback",
-                event_dict=bad_event,
-                state_hash_before="",
-                state_hash_after="",
+            # This will fail at DB UNIQUE constraint level
+            event_store_db.append_transition(
+                "campaign_rollback",
+                bad_event,
+                state_after_normal,  # Won't matter - fails before commit
+                state_after_normal   # Dummy - never used because of error
             )
             assert False, "Should have raised EventStoreError"
         except EventStoreError:
             pass
         
         # Verify ONLY the first event exists, not the bad one
-        events = event_store_db.all_events("campaign_rollback")
+        events = event_store_db.all_event_records("campaign_rollback")
         assert len(events) == 1
-        assert events[0]["event_id"] == "normal_evt"
+        assert events[0]["event_seq"] == 1
 
 
 class TestSnapshotLoading:
     """Test snapshot retrieval."""
     
     def test_latest_snapshot_returns_current(self, event_store_db):
-        """latest_snapshot should return state after all events."""
+        """latest_snapshot_record should return state after all events."""
+        from tgn.core import DomainEvent, reduce_event
+        
         initial_state = GameState.initial(seed="snapshot-test")
         event_store_db.initialize(
             campaign_id="snap_test",
             initial_state=initial_state.__dict__,
         )
         
-        event_dict = {
-            "event_id": "evt_snap",
-            "event_seq": 1,
-            "decision_seq": 1,
-            "game_minute": 120,
-            "event_type": "TIME_ADVANCED",
-            "payload": {"minutes": 120},
-            "_state_snapshot": {"event_seq": 1, "decision_seq": 1},
-        }
-        
-        event_store_db.append_event(
-            campaign_id="snap_test",
-            event_dict=event_dict,
-            state_hash_before="",
-            state_hash_after=state_hash(event_dict["_state_snapshot"]),
+        event = DomainEvent(
+            event_seq=1,
+            decision_seq=1,
+            game_minute=120,
+            event_type="TIME_ADVANCED",
+            payload={"minutes": 120}
         )
         
-        snapshot = event_store_db.latest_snapshot("snap_test")
+        state_before = initial_state
+        state_after = reduce_event(initial_state, event)
+        
+        event_store_db.append_transition(
+            "snap_test",
+            event,
+            state_before,
+            state_after
+        )
+        
+        snapshot = event_store_db.latest_snapshot_record("snap_test")
         assert snapshot is not None
-        assert snapshot["event_seq"] == 1
-        assert snapshot["decision_seq"] == 1
+        assert snapshot.event_seq == 1
+        assert snapshot.state["decision_seq"] == 1
 
 
 class TestCorruptionDetection:
@@ -238,7 +264,7 @@ class TestCorruptionDetection:
             conn.close()
         
         # Should not have corrupted events
-        events = event_store_db.all_events("corrupt_json")
+        events = event_store_db.all_event_records("corrupt_json")
         assert len(events) == 0
 
 

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import copy
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
-from ..core.hashing import canonical_json, state_hash
+from ..core.hashing import state_hash
 from ..core.models import DomainEvent, GameState
 
 
@@ -22,26 +23,115 @@ class ReplayResult:
     states_replayed: int = 0
 
 
+def replay_events(
+    initial_state: GameState,
+    events: list[DomainEvent],
+    state_at_each_step: bool = False,
+) -> ReplayResult:
+    """
+    Pure replay: apply DomainEvents to a GameState.
+    
+    This is the core capability used by:
+    - verify_replay()
+    - Autoplay simulation
+    - Branch comparison
+    - Scenario replay
+    
+    Args:
+        initial_state: Starting GameState (will be deep copied)
+        events: Sequence of DomainEvent objects
+        state_at_each_step: If True, track all intermediate states
+        
+    Returns:
+        ReplayResult with final state or error details
+    """
+    from copy import deepcopy
+    
+    # Deep copy initial state
+    current_state = deepcopy(initial_state)
+    
+    history = []
+    if state_at_each_step:
+        history = [current_state.__dict__.copy()]
+    
+    for i, event in enumerate(events):
+        try:
+            # Apply event using ONLY the reducer - no duplicate logic
+            from ..core.reducer import reduce_event
+            
+            current_state = reduce_event(current_state, event)
+            
+            if state_at_each_step:
+                history.append(current_state.__dict__.copy())
+                
+        except Exception as e:
+            return ReplayResult(
+                success=False,
+                final_state=None,
+                expected_hash=None,
+                actual_hash=None,
+                failed_event_seq=event.event_seq,
+                error_message=str(e),
+                states_replayed=len(history) - 1,
+            )
+    
+    # Calculate final hash
+    from ..core.hashing import state_hash
+    final_hash = state_hash(current_state.__dict__)
+    final_dict = current_state.__dict__
+    
+    result = ReplayResult(
+        success=True,
+        final_state=final_dict,
+        expected_hash=final_hash,
+        actual_hash=final_hash,
+        states_replayed=len(events),
+    )
+    
+    if state_at_each_step:
+        result.history = history
+    
+    return result
+
+
+def record_to_domain_event(record: dict[str, Any]) -> DomainEvent:
+    """Convert persisted event record to DomainEvent.
+    
+    Persisted records contain extra fields (campaign_id, state_hash_*) that are not part
+    of the domain event. This strips those away.
+    """
+    return DomainEvent(
+        event_id=record["event_id"],
+        event_seq=record["event_seq"],
+        decision_seq=record["decision_seq"],
+        game_minute=record["game_minute"],
+        event_type=record["event_type"],
+        actor_id=record.get("actor_id"),
+        action_id=record.get("action_id"),
+        causation_id=record.get("causation_id"),
+        correlation_id=record.get("correlation_id"),
+        payload=record["payload"],
+        created_at=record.get("created_at"),
+    )
+
+
 def replay_campaign(
     initial_state: dict[str, Any],
-    events: list[DomainEvent],
+    event_records: list[dict[str, Any]],
     state_at_each_step: bool = False,
 ) -> ReplayResult:
     """
     Replay a sequence of events from an initial state.
     
-    This is a READ-ONLY operation that does not modify the database.
-    
     Args:
         initial_state: Starting game state as dictionary OR GameState object
-        events: List of events to apply in sequence
+        event_records: List of persisted event records (with extra metadata)
         state_at_each_step: If True, track all intermediate states (memory intensive)
         
     Returns:
         ReplayResult with final state or error details
     """
-    from ..core.reducer import reduce_event
-    from ..core.models import GameState
+    from copy import deepcopy
     
     # Convert dict to GameState if needed
     if isinstance(initial_state, dict):
@@ -54,90 +144,75 @@ def replay_campaign(
             data=initial_state.get("data", {}),
         )
     else:
-        current_state = copy.deepcopy(initial_state)
+        current_state = deepcopy(initial_state)
     
     history = []
     
     if state_at_each_step:
-        history = [copy.deepcopy(current_state)]
+        history = [current_state.__dict__.copy()]
     
-    for event in events:
+    for record in event_records:
         try:
-            # Convert dict back to object if needed
-            if isinstance(event, dict):
-                event = DomainEvent.from_dict(event)
+            # Verify before-hash first
+            expected_before_hash = record["state_hash_before"]
+            actual_before_hash = state_hash(current_state.__dict__)
             
-            current_state = reduce_event(current_state, event)
+            if expected_before_hash != actual_before_hash:
+                return ReplayResult(
+                    success=False,
+                    failed_event_seq=record["event_seq"],
+                    error_message=f"Event {record['event_seq']}: state_hash_before mismatch ({actual_before_hash[:16]}... vs {expected_before_hash[:16]}...)",
+                    states_replayed=len(history),
+                )
+            
+            # Convert record to DomainEvent
+            domain_event = record_to_domain_event(record)
+            
+            # Apply event using REDUCER ONLY - no second implementation
+            from ..core.reducer import reduce_event
+            
+            current_state = reduce_event(current_state, domain_event)
+            
+            # Verify after-hash
+            expected_after_hash = record["state_hash_after"]
+            actual_after_hash = state_hash(current_state.__dict__)
+            
+            if expected_after_hash != actual_after_hash:
+                return ReplayResult(
+                    success=False,
+                    failed_event_seq=record["event_seq"],
+                    error_message=f"Event {record['event_seq']}: state_hash_after mismatch ({actual_after_hash[:16]}... vs {expected_after_hash[:16]}...)",
+                    states_replayed=len(history),
+                )
             
             if state_at_each_step:
-                history.append(copy.deepcopy(current_state))
+                history.append(current_state.__dict__.copy())
                 
         except Exception as e:
-            failed_seq = getattr(event, 'event_seq', 0) if hasattr(event, 'event_seq') else 0
             return ReplayResult(
                 success=False,
                 final_state=None,
                 expected_hash=None,
                 actual_hash=None,
-                failed_event_seq=failed_seq,
+                failed_event_seq=record.get("event_seq", 0),
                 error_message=str(e),
                 states_replayed=len(history),
             )
     
     # Calculate final hash
-    if isinstance(current_state, GameState):
-        final_hash = state_hash(current_state.__dict__)
-        final_state_dict = current_state.__dict__
-    else:
-        final_hash = state_hash(current_state)
-        final_state_dict = current_state
+    final_hash = state_hash(current_state.__dict__)
+    final_dict = current_state.__dict__
     
     result = ReplayResult(
         success=True,
-        final_state=final_state_dict,
+        final_state=final_dict,
         expected_hash=final_hash,
         actual_hash=final_hash,
-        states_replayed=len(events),
+        states_replayed=len(event_records),
     )
     
     if state_at_each_step:
         result.history = history
-    
-    return result
-
-
-def verify_replay(
-    initial_state: dict[str, Any],
-    events: list[DomainEvent],
-    expected_final_hash: str,
-) -> ReplayResult:
-    """
-    Verify that replay produces expected hash.
-    
-    This is used to detect corruption in persisted events or states.
-    
-    Args:
-        initial_state: Starting game state as dictionary
-        events: Events to replay
-        expected_final_hash: Expected SHA-256 hash of final state
-        
-    Returns:
-        ReplayResult indicating whether replay matched expected hash
-    """
-    from .event_store import EventStore
-    
-    # Perform basic replay first
-    result = replay_campaign(initial_state, events, state_at_each_step=True)
-    
-    if not result.success:
-        return result
-    
-    # Now compare hashes
-    result.expected_hash = expected_final_hash
-    
-    if result.expected_hash != result.actual_hash:
-        result.success = False
-        result.error_message = f"Hash mismatch: expected {result.expected_hash[:16]}..., got {result.actual_hash[:16]}..."
     
     return result
 
@@ -150,7 +225,11 @@ def verify_persistence_integrity(campaign_id: str, db_path: str | Path) -> Repla
     - Initial state/hash match
     - Each event's state_hash_before/after are correct
     - Latest snapshot matches final state
+    
+    Uses ONLY the public reducer - no duplicate TIME_ADVANCED logic.
     """
+    from .event_store import EventStore
+    
     store = EventStore(db_path)
     
     try:
@@ -163,17 +242,31 @@ def verify_persistence_integrity(campaign_id: str, db_path: str | Path) -> Repla
             )
         
         # Verify initial state
-        initial_state = json.loads(record.initial_state_json)
+        try:
+            initial_state = json.loads(record.initial_state_json)
+        except json.JSONDecodeError as e:
+            return ReplayResult(
+                success=False,
+                error_message=f"Malformed JSON in initial state: {e}",
+            )
+        
         if state_hash(initial_state) != record.initial_state_hash:
             return ReplayResult(
                 success=False,
                 error_message="Initial state hash mismatch with stored metadata",
             )
         
-        # Get all events and verify step-by-step
-        events = store.all_events(campaign_id)
+        # Get all event records
+        try:
+            event_records = store.all_event_records(campaign_id)
+        except ValueError as e:
+            # Raised for malformed JSON
+            return ReplayResult(
+                success=False,
+                error_message=str(e),
+            )
         
-        if not events:
+        if not event_records:
             return ReplayResult(
                 success=True,
                 final_state=initial_state,
@@ -183,11 +276,11 @@ def verify_persistence_integrity(campaign_id: str, db_path: str | Path) -> Repla
         
         current_state = initial_state
         
-        for event_dict in events:
-            event_seq = event_dict["event_seq"]
+        for event_record in event_records:
+            event_seq = event_record["event_seq"]
             
             # Check before-hash
-            expected_before_hash = event_dict["state_hash_before"]
+            expected_before_hash = event_record["state_hash_before"]
             actual_before_hash = state_hash(current_state)
             
             if expected_before_hash != actual_before_hash:
@@ -197,28 +290,26 @@ def verify_persistence_integrity(campaign_id: str, db_path: str | Path) -> Repla
                     error_message=f"Event {event_seq}: state_hash_before ({actual_before_hash[:16]}...) doesn't match stored ({expected_before_hash[:16]}...)",
                 )
             
-            # Apply event to get next state
-            domain_event = DomainEvent.from_dict(event_dict)
+            # Convert to DomainEvent
+            domain_event = record_to_domain_event(event_record)
             
-            # For Phase 1, only TIME_ADVANCED is valid
-            if domain_event.event_type == "TIME_ADVANCED":
-                minutes = domain_event.payload.get("minutes", 0)
-                expected_next_minute = current_state.get("game_minute", 0) + minutes
-                
-                if domain_event.game_minute != expected_next_minute:
-                    return ReplayResult(
-                        success=False,
-                        failed_event_seq=event_seq,
-                        error_message=f"Event {event_seq}: game_minute calculation incorrect",
-                    )
-                
-                # Create new state
-                current_state = current_state.copy()
-                current_state["event_seq"] = event_seq
-                current_state["game_minute"] = domain_event.game_minute
+            # Apply event using reducer
+            from ..core.reducer import reduce_event
+            
+            try:
+                # We need to convert current_state (dict) to GameState temporarily
+                temp_state = GameState(**current_state)
+                temp_state = reduce_event(temp_state, domain_event)
+                current_state = temp_state.__dict__
+            except Exception as e:
+                return ReplayResult(
+                    success=False,
+                    failed_event_seq=event_seq,
+                    error_message=f"Event {event_seq}: failed to apply event: {e}",
+                )
             
             # Check after-hash
-            expected_after_hash = event_dict["state_hash_after"]
+            expected_after_hash = event_record["state_hash_after"]
             actual_after_hash = state_hash(current_state)
             
             if expected_after_hash != actual_after_hash:
@@ -229,28 +320,24 @@ def verify_persistence_integrity(campaign_id: str, db_path: str | Path) -> Repla
                 )
         
         # Final verification: latest snapshot must match final state
-        snapshot = store.latest_snapshot(campaign_id)
+        snapshot = store.latest_snapshot_record(campaign_id)
         if snapshot:
-            # Parse and hash the snapshot state
-            from json import loads
-            snapshot_state = loads(snapshot["state_json"])
-            snapshot_hash = snapshot["state_hash"]
-            
-            # Both should be identical (snapshot IS the final state)
             final_state_hash = state_hash(current_state)
             
-            if snapshot_hash != final_state_hash:
+            if snapshot.state_hash != final_state_hash:
                 return ReplayResult(
                     success=False,
-                    error_message=f"Final state hash ({final_state_hash[:16]}...) doesn't match snapshot hash ({snapshot_hash[:16]}...)",
+                    error_message=f"Final state hash ({final_state_hash[:16]}...) doesn't match snapshot hash ({snapshot.state_hash[:16]}...)",
+                    failed_event_seq=snapshot.event_seq,
                 )
             
             # Also verify snapshot hash against its own content
-            snapshot_content_hash = state_hash(snapshot_state)
-            if snapshot_hash != snapshot_content_hash:
+            snapshot_content_hash = state_hash(snapshot.state)
+            if snapshot.state_hash != snapshot_content_hash:
                 return ReplayResult(
                     success=False,
-                    error_message=f"Snapshot hash ({snapshot_hash[:16]}...) doesn't match its own content hash ({snapshot_content_hash[:16]}...)",
+                    error_message=f"Snapshot hash ({snapshot.state_hash[:16]}...) doesn't match its own content hash ({snapshot_content_hash[:16]}...)",
+                    failed_event_seq=snapshot.event_seq,
                 )
         
         return ReplayResult(
@@ -262,3 +349,23 @@ def verify_persistence_integrity(campaign_id: str, db_path: str | Path) -> Repla
     
     finally:
         store.close()
+
+
+def verify_replay(
+    initial_state: dict[str, Any],
+    event_records: list[dict[str, Any]],
+    expected_final_hash: str,
+) -> ReplayResult:
+    """Verify that replay produces expected hash."""
+    result = replay_campaign(initial_state, event_records, state_at_each_step=True)
+    
+    if not result.success:
+        return result
+    
+    result.expected_hash = expected_final_hash
+    
+    if result.expected_hash != result.actual_hash:
+        result.success = False
+        result.error_message = f"Hash mismatch: expected {result.expected_hash[:16]}..., got {result.actual_hash[:16]}..."
+    
+    return result
