@@ -155,6 +155,24 @@ def calculate_severity(values: Mapping[str, Any]) -> Tuple[float, str, Dict[str,
     return rounded(score), band, {**positive, **negative}
 
 
+def outcome_thresholds(probability: float) -> dict[str, float]:
+    """计算标准行动结果概率阈值（统一用于普通行动和行动计划稀释）。
+    
+    Args:
+        probability: 基础成功率
+        
+    Returns:
+        包含各个结果分支阈值的字典
+    """
+    return {
+        "critical": probability * 0.08,       # 大成功：8% of success
+        "normal": probability * 0.78,         # 普通成功：78% of success
+        "costly": probability,                 # 代价成功：等于成功率（阈值）
+        "partial_failure": probability + (1.0 - probability) * 0.60,  # 部分失败：55-65%
+        "severe_failure": probability + (1.0 - probability) * 0.95,   # 严重失败：30-40%
+    }
+
+
 def resolve_action(player: Mapping[str, Any], context: ActionContext | Mapping[str, Any], inventory: Optional[Mapping[str, Any]] = None) -> ActionResolution:
     context = _action_context(context)
     inventory = inventory or {}
@@ -210,14 +228,14 @@ def resolve_action(player: Mapping[str, Any], context: ActionContext | Mapping[s
         "player_responsibility": context.player_responsibility,
     })
     death_allowed = severity >= 86 and death_fairness >= 0.5
-
-    # P 是"成功或更好"的累计概率；random_roll 必须真正参与所有结果分支。
-    # 第十九轮对话调整：增加普通成功比例，减少严重失败比例
-    critical_threshold = probability * 0.08  # 大成功：从 10% 降到 8-10%
-    normal_threshold = probability * 0.78  # 普通成功：从 65% 升到 70-75%
-    costly_threshold = probability  # 代价成功保持 15-22%
-    partial_failure_threshold = probability + (1.0 - probability) * 0.60  # 部分失败：从 25% 升到 55-65%
-    severe_failure_threshold = probability + (1.0 - probability) * 0.95  # 严重失败：从 90% 降到 30-40%
+    
+    # Use unified threshold function
+    thresholds = outcome_thresholds(probability)
+    critical_threshold = thresholds["critical"]
+    normal_threshold = thresholds["normal"]
+    costly_threshold = thresholds["costly"]
+    partial_failure_threshold = thresholds["partial_failure"]
+    severe_failure_threshold = thresholds["severe_failure"]
 
     if random_roll < critical_threshold:
         outcome = "大成功"
@@ -273,11 +291,15 @@ def apply_action_dilution(resolution: ActionResolution, multiplier: float) -> Ac
     }
     resolution.advantage = rounded(sum(resolution.advantage_components.values()))
     resolution.probability = rounded(sigmoid((resolution.advantage - resolution.resistance) / resolution.k))
-    critical_threshold = resolution.probability * 0.10
-    normal_threshold = resolution.probability * 0.65
-    costly_threshold = resolution.probability
-    partial_failure_threshold = resolution.probability + (1.0 - resolution.probability) * 0.25
-    severe_failure_threshold = resolution.probability + (1.0 - resolution.probability) * 0.90
+    
+    # P1-04: Use unified threshold function to maintain consistent outcome distribution
+    thresholds = outcome_thresholds(resolution.probability)
+    critical_threshold = thresholds["critical"]
+    normal_threshold = thresholds["normal"]
+    costly_threshold = thresholds["costly"]
+    partial_failure_threshold = thresholds["partial_failure"]
+    severe_failure_threshold = thresholds["severe_failure"]
+    
     if resolution.random_roll < critical_threshold:
         resolution.outcome = "大成功"
     elif resolution.random_roll < normal_threshold:

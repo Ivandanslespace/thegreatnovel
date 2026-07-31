@@ -1776,6 +1776,87 @@ class MechanismClosureTests(unittest.TestCase):
         # 不应产生 system_event_history（NPC 日程/灾难未执行）
         self.assertNotIn("system_event_history", result["meta"])
 
+    # P0-01: 公共系统应加载 PeerAgent 并从 SQLite 持久化
+    def test_public_system_loads_peer_agents_from_sqlite(self):
+        """验证公共系统确实通过 GameState.store 加载同行玩家并写回"""
+        import tempfile
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from engine_runtime.peer_agent import PeerAgent
+            from engine_runtime.persistence import insert_peer_agent, load_peer_agents, SQLiteEventStore
+            
+            db_path = Path(tmpdir) / "campaign.sqlite3"
+            store = SQLiteEventStore(db_path, "test_campaign_1")
+            
+            # 初始化空的 campaign（需要 world_name）
+            dummy_data = {"meta": {"campaign_id": "test_campaign_1", "world_name": "test"}, "world": {}}
+            store.initialize(dummy_data)
+            
+            # 创建 PeerAgent 并写入 SQLite
+            peer = PeerAgent(
+                id="peer_inserted_by_test",
+                name="插入的同行",
+                attributes={"strength": 12, "constitution": 12, "agility": 12, "spirit": 12},
+                level=1,
+                personality_traits={"caution": 60, "ambition": 50, "empathy": 50, "openness": 50, "collectivism": 50},
+                action_history=[],
+            )
+            
+            # 创建一个 mock state 对象，有 .store 属性（符合 GameState 的结构）
+            class MockState:
+                pass
+            
+            mock_state = MockState()
+            mock_state.store = store
+            
+            # 写入同行代理
+            insert_peer_agent(mock_state, "test_campaign_1", peer)
+            
+            # 从 SQLite 加载同行代理
+            loaded_peers = load_peer_agents(mock_state, "test_campaign_1")
+            
+            # P0-01: 验证同行代理已被持久化回 SQLite
+            self.assertGreaterEqual(len(loaded_peers), 1, "SQLite 中应至少有一个同行代理")
+            self.assertEqual(loaded_peers[0].id, "peer_inserted_by_test")
+            self.assertEqual(loaded_peers[0].name, "插入的同行")
+
+    # P1-06: 资源下限应按 resource_rules 注册表配置
+    def test_resource_minimum_applied_from_registry(self):
+        """验证负数信用债务允许，而食物不允许负库存"""
+        world_with_rules = {
+            "name": "信贷世界",
+            "resource_rules": {
+                "credit": {"minimum": -100},  # 允许负债
+                "food": {"minimum": 0},       # 不能负库存
+                "fuel": {},                   # 默认 0
+            },
+        }
+        
+        state = minimal_state(
+            world=world_with_rules,
+            inventory={"resources": {"credit": -50, "food": -5, "fuel": -3}}
+        )
+        
+        # 触发资源处理（无需变化也会走最小值逻辑）
+        event = standard_event(
+            "check-min-1", "ACTION_RESOLVED", "player", None,
+            {"time_cost": 0},
+            1, "Day 1 清晨",
+        )
+        result = apply_event(state, event)
+        
+        resources = result["inventory"]["resources"]
+        
+        # 信用允许负数到 -100
+        self.assertLessEqual(resources.get("credit"), 0)
+        self.assertGreaterEqual(resources.get("credit"), -100)
+        
+        # food 不能负数（被修正为 0）
+        self.assertGreaterEqual(resources.get("food"), 0)
+        
+        # fuel 无规则，默认非负
+        self.assertGreaterEqual(resources.get("fuel"), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

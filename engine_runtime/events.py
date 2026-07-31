@@ -446,6 +446,8 @@ def _advance_npcs_and_scheduled_events(updated: Dict[str, Any]) -> None:
     if isinstance(queue, list):
         current_turn = int(meta.get("current_turn", 0))
         current_day = int(meta.get("game_day", 1))
+        # P0-02: Use world_turn for time-based scheduled events
+        world_turn = int(meta.get("world_turn", current_turn))
         for item in queue:
             if not isinstance(item, dict) or item.get("status", "pending") != "pending":
                 continue
@@ -456,7 +458,7 @@ def _advance_npcs_and_scheduled_events(updated: Dict[str, Any]) -> None:
             # Previously used OR which caused events to fire prematurely when EITHER condition was met.
             # If only one condition type is declared, that single condition is sufficient.
             day_met = trigger_day is None or current_day >= int(trigger_day)
-            turn_met = trigger_turn is None or current_turn >= int(trigger_turn)
+            turn_met = trigger_turn is None or world_turn >= int(trigger_turn)
             has_condition = trigger_day is not None or trigger_turn is not None
             if has_condition and day_met and turn_met:
                 item["status"] = "triggered"
@@ -466,10 +468,13 @@ def _advance_npcs_and_scheduled_events(updated: Dict[str, Any]) -> None:
     for promise in social_state.get("promises", []) if isinstance(social_state.get("promises", []), list) else []:
         if not isinstance(promise, dict) or promise.get("status") != "open":
             continue
-        if promise.get("due_turn") is not None and current_turn >= int(promise["due_turn"]):
-            promise["status"] = "broken"
-            _apply_relationship_changes(updated, {promise.get("npc_id"): {"trust": -10, "respect": -3}})
-            system_events.append({"type": "PROMISE_BROKEN", "target": promise.get("npc_id"), "promise_id": promise.get("id"), "turn": current_turn})
+        # P0-03: Handle due_turn carefully with proper type checking
+        due_turn = promise.get("due_turn")
+        if due_turn is not None and isinstance(due_turn, (int, float)):
+            if world_turn >= int(due_turn):
+                promise["status"] = "broken"
+                _apply_relationship_changes(updated, {promise.get("npc_id"): {"trust": -10, "respect": -3}})
+                system_events.append({"type": "PROMISE_BROKEN", "target": promise.get("npc_id"), "promise_id": promise.get("id"), "turn": current_turn})
     disaster_day = meta.get("next_disaster_day")
     disaster = updated.get("world", {}).get("rules", {}).get("disaster", {}) if isinstance(updated.get("world", {}).get("rules", {}), Mapping) else {}
     cycle = int(disaster.get("cycle_days", 7) or 7)
@@ -669,12 +674,27 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
     resources = inventory.setdefault("resources", {})
     for key, delta in (payload.get("resource_changes", {}) or {}).items():
         _add_delta(resources, str(key), delta)
-    # P1-07: Resources must never go below 0 unless contract explicitly allows it.
+    
+    # P1-07: Apply per-resource minimum limits from world registry instead of blanket max(0)
+    world = updated.setdefault("world", {})
+    if isinstance(world, Mapping):
+        resource_rules = world.get("resource_rules", {})
+    else:
+        resource_rules = {}
+    
     for key in list(resources):
         try:
-            resources[key] = max(0, float(resources[key]))
-            if float(resources[key]).is_integer():
-                resources[key] = int(resources[key])
+            value = float(resources[key])
+            # Check if there's a specific minimum for this resource
+            rule = resource_rules.get(str(key), {})
+            if isinstance(rule, Mapping):
+                minimum = float(rule.get("minimum", 0.0))
+            else:
+                minimum = 0.0
+            value = max(minimum, value)
+            if value.is_integer():
+                value = int(value)
+            resources[key] = value
         except (TypeError, ValueError):
             pass
 
@@ -772,9 +792,15 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
                 player.pop("pending_decision", None)
                 player["talent_choice_required"] = False
 
+    # P0-02: current_turn increments for every event, world_turn only for time_cost > 0
     if payload.get("time_cost") is not None:
         _advance_timeline(meta, world, float(payload.get("time_cost", 0)))
-
+            
+        # Increment world_turn only when time_cost > 0 (P0-02 fix)
+        world_turn = meta.get("world_turn", meta.get("current_turn", 0))
+        if float(payload.get("time_cost", 0)) > 0:
+            meta["world_turn"] = world_turn + 1
+        
     if isinstance(payload.get("narrative_state"), Mapping):
         meta["narrative_state"] = deepcopy(dict(payload["narrative_state"]))
     if isinstance(payload.get("runtime_metrics"), Mapping):
@@ -816,7 +842,8 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
     # for all skills. Zero-time actions (ATTRIBUTE_ALLOCATION, TALENT_SELECTION)
     # are excluded because their time_cost is 0.
     time_cost = float(payload.get("time_cost", 0) or 0)
-    if time_cost > 0:
+    # P1-05: Only decrement cooldowns when the actor is the player
+    if record.get("actor") == "player" and time_cost > 0:
         from .calculators import tick_cooldowns
         player.update(tick_cooldowns(player))
 

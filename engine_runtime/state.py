@@ -95,7 +95,18 @@ class GameState:
 
     @property
     def current_turn(self) -> int:
+        """事件序号：每次标准事件都增加"""
         return int(self.meta.get("current_turn", 0))
+    
+    @property
+    def world_turn(self) -> int:
+        """世界回合：只有耗时行动 (time_cost > 0) 才增加"""
+        return int(self.meta.get("world_turn", self.current_turn))
+    
+    @property
+    def pending_options_state_turn(self) -> int:
+        """选项生成时的世界回合号"""
+        return int(self.meta.get("pending_options_state_turn", self.world_turn))
 
     def event_history(self):
         return [{"turn": int(record.get("turn", 0)), "record": record} for record in self.store.events()]

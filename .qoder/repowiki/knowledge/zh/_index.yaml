@@ -3,11 +3,11 @@ schema_version: 1
 locale: zh-CN
 branch: main
 nodes_managed: true
-exported_at: "2026-07-30T17:53:09Z"
+exported_at: "2026-07-31T06:52:38Z"
 modules:
     "":
-        dir_name: TheGreatNovel 叙事驱动文字游戏项目根
-        title: TheGreatNovel 叙事驱动文字游戏项目根
+        dir_name: TheGreatNovel 叙事驱动文字游戏根项目
+        title: TheGreatNovel 叙事驱动文字游戏根项目
         scope:
             - AGENTS.md
             - answers_new_game.yaml
@@ -31,8 +31,7 @@ modules:
         source_files: []
         children: []
         depends_on: []
-        related_to:
-            - path: saves_and_templates
+        related_to: []
     engine_runtime:
         dir_name: TheGreatNovel 可执行规则引擎
         title: TheGreatNovel 可执行规则引擎
@@ -43,13 +42,13 @@ modules:
             - engine_runtime/calculation_core
             - engine_runtime/persistence_world
             - engine_runtime/presentation_narrative
+            - engine_runtime/public_survival
             - engine_runtime/state_management
         depends_on: []
-        related_to:
-            - path: tools
+        related_to: []
     engine_runtime/calculation_core:
-        dir_name: 确定性计算核心与事件投影
-        title: 确定性计算核心与事件投影
+        dir_name: 确定性计算核心与事件投影层
+        title: 确定性计算核心与事件投影层
         scope:
             - engine_runtime/calculators.py
             - engine_runtime/ratings.py
@@ -57,12 +56,10 @@ modules:
         source_files: []
         children: []
         depends_on: []
-        related_to:
-            - path: engine_runtime/persistence_world
-            - path: engine_runtime/state_management
+        related_to: []
     engine_runtime/persistence_world:
-        dir_name: 持久化存储、世界编译与运行时引擎
-        title: 持久化存储、世界编译与运行时引擎
+        dir_name: 持久化存储、世界蓝图编译器与游戏运行时引擎
+        title: 持久化存储、世界蓝图编译器与游戏运行时引擎
         scope:
             - engine_runtime/persistence.py
             - engine_runtime/world_compiler.py
@@ -70,10 +67,7 @@ modules:
         source_files: []
         children: []
         depends_on: []
-        related_to:
-            - path: engine_runtime/calculation_core
-            - path: engine_runtime/state_management
-            - path: saves_and_templates
+        related_to: []
     engine_runtime/presentation_narrative:
         dir_name: 玩家可见结果呈现与叙事存档
         title: 玩家可见结果呈现与叙事存档
@@ -84,11 +78,19 @@ modules:
         source_files: []
         children: []
         depends_on: []
-        related_to:
-            - path: engine_runtime/state_management
+        related_to: []
+    engine_runtime/public_survival:
+        dir_name: 全民求生合同公开状态推进引擎
+        title: 全民求生合同公开状态推进引擎
+        scope:
+            - engine_runtime/public_survival.py
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
     engine_runtime/state_management:
-        dir_name: 游戏状态管理与运行时模型
-        title: 游戏状态管理与运行时模型
+        dir_name: 游戏状态管理与选项编译执行适配层
+        title: 游戏状态管理与选项编译执行适配层
         scope:
             - engine_runtime/state.py
             - engine_runtime/models.py
@@ -96,30 +98,22 @@ modules:
         source_files: []
         children: []
         depends_on: []
-        related_to:
-            - path: engine_runtime/calculation_core
-            - path: engine_runtime/persistence_world
-            - path: engine_runtime/presentation_narrative
+        related_to: []
     saves_and_templates:
-        dir_name: 游戏存档与世界模板定义
-        title: 游戏存档与世界模板定义
+        dir_name: 世界与存档模板定义
+        title: 世界与存档模板定义
         scope:
             - templates/
         source_files: []
         children: []
         depends_on: []
-        related_to:
-            - path: engine
-            - path: engine_runtime/persistence_world
-            - path: tools
+        related_to: []
     tools:
-        dir_name: TheGreatNovel 引擎命令行工具集
-        title: TheGreatNovel 引擎命令行工具集
+        dir_name: TheGreatNovel 引擎工具脚本集
+        title: TheGreatNovel 引擎工具脚本集
         scope:
             - tools/
         source_files: []
         children: []
         depends_on: []
-        related_to:
-            - path: engine_runtime
-            - path: saves_and_templates
+        related_to: []

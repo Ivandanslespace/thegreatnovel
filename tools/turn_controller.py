@@ -173,7 +173,7 @@ def advance_public_system(engine: GameEngine, execution_result: dict | None) -> 
     """经由标准事件提交公共推进；不直接写入投影文件。"""
     if not _has_time_advancing_result(execution_result):
         return None
-    advanced = advance_public_states(engine.state.data, execution_result or {})
+    advanced = advance_public_states(engine.state, execution_result or {})
     if advanced is None:
         return None
     projection_state, feedback = advanced

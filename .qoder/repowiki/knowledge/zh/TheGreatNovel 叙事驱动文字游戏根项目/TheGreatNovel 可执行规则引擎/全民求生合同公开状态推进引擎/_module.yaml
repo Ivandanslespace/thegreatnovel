@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: engine_runtime/public_survival
+title: 全民求生合同公开状态推进引擎
+scope:
+    - engine_runtime/public_survival.py
+source_files: []
+depends_on: []
+related_to: []

@@ -315,12 +315,19 @@ def _action_score(result: Mapping[str, Any], competition: Mapping[str, Any]) -> 
     return score
 
 
-def advance_public_states(state_data: Mapping[str, Any], action_result: Mapping[str, Any]) -> tuple[dict[str, dict[str, Any]], dict[str, Any]] | None:
+def advance_public_states(state, action_result: Mapping[str, Any]) -> tuple[dict[str, dict[str, Any]], dict[str, Any]] | None:
     """在主角完成一个正式行动后推进同区玩家，并产出玩家可读反馈。
 
     所有结果由当前快照和存档种子决定。调用方必须将返回状态作为
     ``PUBLIC_SYSTEM_ADVANCED`` 标准事件提交，不能直接改写 YAML。
+    
+    Args:
+        state: GameState object from engine.state
+        action_result: The execution result dictionary
     """
+    # P0-01: Properly extract data from GameState for processing
+    state_data = dict(state.data)
+    
     world = state_data.get("world", {}) if isinstance(state_data.get("world", {}), Mapping) else {}
     if not collective_contract(world):
         return None
@@ -354,16 +361,9 @@ def advance_public_states(state_data: Mapping[str, Any], action_result: Mapping[
         
     # LOAD peer agents from SQLite or return empty list if no store available
     campaign_id = state_data.get("meta", {}).get("campaign_id") or state_data.get("world", {}).get("name", "unknown")
-    try:
-        # Try to access store attribute (from GameState object)
-        if hasattr(state_data, 'store'):
-            peer_agents = load_peer_agents(state_data, campaign_id)
-        else:
-            # Fallback: no store available, create empty list
-            peer_agents = []
-    except Exception:
-        # If loading fails, default to empty list
-        peer_agents = []
+    
+    # P0-01: Always try to load peer agents from GameState's store
+    peer_agents = load_peer_agents(state, campaign_id)
     
     # P1-03: Build per-action average scores from a rolling window of last 10
     # actions for both protagonist and peers, eliminating the systematic
@@ -497,9 +497,9 @@ def advance_public_states(state_data: Mapping[str, Any], action_result: Mapping[
                 scores=result["dimensional_scores"]
             )
             
-            # Persist back to SQLite
+            # Persist back to SQLite using state object (not state_data dict)
             from engine_runtime.persistence import insert_peer_agent
-            insert_peer_agent(state_data, state_data["meta"]["campaign_id"], peer)
+            insert_peer_agent(state, campaign_id, peer)
 
     population["alive_count"] = alive_after
     population["deaths_total"] = int(population.get("deaths_total", 0)) + losses
