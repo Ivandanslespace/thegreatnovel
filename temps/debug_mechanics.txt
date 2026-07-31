@@ -1,0 +1,8 @@
+capabilities:
+  building: true
+  combat: true
+  crafting: true
+  disasters: true
+  factions: true
+  trading: true
+

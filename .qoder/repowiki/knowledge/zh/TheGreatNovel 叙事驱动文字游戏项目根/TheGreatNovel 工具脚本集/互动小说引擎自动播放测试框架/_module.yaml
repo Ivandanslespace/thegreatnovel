@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: tools/autoplay_test_framework
+title: 互动小说引擎自动播放测试框架
+scope:
+    - tools/autoplay_TEST_README.md
+    - tools/autoplay_suite.py
+    - tools/autoplay_test.py
+source_files: []
+depends_on: []
+related_to: []

@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: tools
-title: 互动小说引擎工具集（tools）
+title: TheGreatNovel 工具脚本集
 scope:
     - tools/
 source_files: []

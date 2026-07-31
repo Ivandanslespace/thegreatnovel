@@ -16,14 +16,20 @@ from engine_runtime.ranking_engine import (
     calculate_cdf_percentile,
     calculate_dimension_scores,
     convert_percentile_to_rank,
+    _merge_weights,
+    DEFAULT_RANKING_WEIGHTS,
 )
 from engine_runtime.channel_engine import generate_channel_messages
 from engine_runtime.persistence import load_peer_agents
 from engine_runtime.peer_agent import PeerAgent
 
 
-def calculate_peer_capability(peer, action_type):
-    """Calculate peer's effective capability for given action type based on their stats"""
+def calculate_peer_capability(peer, action_type, world_config=None):
+    """Calculate peer's effective capability for given action type based on their stats.
+    
+    Supports world-specific capability formulas defined in world.config.
+    Falls back to standard RPG formulas if no custom formula found or world_config not provided.
+    """
     attrs = peer.attributes if hasattr(peer, 'attributes') else {}
     
     # Helper to get attribute with fallback default of 10
@@ -32,6 +38,46 @@ def calculate_peer_capability(peer, action_type):
             return float(attrs.get(name, 10))
         return 10.0
     
+    # Try to load world-specific capability formula first
+    if world_config:
+        blueprint = world_config.get('world_blueprint', {}) if isinstance(world_config.get('world_blueprint', {}), dict) else {}
+        
+        # Check for public_survival capability_formulas
+        capability_config = blueprint.get('capability_formulas', {}).get(action_type)
+        
+        # Also support alternative path via mechanics.caps
+        if not capability_config:
+            capabilities = blueprint.get('mechanics', {}).get('capabilities', {})
+            if isinstance(capabilities, dict) and action_type.lower() in capabilities:
+                # If this is just a boolean flag, use standard formula
+                if isinstance(capabilities[action_type.lower()], bool):
+                    capability_config = None
+                else:
+                    capability_config = capabilities[action_type.lower()]
+        
+        if capability_config and isinstance(capability_config, dict):
+            attributes = capability_config.get('attributes', [])
+            weights = capability_config.get('weights', [])
+            
+            if attributes and weights:
+                total = 0
+                for i, attr_name in enumerate(attributes):
+                    weight = weights[i] if i < len(weights) else 1.0 / len(attributes)
+                    total += attr(attr_name) * weight
+                
+                # Add profession and level bonuses
+                profession_bonus = 0
+                if hasattr(peer, 'profession_level'):
+                    prof_level = float(peer.profession_level) if peer.profession_level else 0
+                    profession_bonus = prof_level * 5
+                
+                level_bonus = 0
+                if hasattr(peer, 'level'):
+                    level_bonus = float(peer.level) * 2
+                
+                return total + profession_bonus + level_bonus
+    
+    # Standard hardcoded formulas for backward compatibility
     if action_type == "COMBAT":
         return (attr("strength") * 0.4 +
                 attr("agility") * 0.3 +
@@ -62,7 +108,7 @@ def calculate_peer_capability(peer, action_type):
     return 10.0
 
 
-def select_action_by_personality(peer, available_actions, rng: random.Random | None = None):
+def select_action_by_personality(peer, available_actions, world_config=None, rng: random.Random | None = None):
     """Choose action based on peer's personality traits.
 
     P1-02: Accepts an optional deterministic *rng* so that replays with the
@@ -72,11 +118,28 @@ def select_action_by_personality(peer, available_actions, rng: random.Random | N
     This function weights action selection based on the peer's 6-dimension
     personality profile, creating distinct behavioral patterns.
     
+    Supports world-specific actions from world_config.peer_actions if provided.
+    
+    Args:
+        peer: PeerAgent object with attributes and personality_traits
+        available_actions: List of action types available in this context
+        world_config: Optional world configuration dict for peer_actions override
+        rng: Optional random.Random instance for deterministic behavior
+    
     Returns:
         str: Selected action type from available options
     """
     if rng is None:
         rng = random
+    
+    # First check for world-specific actions before filtering
+    if world_config:
+        blueprint = world_config.get('world_blueprint', {}) if isinstance(world_config.get('world_blueprint', {}), dict) else {}
+        peer_actions = blueprint.get('peer_actions', [])
+        
+        if peer_actions and isinstance(peer_actions, list):
+            # Use world-defined actions instead of defaults
+            available_actions = list(peer_actions)
     
     if not available_actions:
         return "EXPLORATION"
@@ -88,15 +151,23 @@ def select_action_by_personality(peer, available_actions, rng: random.Random | N
     ambition = traits.get("ambition", 50)
     empathy = traits.get("empathy", 50)
     openness = traits.get("openness", 50)
+    honesty = traits.get("honesty", 50)  # NEW: Add honesty trait
     collectivism = traits.get("collectivism", 50)
     
-    # Initialize equal weights for all possible actions
-    weights = {
+    # Initialize weights for all possible actions based on what's available
+    initial_weights = {
         "EXPLORATION": 1.0,
         "COMBAT": 1.0,
         "BUILD": 1.0,
-        "SOCIAL_INTERACTION": 1.0
+        "SOCIAL_INTERACTION": 1.0,
+        "SABOTAGE": 1.0,           # Added for low honesty peers
+        "INVESTIGATION": 1.0,      # Added for open-minded peers
+        "NAVIGATION": 1.0,         # Added for cautious explorers
+        "CRAFTING": 1.0,           # Added for builders
     }
+    
+    # Start with only available actions
+    weights = {action: 1.0 for action in available_actions}
     
     # --- Trait-based modifiers (P1 personality-strength fix) ---
     # Multipliers raised to 2.5-3.5x so that extreme personalities choose
@@ -104,47 +175,97 @@ def select_action_by_personality(peer, available_actions, rng: random.Random | N
     
     # Cautious peers (high caution > 70): prefer building and avoiding risk
     if caution > 70:
-        weights["BUILD"] *= 3.0
-        weights["EXPLORATION"] *= 0.6
-        weights["COMBAT"] *= 0.3
+        if "BUILD" in weights:
+            weights["BUILD"] *= 3.0
+        if "EXPLORATION" in weights:
+            weights["EXPLORATION"] *= 0.6
+        if "COMBAT" in weights:
+            weights["COMBAT"] *= 0.3
+        if "NAVIGATION" in weights:  # Cautious peers prefer careful navigation
+            weights["NAVIGATION"] *= 2.5
+    
     elif caution < 30:  # Reckless peers
-        weights["COMBAT"] *= 2.8
-        weights["EXPLORATION"] *= 2.0
-        weights["BUILD"] *= 0.5
+        if "COMBAT" in weights:
+            weights["COMBAT"] *= 2.8
+        if "EXPLORATION" in weights:
+            weights["EXPLORATION"] *= 2.0
+        if "BUILD" in weights:
+            weights["BUILD"] *= 0.5
     
     # Open/adventurous peers (high openness > 70): like trying new experiences
     if openness > 70:
-        weights["EXPLORATION"] *= 2.5
-        weights["COMBAT"] *= 1.5
-        weights["SOCIAL_INTERACTION"] *= 1.2
+        if "EXPLORATION" in weights:
+            weights["EXPLORATION"] *= 2.5
+        if "COMBAT" in weights:
+            weights["COMBAT"] *= 1.5
+        if "SOCIAL_INTERACTION" in weights:
+            weights["SOCIAL_INTERACTION"] *= 1.2
+        if "INVESTIGATION" in weights:  # Open peers investigate more
+            weights["INVESTIGATION"] *= 3.0
     elif openness < 30:  # Traditional/closed peers
-        weights["BUILD"] *= 2.5
-        weights["SOCIAL_INTERACTION"] *= 1.8
+        if "BUILD" in weights:
+            weights["BUILD"] *= 2.5
+        if "SOCIAL_INTERACTION" in weights:
+            weights["SOCIAL_INTERACTION"] *= 1.8
     
     # Ambitious peers (high ambition > 70): seek high-reward risks
     if ambition > 70:
-        weights["COMBAT"] *= 3.5
-        weights["EXPLORATION"] *= 2.5
-        weights["BUILD"] *= 0.5
+        if "COMBAT" in weights:
+            weights["COMBAT"] *= 3.5
+        if "EXPLORATION" in weights:
+            weights["EXPLORATION"] *= 2.5
+        if "BUILD" in weights:
+            weights["BUILD"] *= 0.5
     elif ambition < 30:  # Content peers
-        weights["BUILD"] *= 2.8
-        weights["SOCIAL_INTERACTION"] *= 1.8
+        if "BUILD" in weights:
+            weights["BUILD"] *= 2.8
+        if "SOCIAL_INTERACTION" in weights:
+            weights["SOCIAL_INTERACTION"] *= 1.8
     
     # Highly empathetic/social peers (high empathy > 70): prioritize social connections
     if empathy > 70:
-        weights["SOCIAL_INTERACTION"] *= 3.0
-        weights["BUILD"] *= 1.2
+        if "SOCIAL_INTERACTION" in weights:
+            weights["SOCIAL_INTERACTION"] *= 3.0
+        if "BUILD" in weights:
+            weights["BUILD"] *= 1.2
     
     # Collectivist peers (high collectivism > 70): group-focused behavior
     if collectivism > 70:
-        weights["SOCIAL_INTERACTION"] *= 3.0
-        weights["BUILD"] *= 1.4
-        weights["EXPLORATION"] *= 0.7
+        if "SOCIAL_INTERACTION" in weights:
+            weights["SOCIAL_INTERACTION"] *= 3.0
+        if "BUILD" in weights:
+            weights["BUILD"] *= 1.4
+        if "EXPLORATION" in weights:
+            weights["EXPLORATION"] *= 0.7
     elif collectivism < 30:  # Individualist peers
-        weights["EXPLORATION"] *= 2.5
-        weights["COMBAT"] *= 2.0
+        if "EXPLORATION" in weights:
+            weights["EXPLORATION"] *= 2.5
+        if "COMBAT" in weights:
+            weights["COMBAT"] *= 2.0
     
-    # Filter to only available actions
+    # === Honesty trait integration (NEW) ===
+    if honesty > 70:  # High honesty → prefer fair social interactions, avoid deception
+        if "SOCIAL_INTERACTION" in weights:
+            weights["SOCIAL_INTERACTION"] *= 2.5
+        if "COMBAT" in weights:
+            weights["COMBAT"] *= 0.8  # Slightly less aggressive
+        if "BUILD" in weights:
+            weights["BUILD"] *= 1.3  # Prefer constructive activities
+        if "SABOTAGE" in weights:
+            weights["SABOTAGE"] *= 0.3  # Strongly avoid sabotage
+    
+    elif honesty < 30:  # Low honesty → more likely deceit/sabotage, less direct interaction
+        if "SABOTAGE" in available_actions and "SABOTAGE" in weights:
+            weights["SABOTAGE"] *= 3.0
+            weights["SOCIAL_INTERACTION"] *= 0.5  # Avoid honest social exchanges
+        if "COMBAT" in weights:
+            weights["COMBAT"] *= 1.5  # Prefer covert combat approaches
+        if "EXPLORATION" in weights:
+            weights["EXPLORATION"] *= 1.3
+        if "INVESTIGATION" in available_actions and "INVESTIGATION" in weights:
+            weights["INVESTIGATION"] *= 2.0  # Gather leverage through investigation
+    
+    # Filter to only available actions (double-check after modifiers)
     filtered_weights = {action: weight for action, weight in weights.items() 
                        if action in available_actions}
     
@@ -346,7 +467,12 @@ def advance_public_states(state, action_result: Mapping[str, Any]) -> tuple[dict
         return None
 
     meta = state_data.get("meta", {}) if isinstance(state_data.get("meta", {}), Mapping) else {}
-    turn = int(meta.get("current_turn", 1))
+    
+    # Handle missing current_turn gracefully for tests
+    if "current_turn" not in meta:
+        return None
+        
+    turn = int(meta["current_turn"])
     region_size = max(1, int(population.get("region_size") or 1))
     alive_before = max(1, int(population.get("alive_count") or region_size))
     seed = f"{meta.get('rng_seed', meta.get('world_name', 'world'))}|public|{turn}"
@@ -357,7 +483,11 @@ def advance_public_states(state, action_result: Mapping[str, Any]) -> tuple[dict
 
     # === PHASE 2: CDF 排名计算（替换旧的 fake formula）===
     # 计算主角本回合五维得分
-    protag_dims = calculate_dimension_scores(dict(action_result))
+    # Extract ranking config from world.generation_bundle or mechanics
+    world_gen = world.get("generation_bundle", {}) if isinstance(world.get("generation_bundle", {}), Mapping) else {}
+    ranking_config = world_gen.get("ranking_config") if world_gen else None
+    
+    protag_dims = calculate_dimension_scores(dict(action_result), ranking_config)
         
     # LOAD peer agents from SQLite or return empty list if no store available
     campaign_id = state_data.get("meta", {}).get("campaign_id") or state_data.get("world", {}).get("name", "unknown")
@@ -368,12 +498,13 @@ def advance_public_states(state, action_result: Mapping[str, Any]) -> tuple[dict
     # P1-03: Build per-action average scores from a rolling window of last 10
     # actions for both protagonist and peers, eliminating the systematic
     # degradation caused by comparing single-turn vs cumulative scores.
-    WEIGHTS = {"combat": 0.0, "resources": 0.0, "base": 0.0, "information": 0.0, "social": 0.0}
+    # Use custom weights from world config or defaults
+    merged_scales = _merge_weights(ranking_config) if ranking_config else DEFAULT_RANKING_WEIGHTS.copy()
     peer_avg_scores = []
     for peer in peer_agents:
         recent = peer.action_history[-10:]  # rolling window
         if recent:
-            avg_dims = dict(WEIGHTS)
+            avg_dims = dict(merged_scales)
             scored_records = 0
             for record in recent:
                 scores = record.get("scores") or record.get("dimensional_scores", {})
@@ -386,9 +517,9 @@ def advance_public_states(state, action_result: Mapping[str, Any]) -> tuple[dict
                     avg_dims[dim] /= scored_records
             peer_avg_scores.append(avg_dims)
         else:
-            peer_avg_scores.append(dict(WEIGHTS))
+            peer_avg_scores.append(dict(merged_scales))
 
-    percentile = calculate_cdf_percentile(protag_dims, peer_avg_scores)
+    percentile = calculate_cdf_percentile(protag_dims, peer_avg_scores, merged_scales)
     percentile = max(1.0, min(99.0, percentile))
     player_rank = convert_percentile_to_rank(percentile, alive_after)
     
@@ -411,14 +542,28 @@ def advance_public_states(state, action_result: Mapping[str, Any]) -> tuple[dict
     for peer in peer_agents:
         # P1-02: Deterministic RNG seeded per-peer, per-turn for reproducible replays
         action_rng = random.Random(f"{peer.id}|{turn}|action_select")
-        # 1. Pick random available action type
-        available_actions = ["EXPLORATION", "COMBAT", "BUILD", "SOCIAL_INTERACTION"]
-        
+                
+        # Load available actions from world config (or use defaults for backward compatibility)
+        world = state_data.get("world", {}) if isinstance(state_data.get("world", {}), Mapping) else {}
+        blueprint = world.get('world_blueprint', {}) if isinstance(world.get('world_blueprint', {}), Mapping) else {}
+                
+        # Use world-defined actions if available, otherwise fallback to standard set
+        peer_actions = blueprint.get('peer_actions', [])
+        if peer_actions and isinstance(peer_actions, list):
+            available_actions = list(peer_actions)
+        else:
+            available_actions = ["EXPLORATION", "COMBAT", "BUILD", "SOCIAL_INTERACTION"]
+                
         # 2. Select based on personality/risk preference (deterministic via action_rng)
-        chosen_type = select_action_by_personality(peer, available_actions, rng=action_rng)
-        
-        # 3. Calculate peer's capability
-        capability = calculate_peer_capability(peer, chosen_type)
+        chosen_type = select_action_by_personality(
+            peer, 
+            available_actions, 
+            world_config=world,  # Pass world for peer_actions support
+            rng=action_rng
+        )
+                
+        # 3. Calculate peer's capability using world-specific formulas
+        capability = calculate_peer_capability(peer, chosen_type, world_config=world)
         
         # 4. Base difficulty (can be enhanced later per action/location)
         base_difficulty = 15.0
@@ -478,6 +623,7 @@ def advance_public_states(state, action_result: Mapping[str, Any]) -> tuple[dict
         current_turn=turn,
         existing_feed=public.get("channel_feed", []),
         rng_seed=meta.get("rng_seed", meta.get("world_name", "world")),
+        world_config=world,  # Pass world for template support
     )
     public.setdefault("channel_feed", []).extend(new_msgs)
     # P1-04: Bound channel_feed to last 100 entries to prevent save bloat

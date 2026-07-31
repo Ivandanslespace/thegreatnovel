@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: engine
+title: 游戏引擎规则集
+scope:
+    - engine/
+source_files: []
+depends_on: []
+related_to: []
