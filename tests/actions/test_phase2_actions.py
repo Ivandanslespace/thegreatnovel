@@ -395,6 +395,7 @@ class TestIllegalActionZeroSideEffects:
         """One complete test proving all zero side effect invariants."""
         from pathlib import Path
         from tgn.storage import EventStore
+        from tgn.core.hashing import state_hash
         
         with TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "zero_side.db"
@@ -405,8 +406,8 @@ class TestIllegalActionZeroSideEffects:
                 initial = GameState.initial(seed="zero-test")
                 store.initialize("camp_zero", initial.__dict__)
                 
-                # Record initial state hashes and counts
-                initial_hash = f"{initial.event_seq}-{initial.decision_seq}-{initial.game_minute}"
+                # Record canonical state hash BEFORE illegal action
+                initial_hash_before = state_hash(initial.__dict__)
                 
                 conn = sqlite3.connect(str(db_path))
                 events_before = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
@@ -423,15 +424,20 @@ class TestIllegalActionZeroSideEffects:
                 
                 result = execute_action(initial, intent)
                 
+                # Record canonical state hash AFTER illegal action
+                initial_hash_after = state_hash(initial.__dict__)
+                
                 # Assert 1: Execution returns rejected
                 assert not result.accepted
                 assert len(result.events) == 0
                 assert result.final_state is None
                 
-                # Assert 2: Original state unchanged (by value, since we don't mutate it)
+                # Assert 2: Original state unchanged (by value and by hash)
                 assert initial.event_seq == 0
                 assert initial.decision_seq == 0
                 assert initial.game_minute == 0
+                # Canonical proof: hash must be identical
+                assert initial_hash_after == initial_hash_before
                 
                 # Assert 3: No database changes
                 conn = sqlite3.connect(str(db_path))
