@@ -9,7 +9,7 @@ from ..actions.models import ActionIntent
 from ..core.models import GameState
 from ..core.hashing import state_hash
 from ..gameplay.expedition import build_observation, execute_action
-from .models import AutoplayConfig, AutoplayRunResult, StopReason, WatchFrame
+from .models import AutoplayConfig, AutoplayRunResult, StopReason, WatchFrame, RejectedActionRecord
 
 
 def run_autoplay(
@@ -62,7 +62,16 @@ def run_autoplay(
         
         # Rejected action - stop immediately
         if not result.accepted:
-            # Record rejection but don't add to frames
+            # Create rejection diagnostic record
+            rejection = RejectedActionRecord(
+                action_id=intent.action_id,
+                actor_id=intent.actor_id,
+                action_type=intent.action_type,
+                params=copy.deepcopy(intent.params),
+                validation_errors=result.validation.errors,
+                state_hash_before=state_hash_before,
+            )
+            
             return AutoplayRunResult(
                 completed=False,
                 stop_reason=StopReason.ACTION_REJECTED,
@@ -72,6 +81,7 @@ def run_autoplay(
                 events=events,
                 frames=tuple(frames),
                 final_state=state,
+                rejection=rejection,
             )
         
         # Accepted - build frame

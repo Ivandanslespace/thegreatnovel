@@ -21,6 +21,9 @@ class AutoplayConfig:
     actor_id: str = "autoplay-bot"
     
     def __post_init__(self):
+        # Reject bool explicitly (bool is subclass of int in Python)
+        if isinstance(self.max_decisions, bool):
+            raise ValueError(f"max_decisions must be int, not bool")
         if not isinstance(self.max_decisions, int):
             raise ValueError(f"max_decisions must be int, got {type(self.max_decisions).__name__}")
         if self.max_decisions <= 0:
@@ -58,6 +61,27 @@ class WatchFrame:
 
 
 @dataclass(frozen=True)
+class RejectedActionRecord:
+    """
+    Diagnostic record for a rejected action.
+    
+    Preserves the full intent, validation errors, and state hash before the action
+    was attempted. This allows future LLM players to debug illegal moves.
+    
+    IMPORTANT: Does NOT contain full GameState to prevent hidden state leakage.
+    Only contains Intent + Validation Errors + State Hash.
+    """
+    action_id: str
+    actor_id: str
+    action_type: str
+    params: dict[str, Any]
+    
+    validation_errors: tuple[Any, ...]  # tuple[ActionValidationError, ...]
+    
+    state_hash_before: str
+
+
+@dataclass(frozen=True)
 class AutoplayRunResult:
     """Result of a complete autoplay run."""
     completed: bool
@@ -73,9 +97,11 @@ class AutoplayRunResult:
     
     final_state: Any  # GameState
     
+    rejection: RejectedActionRecord | None = None
+    
     def summary(self) -> dict[str, Any]:
         """Structured run summary."""
-        return {
+        result = {
             "completed": self.completed,
             "stop_reason": self.stop_reason,
             "decisions": self.decisions,
@@ -84,3 +110,15 @@ class AutoplayRunResult:
             "end_game_minute": self.frames[-1].game_minute_after if self.frames else 0,
             "final_state_hash": self.final_state_hash,
         }
+        
+        # Include rejection diagnostics if present
+        if self.rejection is not None:
+            result["rejection"] = {
+                "action_id": self.rejection.action_id,
+                "actor_id": self.rejection.actor_id,
+                "action_type": self.rejection.action_type,
+                "validation_error_codes": [err.code for err in self.rejection.validation_errors],
+                "state_hash_before": self.rejection.state_hash_before,
+            }
+        
+        return result

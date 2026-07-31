@@ -106,7 +106,11 @@ def render_run(run_result: AutoplayRunResult) -> str:
         lines.append("-" * 50)
         lines.append("")
     
-    lines.append("=== RUN COMPLETE ===")
+    # Determine completion status
+    if run_result.completed:
+        lines.append("=== RUN COMPLETE ===")
+    else:
+        lines.append("=== RUN STOPPED ===")
     lines.append("")
     lines.append(f"decisions: {run_result.decisions}")
     lines.append(f"events: {run_result.events}")
@@ -117,13 +121,24 @@ def render_run(run_result: AutoplayRunResult) -> str:
         stop_reason = stop_reason.value
     lines.append(f"stop_reason: {stop_reason}")
     
-    # Final inventory
-    final_obs = run_result.frames[-1].observation_after if run_result.frames else {}
-    inventory = final_obs.get("inventory", {})
-    if inventory:
-        lines.append("final inventory:")
-        for resource_id, qty in inventory.items():
-            lines.append(f"  - {resource_id} ×{qty}")
+    # Show rejection details if present
+    if run_result.rejection is not None:
+        lines.append("")
+        lines.append("rejected action:")
+        lines.append(f"  {run_result.rejection.action_type}")
+        lines.append("")
+        lines.append("validation:")
+        for error in run_result.rejection.validation_errors:
+            lines.append(f"  {error.code}")
+    
+    # Final inventory (only for successful runs with frames)
+    if run_result.frames:
+        final_obs = run_result.frames[-1].observation_after
+        inventory = final_obs.get("inventory", {})
+        if inventory:
+            lines.append("final inventory:")
+            for resource_id, qty in inventory.items():
+                lines.append(f"  - {resource_id} ×{qty}")
     
     lines.append("")
     lines.append(f"final_hash: {run_result.final_state_hash[:16]}...")
