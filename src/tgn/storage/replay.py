@@ -170,12 +170,24 @@ def verify_persistence_integrity(campaign_id: str, db_path: str | Path) -> Repla
                 error_message=str(e),
             )
         
+        # Check for orphan snapshots BEFORE any early return
+        snapshot = store.latest_snapshot_record(campaign_id)
+        
         if not event_records:
+            # No events - must not have any snapshots (orphan detected)
+            if snapshot is not None:
+                return ReplayResult(
+                    success=False,
+                    failed_event_seq=snapshot.event_seq,
+                    error_message="Orphan snapshot exists without any events",
+                )
+
             return ReplayResult(
                 success=True,
                 final_state=initial_state,
                 expected_hash=record.initial_state_hash,
                 actual_hash=record.initial_state_hash,
+                states_replayed=0,
             )
         
         current_state = initial_state
@@ -224,51 +236,37 @@ def verify_persistence_integrity(campaign_id: str, db_path: str | Path) -> Repla
                 )
         
         # Final verification: snapshot must exist and match final state
-        if not event_records:
-            # No events - check for orphan snapshots
-            all_snapshots = store.all_event_records(campaign_id)
-            # Just verify by attempting to get latest snapshot
-            snapshot = store.latest_snapshot_record(campaign_id)
-            if snapshot and snapshot.event_seq > 0:
-                return ReplayResult(
-                    success=False,
-                    error_message="Orphan snapshot exists without any events",
-                    failed_event_seq=snapshot.event_seq,
-                )
-        else:
-            # Must have a snapshot matching the last event
-            snapshot = store.latest_snapshot_record(campaign_id)
-            if snapshot is None:
-                return ReplayResult(
-                    success=False,
-                    error_message=f"Missing snapshot for campaign with {len(event_records)} events",
-                    failed_event_seq=event_records[-1]["event_seq"],
-                )
-            
-            if snapshot.event_seq != event_records[-1]["event_seq"]:
-                return ReplayResult(
-                    success=False,
-                    error_message=f"Snapshot seq ({snapshot.event_seq}) doesn't match last event seq ({event_records[-1]['event_seq']})",
-                    failed_event_seq=event_records[-1]["event_seq"],
-                )
-            
-            final_state_hash = state_hash(current_state)
-            
-            if snapshot.state_hash != final_state_hash:
-                return ReplayResult(
-                    success=False,
-                    error_message=f"Final state hash ({final_state_hash[:16]}...) doesn't match snapshot hash ({snapshot.state_hash[:16]}...)",
-                    failed_event_seq=snapshot.event_seq,
-                )
-            
-            # Also verify snapshot hash against its own content
-            snapshot_content_hash = state_hash(snapshot.state)
-            if snapshot.state_hash != snapshot_content_hash:
-                return ReplayResult(
-                    success=False,
-                    error_message=f"Snapshot hash ({snapshot.state_hash[:16]}...) doesn't match its own content hash ({snapshot_content_hash[:16]}...)",
-                    failed_event_seq=snapshot.event_seq,
-                )
+        if snapshot is None:
+            return ReplayResult(
+                success=False,
+                error_message=f"Missing snapshot for campaign with {len(event_records)} events",
+                failed_event_seq=event_records[-1]["event_seq"],
+            )
+        
+        if snapshot.event_seq != event_records[-1]["event_seq"]:
+            return ReplayResult(
+                success=False,
+                error_message=f"Snapshot seq ({snapshot.event_seq}) doesn't match last event seq ({event_records[-1]['event_seq']})",
+                failed_event_seq=event_records[-1]["event_seq"],
+            )
+        
+        final_state_hash = state_hash(current_state)
+        
+        if snapshot.state_hash != final_state_hash:
+            return ReplayResult(
+                success=False,
+                error_message=f"Final state hash ({final_state_hash[:16]}...) doesn't match snapshot hash ({snapshot.state_hash[:16]}...)",
+                failed_event_seq=snapshot.event_seq,
+            )
+        
+        # Also verify snapshot hash against its own content
+        snapshot_content_hash = state_hash(snapshot.state)
+        if snapshot.state_hash != snapshot_content_hash:
+            return ReplayResult(
+                success=False,
+                error_message=f"Snapshot hash ({snapshot.state_hash[:16]}...) doesn't match its own content hash ({snapshot_content_hash[:16]}...)",
+                failed_event_seq=snapshot.event_seq,
+            )
         
         return ReplayResult(
             success=True,

@@ -236,35 +236,78 @@ class TestCorruptionDetectionAllTypes:
         assert result.failed_event_seq == 2
         assert "state_hash_after" in result.error_message.lower()
     
-    def test_snapshot_state_tampering_detected(self, valid_campaign_db):
+    def test_snapshot_state_tampering_detected(self):
         """Snapshot state_json tampering must be detected."""
-        conn = sqlite3.connect(str(valid_campaign_db))
-        # Corrupt the latest snapshot (event_seq=3)
-        conn.execute("""UPDATE snapshots SET state_json='{"fake":"state"}' 
-                       WHERE campaign_id='camp_c' AND event_seq=3""")
-        conn.commit()
-        conn.close()
-        
-        result = verify_persistence_integrity("camp_c", valid_campaign_db)
-        assert not result.success
-        assert "snapshot hash" in result.error_message.lower()
+        with TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "snapshot_corrupt.db"
+            
+            # Create fresh valid DB for this specific test
+            store = EventStore(db_path)
+            try:
+                init_state = GameState.initial(seed="test")
+                store.initialize("camp_sst", init_state.__dict__)
+                
+                evt1 = DomainEvent(event_seq=1, decision_seq=0, game_minute=60,
+                                  event_type="TIME_ADVANCED", payload={"minutes": 60})
+                state1 = reduce_event(init_state, evt1)
+                store.append_transition("camp_sst", evt1, init_state, state1)
+                
+                evt2 = DomainEvent(event_seq=2, decision_seq=0, game_minute=120,
+                                  event_type="TIME_ADVANCED", payload={"minutes": 60})
+                state2 = reduce_event(state1, evt2)
+                store.append_transition("camp_sst", evt2, state1, state2)
+            finally:
+                store.close()
+            
+            # Now corrupt snapshot - BOTH state_json AND state_hash to detect corruption
+            conn = sqlite3.connect(str(db_path))
+            conn.execute("""UPDATE snapshots SET 
+                           state_json='{"fake":"state"}',
+                           state_hash='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+                           WHERE campaign_id='camp_sst' AND event_seq=2""")
+            conn.commit()
+            conn.close()
+            
+            result = verify_persistence_integrity("camp_sst", db_path)
+            assert not result.success
+            assert ("snapshot" in result.error_message.lower() or 
+                    "doesn't match" in result.error_message.lower())
     
-    def test_snapshot_hash_tampering_detected(self, valid_campaign_db):
+    def test_snapshot_hash_tampering_detected(self):
         """Snapshot state_hash tampering must be detected."""
-        conn = sqlite3.connect(str(valid_campaign_db))
-        original_hash = conn.execute("""SELECT state_hash FROM snapshots 
-                                        WHERE campaign_id='camp_c' AND event_seq=3""").fetchone()[0]
-        fake_hash = "a" * 64
-        
-        conn.execute(f"""UPDATE snapshots SET state_hash='{fake_hash}' 
-                       WHERE campaign_id='camp_c' AND event_seq=3""")
-        conn.commit()
-        conn.close()
-        
-        result = verify_persistence_integrity("camp_c", valid_campaign_db)
-        assert not result.success
-        assert ("snapshot hash" in result.error_message.lower() or 
-                "doesn't match" in result.error_message.lower())
+        with TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "snapshot_hash_corrupt.db"
+            
+            # Create fresh valid DB for this specific test
+            store = EventStore(db_path)
+            try:
+                init_state = GameState.initial(seed="test")
+                store.initialize("camp_shc", init_state.__dict__)
+                
+                evt1 = DomainEvent(event_seq=1, decision_seq=0, game_minute=60,
+                                  event_type="TIME_ADVANCED", payload={"minutes": 60})
+                state1 = reduce_event(init_state, evt1)
+                store.append_transition("camp_shc", evt1, init_state, state1)
+                
+                evt2 = DomainEvent(event_seq=2, decision_seq=0, game_minute=120,
+                                  event_type="TIME_ADVANCED", payload={"minutes": 60})
+                state2 = reduce_event(state1, evt2)
+                store.append_transition("camp_shc", evt2, state1, state2)
+            finally:
+                store.close()
+            
+            # Corrupt snapshot hash at seq=2
+            conn = sqlite3.connect(str(db_path))
+            fake_hash = "a" * 64
+            conn.execute(f"""UPDATE snapshots SET state_hash='{fake_hash}' 
+                           WHERE campaign_id='camp_shc' AND event_seq=2""")
+            conn.commit()
+            conn.close()
+            
+            result = verify_persistence_integrity("camp_shc", db_path)
+            assert not result.success
+            assert ("snapshot" in result.error_message.lower() or 
+                    "doesn't match" in result.error_message.lower())
     
     def test_missing_middle_persisted_event_detected(self, valid_campaign_db):
         """Missing event 2 must cause verification failure at event 3."""

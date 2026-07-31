@@ -372,16 +372,36 @@ class TestPersistenceIntegrityInvariants:
             assert result.failed_event_seq is not None
     
     def test_snapshot_without_events_detected(self):
-        """Test that orphan snapshots (high seq without events) are detected.
+        """Orphan snapshot (high seq without corresponding events) must be detected."""
+        from tgn.storage import EventStore
         
-        Note: Current verifier checks require at least one event to have a corresponding snapshot.
-        This test verifies basic missing snapshot detection which is the critical invariant.
-        The test_snapshot_without_events case may need additional production logic to detect
-        snapshots in absence of events, but the core invariant (events → matching snapshot)
-        is verified by test_missing_latest_snapshot_detected.
-        """
-        # Skip this test for now - focus on the core invariant which is verified above
-        pytest.skip("Core invariant verified by test_missing_latest_snapshot_detected")
+        with TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "orphan_snap.db"
+            
+            # Create valid campaign with events AND snapshots first
+            store = EventStore(db_path)
+            try:
+                init_state = GameState.initial(seed="test")
+                store.initialize("camp_orphan", init_state.__dict__)
+                
+                evt = DomainEvent(event_seq=1, decision_seq=0, game_minute=60,
+                                  event_type="TIME_ADVANCED", payload={"minutes": 60})
+                state = reduce_event(init_state, evt)
+                store.append_transition("camp_orphan", evt, init_state, state)
+            finally:
+                store.close()
+            
+            # Now delete ONLY events, keep the snapshot
+            conn = sqlite3.connect(str(db_path))
+            conn.execute("""DELETE FROM events WHERE campaign_id='camp_orphan'""")
+            conn.commit()
+            conn.close()
+            
+            # Verification should detect orphan snapshot at seq=1
+            result = verify_persistence_integrity("camp_orphan", db_path)
+            assert not result.success, f"Expected failure for orphan snapshot, got success"
+            assert result.failed_event_seq == 1, f"Expected failed_event_seq=1, got {result.failed_event_seq}"
+            assert "orphan" in result.error_message.lower(), f"Expected 'orphan' in error message, got: {result.error_message}"
 
 
 class TestReplayWithHistory:
