@@ -3,7 +3,7 @@
 一次性运行多个存档 × 多个策略的组合测试。
 
 用法:
-    python tools/autoplay_suite.py --runs 4 --turns 50
+    python tools/autoplay_suite.py --save saves/锈铁方舟 --turns 50 --policies abc,random
     
 选项:
     --save           测试存档目录 (默认使用 saves/锈铁方舟)
@@ -26,9 +26,18 @@ import os
 import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
+
+# Get CPU core count for parallel execution
+def get_max_workers():
+    try:
+        import multiprocessing
+        return multiprocessing.cpu_count()
+    except:
+        return 4
 
 
 def run_single_test(
@@ -45,7 +54,7 @@ def run_single_test(
     if output_prefix:
         output_dir = f"autoplay_runs/{output_prefix}_{policy}_{timestamp}"
     else:
-        output_dir = f"autoplay_runs/{timestamp}_{policy}"
+        output_dir = f"autoplay_runs/{output_prefix}_{timestamp}"
     
     cmd = [
         sys.executable,
@@ -64,20 +73,52 @@ def run_single_test(
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         
-        success = result.returncode == 0
+        # CRITICAL: Read exit_code from run.json instead of just returncode
+        exit_code = result.returncode
+        has_p0 = False
+        status = "success"
+        
+        run_json_path = Path(output_dir) / "run.json"
+        if run_json_path.exists():
+            try:
+                with open(run_json_path, "r", encoding="utf-8") as f:
+                    run_data = json.load(f)
+                    exit_code = run_data.get("exit_code", exit_code)
+                    has_p0 = run_data.get("has_p0_issues", False)
+            except:
+                pass
+        
+        # Map exit codes to proper statuses
+        if exit_code == 0:
+            status = "success"
+        elif exit_code == 2:
+            # Completed but has P0 issues
+            status = "p0_issues"
+        elif exit_code == 3:
+            # Crashed
+            status = "crashed"
+        elif exit_code == 4:
+            # Initialization failed
+            status = "init_failed"
+        else:
+            status = "failed"
         
         return {
-            "status": "success" if success else "failed",
+            "status": status,
+            "exit_code": exit_code,
+            "has_p0": has_p0,
             "output_dir": output_dir,
             "stdout": result.stdout,
             "stderr": result.stderr,
             "returncode": result.returncode,
+            "policy": policy,
         }
     except subprocess.TimeoutExpired:
         return {
             "status": "timeout",
             "output_dir": output_dir,
             "error": "超时 (5 分钟)",
+            "policy": policy,
         }
 
 
@@ -87,28 +128,46 @@ def generate_summary_report(results: List[dict], args) -> str:
     lines = []
     lines.append("# Autoplay Suite Summary Report\n")
     lines.append(f"**时间**: {datetime.now().isoformat()}\n")
-    lines.append(f"**配置**: {args.turns} 轮 × {len(args.policies)} 策略\n\n")
+    lines.append(f"**配置**: {args.save} × {args.turns} 轮 × {len(args.policies)} 策略\n\n")
     
     # 总体统计
     total = len(results)
     success = sum(1 for r in results if r["status"] == "success")
+    p0_issues_count = sum(1 for r in results if r["status"] == "p0_issues")
+    crashed = sum(1 for r in results if r["status"] == "crashed")
+    init_failed = sum(1 for r in results if r["status"] == "init_failed")
     failed = sum(1 for r in results if r["status"] == "failed")
     timeout = sum(1 for r in results if r["status"] == "timeout")
     
     lines.append("## 总体统计\n")
     lines.append(f"- 总运行数：{total}\n")
-    lines.append(f"- 成功：{success}\n")
-    lines.append(f"- 失败：{failed}\n")
-    lines.append(f"- 超时：{timeout}\n\n")
+    lines.append(f"- ✅ 成功：{success}\n")
+    lines.append(f"- 🔴 P0 问题：{p0_issues_count}\n")
+    lines.append(f"- 🩸 崩溃：{crashed}\n")
+    lines.append(f"- 🚫 初始化失败：{init_failed}\n")
+    lines.append(f"- ❌ 其他失败：{failed}\n")
+    lines.append(f"- ⏱️ 超时：{timeout}\n\n")
     
     # 详细结果
     lines.append("## 详细结果\n")
     
     for i, result in enumerate(results):
-        status_icon = "✅" if result["status"] == "success" else "❌" if result["status"] == "failed" else "⏱️"
+        if result["status"] == "success":
+            status_icon = "✅"
+        elif result["status"] == "p0_issues":
+            status_icon = "🔴"
+        elif result["status"] == "crashed":
+            status_icon = "🩸"
+        elif result["status"] == "init_failed":
+            status_icon = "🚫"
+        elif result["status"] == "failed":
+            status_icon = "❌"
+        else:
+            status_icon = "⏱️"
         
         lines.append(f"### {i+1}. {status_icon} {result.get('policy', 'unknown')}\n")
         lines.append(f"- 状态：{result['status']}\n")
+        lines.append(f"- Exit Code: {result.get('exit_code', 'N/A')}\n")
         lines.append(f"- 输出：{result.get('output_dir', 'N/A')}\n")
         
         if result["status"] != "success":
@@ -116,55 +175,48 @@ def generate_summary_report(results: List[dict], args) -> str:
         
         lines.append("\n")
     
-    # 快速检查常见问题
+    # P0 问题汇总
     lines.append("## P0 问题检测\n")
     
-    p0_issues = []
+    p0_runs = [r for r in results if r.get("has_p0", False)]
     
-    for result in results:
-        if result["status"] != "success":
-            continue
+    if p0_runs:
+        lines.append(f"发现 **{len(p0_runs)}** 个运行存在 P0 问题:\n\n")
         
-        output_dir = result.get("output_dir")
-        if not output_dir or not Path(output_dir).exists():
-            continue
-        
-        report_path = Path(output_dir) / "report.md"
-        if report_path.exists():
-            content = report_path.read_text(encoding="utf-8")
+        for issue in p0_runs[:5]:
+            output_dir = issue.get('output_dir')
+            report_path = Path(output_dir) / "report.md" if output_dir else None
             
-            # 简单搜索 P0
-            p0_count = content.count("### 🔴 [P0]")
+            details = ""
+            if report_path and report_path.exists():
+                content = report_path.read_text(encoding="utf-8", errors='ignore')
+                p0_lines = [l for l in content.split('\n') if '[P0]' in l]
+                details = "\n".join(p0_lines[:3]) + "\n\n" if p0_lines else ""
             
-            if p0_count > 0:
-                p0_issues.append({
-                    "run": result.get("policy"),
-                    "count": p0_count,
-                    "output_dir": output_dir,
-                })
-    
-    if p0_issues:
-        lines.append(f"发现 {len(p0_issues)} 个运行存在 P0 问题:\n\n")
-        
-        for issue in p0_issues:
-            lines.append(f"⚠️ **{issue['run']}**: {issue['count']} 个 P0 问题\n")
-            lines.append(f"   报告路径：{issue['output_dir']}/report.md\n\n")
+            lines.append(f"⚠️ **{issue['policy']}**\n")
+            lines.append(f"{details}")
+            lines.append(f"报告路径：`{output_dir}/report.md`\n\n")
     else:
-        lines.append("未发现 P0 级问题！\n\n")
+        lines.append("未发现 P0 级问题！✅\n\n")
     
     # 建议
     lines.append("## 建议\n")
     
-    if failed > 0:
-        lines.append(f"- ❗ 有 {failed} 个运行失败，请检查 stderr 日志\n\n")
+    if crashed > 0:
+        lines.append(f"- ❗ **关键修复**: {crashed} 个运行崩溃，需立即修复\n\n")
     
-    if p0_issues:
-        lines.append(f"- ❗ 有 {len(p0_issues)} 个运行发现 P0 问题，需优先修复\n")
+    if p0_issues_count > 0:
+        lines.append(f"- ❗ **机制问题**: {p0_issues_count} 个运行存在 P0 问题\n")
         lines.append("  建议执行以下命令查看详细报告:\n\n")
-        for issue in p0_issues[:3]:  # 只显示前 3 个
-            lines.append(f"  ```bash\n")
-            lines.append(f"  cat {issue['output_dir']}/report.md\n")
-            lines.append(f"  ```\n\n")
+        for issue in p0_runs[:3]:
+            output_dir = issue.get('output_dir')
+            if output_dir:
+                lines.append(f"  ```bash\n")
+                lines.append(f"  cat {output_dir}/report.md\n")
+                lines.append(f"  ```\n\n")
+    
+    if failed > 0 or timeout > 0:
+        lines.append(f"- ⚠️ 有 {failed + timeout} 个运行失败/超时，请检查日志\n\n")
     
     lines.append("- ℹ️ 所有原始数据保存在 `autoplay_runs/` 目录\n")
     
@@ -209,27 +261,66 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     prefix = args.prefix or f"suite_{timestamp}"
     
-    # 运行所有组合
-    print(f"🚀 开始批量测试...\n")
+    # Run all combinations with parallel execution
+    max_workers = args.max_workers or get_max_workers()
+    print(f"🚀 开始批量测试 (并行度={max_workers})...\n")
     
     results = []
     
-    for policy in policies:
-        result = run_single_test(
-            save_dir=args.save,
-            turns=args.turns,
-            policy=policy,
-            seed=args.seed,
-            output_prefix=prefix,
-        )
-        result["policy"] = policy
-        results.append(result)
-        
-        # 打印简要反馈
-        status_icon = "✅" if result["status"] == "success" else "❌" if result["status"] == "failed" else "⏱️"
-        print(f"  {status_icon} {policy}: {result['status']}\n")
+    if max_workers > 1:
+        # Parallel execution
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_policy = {
+                executor.submit(
+                    run_single_test,
+                    save_dir=args.save,
+                    turns=args.turns,
+                    policy=policy,
+                    seed=args.seed,
+                    output_prefix=prefix,
+                ): policy
+                for policy in policies
+            }
+            
+            for future in as_completed(future_to_policy):
+                result = future.result()
+                results.append(result)
+                
+                # Print feedback
+                status_icon = {
+                    "success": "✅",
+                    "p0_issues": "🔴",
+                    "crashed": "🩸",
+                    "init_failed": "🚫",
+                    "failed": "❌",
+                    "timeout": "⏱️",
+                }.get(result["status"], "?")
+                
+                print(f"  {status_icon} {result['policy']}: {result['status']} (exit={result.get('exit_code', 'N/A')})\n")
+    else:
+        # Sequential execution
+        for policy in policies:
+            result = run_single_test(
+                save_dir=args.save,
+                turns=args.turns,
+                policy=policy,
+                seed=args.seed,
+                output_prefix=prefix,
+            )
+            results.append(result)
+            
+            status_icon = {
+                "success": "✅",
+                "p0_issues": "🔴",
+                "crashed": "🩸",
+                "init_failed": "🚫",
+                "failed": "❌",
+                "timeout": "⏱️",
+            }.get(result["status"], "?")
+            
+            print(f"  {status_icon} {result['policy']}: {result['status']} (exit={result.get('exit_code', 'N/A')})\n")
     
-    # 生成汇总报告
+    # Generate summary report
     print(f"\n📊 生成汇总报告...")
     
     summary_markdown = generate_summary_report(results, args)
@@ -239,16 +330,32 @@ def main():
         f.write(summary_markdown)
     
     print(f"\n✅ 完成！\n")
-    print(f"== 汇总 ==")
-    print(f"  总运行：{len(results)}")
-    print(f"  成功：{sum(1 for r in results if r['status'] == 'success')}")
-    print(f"  失败：{sum(1 for r in results if r['status'] == 'failed')}")
-    print(f"\n汇总报告：{summary_file.absolute()}")
+    print(f"== 汇总 ==\n")
     
-    # 退出码
-    failed = sum(1 for r in results if r["status"] != "success")
-    if failed > 0:
-        sys.exit(1)
+    success = sum(1 for r in results if r["status"] == "success")
+    p0_issues_count = sum(1 for r in results if r["status"] == "p0_issues")
+    crashed = sum(1 for r in results if r["status"] == "crashed")
+    init_failed = sum(1 for r in results if r["status"] == "init_failed")
+    failed = sum(1 for r in results if r["status"] == "failed")
+    timeout = sum(1 for r in results if r["status"] == "timeout")
+    
+    print(f"总运行：{len(results)}")
+    print(f"成功：{success}")
+    print(f"P0 问题：{p0_issues_count}")
+    print(f"崩溃：{crashed}")
+    print(f"其他失败：{failed + init_failed + timeout}\n")
+    
+    print(f"汇总报告：`{summary_file.absolute()`}\n")
+    
+    # Exit code based on most critical issue
+    if crashed > 0:
+        sys.exit(3)  # Crashed
+    elif p0_issues_count > 0:
+        sys.exit(2)  # Has P0 issues
+    elif failed + init_failed + timeout > 0:
+        sys.exit(1)  # Other failures
+    else:
+        sys.exit(0)  # All successful
 
 
 if __name__ == "__main__":

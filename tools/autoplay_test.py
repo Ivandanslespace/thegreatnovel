@@ -155,6 +155,84 @@ class AutoAuditor:
         findings.extend(self._detect_time_stopped())
         findings.extend(self._detect_unclosed_mechanisms())
         findings.extend(self._detect_public_system_dormant_v2())
+        findings.extend(self._detect_time_jump_anomaly())
+        findings.extend(self._detect_mechanism_unreachable())
+        findings.extend(self._detect_high_option_repetition())
+        return findings
+    
+    def _detect_time_jump_anomaly(self) -> List[Dict[str, Any]]:
+        """Detect impossible time jumps (> 1 hour forward in one decision)"""
+        findings = []
+        prev_end_abs = None
+        
+        for turn in self.telemetry.turns:
+            time_cost = float(turn["result"].get("time_cost", 0) or 0)
+            
+            if prev_end_abs is not None and time_cost > 60:
+                findings.append({
+                    "level": "P1", 
+                    "category": "TIME_JUMP_ANOMALY",
+                    "message": f"Decision {turn['decision']} jumped {time_cost:.1f} minutes (expected <= 60)"
+                })
+            
+            # Track cumulative time
+            prev_end_abs = (prev_end_abs or 0) + time_cost
+        
+        return findings
+    
+    def _detect_mechanism_unreachable(self) -> List[Dict[str, Any]]:
+        """Detect action types that never appeared in 50 turns"""
+        findings = []
+        
+        # Skip if no turns recorded
+        if not self.telemetry.turns:
+            return findings
+        
+        all_leaf_actions = set()
+        for turn in self.telemetry.turns:
+            leaf_actions = turn["result"].get("leaf_actions", [])
+            if isinstance(leaf_actions, list):
+                all_leaf_actions.update(leaf_actions)
+        
+        # Known important action types that should appear regularly
+        expected_mechanisms = [
+            "EXPLORATION", "COMBAT", "SOCIAL_INTERACTION", "BUILD",
+            "TRADE", "RESEARCH", "REST", "TRAVEL"
+        ]
+        
+        missing = set(expected_mechanisms) - all_leaf_actions
+        if missing:
+            findings.append({
+                "level": "P1", 
+                "category": "MECHANISM_UNREACHABLE",
+                "message": f"Mechanisms never triggered: {', '.join(sorted(missing))}",
+                "detail": {"missing_mechanisms": sorted(missing)}
+            })
+        
+        return findings
+    
+    def _detect_high_option_repetition(self) -> List[Dict[str, Any]]:
+        """Detect repeated option labels (indicates limited branching)"""
+        findings = []
+        
+        label_counts = {}
+        for turn in self.telemetry.turns:
+            label = turn["options_before"].get(turn["requested_choice"], "")
+            label_counts[label] = label_counts.get(label, 0) + 1
+        
+        # If any single label appears > 30% of turns
+        total = len(self.telemetry.turns)
+        threshold = max(5, int(total * 0.3))
+        
+        high_freq_labels = [k for k, v in label_counts.items() if v >= threshold]
+        if high_freq_labels:
+            findings.append({
+                "level": "P2", 
+                "category": "HIGH_OPTION_REPETITION",
+                "message": f"Highly repetitive labels: {', '.join(f'{l}={c}' for l,c in sorted(label_counts.items(), key=lambda x:-x[1])[:5])}",
+                "detail": {"label_frequencies": label_counts}
+            })
+        
         return findings
     
     def _detect_stuck_loop(self) -> List[Dict[str, Any]]:
@@ -185,6 +263,12 @@ class AutoAuditor:
                 findings.append({"level": "P0", "category": "TIME_NOT_ADVANCING",
                                "message": f"{len(consecutive_zero)} consecutive zero-time actions"})
                 consecutive_zero = []
+        
+        # CRITICAL: Check at the end of loop for trailing zero-time decisions
+        if len(consecutive_zero) >= 10:
+            findings.append({"level": "P0", "category": "TIME_NOT_ADVANCING",
+                           "message": f"{len(consecutive_zero)} consecutive zero-time actions (ending at final decision)"})
+        
         return findings
     
     def _detect_unclosed_mechanisms(self) -> List[Dict[str, Any]]:
@@ -208,14 +292,34 @@ class AutoAuditor:
         return findings
     
     def _detect_public_system_dormant_v2(self) -> List[Dict[str, Any]]:
-        # Count PUBLIC_SYSTEM_ADVANCED events
-        public_advances = sum(1 for evt in self.turns for e in evt.get("events_created", [])
-                             if isinstance(e, dict) and e.get("type") == "PUBLIC_SYSTEM_ADVANCED")
+        # Count PUBLIC_SYSTEM_ADVANCED events from telemetry
+        public_advances = sum(
+            1
+            for turn in self.telemetry.turns
+            for e in turn.get("events_created", [])
+            if isinstance(e, dict) and e.get("type") == "PUBLIC_SYSTEM_ADVANCED"
+        )
         
-        # Check peer history delta via database is complex; simplified version:
-        if public_advances >= 10:
-            # Assume working for now; full check requires DB access
-            pass
+        # Check peer action history delta via population_state
+        peer_actions_before = None
+        peer_actions_after = None
+        
+        for turn in self.telemetry.turns:
+            after_state = turn.get("after", {})
+            current_peer_count = after_state.get("peer_action_history_size")
+            if peer_actions_before is None:
+                peer_actions_before = current_peer_count
+            peer_actions_after = current_peer_count
+        
+        total_peer_delta = (peer_actions_after or 0) - (peer_actions_before or 0)
+        
+        # P0: Public system advancing but no peer activity = broken simulation
+        if public_advances >= 10 and total_peer_delta == 0:
+            return [{
+                "level": "P0", 
+                "category": "PUBLIC_SYSTEM_PEER_DORMANT",
+                "message": f"Public system advanced {public_advances} times but peer agents took no actions (delta={total_peer_delta})"
+            }]
         
         return []
 
@@ -254,9 +358,11 @@ class AutoplayRunner:
             "level": player.get("level"),
             "exp": player.get("exp"),
             "resources": dict(inventory.get("resources", {})),
-            "event_queue_size": len(meta.get("event_queue", [])),
+            "event_queue_size": len(engine.state.data.get("event_queue", [])),
             "promise_count": len(meta.get("social_state", {}).get("promises", [])),
-            "peer_action_history_size": len(engine.state.data.get("population_state", {}).get("turn_history", [])),
+            "population_turn_history_size": len(
+                engine.state.data.get("population_state", {}).get("turn_history", [])
+            ),
             "channel_feed_size": len(engine.state.data.get("public_system_state", {}).get("channel_feed", [])),
             "total_decisions": meta.get("total_decisions"),
             "total_combats": meta.get("total_combats"),
@@ -310,6 +416,20 @@ class AutoplayRunner:
             print(f"🎮 Running {turns} decisions...")
             
             for decision in range(1, turns + 1):
+                # CRITICAL: Re-read pending_opts each decision, do not cache across loop
+                pending_opts = engine.state.meta.get("pending_options", {})
+                
+                if not isinstance(pending_opts, dict) or not pending_opts.get("options"):
+                    self.telemetry.add_warning("P0", "NO_PENDING_OPTIONS", 
+                                              f"Decision {decision}: No options after resolve")
+                    # Try to regenerate
+                    result = resolve_turn(engine, "", None, generate_options_only=True)
+                    if "error" in result:
+                        self.telemetry.add_warning("P0", "OPTIONS_REGEN_FAILED", 
+                                                  f"Cannot regenerate options: {result.get('error')}")
+                        break
+                    pending_opts = engine.state.meta.get("pending_options", {})
+                
                 visible_options = pending_opts.get("options", {})
                 option_labels = {k: v.get("label", "") for k, v in visible_options.items()}
                 
@@ -326,6 +446,7 @@ class AutoplayRunner:
                 before = self.capture_snapshot(engine)
                 
                 selected_action = dict(pending_opts["options"].get(requested, {}).get("action", {}))
+                action_type = selected_action.get("type", "UNKNOWN")
                 
                 # Execute
                 result = resolve_turn(engine, requested, None)
@@ -341,24 +462,54 @@ class AutoplayRunner:
                 events_after_run = engine.state.store.events()
                 new_events = events_after_run[events_count_before:]
                 
-                action_type = selected_action.get("type", "UNKNOWN")
-                time_cost = 0.0
-                outcome = ""
+                # Calculate actual time cost from state difference (more reliable than event data)
+                before_meta = before.get("after", before)  # Fallback to before snapshot
+                after_meta = after
                 
+                before_day = before_meta.get("game_day", 1)
+                before_elapsed = before_meta.get("day_elapsed_minutes", 0) or 0
+                after_day = after_meta.get("game_day", 1)
+                after_elapsed = after_meta.get("day_elapsed_minutes", 0) or 0
+                
+                before_abs = (before_day - 1) * 1440 + before_elapsed
+                after_abs = (after_day - 1) * 1440 + after_elapsed
+                actual_time_cost = after_abs - before_abs
+                
+                # Extract leaf actions and outcome from raw events
+                leaf_actions = set()
+                outcome = ""
                 for evt in new_events:
                     if isinstance(evt, dict):
                         data = evt.get("data", {})
                         if isinstance(data, dict):
-                            if "time_cost" in data:
-                                time_cost = float(data["time_cost"])
+                            # Collect leaf action types from ACTION_PLAN contracts
                             if "resolution" in data and isinstance(data["resolution"], dict):
-                                outcome = data["resolution"].get("outcome", "")
+                                resolution = data["resolution"]
+                                outcome = resolution.get("outcome", outcome)
+                                
+                                # Extract action plan leaf types
+                                action_plan = resolution.get("action_plan", {})
+                                if isinstance(action_plan, dict):
+                                    for step in action_plan.get("steps", []):
+                                        if isinstance(step, dict):
+                                            step_type = step.get("type", "")
+                                            if step_type:
+                                                leaf_actions.add(step_type)
+                
+                # If no leaf actions found, use main action type as fallback
+                if not leaf_actions:
+                    leaf_actions.add(action_type)
                 
                 self.telemetry.record_turn(
                     turn=engine.state.current_turn, decision=decision,
                     requested_choice=requested, actual_choice=requested, reason_fallback=None,
                     before=before, options_before=option_labels,
-                    result={"action_type": action_type, "time_cost": time_cost, "outcome": outcome},
+                    result={
+                        "action_type": action_type, 
+                        "time_cost": float(actual_time_cost),
+                        "outcome": outcome,
+                        "leaf_actions": sorted(list(leaf_actions))
+                    },
                     after=after, events_created=[dict(e) for e in new_events],
                 )
                 
@@ -397,7 +548,8 @@ class AutoplayRunner:
                     )
                     events = engine.state.store.events()[-10:]
                     failure_dir.joinpath("events_tail.json").write_text(
-                        json.dump([dict(e) for e in events], ensure_ascii=False, indent=2)
+                        json.dumps([dict(e) for e in events], ensure_ascii=False, indent=2),
+                        encoding="utf-8"
                     )
             except:
                 pass
@@ -508,13 +660,31 @@ def main():
     ]
     
     mechanism_counts: Dict[str, int] = {}
+    leaf_action_counts: Dict[str, int] = {}
+    
     for turn in result["telemetry"].turns:
+        # Top-level action type
         mech = turn["result"].get("action_type", "UNKNOWN")
         mechanism_counts[mech] = mechanism_counts.get(mech, 0) + 1
+        
+        # Leaf actions (more granular coverage)
+        leaf_actions = turn["result"].get("leaf_actions", [])
+        if isinstance(leaf_actions, list):
+            for leaf in leaf_actions:
+                leaf_action_counts[leaf] = leaf_action_counts.get(leaf, 0) + 1
     
-    for mech, count in sorted(mechanism_counts.items()):
-        marker = " ⚠" if count == 0 else ""
-        report_lines.append(f"- {mech}: {count}{marker}\n")
+    # First show leaf actions (if any), then top-level mechanisms
+    if leaf_action_counts:
+        report_lines.append("\n### Leaf Action Coverage\n")
+        for mech, count in sorted(leaf_action_counts.items(), key=lambda x: -x[1]):
+            marker = " ⚠" if count == 0 else ""
+            report_lines.append(f"- {mech}: {count}{marker}\n")
+    
+    if mechanism_counts:
+        report_lines.append("\n### Contract-Level Mechanisms\n")
+        for mech, count in sorted(mechanism_counts.items(), key=lambda x: -x[1]):
+            marker = " ⚠" if count == 0 else ""
+            report_lines.append(f"- {mech}: {count}{marker}\n")
     
     if all_findings:
         report_lines.append("\n## Findings\n\n")

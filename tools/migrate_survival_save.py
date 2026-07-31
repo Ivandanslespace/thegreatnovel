@@ -62,13 +62,20 @@ def save_yaml(path: Path, data: dict):
 def step_backup(save_dir: Path) -> Path:
     """Create backup directory with copies of critical files."""
     suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = save_dir / f"backup_before_migration_{suffix}"
+    backup_path = save_dir.parent / f"{save_dir.name}.backup_{suffix}"
+    
+    if backup_path.exists():
+        print(f"  [skip] Backup already exists: {backup_path.name}")
+        return backup_path
+    
     backup_path.mkdir(exist_ok=True)
-
+    
     critical_files = [
         "world.yaml", "meta.yaml", "ranking_state.yaml",
         "population_state.yaml", "public_system_state.yaml",
         "rival_state.yaml", "player.yaml", "inventory.yaml",
+        "factions.yaml", "regions.yaml", "base.yaml",
+        "event_queue.yaml", "campaign.sqlite3"
     ]
     copied = 0
     for fname in critical_files:
@@ -76,7 +83,7 @@ def step_backup(save_dir: Path) -> Path:
         if src.exists():
             shutil.copy2(src, backup_path / fname)
             copied += 1
-
+    
     print(f"  Backup created: {backup_path.name} ({copied} files copied)")
     return backup_path
 
@@ -241,8 +248,6 @@ def step_init_peers(save_dir: Path):
 
 def step_add_world_turn(save_dir: Path):
     """Add world_turn field to meta.yaml if missing (P0-5)"""
-    from . import load_yaml, save_yaml
-    
     meta_path = save_dir / "meta.yaml"
     if not meta_path.exists():
         print("  [skip] meta.yaml not found")
@@ -262,19 +267,6 @@ def step_add_world_turn(save_dir: Path):
     # Write back
     save_yaml(meta_path, {"meta": meta})
     print(f"  Added world_turn: {current_turn}")
-
-
-def step_backup(save_dir: Path):
-    """Create backup of all files including SQLite"""
-    suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = save_dir / f"backup_before_migration_{suffix}"
-    
-    if backup_path.exists():
-        print(f"  [skip] Backup already exists: {backup_path.name}")
-        return
-    
-    shutil.copytree(save_dir, backup_path)
-    print(f"  Backup created: {backup_path.name}")
 
 
 # ---------------------------------------------------------------------------
