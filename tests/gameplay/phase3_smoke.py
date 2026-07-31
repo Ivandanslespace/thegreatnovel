@@ -42,9 +42,10 @@ with TemporaryDirectory() as tmpdir:
         # Initial legal actions check
         from tgn.gameplay.expedition import get_legal_actions
         initial_actions = get_legal_actions(state)
-        print(f"\nInitial legal actions: {initial_actions}")
-        assert "WAIT" in initial_actions
-        assert "DROP" in initial_actions
+        initial_action_types = [a.action_type for a in initial_actions]
+        print(f"\nInitial legal actions: {initial_action_types}")
+        assert "WAIT" in initial_action_types
+        assert "DROP" in initial_action_types
         
         # DROP
         drop_result = execute_action(state, ActionIntent("drop-001", "player", "DROP", {}))
@@ -58,10 +59,11 @@ with TemporaryDirectory() as tmpdir:
         
         # Second action check
         actions_after_drop = get_legal_actions(final_state_1)
-        print(f"\nPost-DROP legal actions: {actions_after_drop}")
-        assert "SEARCH" in actions_after_drop
-        assert "EXTRACT" in actions_after_drop
-        assert "DROP" not in actions_after_drop
+        action_types_after_drop = [a.action_type for a in actions_after_drop]
+        print(f"\nPost-DROP legal actions: {action_types_after_drop}")
+        assert "SEARCH" in action_types_after_drop
+        assert "EXTRACT" in action_types_after_drop
+        assert "DROP" not in action_types_after_drop
         
         # SEARCH
         search_result = execute_action(final_state_1, ActionIntent("search-001", "player", "SEARCH", {}))
@@ -75,9 +77,10 @@ with TemporaryDirectory() as tmpdir:
         
         # Third action check  
         actions_after_search = get_legal_actions(final_state_2)
-        print(f"\nPost-SEARCH legal actions: {actions_after_search}")
-        assert "EXTRACT" in actions_after_search
-        assert "SEARCH" not in actions_after_search
+        action_types_after_search = [a.action_type for a in actions_after_search]
+        print(f"\nPost-SEARCH legal actions: {action_types_after_search}")
+        assert "EXTRACT" in action_types_after_search
+        assert "SEARCH" not in action_types_after_search
         
         # EXTRACT
         extract_result = execute_action(final_state_2, ActionIntent("extract-001", "player", "EXTRACT", {}))
