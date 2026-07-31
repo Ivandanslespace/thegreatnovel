@@ -188,20 +188,24 @@ class TestAutoAuditor(unittest.TestCase):
         self.assertEqual(dormant_findings[0]["level"], "P0")
     
     def test_detect_mechanism_unreachable(self):
-        """Detect missing important mechanisms"""
+        """Detect mechanisms offered as options but never executed"""
         telemetry = TelemetryRecorder()
         
-        # Only record COMBAT actions, missing other mechanisms
+        # Offer EXPLORATION and COMBAT as options, but only execute COMBAT
         for i in range(10):
             telemetry.record_turn(
                 turn=1, decision=i+1,
                 requested_choice="A", actual_choice="A",
                 reason_fallback=None,
-                before={}, options_before={"A": "Test"},
+                before={}, 
+                options_before={
+                    "A": "COMBAT attack",
+                    "B": "EXPLORATION search"
+                },
                 result={
                     "action_type": "COMBAT",
                     "time_cost": 30,
-                    "leaf_actions": ["COMBAT"]
+                    "leaf_actions": ["COMBAT"]  # Only COMBAT executed, never EXPLORATION
                 },
                 after={}, events_created=[],
             )
@@ -211,7 +215,7 @@ class TestAutoAuditor(unittest.TestCase):
         
         unreachable_findings = [f for f in findings if f["category"] == "MECHANISM_UNREACHABLE"]
         self.assertGreater(len(unreachable_findings), 0)
-        self.assertIn("EXPLORATION", unreachable_findings[0]["detail"]["missing_mechanisms"])
+        self.assertIn("EXPLORATION", unreachable_findings[0]["detail"]["unreachable_mechanisms"])
 
 
 class TestPolicies(unittest.TestCase):
@@ -285,6 +289,37 @@ class TestPolicies(unittest.TestCase):
         
         with self.assertRaises(ValueError):
             create_policy("invalid_policy")
+
+
+class TestPyCompileCI(unittest.TestCase):
+    """Basic CI: ensure core tools compile without syntax errors"""
+    
+    def test_autoplay_test_compiles(self):
+        """tools/autoplay_test.py should compile"""
+        import py_compile
+        autoplay_test_path = PROJECT_ROOT / "tools" / "autoplay_test.py"
+        try:
+            py_compile.compile(str(autoplay_test_path), doraise=True)
+        except py_compile.PyCompileError as e:
+            self.fail(f"autoplay_test.py has syntax errors: {e}")
+    
+    def test_autoplay_suite_compiles(self):
+        """tools/autoplay_suite.py should compile"""
+        import py_compile
+        autoplay_suite_path = PROJECT_ROOT / "tools" / "autoplay_suite.py"
+        try:
+            py_compile.compile(str(autoplay_suite_path), doraise=True)
+        except py_compile.PyCompileError as e:
+            self.fail(f"autoplay_suite.py has syntax errors: {e}")
+    
+    def test_migrate_survival_save_compiles(self):
+        """tools/migrate_survival_save.py should compile"""
+        import py_compile
+        migrate_path = PROJECT_ROOT / "tools" / "migrate_survival_save.py"
+        try:
+            py_compile.compile(str(migrate_path), doraise=True)
+        except py_compile.PyCompileError as e:
+            self.fail(f"migrate_survival_save.py has syntax errors: {e}")
 
 
 if __name__ == "__main__":

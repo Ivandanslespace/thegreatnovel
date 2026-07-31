@@ -3,12 +3,12 @@
 一次性运行多个存档 × 多个策略的组合测试。
 
 用法:
-    python tools/autoplay_suite.py --save saves/锈铁方舟 --turns 50 --policies abc,random
+    python tools/autoplay_suite.py --save saves/锈铁方舟 --turns 50 --policies abc,random --max-workers 4
     
 选项:
     --save           测试存档目录 (默认使用 saves/锈铁方舟)
     --turns          每局回合数 (默认 50)
-    --runs           并行运行数量 (默认根据 CPU 核心数)
+    --max-workers    最大并行度 (默认根据 CPU 核心数)
     --policies       策略列表，逗号分隔 (默认 abc,random,aggressive,builder)
 
 输出:
@@ -122,13 +122,13 @@ def run_single_test(
         }
 
 
-def generate_summary_report(results: List[dict], args) -> str:
+def generate_summary_report(results: List[dict], args, policies: List[str]) -> str:
     """生成汇总报告"""
     
     lines = []
     lines.append("# Autoplay Suite Summary Report\n")
     lines.append(f"**时间**: {datetime.now().isoformat()}\n")
-    lines.append(f"**配置**: {args.save} × {args.turns} 轮 × {len(args.policies)} 策略\n\n")
+    lines.append(f"**配置**: {args.save} × {args.turns} 轮 × {len(policies)} 策略\n\n")
     
     # 总体统计
     total = len(results)
@@ -323,7 +323,7 @@ def main():
     # Generate summary report
     print(f"\n📊 生成汇总报告...")
     
-    summary_markdown = generate_summary_report(results, args)
+    summary_markdown = generate_summary_report(results, args, policies)
     
     summary_file = Path("autoplay_runs") / f"{prefix}_summary.md"
     with open(summary_file, "w", encoding="utf-8") as f:
@@ -345,7 +345,7 @@ def main():
     print(f"崩溃：{crashed}")
     print(f"其他失败：{failed + init_failed + timeout}\n")
     
-    print(f"汇总报告：`{summary_file.absolute()`}\n")
+    print(f"汇总报告：`{summary_file.absolute()}`\n")
     
     # Exit code based on most critical issue
     if crashed > 0:

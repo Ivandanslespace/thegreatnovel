@@ -31,6 +31,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from engine_runtime.state import load_game_state
 from engine_runtime.runtime import GameEngine
+from engine_runtime.public_survival import load_peer_agents
+from engine_runtime.events import DAY_MINUTES
 from tools.turn_controller import resolve as resolve_turn
 
 
@@ -181,7 +183,7 @@ class AutoAuditor:
         return findings
     
     def _detect_mechanism_unreachable(self) -> List[Dict[str, Any]]:
-        """Detect action types that never appeared in 50 turns"""
+        """Detect action types that never appeared but were observed in options"""
         findings = []
         
         # Skip if no turns recorded
@@ -189,24 +191,33 @@ class AutoAuditor:
             return findings
         
         all_leaf_actions = set()
+        all_observed_option_types = set()
+        
         for turn in self.telemetry.turns:
+            # Collect actual executed leaf actions
             leaf_actions = turn["result"].get("leaf_actions", [])
             if isinstance(leaf_actions, list):
                 all_leaf_actions.update(leaf_actions)
+            
+            # Collect action types from available options
+            options_before = turn.get("options_before", {})
+            for opt_key, opt_label in options_before.items():
+                # Try to extract action type from option label or key
+                # This is a heuristic - we look for common action type patterns
+                for action_type in ["EXPLORATION", "COMBAT", "SOCIAL_INTERACTION", "BUILD", 
+                                   "TRADE", "RESEARCH", "REST", "TRAVEL", "EXTRACT", "WAIT"]:
+                    if action_type in opt_label.upper() or action_type in opt_key.upper():
+                        all_observed_option_types.add(action_type)
         
-        # Known important action types that should appear regularly
-        expected_mechanisms = [
-            "EXPLORATION", "COMBAT", "SOCIAL_INTERACTION", "BUILD",
-            "TRADE", "RESEARCH", "REST", "TRAVEL"
-        ]
+        # Only report mechanisms that were offered as options but never executed
+        unreachable = all_observed_option_types - all_leaf_actions
         
-        missing = set(expected_mechanisms) - all_leaf_actions
-        if missing:
+        if unreachable:
             findings.append({
                 "level": "P1", 
                 "category": "MECHANISM_UNREACHABLE",
-                "message": f"Mechanisms never triggered: {', '.join(sorted(missing))}",
-                "detail": {"missing_mechanisms": sorted(missing)}
+                "message": f"Mechanisms offered but never triggered: {', '.join(sorted(unreachable))}",
+                "detail": {"unreachable_mechanisms": sorted(unreachable)}
             })
         
         return findings
@@ -300,18 +311,22 @@ class AutoAuditor:
             if isinstance(e, dict) and e.get("type") == "PUBLIC_SYSTEM_ADVANCED"
         )
         
-        # Check peer action history delta via population_state
-        peer_actions_before = None
-        peer_actions_after = None
+        # Check real peer agent activity via peer_last_action_turns
+        peer_activity_before = None
+        peer_activity_after = None
         
         for turn in self.telemetry.turns:
             after_state = turn.get("after", {})
-            current_peer_count = after_state.get("peer_action_history_size")
-            if peer_actions_before is None:
-                peer_actions_before = current_peer_count
-            peer_actions_after = current_peer_count
+            peer_turns = after_state.get("peer_last_action_turns", {})
+            
+            # Sum of all peer last action turns as activity indicator
+            current_activity = sum(peer_turns.values()) if peer_turns else 0
+            
+            if peer_activity_before is None:
+                peer_activity_before = current_activity
+            peer_activity_after = current_activity
         
-        total_peer_delta = (peer_actions_after or 0) - (peer_actions_before or 0)
+        total_peer_delta = (peer_activity_after or 0) - (peer_activity_before or 0)
         
         # P0: Public system advancing but no peer activity = broken simulation
         if public_advances >= 10 and total_peer_delta == 0:
@@ -340,6 +355,23 @@ class AutoplayRunner:
         meta = engine.state.meta
         inventory = engine.state.inventory
         
+        # Get real peer agent states from SQLite
+        peer_last_action_turns = {}
+        try:
+            campaign_id = engine.state.data.get("meta", {}).get("campaign_id", "unknown")
+            peers = load_peer_agents(engine.state, campaign_id)
+            for peer in peers:
+                # Track last action turn for each peer
+                action_history = getattr(peer, "action_history", [])
+                if action_history:
+                    last_action = action_history[-1]
+                    peer_last_action_turns[peer.id] = last_action.get("turn", 0)
+                else:
+                    peer_last_action_turns[peer.id] = 0
+        except Exception:
+            # If peer loading fails, record empty state
+            pass
+        
         return {
             "current_turn": engine.state.current_turn,
             "world_turn": engine.state.world_turn,
@@ -364,6 +396,7 @@ class AutoplayRunner:
                 engine.state.data.get("population_state", {}).get("turn_history", [])
             ),
             "channel_feed_size": len(engine.state.data.get("public_system_state", {}).get("channel_feed", [])),
+            "peer_last_action_turns": peer_last_action_turns,
             "total_decisions": meta.get("total_decisions"),
             "total_combats": meta.get("total_combats"),
         }
@@ -463,7 +496,7 @@ class AutoplayRunner:
                 new_events = events_after_run[events_count_before:]
                 
                 # Calculate actual time cost from state difference (more reliable than event data)
-                before_meta = before.get("after", before)  # Fallback to before snapshot
+                before_meta = before
                 after_meta = after
                 
                 before_day = before_meta.get("game_day", 1)
@@ -471,8 +504,9 @@ class AutoplayRunner:
                 after_day = after_meta.get("game_day", 1)
                 after_elapsed = after_meta.get("day_elapsed_minutes", 0) or 0
                 
-                before_abs = (before_day - 1) * 1440 + before_elapsed
-                after_abs = (after_day - 1) * 1440 + after_elapsed
+                # CRITICAL: Use engine's DAY_MINUTES (720), not hardcoded 1440
+                before_abs = (before_day - 1) * DAY_MINUTES + before_elapsed
+                after_abs = (after_day - 1) * DAY_MINUTES + after_elapsed
                 actual_time_cost = after_abs - before_abs
                 
                 # Extract leaf actions and outcome from raw events
@@ -482,19 +516,22 @@ class AutoplayRunner:
                     if isinstance(evt, dict):
                         data = evt.get("data", {})
                         if isinstance(data, dict):
-                            # Collect leaf action types from ACTION_PLAN contracts
+                            # Extract outcome from resolution
                             if "resolution" in data and isinstance(data["resolution"], dict):
                                 resolution = data["resolution"]
                                 outcome = resolution.get("outcome", outcome)
                                 
-                                # Extract action plan leaf types
-                                action_plan = resolution.get("action_plan", {})
-                                if isinstance(action_plan, dict):
-                                    for step in action_plan.get("steps", []):
-                                        if isinstance(step, dict):
-                                            step_type = step.get("type", "")
-                                            if step_type:
-                                                leaf_actions.add(step_type)
+                                # Extract leaf action type from resolution
+                                leaf_type = resolution.get("action_type", "")
+                                if leaf_type:
+                                    leaf_actions.add(leaf_type)
+                            
+                            # Also check for action type in event data itself
+                            action_data = data.get("action", {})
+                            if isinstance(action_data, dict):
+                                action_type_from_event = action_data.get("type", "")
+                                if action_type_from_event:
+                                    leaf_actions.add(action_type_from_event)
                 
                 # If no leaf actions found, use main action type as fallback
                 if not leaf_actions:
@@ -609,15 +646,17 @@ def main():
     all_findings = result["telemetry"].warnings + auditor.audit()
     result["telemetry"].warnings.extend(all_findings)
     
-    # Determine exit code
+    # Determine exit code - preserve Runner's exit_code for init failures
     completed = result["turns_completed"] == args.turns
     has_p0 = any(f["level"] == "P0" for f in all_findings)
     
-    exit_code = 0
-    if result["status"] == "crashed":
-        exit_code = 3
-    elif not completed or has_p0:
-        exit_code = 2
+    # Start with Runner's reported exit_code
+    exit_code = result.get("exit_code", 0)
+    
+    # Only override if Runner succeeded but audit found P0 issues
+    if exit_code == 0:
+        if not completed or has_p0:
+            exit_code = 2
     
     # Generate reports
     print(f"📊 Generating reports...")
