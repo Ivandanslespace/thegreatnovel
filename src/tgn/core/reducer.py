@@ -102,6 +102,13 @@ def _apply_time_advanced(state: GameState, event: DomainEvent) -> None:
     if minutes < 0:
         raise ReducerError("Time advancement cannot be negative")
     
+    # Phase 4: TIME_ADVANCED (WAIT) cannot bypass active hostile encounter
+    exp = state.data.get("expedition")
+    if exp:
+        encounter = exp.get("encounter")
+        if encounter and encounter.get("active"):
+            raise ReducerError("Cannot WAIT during active hostile encounter")
+    
     expected_minute = state.game_minute + minutes
     actual_minute = event.game_minute
     
@@ -214,6 +221,11 @@ def _apply_expedition_extracted(state: GameState, event: DomainEvent) -> None:
     if state.data["player"]["location_id"] != state.data["expedition"]["target_location_id"]:
         raise ReducerError("Cannot extract: not at target location")
     
+    # Phase 4: Cannot extract during active hostile encounter
+    encounter = state.data["expedition"].get("encounter")
+    if encounter and encounter.get("active"):
+        raise ReducerError("Cannot extract: hostile encounter active")
+    
     # Verify payload carried_loot matches actual carried_loot
     if payload.get("carried_loot") != state.data["expedition"]["carried_loot"]:
         raise ReducerError(f"Extract loot mismatch: expected {state.data['expedition']['carried_loot']}, got {payload.get('carried_loot')}")
@@ -255,6 +267,12 @@ def _apply_combat_resolved(state: GameState, event: DomainEvent) -> None:
     # Verify preconditions
     if player["hp"] <= 0:
         raise ReducerError("Cannot fight: player is dead")
+    
+    if not exp["active"]:
+        raise ReducerError("Cannot fight: expedition not active")
+    
+    if player["location_id"] != exp["target_location_id"]:
+        raise ReducerError("Cannot fight: player not at target location")
     
     if not encounter["active"]:
         raise ReducerError("Cannot fight: no active encounter")
@@ -351,6 +369,9 @@ def _apply_expedition_fled(state: GameState, event: DomainEvent) -> None:
     # Verify preconditions
     if not exp["active"]:
         raise ReducerError("Cannot flee: expedition not active")
+    
+    if player["location_id"] != exp["target_location_id"]:
+        raise ReducerError("Cannot flee: player not at target location")
     
     if not exp["encounter"]["active"]:
         raise ReducerError("Cannot flee: no active encounter")

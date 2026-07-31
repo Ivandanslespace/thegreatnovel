@@ -33,34 +33,41 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
     
     A supported action absent from the result means ACTION_NOT_LEGAL_IN_STATE.
     """
-    if not state.data.get("expedition"):
-        return (LegalAction(action_type="WAIT", duration_minutes=None, stamina_cost=0),)
+    player = state.data.get("player", {})
     
-    exp = state.data["expedition"]
-    player = state.data["player"]
-    stamina = player["stamina"]
-    
-    # Phase 4: Dead player cannot act (P0 invariant)
+    # P0: Dead player cannot act — universally, before any other check
     hp = player.get("hp")
     if hp is not None and hp <= 0:
         return ()
     
+    if not state.data.get("expedition"):
+        return (LegalAction(action_type="WAIT", duration_minutes=None, stamina_cost=0),)
+    
+    exp = state.data["expedition"]
+    stamina = player["stamina"]
+    
     # Phase 4: Active encounter forces FIGHT or FLEE only
     encounter = exp.get("encounter")
     if encounter and encounter.get("active"):
-        legal: list[LegalAction] = []
-        if stamina >= FIGHT_COST["stamina"]:
+        # Encounter legality requires: expedition active, player at target, enemy alive
+        if (exp["active"]
+                and player["location_id"] == exp["target_location_id"]
+                and encounter.get("enemy_hp", 0) > 0):
+            legal: list[LegalAction] = []
+            if stamina >= FIGHT_COST["stamina"]:
+                legal.append(LegalAction(
+                    action_type="FIGHT",
+                    duration_minutes=FIGHT_COST["time"],
+                    stamina_cost=FIGHT_COST["stamina"],
+                ))
             legal.append(LegalAction(
-                action_type="FIGHT",
-                duration_minutes=FIGHT_COST["time"],
-                stamina_cost=FIGHT_COST["stamina"],
+                action_type="FLEE",
+                duration_minutes=FLEE_COST["time"],
+                stamina_cost=FLEE_COST["stamina"],
             ))
-        legal.append(LegalAction(
-            action_type="FLEE",
-            duration_minutes=FLEE_COST["time"],
-            stamina_cost=FLEE_COST["stamina"],
-        ))
-        return tuple(legal)
+            return tuple(legal)
+        # Contradictory state — invariants should reject; offer nothing
+        return ()
     
     # Normal expedition logic (Phase 3)
     legal = [
@@ -124,16 +131,10 @@ def validate_action(
         ))
         return ActionValidationResult(valid=False, action=None, errors=tuple(errors))
     
-    # WAIT reuses Phase 2 validation contract completely
-    if intent.action_type == "WAIT":
-        from tgn.actions.validation import validate_action as base_validate
-        return base_validate(state, intent)
-    
-    # Get legal actions - this is THE source of truth for legality
+    # ALL actions derive state legality from get_legal_actions (single source)
     legal_actions = get_legal_actions(state)
     legal_action_types = tuple(la.action_type for la in legal_actions)
     
-    # Check if action is currently legal in this state
     if intent.action_type not in legal_action_types:
         errors.append(ActionValidationError(
             code="ACTION_NOT_LEGAL_IN_STATE",
@@ -141,8 +142,13 @@ def validate_action(
         ))
         return ActionValidationResult(valid=False, action=None, errors=tuple(errors))
     
-    elif intent.action_type == "DROP":
-        # No params allowed for DROP
+    # WAIT: delegate only parameter/schema validation to Phase 2
+    if intent.action_type == "WAIT":
+        from tgn.actions.validation import validate_action as base_validate
+        return base_validate(state, intent)
+    
+    # Phase 3/4 parameter validation
+    if intent.action_type == "DROP":
         for key in intent.params:
             errors.append(ActionValidationError(
                 code="UNEXPECTED_PARAMETER",
@@ -151,7 +157,6 @@ def validate_action(
             ))
     
     elif intent.action_type == "SEARCH":
-        # No params allowed for SEARCH
         for key in intent.params:
             errors.append(ActionValidationError(
                 code="UNEXPECTED_PARAMETER",
@@ -160,7 +165,6 @@ def validate_action(
             ))
     
     elif intent.action_type == "EXTRACT":
-        # No params allowed for EXTRACT
         for key in intent.params:
             errors.append(ActionValidationError(
                 code="UNEXPECTED_PARAMETER",
@@ -169,7 +173,6 @@ def validate_action(
             ))
     
     elif intent.action_type == "FIGHT":
-        # No params allowed for FIGHT
         for key in intent.params:
             errors.append(ActionValidationError(
                 code="UNEXPECTED_PARAMETER",
@@ -178,7 +181,6 @@ def validate_action(
             ))
     
     elif intent.action_type == "FLEE":
-        # No params allowed for FLEE
         for key in intent.params:
             errors.append(ActionValidationError(
                 code="UNEXPECTED_PARAMETER",
@@ -215,50 +217,9 @@ def execute_action(
     if intent.action_type in ["DROP", "SEARCH", "EXTRACT", "FIGHT", "FLEE"]:
         return _execute_phase3_action(state, intent)
     
-    # WAIT: check Phase 4 encounter gate first
+    # WAIT: validate via canonical source, then produce TIME_ADVANCED
     elif intent.action_type == "WAIT":
-        # Phase 4: WAIT not legal during active encounter
-        exp = state.data.get("expedition")
-        if exp:
-            encounter = exp.get("encounter")
-            if encounter and encounter.get("active"):
-                return ActionExecutionResult(
-                    accepted=False,
-                    validation=ActionValidationResult(
-                        valid=False,
-                        action=None,
-                        errors=(
-                            ActionValidationError(
-                                code="ACTION_NOT_LEGAL_IN_STATE",
-                                message="WAIT not legal during active hostile encounter",
-                            ),
-                        ),
-                    ),
-                    events=tuple(),
-                    final_state=None,
-                )
-            # Phase 4: Dead player cannot WAIT
-            player = state.data.get("player", {})
-            if player.get("hp") is not None and player["hp"] <= 0:
-                return ActionExecutionResult(
-                    accepted=False,
-                    validation=ActionValidationResult(
-                        valid=False,
-                        action=None,
-                        errors=(
-                            ActionValidationError(
-                                code="ACTION_NOT_LEGAL_IN_STATE",
-                                message="Dead player cannot act",
-                            ),
-                        ),
-                    ),
-                    events=tuple(),
-                    final_state=None,
-                )
-        
-        from tgn.actions.validation import validate_action as base_validate
-        
-        validation = base_validate(state, intent)
+        validation = validate_action(state, intent)
         
         if not validation.valid:
             return ActionExecutionResult(

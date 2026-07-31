@@ -227,3 +227,14 @@ def _check_combat_invariants(state: "GameState") -> None:
         # Active encounter cannot have dead enemy
         if encounter.get("active") and enemy_hp is not None and enemy_hp <= 0:
             raise InvariantError("Active encounter cannot have dead enemy (enemy_hp <= 0)")
+        
+        # Active encounter consistency: requires active expedition and player at target
+        if encounter.get("active"):
+            if not exp.get("active"):
+                raise InvariantError("Active encounter requires active expedition")
+            player_location = player.get("location_id")
+            target_location = exp.get("target_location_id")
+            if player_location != target_location:
+                raise InvariantError(
+                    f"Active encounter requires player at target {target_location}, got {player_location}"
+                )

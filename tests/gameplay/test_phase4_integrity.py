@@ -1,4 +1,4 @@
-"""Phase 4 additional coverage tests for invariants and reducer edge cases."""
+"""Phase 4 edge-case and tamper-protection tests for invariants and reducer."""
 
 import pytest
 
