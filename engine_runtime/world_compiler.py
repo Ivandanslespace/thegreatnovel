@@ -17,6 +17,8 @@ EVENT_FAMILIES = {
     "rule_anomaly", "macro_crisis", "forced_convergence", "living_resource",
     "system_irregularity", "hidden_civilization",
 }
+
+# Default ranking weights and scales (defined here to avoid circular imports)
 DEFAULT_RANKING_WEIGHTS = {
     "combat": 0.30,
     "resources": 0.25,
@@ -24,6 +26,15 @@ DEFAULT_RANKING_WEIGHTS = {
     "information": 0.15,
     "social": 0.10
 }
+
+DEFAULT_RANKING_SCALES = {
+    "combat_multiplier": 0.1,
+    "resource_multiplier": 0.5,
+    "base_bonus": 20.0,
+    "information_bonus": 25.0,
+    "social_bonus": 20.0
+}
+
 RANKING_WEIGHT_TOLERANCE = 0.05  # Weights must sum to ~1.0 within ±0.05
 
 
@@ -66,15 +77,14 @@ def _validate_ranking_config(ranking_config: Any) -> Dict[str, Any]:
         if str(weight_key) not in enabled_dims:
             raise ValueError(f"dimension_weights references disabled dimension '{weight_key}'")
     
-    # Check if ALL enabled dims have weights defined or NONE do (partial = mixed)
+    # Check if ALL enabled dims have weights defined or NONE do
     custom_weight_keys = {str(dim) for dim in enabled_dims if str(dim) in custom_weights}
-    all_dims_defined = len(custom_weight_keys) == len(enabled_dims)
     
     if not custom_weight_keys:
         # No custom weights at all - return defaults
         normalized_weights = {dim: DEFAULT_RANKING_WEIGHTS[dim] for dim in enabled_dims}
-    elif all_dims_defined:
-        # All specified - validate they sum to 1.0
+    elif len(custom_weight_keys) == len(enabled_dims):
+        # All specified - validate they sum to 1.0 exactly
         custom_weight_sum = 0.0
         for dim in enabled_dims:
             val = float(custom_weights[str(dim)])
@@ -85,33 +95,25 @@ def _validate_ranking_config(ranking_config: Any) -> Dict[str, Any]:
         if abs(custom_weight_sum - 1.0) > RANKING_WEIGHT_TOLERANCE:
             raise ValueError(
                 f"All dimension_weights must sum to ≈1.0 within ±{RANKING_WEIGHT_TOLERANCE}, "
-                f"but got {custom_weight_sum:.2f}"
+                f"but got {custom_weight_sum:.3f}. Full list: {{dim: w for dim, w in temp_weights.items()}}"
             )
         
         # Use custom weights directly
         normalized_weights = {dim: float(custom_weights[str(dim)]) for dim in enabled_dims}
     else:
-        # Partial override - some specified, some use defaults
-        # Normalize the whole set to sum to 1.0
-        partial_sum = 0.0
-        temp_weights = {}
+        # PARTIAL override - some specified, some use defaults
+        # Strategy: normalize ONLY the custom values, keep defaults as-is
+        # Example: combat=0.50 only -> scale combat down proportionally while others stay default
+        custom_sum = sum(float(custom_weights[str(dim)]) for dim in enabled_dims if str(dim) in custom_weights)
         
+        temp_weights = {}
         for dim in enabled_dims:
             if str(dim) in custom_weights:
-                val = float(custom_weights[str(dim)])
-                if val < 0:
-                    raise ValueError(f"dimension_weights['{dim}'] cannot be negative")
-                temp_weights[dim] = val
-                partial_sum += val
+                # Scale custom value to preserve relative proportions
+                temp_weights[dim] = float(custom_weights[str(dim)]) / custom_sum
             else:
+                # Keep default
                 temp_weights[dim] = DEFAULT_RANKING_WEIGHTS[dim]
-        
-        # If user explicitly set combat=0.50 only, normalize everything
-        # Original sum with defaults might exceed tolerance; scale down
-        if abs(partial_sum - 1.0) > RANKING_WEIGHT_TOLERANCE:
-            # Scale all values proportionally to make them sum to 1.0
-            for dim in temp_weights:
-                temp_weights[dim] /= partial_sum
         
         normalized_weights = temp_weights
     

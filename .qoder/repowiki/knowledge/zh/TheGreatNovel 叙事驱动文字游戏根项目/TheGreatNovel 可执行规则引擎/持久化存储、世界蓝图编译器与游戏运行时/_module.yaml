@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: engine_runtime/persistence_world
-title: 持久化存储、世界蓝图编译器与游戏运行时引擎
+title: 持久化存储、世界蓝图编译器与游戏运行时
 scope:
     - engine_runtime/persistence.py
     - engine_runtime/world_compiler.py

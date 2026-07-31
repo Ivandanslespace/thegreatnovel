@@ -93,15 +93,6 @@ world:
   # trading: 交易系统（市场、税价）
   # factions: 势力系统（NPC 关系影响度）
   # disasters: 灾难系统（周期事件与预警）
-  mechanics:
-    capabilities:
-      combat: true            # 启用战斗系统（若为 false，enemies/areas 的敌群字段变为可选）
-      building: true          # 启用建造系统（若为 false，modules 变为可选）
-      crafting: true          # 启用制作系统（若为 false，recipes 变为可选）
-      trading: true           # 启用交易系统（依赖 factions）
-      factions: true          # 启用势力系统（若为 false，factions 变为可选）
-      disasters: true         # 启用灾难系统（若为 false，disasters 变为可选）
-
   # 世界创建审计元数据（由 tools/create_save.py 写入）
   generation:
     mechanics_source: "llm_world_blueprint"

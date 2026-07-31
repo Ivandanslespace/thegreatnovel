@@ -1,0 +1,7 @@
+# World Template Test
+world:
+  rules:
+    test: null
+  mechanics:
+    capabilities: {}
+    ranking: {}

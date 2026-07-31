@@ -190,7 +190,7 @@ def parse_genre_contract_choice(choice: str, theme: str) -> dict:
         return {
             "id": "ship_no_disaster",
             "name": "星舰/文明无灾模式",
-            "collective_transmission": True,
+            "collective_transmission": False,
             "shared_start": True,
             "region_size": None,
             "global_count": None,
@@ -559,15 +559,25 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
     if not 3 <= len(resources["primary"]) <= 5:
         raise GeneratorError("基础资源必须是 3 到 5 种")
 
-    # Extract genre name from selected contract
+    # Genre contract-based requirement enforcement (replaces universal survival checks)
+    
+    profession_source = world.get("professions", {})
+    genre_contract_choice = world.get("genre_contract", "1")
+    selected_genre_contract = (
+        copy.deepcopy(genre_contract_choice)
+        if isinstance(genre_contract_choice, dict)
+        else parse_genre_contract_choice(genre_contract_choice, world["theme"])
+    )
+    world["genre_contract"] = selected_genre_contract
+    
+    # Extract genre name from selected contract for error messages
     genre_name = selected_genre_contract.get('id', selected_genre_contract.get('name', 'unknown'))
     
-    # Genre contract-based requirement enforcement (replaces universal survival checks)
     required_for_genre = selected_genre_contract.get('requirements', {})
     for field in required_for_genre:
         if not setting.get(field):
             raise GeneratorError(f"世界类型'{genre_name}'要求设置字段：{field}")
-
+    
     # Handle disaster cycle flexibly - allow None for non-survival worlds
     cycle_days = first_number(setting["disaster_cycle"])
     disaster_rules = world.setdefault("rules", {}).setdefault("disaster", {})
@@ -579,11 +589,16 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
         # Stable environments or ship worlds without periodic disasters
         disaster_rules["cycle_days"] = None
         disaster_rules["first_event"] = None
+    
     death_rules = world["rules"].setdefault("death", {})
     death_rules["type"] = death_rules.get("type") or infer_death_mode(world["difficulty"])
     if death_rules["type"] not in DEATH_MODES:
         raise GeneratorError("rules.death.type 必须是 permanent/checkpoint/legacy")
-
+    
+    normalize_public_survival(world, bool(selected_genre_contract.get("collective_transmission")))
+    normalize_talent_deck(world)
+    
+    # Process talent fields
     talent = talent or {}
     for field in ("name", "description", "trigger", "effect", "limitations"):
         talent[field] = str(talent.get(field) or "").strip()
@@ -605,17 +620,7 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
         raise GeneratorError("主角天赋必须定义独占循环的 input/conversion/competitive_impact/counterplay")
     if any(not opening_card[field] for field in ("advantage", "first_use", "comparison", "hard_limit")):
         raise GeneratorError("LLM 世界包必须完整定义主角天赋 opening_card 的 advantage/first_use/comparison/hard_limit")
-
-    profession_source = world.get("professions", {})
-    genre_contract_choice = world.get("genre_contract", "1")
-    selected_genre_contract = (
-        copy.deepcopy(genre_contract_choice)
-        if isinstance(genre_contract_choice, dict)
-        else parse_genre_contract_choice(genre_contract_choice, world["theme"])
-    )
-    world["genre_contract"] = selected_genre_contract
-    normalize_public_survival(world, bool(selected_genre_contract.get("collective_transmission")))
-    normalize_talent_deck(world)
+    
     supplied_bundle = world.get("generation_bundle")
     if isinstance(supplied_bundle, dict) and supplied_bundle.get("compiler_version") == COMPILER_VERSION:
         bundle = copy.deepcopy(supplied_bundle)

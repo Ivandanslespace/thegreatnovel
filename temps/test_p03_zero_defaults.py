@@ -80,7 +80,7 @@ def test_documentation_comments_exist():
         "null",
         "LLM 在创建世界时必须显式定义每个要启用的机制及其参数",
         "防止注入虚假的通用生存规则",
-        "能力注册表",
+        "机制注册表",
         "capabilities",
         "rulesets",
     ]

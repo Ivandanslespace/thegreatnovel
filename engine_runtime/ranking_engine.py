@@ -34,7 +34,7 @@ def _merge_weights(custom_scales: Optional[Dict[str, Any]] = None) -> Dict[str, 
         custom_scales: Optional custom scales dict from world config
                        Can be either:
                        - Raw ranking config dict (with enabled_dimensions/dimension_weights/dimension_scales)
-                       - Already-merged validated config dict (with weights + _scales key)
+                       - Already-merged validated config dict (from world_compiler._validate_ranking_config)
         
     Returns:
         Merged weight/scale configuration
@@ -42,48 +42,73 @@ def _merge_weights(custom_scales: Optional[Dict[str, Any]] = None) -> Dict[str, 
     if custom_scales is None:
         return DEFAULT_RANKING_WEIGHTS.copy()
     
-    # Check if this is already a merged config (has _scales or all dimension keys)
-    has_scaled_keys = isinstance(custom_scales.get("_scales"), Mapping)
-    has_dimension_keys = all(dim in custom_scales for dim in DEFAULT_RANKING_WEIGHTS.keys())
+    # Check if this is already a merged config from validation
+    has_scaled_keys = "_scales" in custom_scales and isinstance(custom_scales["_scales"], Mapping)
+    all_dims_present = all(dim in custom_scales for dim in DEFAULT_RANKING_WEIGHTS.keys())
     
-    if has_scaled_keys or has_dimension_keys:
-        # This is an already-merged config from validation
+    if has_scaled_keys or all_dims_present:
+        # This is an already-merged validated config
         merged = defaultdict(float, DEFAULT_RANKING_WEIGHTS.copy())
         
-        # Override with custom weights for enabled dimensions
-        for dim in list(DEFAULT_RANKING_WEIGHTS.keys()):
-            if dim in custom_scales and "_scales" not in str(type(custom_scales)):
-                val = custom_scales[dim]
-                if isinstance(val, (int, float)) and not str(val).startswith("_"):
-                    merged[dim] = float(val)
+        # Override with custom weights (skip _scales key)
+        for dim in DEFAULT_RANKING_WEIGHTS.keys():
+            if dim in custom_scales and isinstance(custom_scales[dim], (int, float)):
+                merged[dim] = float(custom_scales[dim])
         
-        # Override scales
+        # Add scales
         base_scales = DEFAULT_RANKING_SCALES.copy()
         custom_dim_scales = dict(custom_scales["_scales"]) if isinstance(custom_scales.get("_scales"), Mapping) else {}
         base_scales.update(custom_dim_scales)
         
-        # Merge scales into weights dict (with special key prefix)
         for key, value in base_scales.items():
             if isinstance(value, (int, float)):
                 merged[key] = float(value)
         
         return dict(merged)
     
-    # This looks like it might be just weights without scales structure
-    # Try to detect if it's actually a simple weight dict
-    appears_to_be_weights_only = all(
-        isinstance(v, (int, float)) 
-        for k, v in custom_scales.items() 
-        if k in DEFAULT_RANKING_WEIGHTS.keys()
-    ) and len([k for k in custom_scales if k in DEFAULT_RANKING_WEIGHTS.keys()]) > 0
+    # Check if this looks like raw config from YAML (has enabled_dimensions/dimension_weights)
+    has_raw_structure = "enabled_dimensions" in custom_scales or "dimension_weights" in custom_scales
     
-    if appears_to_be_weights_only:
-        # Treat as raw weights only (backward compatibility test case)
-        merged = DEFAULT_RANKING_WEIGHTS.copy()
-        for dim in DEFAULT_RANKING_WEIGHTS:
-            if dim in custom_scales and isinstance(custom_scales[dim], (int, float)):
-                merged[dim] = float(custom_scales[dim])
-        return merged
+    if has_raw_structure:
+        # Extract dimension_ids from enabled_dimensions or use defaults
+        enabled_dims = custom_scales.get("enabled_dimensions", [])
+        if not isinstance(enabled_dims, list) or not enabled_dims:
+            enabled_dims = list(DEFAULT_RANKING_WEIGHTS.keys())
+        
+        # Extract custom weights
+        custom_weights = custom_scales.get("dimension_weights", {})
+        
+        # Normalize partial weights
+        custom_weight_sum = sum(float(custom_weights.get(str(dim), 0)) 
+                               for dim in enabled_dims if str(dim) in custom_weights)
+        
+        temp_weights = {}
+        for dim in enabled_dims:
+            if str(dim) in custom_weights:
+                # Scale custom values proportionally
+                if custom_weight_sum > 0:
+                    temp_weights[dim] = float(custom_weights[str(dim)]) / custom_weight_sum
+                else:
+                    temp_weights[dim] = DEFAULT_RANKING_WEIGHTS[dim]
+            else:
+                temp_weights[dim] = DEFAULT_RANKING_WEIGHTS[dim]
+        
+        # Merge scales
+        result_scales = defaultdict(float, DEFAULT_RANKING_SCALES.copy())
+        custom_scales_param = custom_scales.get("dimension_scales", {})
+        if isinstance(custom_scales_param, Mapping):
+            for k, v in custom_scales_param.items():
+                if isinstance(v, (int, float)):
+                    result_scales[str(k)] = float(v)
+        
+        merged = defaultdict(float, DEFAULT_RANKING_WEIGHTS.copy())
+        for dim, val in temp_weights.items():
+            merged[dim] = val
+        
+        for key, val in result_scales.items():
+            merged[key] = val
+        
+        return dict(merged)
     
     # Default to no override
     return DEFAULT_RANKING_WEIGHTS.copy()
