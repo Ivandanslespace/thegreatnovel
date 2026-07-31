@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: saves_and_templates
-title: 世界与存档模板定义
+title: 存档与世界模板 Schema
 scope:
     - templates/
 source_files: []

@@ -1,0 +1,26 @@
+world:
+  name: "Incomplete Test"
+  theme: "test"
+  difficulty: "标准"
+  narrative_length: 5
+  language: "中文"
+  setting:
+    safe_base: "Test Base"
+    external_dangers: ["Test Danger"]
+    exploration_method: "Testing"
+    disaster_cycle: "7 days"
+    disaster_type: "test"
+    
+  genre_contract:
+    id: mass_system_survival
+
+world_blueprint:
+  locations:
+    - id: test_location
+      safe: true
+      discovered: true
+  
+  action_targets:
+    - id: incomplete_target
+      action_type: "TEST"
+      # Missing: name, location_id, primary_attribute, effects

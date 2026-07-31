@@ -1,0 +1,15 @@
+world:
+  name: "Incomplete Test"
+  theme: "test"
+
+world_blueprint:
+  locations:
+    - id: test_location
+      safe: true
+      discovered: true
+  
+  action_targets:
+    - id: incomplete_target
+      action_type: "TEST"
+      # Missing: name, location_id, primary_attribute, etc.
+      # effects is also wrong type

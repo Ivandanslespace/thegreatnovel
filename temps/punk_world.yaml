@@ -1,454 +1,449 @@
 world:
-  name: "赛博朋克：霓虹求生"
+  name: "赛博朋克：霓虹深渊"
   theme: "赛博朋克"
-  narrative_style: "冷酷、黑暗、充满科技感"
+  narrative_style: "冷酷/紧张/科技感"
   difficulty: "标准"
   narrative_length: 7
   language: "中文"
-  genre_contract: "1"
-  
+  genre_contract:
+    id: "mass_system_survival"
+    name: "全民系统投放型求生"
+    collective_transmission: true
+    shared_start: true
+    region_size: 1000
+    global_count: 100000000
+    public_system:
+      regional_chat: true
+      private_chat: true
+      trading: true
+      rankings: true
+      achievements: true
+      announcements: true
+    protagonist_contract:
+      unique_mechanic_required: true
+      comparative_advantage_target: 0.60
+      automatic_success: false
+      tone: ["rational", "confident", "proactive"]
+    population_distribution:
+      panicked_players: {min: 0.15, max: 0.20}
+      ordinary_players: {min: 0.45, max: 0.55}
+      skilled_players: {min: 0.20, max: 0.25}
+      regional_elites: {min: 0.05, max: 0.08}
+      special_rivals: {min: 0.01, max: 0.03}
+    difficulty_calibration:
+      system_operations: {resistance_min: 0, resistance_max: 6}
+      daily_talk: {resistance_min: 4, resistance_max: 8}
+      newbie_exploration: {resistance_min: 10, resistance_max: 16}
+      normal_danger: {resistance_min: 18, resistance_max: 24}
+      high_risk: {resistance_min: 28, resistance_max: 38}
+    failure_distribution:
+      critical_success_pct: {min: 0.08, max: 0.10}
+      normal_success_pct: {min: 0.70, max: 0.75}
+      costly_success_pct: {min: 0.15, max: 0.22}
+      partial_failure_pct: {min: 0.55, max: 0.65}
+      severe_failure_pct: {min: 0.30, max: 0.40}
+      catastrophic_failure_pct: 0.05
   professions: {}
   starting_profession: null
-  
   talent_deck:
-    - id: "neuro_link_v2"
-      name: "神经链接 v2.0"
-      description: "增强大脑与网络的直接连接能力"
+    - id: "cyber_warfare"
+      name: "网络战士"
+      description: "精通网络入侵战术，可以在战斗中快速破解敌方系统"
       rarity: "A"
       effect:
         action_modifiers:
-          RESEARCH: 0.25
-          HACKING: 0.30
+          HACKING: 0.20
         attribute_bonus:
           spirit: 2
-    - id: "chrome_arm"
-      name: "义肢手臂"
-      description: "强化战斗与体力型任务"
+    - id: "neural_damping"
+      name: "神经阻尼器"
+      description: "减少精神伤害和疲劳积累，在高压环境下保持冷静"
       rarity: "B"
       effect:
         action_modifiers:
-          COMBAT: 0.20
-          BUILD: 0.15
+          RESIST_STRESS: 0.15
         attribute_bonus:
-          strength: 3
-          constitution: 1
-    - id: "data_miner"
-      name: "数据矿工"
-      description: "从废弃电子设备中提取有价值信息"
-      rarity: "B"
+          constitution: 2
+    - id: "mod_master"
+      name: "义体大师"
+      description: "擅长改装和优化义体设备，获得额外性能增益"
+      rarity: "A"
       effect:
         action_modifiers:
-          EXTRACT: 0.35
-          RECYCLE: 0.25
+          CRAFT: 0.20
         attribute_bonus:
-          agility: 2
-
+          strength: 2
   setting:
-    safe_base: "锈铁方舟"
-    external_dangers: "辐射尘暴、变异生物、敌对帮派、网络入侵者"
-    exploration_method: "废墟探索与技术回收"
-    disaster_cycle: "每 7 天一次辐射尘暴"
-    disaster_type: "辐射尘暴"
-  
+    safe_base: "下城区第 7 号集装箱基地"
+    external_dangers:
+      - "义体改造失控"
+      - "企业私兵"
+      - "网络病毒"
+      - "黑市帮派"
+    exploration_method: "义体植入与黑客入侵"
+    disaster_cycle: "每 7 天一次净化的'数据风暴'"
+    disaster_type: "数据风暴"
   resources:
     primary:
-      - name: 废铁
-        description: 基础建筑材料
-      - name: 燃料
-        description: 能源储备
-      - name: 食物包
-        description: 维持生存的基础营养剂
-      - name: 电池
-        description: 电力设备能源
-      - name: 芯片
-        description: 高科技组件
+      - name: "信用点"
+        description: "通用货币"
+      - name: "芯片"
+        description: "义体和系统的核心组件"
+      - name: "纳米修复液"
+        description: "治疗创伤和修复损坏"
+      - name: "量子密钥"
+        description: "稀有加密密钥"
+      - name: "电池单元"
+        description: "能量存储设备"
     secondary:
-      - name: 药品
-      - name: 工具套件
-      - name: 防护装备
-    rare:
-      - name: 量子核心
-      - name: 纳米材料
+      - name: "强化材料"
+    rare: []
     currency: "信用点"
-
   public_survival:
-    system_name: "全球求生系统"
-    region_name: "太平洋废墟区"
-    opening_announcement: "所有玩家已被投放至太平洋废墟区，7 天后首次辐射尘暴将覆盖全区域。只有存活并积累足够积分者才能进入下一阶段。"
+    system_name: "赛博求生系统"
+    region_name: "新上海第 7 区"
+    opening_announcement: "欢迎来到新上海第 7 区生存挑战！所有参赛者已同步接入神经链接系统，你们的每一个决策都将影响排名和存活率。"
     opening_rules:
-      - "每日清晨 6:00 至傍晚 18:00 为安全活动时段"
-      - "夜晚会 spawn 高危险度的变异生物"
-      - "排行榜前 10% 的玩家可获得额外资源补给"
-      - "死亡将掉落 70% 的背包物品并在复活点重生"
+      - "每个区域都有企业监控，被发现会触发惩罚"
+      - "每日零点是数据风暴预热期，风险加倍"
+      - "排行榜前 10% 可在第七天获得稀有补给空投"
+      - "与其他玩家交易可能被背叛，需谨慎"
+      - "完成企业任务可获得额外资源，但可能暴露位置"
+      - "死亡后保留 30% 物品在复活点重生"
     starting_channel_messages:
-      - sender: "系统管理员"
-        message: "警告：检测到东区出现大规模变异生物群，请玩家避免靠近！"
-      - sender: "幸存者_Alpha"
-        message: "有人知道吗？西区的资源点已经被一个帮派控制了"
-      - sender: "TechRebuilder"
-        message: "我刚刚在旧地铁站发现了一个可修复的太阳能发电机"
-      - sender: "NomadWalker"
-        message: "昨晚差点死在辐射狼嘴里，大家晚上千万别单独行动"
-      - sender: "DataMiner99"
-        message: "废旧服务器里的芯片价值很高，值得冒险去捡"
+      - sender: "系统通知"
+        message: "全区已有 98,547,231 人同步接入，当前在线 87,234,112 人"
+      - sender: "CyberWolf_99"
+        message: "第 3 区的网吧已经被黑帮占领了，大家小心!"
+      - sender: "NeonRider"
+        message: "我刚才在黑市换了个低级义眼，视野清晰多了"
+      - sender: "DataGhost"
+        message: "有人知道企业任务的真实奖励吗？昨天做了三个只给了几百信用点"
+      - sender: "VoidHunter"
+        message: "警告：东区地下通道出现不明信号，建议绕行"
     initial_peers:
-      - id: "AlphaLeader"
-        name: "阿尔法领袖"
-        opening_strategy: "初期快速占领资源密集区，建立据点"
-        visible_edge: "拥有 3 名初始队友和一套完整防御工事"
-      - id: "TechGuru"
-        name: "技术大师"
-        opening_strategy: "专注于科技升级和资源转化效率"
-        visible_edge: "已解锁高级 crafting 配方，可制作稀有装备"
-      - id: "CombatVet"
-        name: "战斗老兵"
-        opening_strategy: "通过战斗快速获取经验和战利品"
-        visible_edge: "等级 3 级，配备军用级武器和防具"
-      - id: "ScavQueen"
-        name: "拾荒女王"
-        opening_strategy: "高效探索和资源收集，避免正面冲突"
-        visible_edge: "移动仓库容量+50%，搜索成功率+25%"
-      - id: "ShadowNet"
-        name: "暗影网虫"
-        opening_strategy: "利用黑客技术和隐秘行动获取优势"
-        visible_edge: "可远程入侵敌方设施，窃取资源和情报"
+      - id: "peer_001"
+        name: "影刃"
+        opening_strategy: "优先搜集武器和防御义体，走激进路线"
+        visible_edge: "初始携带一把激光匕首（攻击力 +3）"
+      - id: "peer_002"
+        name: "网际行者"
+        opening_strategy: "专精网络入侵，快速破解安全系统获取资源"
+        visible_edge: "初始自带高级防火墙模块，受攻击概率 -20%"
+      - id: "peer_003"
+        name: "机械师艾拉"
+        opening_strategy: "建立小型制造工坊，持续产出耗材"
+        visible_edge: "初始解锁二级 crafting 配方库"
+      - id: "peer_004"
+        name: "幽灵"
+        opening_strategy: "擅长潜行和隐匿，避免正面冲突"
+        visible_edge: "初始穿着光学迷彩服（潜行成功率 +15%）"
     competition:
       initial_percentile: 50
       outcome_scores:
-        大成功：100
-        普通成功：50
-        成功但付出代价：30
-        失败但获得部分信息：15
-        局部失败：5
-        严重失败：0
-        死亡：-50
-      location_discovery_bonus: 25
-      knowledge_bonus: 20
-      positive_resource_bonus_cap: 100
+        "大成功": 15
+        "普通成功": 5
+        "成功但付出代价": 2
+        "失败但获得部分信息": 1
+        "局部失败": 0
+        "严重失败": -5
+        "死亡": -20
+      location_discovery_bonus: 3
+      knowledge_bonus: 2
+      positive_resource_bonus_cap: 10
       percentile_per_score: 0.5
-      loss_roll_threshold: 75
+      loss_roll_threshold: 25
       losses_per_trigger: 3
       rank_season_end_turn: 50
-      active_rival_count: 5
-
+      active_rival_count: 2
   rules:
     safe_zone:
-      description: "基地内部受到保护，不会受到外界威胁"
-      limitation: "基地核心被摧毁后保护失效"
+      description: "基地内部受到电子防护罩保护"
+      limitation: "防护罩能量耗尽后失效，需要补充能源"
     exploration:
-      frequency: "每天一次"
-      return_rule: "找到撤离点或返回基地才能结束探索"
-      night_modifier: "夜间危险×3"
+      frequency: "每天一次正式探索"
+      return_rule: "必须在数据风暴来临前返回基地"
+      night_modifier: "夜间行动隐蔽性 +20%，但遭遇敌人概率 +15%"
     death:
       type: "checkpoint"
-      inventory_drop_rate: 0.70
+      inventory_drop_rate: 0.3
     disaster:
       cycle_days: 7
       first_event: "第 7 天"
-      escalation: "每次灾难强度 +15%,持续 3 天"
+      escalation: "每次风暴强度 +10%，持续时间延长 1 小时"
     pvp:
-      enabled: false
+      enabled: true
       safe_zone_pvp: false
     progression:
       player_level: true
       base_level: true
       talent_per_level: true
-  
-  mechanics:
-    capabilities:
-      combat: null
-      building: null
-      crafting: null
-      factions: null
-      disasters: null
-      trading: null
-      peer_simulation: null
-      
-    ranking:
-      enabled_dimensions: []
-      dimension_weights: {}
-      dimension_scales: {}
-      
-    peer_simulation:
-      enabled: true
-      action_pool: ["EXPLORATION", "COMBAT", "CRAFTING", "BASE_MANAGEMENT", "TRADE"]
-      population_size: 15
-      rolling_window: 10
-
+  generation:
+    mechanics_source: "llm_world_blueprint"
+    world_creator: "llm"
+    generated_fields: []
   world_blueprint:
-    starting_location: "锈铁方舟基地"
+    starting_location: "loc_001"
     locations:
-      - id: "downtown_ruins"
-        name: "市中心废墟"
+      - id: "loc_001"
+        name: "下城区第 7 号集装箱基地"
+        safe: true
+        discovered: true
+        travel_minutes_from_base: 0
+        travel_stamina_from_base: 0
+        extraction_minutes: 0
+        extraction_stamina_cost: 0
+      - id: "loc_002"
+        name: "废弃数据中心"
         safe: false
         discovered: false
-        travel_cost: 120
-        extraction_point: true
-      - id: "old_subway"
-        name: "旧地铁系统"
+        travel_minutes_from_base: 45
+        travel_stamina_from_base: 15
+        extraction_minutes: 30
+        extraction_stamina_cost: 10
+      - id: "loc_003"
+        name: "黑市交易站"
         safe: false
         discovered: false
-        travel_cost: 90
-        extraction_point: true
-      - id: "tech_wasteland"
-        name: "科技垃圾场"
+        travel_minutes_from_base: 30
+        travel_stamina_from_base: 10
+        extraction_minutes: 20
+        extraction_stamina_cost: 8
+      - id: "loc_004"
+        name: "企业办公楼"
         safe: false
         discovered: false
-        travel_cost: 150
-        extraction_point: true
-      - id: "corporate_tower"
-        name: "企业大厦"
+        travel_minutes_from_base: 60
+        travel_stamina_from_base: 20
+        extraction_minutes: 40
+        extraction_stamina_cost: 15
+      - id: "loc_005"
+        name: "旧地铁站"
         safe: false
         discovered: false
-        travel_cost: 180
-        extraction_point: true
-        high_value: true
-      - id: "power_station"
-        name: "废弃电站"
-        safe: false
-        discovered: false
-        travel_cost: 200
-        extraction_point: true
-        requires_key: true
+        travel_minutes_from_base: 25
+        travel_stamina_from_base: 8
+        extraction_minutes: 15
+        extraction_stamina_cost: 5
     enemies:
-      - id: "rad_rat"
-        name: "辐射老鼠"
+      - id: "enemy_001"
+        name: "武装无人机"
+        level: 2
+        quality: "normal"
         hp: 30
+        max_hp: 30
         attack: 8
-        defense: 3
-        exp: 10
-        drop: ["废铁", "变异的皮毛"]
-        location: ["downtown_ruins", "old_subway"]
-      - id: "mutant_scavenger"
-        name: "变异拾荒者"
+        accuracy: 75
+        defense_skill: 40
+        armor: 3
+        attributes: {}
+        drops:
+          "芯片": [1, 5]
+          "信用点": [10, 20]
+        location_id: "loc_002"
+      - id: "enemy_002"
+        name: "帮派打手"
+        level: 3
+        quality: "normal"
+        hp: 45
+        max_hp: 45
+        attack: 12
+        accuracy: 70
+        defense_skill: 50
+        armor: 5
+        attributes: {}
+        drops:
+          "信用点": [25, 50]
+          "纳米修复液": [1, 1]
+        location_id: "loc_003"
+      - id: "enemy_003"
+        name: "企业安保机器人"
+        level: 5
+        quality: "elite"
         hp: 60
+        max_hp: 60
         attack: 15
-        defense: 8
-        exp: 25
-        drop: ["破旧的工具", "少量食物", "随机芯片"]
-        location: ["downtown_ruins", "tech_wasteland"]
-      - id: "rad_wolf"
-        name: "辐射狼"
-        hp: 80
-        attack: 20
-        defense: 10
-        exp: 35
-        drop: ["狼皮", "狼肉 (可食用)", "牙齿"]
-        location: ["tech_wasteland", "outskirts"]
-      - id: "cyber_ghoul"
-        name: "网络丧尸"
-        hp: 100
-        attack: 25
-        defense: 15
-        exp: 50
-        drop: ["损坏的植入体", "加密芯片"]
-        location: ["corporate_tower", "old_subway"]
-      - id: "boss_rad_titan"
-        name: "辐射泰坦"
-        hp: 500
-        attack: 80
-        defense: 50
-        exp: 500
-        drop: ["量子碎片", "纳米装甲图纸"]
-        location: ["power_station"]
-        boss: true
+        accuracy: 80
+        defense_skill: 60
+        armor: 8
+        attributes: {}
+        drops:
+          "芯片": [5, 10]
+          "量子密钥": []
+        location_id: "loc_004"
     areas:
-      - id: "downtown_zone"
-        name: "市中心生态区"
-        danger_level: 2
-        resources: ["废铁", "芯片", "电子元件"]
-        enemies: ["rad_rat", "mutant_scavenger"]
-        special_loot: ["旧时代照片", "机械手表"]
-        extraction_time: 60
-      - id: "subway_zone"
-        name: "地铁生态区"
-        danger_level: 3
-        resources: ["电缆", "电池", "轨道零件"]
-        enemies: ["rad_rat", "cyber_ghoul"]
-        special_loot: ["旧时代数据存储器"]
-        extraction_time: 90
-        night_boost: true
-      - id: "wasteland_zone"
-        name: "垃圾场生态区"
-        danger_level: 4
-        resources: ["废铁", "金属", "可回收塑料"]
-        enemies: ["mutant_scavenger", "rad_wolf"]
-        special_loot: ["大型机械部件"]
-        extraction_time: 120
+      - id: "area_001"
+        name: "废弃数据中心底层"
+        enemy_types: ["enemy_001", "enemy_004"]
+        resource_spawns: ["chips", "battery_units"]
+        escape_difficulty: 中等
+      - id: "area_002"
+        name: "黑市后巷"
+        enemy_types: ["enemy_002", "enemy_005"]
+        resource_spawns: ["credits", "nano_healer", "materials"]
+        escape_difficulty: 简单
     modules:
-      - id: "solar_panel"
-        name: "太阳能电池板"
-        space: 1
-        build_cost: {"废铁": 50, "芯片": 20}
-        maintenance: {"燃料": 1}
-        effect: "每天自动生成 30 单位电力"
-      - id: "water_recycler"
-        name: "水循环器"
-        space: 2
-        build_cost: {"废铁": 80, "工具套件": 5}
-        maintenance: {"燃料": 2}
-        effect: "每天自动净化 50 升水"
-      - id: "workbench"
-        name: "工作台"
-        space: 1
-        build_cost: {"废铁": 30}
-        effect: "解锁基本 crafting 配方"
-      - id: "defense_turret"
+      - id: "mod_001"
+        name: "太阳能充电板"
+        cost:
+          credits: 100
+          chips: 20
+          materials: 10
+        effect: "每日自动恢复基地电力 +50"
+        space_cost: 1
+      - id: "mod_002"
         name: "防御炮塔"
-        space: 1
-        build_cost: {"废铁": 100, "芯片": 30, "电池": 50}
-        effect: "自动攻击靠近的敌人，降低基地受到的伤害"
+        cost:
+          credits: 200
+          chips: 50
+          materials: 25
+        effect: "基地防御力 +10，自动攻击入侵敌人"
+        space_cost: 1
     recipes:
-      - id: "basic_ammo"
-        name: "基础弹药"
-        cost: {"废铁": 10, "电池": 5}
-        time: 30
-        output: 10
-      - id: "medical_kit"
-        name: "医疗包"
-        cost: {"药品": 5, "废铁": 10}
-        time: 60
-        output: 1
-      - id: "toolkit"
-        name: "工具套件"
-        cost: {"废铁": 30, "芯片": 10}
-        time: 90
-        output: 1
-      - id: "battery_charger"
-        name: "电池充电器"
-        cost: {"芯片": 20, "废铁": 40}
-        time: 120
-        output: 1
+      - id: "recipe_001"
+        name: "基础激光手枪"
+        cost:
+          chips: 30
+          materials: 15
+          credits: 150
+        time_minutes: 120
+        result:
+          equipment: "laser_pistol"
+          stats:
+            attack: 12
+      - id: "recipe_002"
+        name: "纳米修复液（小瓶）"
+        cost:
+          nano_healer: 1
+          battery_units: 5
+        time_minutes: 30
+        result:
+          items: "nano_healer_small"
+          count: 3
     npcs:
-      - id: "dr_omega"
-        name: "欧米茄医生"
-        location: "锈铁方舟基地"
-        personality: "冷漠但专业"
-        services: ["治疗", "植入体安装", "属性提升"]
-        relationship: 50
-      - id: "trade_king"
-        name: "交易之王"
-        location: "市中心废墟"
-        personality: "贪婪狡诈"
-        services: ["物品交易", "情报出售"]
-        relationship: 30
-      - id: "old_soldier"
-        name: "老兵杰克"
-        location: "旧地铁系统"
-        personality: "忠诚勇敢"
-        services: ["战斗指导", "装备修理"]
-        relationship: 40
+      - id: "npc_001"
+        name: "老陈"
+        location: "loc_003"
+        role: "黑市商人"
+        offers: ["chips", "weapons", "illegal_modules"]
+        personality: {caution: 80, ambition: 30, empathy: 20}
+        status: "active"
+        goal: "积累财富和人脉"
+        schedule: "白天在市场，晚上在地下交易区"
+      - id: "npc_002"
+        name: "凯恩"
+        location: "loc_002"
+        role: "逃亡黑客"
+        quests: ["破解企业防火墙", "窃取数据"]
+        personality: {caution: 40, ambition: 70, empathy: 60}
+        status: "active"
+        goal: "摆脱企业追踪"
+        schedule: "夜间活动"
     factions:
-      - id: "steel_claw"
-        name: "钢爪帮派"
-        location: "市中心废墟"
-        hostility: " hostile"
-        goal: "控制资源点"
-        power: 70
-      - id: "tech_collective"
-        name: "科技集体"
-        location: "旧地铁系统"
-        hostility: "neutral"
-        goal: "研究旧时代科技"
-        power: 50
+      - id: "fac_001"
+        name: "义体改革阵线"
+        location: "loc_002"
+        goal: "解放被企业控制的义体技术"
+        attitude_to_player: neutral
+      - id: "fac_002"
+        name: "新上海企业联盟"
+        location: "loc_004"
+        goal: "维护现有秩序和企业利益"
+        attitude_to_player: hostile
     action_targets:
-      - id: "search_rubble"
-        name: "搜索瓦砾堆"
-        action_type: "EXPLORATION"
-        difficulty: 3
-        location: "downtown_ruins"
-        success_reward: ["废铁", "芯片"]
-        failure_consequence: "可能遭遇敌人"
-      - id: "hack_terminal"
-        name: "黑入终端机"
-        action_type: "RESEARCH"
-        difficulty: 5
-        location: "corporate_tower"
-        success_reward: ["加密数据", "信用点"]
-        failure_consequence: "触发警报，引来保安"
+      - id: "target_001"
+        name: "破解安全终端"
+        action_type: "HACKING"
+        required_skill: "hacking"
+        location_id: "loc_002"
+        primary_attribute: "spirit"
+        target_difficulty: 15
+        time_minutes: 60
+        stamina_cost: 5
+        mental_cost: 10
+        effects:
+          success: "获取芯片和信用点，可能发现隐藏数据"
+          partial_failure: "获取部分信息但触发轻微警报"
+          failure: "警报触发，引来敌人攻击"
+      - id: "target_002"
+        name: "黑市交易"
+        action_type: "TRADE"
+        required_skill: ""
+        location_id: "loc_003"
+        primary_attribute: "spirit"
+        target_difficulty: 10
+        time_minutes: 30
+        stamina_cost: 2
+        mental_cost: 3
+        effects:
+          success: "获得稀有物品或出售战利品，价格优惠"
+          partial_failure: "完成交易但价格不佳"
+          failure: "被黑市商人欺诈，损失信用点或物品"
     starting_inventory:
       resources:
-        废铁：50
-        燃料：20
-        食物包：10
-        电池：15
+        credits: 300
+        chips: 10
+        nano_healer: 2
       equipment:
-        main_weapon: "自制手枪"
-        chest: "加强夹克"
-        legs: "工装裤"
-        accessory_1: "多功能工具带"
+        main_weapon: "basic_dagger"
+        helmet: "basic_hood"
       items:
-        - "急救包 x2"
-        - "压缩饼干 x5"
+        - "battery_units"
+        - "emergency_rations"
     disasters:
-      - id: "rad_storm"
-        name: "辐射尘暴"
-        warning_time: 120
-        duration: 720
-        effects: "外部探索危险度 +50%,HP 每秒减少"
-        safety_measure: "待在基地内可获得保护"
+      - type: "data_storm"
+        cycle_days: 7
+        warning_time_minutes: 60
+        duration_minutes: 180
+        effects:
+          - "电子设备故障率 +50%"
+          - "网络入侵难度 +20%"
+          - "敌对 AI 增强"
     event_pool:
-      - id: "emergency_signal"
-        name: "紧急求救信号"
-        trigger_probability: 0.15
-        description: "收到远处玩家的求救信号"
-        options: ["前往救援", "忽略信号", "设下陷阱"]
-      - id: "abandoned_supply"
-        name: "废弃补给箱"
-        trigger_probability: 0.20
-        description: "发现上一个阶段的遗留补给"
-        options: ["开箱获取", "标记为他人设陷阱", "原地报告"]
-      - id: "tech_fallout"
-        name: "科技余波"
-        trigger_probability: 0.10
-        description: "旧时代科技装置的异常反应"
-        options: ["尝试修复", "拆除危险部件", "远离并记录"]
-  
-  mysteries:
-    - "这个世界是如何变成废墟的？"
-    - "旧时代的文明到底发生了什么？"
-    - "是否存在其他幸存者聚集地？"
-    - "辐射尘暴是否有可能被阻止？"
-    - "量子核心的真正用途是什么？"
-  
-  phases:
-    - name: "苟活求生"
-      description: "第 1-20 天，主要目标是生存和基础建设"
-      milestones: ["建立基地", "首次探索成功", "遭遇第一次灾难"]
-    - name: "扩张发展"
-      description: "第 21-50 天，开始与其他玩家互动和扩张"
-      milestones: ["解锁高级模块", "与其他势力交涉", "击败第一个精英敌人"]
-
+      - id: "evt_001"
+        name: "可疑信号"
+        trigger_conditions: "第 3-10 天，随机事件"
+        outcomes:
+          - "发现隐藏资源点"
+          - "遭遇伏击"
+          - "收到神秘交易邀请"
+      - id: "evt_002"
+        name: "义体失控"
+        trigger_conditions: "使用过期义体时"
+        outcomes:
+          - "临时属性下降"
+          - "需要医疗修复"
+          - "完全损毁装备"
+    creative_slots:
+      high_tension_events: 3
+      npc_interactions: 5
+      faction_reputation_changes: 2
   motifs:
-    - "黑暗中的人性光辉"
-    - "科技的双刃剑效应"
-    - "末世中的希望与绝望"
-
+    - "科技与人性的边界"
+    - "阶级固化与反抗"
+    - "虚拟与现实的模糊"
   taboo_domains:
-    - "不要完全依赖 AI 决策"
-    - "不要忽视资源的长期规划"
-    - "不要在夜晚独自外出"
-
+    - "不可设定无敌天赋"
+    - "不可跳过资源管理"
+    - "不可回避社交博弈"
 player_talent:
-  name: "神经感应先驱"
-  description: "你的大脑经过基因改造，能够感知周围的科技装置和网络波动"
-  trigger: "每当附近有隐藏的电子设备、未发现的地点或被干扰的信号时"
-  effect: "自动显示附近 50 米内的隐藏目标和潜在危险"
-  limitations: "每次只能检测一个目标，冷却时间 5 分钟"
+  name: "神经超频"
+  description: "主角的神经突触经过特殊改造，可以在短时间内进入'超频状态'，大幅提升信息处理速度和反应能力。这种能力源自非法实验的产物，既是天赋也是诅咒。"
+  trigger: "每日限用一次，持续 30 分钟；使用后精神力 -30，需要 12 小时恢复"
+  effect: "超频状态下，所有智力检定和反应速度相关的判定优势 +25%; 可以解析隐藏信息 1 次"
+  limitations: "无法连续使用，使用后会产生剧烈头痛（疲劳 +20），且容易被高级 AI 侦测到异常信号"
   mechanical_effect:
     action_modifiers:
-      RESEARCH: 0.30
-      EXPLORATION: 0.25
-      HACKING: 0.35
-    attribute_bonus:
-      spirit: 3
+      HACKING: 0.25
+      INVESTIGATION: 0.25
+      COMBAT_REACTION: 0.25
   strategic_loop:
-    input: "主动探索高风险区域，寻找隐藏的资源和秘密"
-    conversion: "利用特殊感知能力发现别人无法找到的宝藏和捷径"
-    competitive_impact: "前期资源优势明显，能更快升级基地和解开谜题"
-    counterplay: "其他玩家可以通过范围搜索和团队合作弥补这一差距"
+    input: "通过深度潜入高风险区域获取高价值数据和稀有义体组件"
+    conversion: "利用神经超频的解析能力识别隐藏价值和弱点，以最小代价获取最大收益"
+    competitive_impact: "在全民系统中，其他玩家只能依靠装备和等级，主角可以提前获取关键信息和战略优势"
+    counterplay: "企业级 AI 会自动标记高频使用者，帮派精英会对已知威胁采取针对性猎杀"
   opening_card:
-    advantage: "第一天就能定位到附近的隐藏资源点和安全的探索路线，避免无谓的风险"
-    first_use: "在游戏开始的清晨就使用，立即发现最近的高价值资源点"
-    comparison: "普通玩家需要盲目探索或依赖运气，而你有了明确的导航"
-    hard_limit: "每天只能使用 3 次，每次探测距离不能超过 500 米，且无法探测有伪装的目标"
+    advantage: "开局即可解析一个隐藏信息源（如废弃设施中的秘密仓库、NPC 的交易底牌等）"
+    first_use: "第一天立即使用，选择废弃数据中心或企业办公楼的隐藏入口，直接获得首周关键资源"
+    comparison: "普通玩家需要花费大量时间试探和侦查，主角可以直接锁定高价值目标"
+    hard_limit: "使用后当天无法进行其他高风险行动（神经系统过载），且 24 小时内无法再次使用任何类似能力"

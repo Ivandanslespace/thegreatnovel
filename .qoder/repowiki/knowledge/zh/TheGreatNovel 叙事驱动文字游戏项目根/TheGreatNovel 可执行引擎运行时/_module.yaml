@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: engine_runtime
-title: TheGreatNovel 引擎运行时
+title: TheGreatNovel 可执行引擎运行时
 scope:
     - engine_runtime/
 source_files: []

@@ -40,10 +40,78 @@ from engine_runtime.world_compiler import COMPILER_VERSION, compile_world_bundle
 from engine_runtime.ratings import normalize_rating
 from engine_runtime.public_survival import initial_public_states
 from engine_runtime.state import load_game_state
+from engine_runtime.validators_aggregate import ValidationContext
 
 
 DIFFICULTIES = {"休闲", "标准", "硬核"}
 DEATH_MODES = {"permanent", "checkpoint", "legacy"}
+
+
+def validate_world_aggregate(world: dict) -> str:
+    """Run aggregate validation on world before compilation.
+    
+    Returns a formatted error report if issues found, empty string if valid.
+    
+    This is the new P0-5 improvement: instead of fail-fast validation that
+    makes LLM fix fields one by one, we now collect ALL errors at once so
+    the LLM can fix everything in one round.
+    """
+    try:
+        ctx = ValidationContext()
+        
+        # Normalize capabilities first (fixes null/disaster issue)
+        from engine_runtime.validators_aggregate import _normalize_capabilities
+        capabilities = _normalize_capabilities(world.get("capabilities", {}), ctx)
+        
+        # Check for common schema mismatches
+        blueprint = world.get("world_blueprint", {})
+        
+        # Validate starting_location against locations registry
+        starting_loc = str(world.get("starting_location") or "")
+        location_ids = set()
+        for loc in blueprint.get("locations", []) or []:
+            if isinstance(loc, dict) and loc.get("id"):
+                location_ids.add(str(loc["id"]))
+        
+        if starting_loc and starting_loc not in location_ids:
+            ctx.add("MISSING_REQUIRED_FIELD", 
+                   "starting_location",
+                   f"Location '{starting_loc}' not found in locations registry")
+            if location_ids:
+                ctx.add("SUGGESTION", "starting_location",
+                       f"Available locations: {', '.join(sorted(location_ids)[:3])}")
+        
+        # Collect action_targets errors
+        for target in blueprint.get("action_targets", []) or []:
+            if not isinstance(target, dict):
+                continue
+            target_id = target.get("id", "unknown")
+            label = f"world_blueprint.action_targets.{target_id}"
+            
+            for field in ("name", "location_id", "primary_attribute", 
+                         "effects"):
+                if field not in target or target[field] in (None, ""):
+                    ctx.add("MISSING_REQUIRED_FIELD", 
+                           f"{label}.{field}",
+                           f"Required field is missing")
+        
+        if not ctx.has_p0():
+            return ""
+        
+        # Format error report
+        lines = ["⚠️ World validation failed with multiple issues:", ""]
+        for i, issue in enumerate(ctx.issues, 1):
+            lines.append(f"{i}. [{issue['code']}] {issue['path']}")
+            lines.append(f"   {issue['message']}")
+            if 'detail' in issue:
+                lines.append(f"   → {issue['detail']}")
+            lines.append("")
+        
+        lines.append("Fix all these issues and retry.")
+        return "\n".join(lines)
+    
+    except Exception as exc:
+        return f"Validation error: {exc}"
 
 
 REQUIRED_QUESTIONS = (
@@ -576,6 +644,12 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
         mechanics_cfg = world.get("mechanics", {})
         
         try:
+            # P0-5: Run aggregate validation first to collect ALL errors at once
+            error_report = validate_world_aggregate(world)
+            if error_report:
+                print(error_report, file=sys.stderr)
+                return 1
+            
             bundle = compile_world_bundle(
                 theme=world["theme"],
                 language=world["language"],

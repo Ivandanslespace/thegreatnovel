@@ -3,11 +3,7 @@ schema_version: 1
 locale: zh-CN
 branch: main
 nodes_managed: true
-<<<<<<< Updated upstream
-exported_at: "2026-07-31T09:23:31Z"
-=======
-exported_at: "2026-07-31T09:54:36Z"
->>>>>>> Stashed changes
+exported_at: "2026-07-31T10:22:22Z"
 modules:
     "":
         dir_name: TheGreatNovel 叙事驱动文字游戏项目根
@@ -37,13 +33,8 @@ modules:
         depends_on: []
         related_to: []
     engine_runtime:
-<<<<<<< Updated upstream
-        dir_name: TheGreatNovel 可执行规则引擎
-        title: TheGreatNovel 可执行规则引擎
-=======
-        dir_name: TheGreatNovel 引擎运行时
-        title: TheGreatNovel 引擎运行时
->>>>>>> Stashed changes
+        dir_name: TheGreatNovel 可执行引擎运行时
+        title: TheGreatNovel 可执行引擎运行时
         scope:
             - engine_runtime/
         source_files: []
@@ -109,8 +100,8 @@ modules:
         depends_on: []
         related_to: []
     saves_and_templates:
-        dir_name: 世界与存档模板定义
-        title: 世界与存档模板定义
+        dir_name: 存档与世界模板 Schema
+        title: 存档与世界模板 Schema
         scope:
             - templates/
         source_files: []
@@ -118,8 +109,8 @@ modules:
         depends_on: []
         related_to: []
     tools:
-        dir_name: TheGreatNovel 工具脚本集
-        title: TheGreatNovel 工具脚本集
+        dir_name: TheGreatNovel 引擎工具脚本集
+        title: TheGreatNovel 引擎工具脚本集
         scope:
             - tools/
         source_files: []
