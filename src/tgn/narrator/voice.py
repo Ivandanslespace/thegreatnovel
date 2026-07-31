@@ -22,6 +22,7 @@ class WritingVoiceProfile:
     """
     name: str
     instructions: str
+    examples: Tuple[str, ...] = ()
 
 
 class VoiceNotFoundError(Exception):

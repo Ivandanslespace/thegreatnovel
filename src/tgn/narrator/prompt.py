@@ -92,6 +92,17 @@ def build_narrator_prompt(
     sections.append(voice_profile.instructions)
     sections.append("")
     
+    # Style examples (if any) - clearly isolated from FACTS
+    if voice_profile.examples:
+        sections.append("[STYLE EXAMPLES — NOT WORLD FACTS]")
+        sections.append("以下内容只用于模仿写作风格。")
+        sections.append("其中出现的人物、地点、物品、资源、数量、事件和世界设定，")
+        sections.append("都不是当前游戏事实。")
+        sections.append("")
+        for example in voice_profile.examples:
+            sections.append(example)
+        sections.append("")
+    
     # Output requirements
     sections.append("[OUTPUT REQUIREMENTS]")
     sections.append("只输出小说正文，不要包含任何元评论、解释或标签。")

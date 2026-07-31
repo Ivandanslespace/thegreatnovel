@@ -264,15 +264,19 @@ class TestLoadVoicePack:
         pack_dir = tmp_path / "test_voice"
         pack_dir.mkdir()
         
+        # Construct an absolute path that works on both Windows and POSIX
+        outside_path = (tmp_path.parent / "outside.md").resolve()
+        assert outside_path.is_absolute()
+        
         manifest = {
             "id": "test_voice",
-            "instructions_file": "/etc/passwd"
+            "instructions_file": str(outside_path)
         }
         
         with open(pack_dir / "manifest.json", 'w', encoding='utf-8') as f:
             json.dump(manifest, f)
         
-        with pytest.raises(VoicePackSecurityError, match="Path traversal"):
+        with pytest.raises(VoicePackSecurityError, match="Absolute paths"):
             load_voice_pack(pack_dir)
     
     def test_local_pack_cannot_override_builtin(self, valid_pack_dir):

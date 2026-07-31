@@ -176,12 +176,11 @@ def load_voice_pack(pack_dir: Path) -> WritingVoiceProfile:
     language = manifest.get('language', 'zh-CN')
     version = manifest.get('version', 1)
     
-    # Create voice profile
-    # Note: WritingVoiceProfile currently only has name and instructions
-    # We could extend it later to include metadata, but for now we keep it simple
+    # Create voice profile with examples
     profile = WritingVoiceProfile(
         name=voice_id,
         instructions=instructions,
+        examples=examples,
     )
     
     return profile

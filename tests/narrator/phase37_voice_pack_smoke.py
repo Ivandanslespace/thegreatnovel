@@ -92,6 +92,9 @@ def main():
         print("ERROR: Autoplay was rejected!")
         return False
     
+    # Calculate hash before any narration
+    hash_before = state_hash(autoplay_result.final_state.__dict__)
+    
     # Step 3: Narrate with default voice (cablecar_survival)
     print("Step 3: Narrating with default voice (cablecar_survival)...")
     client1 = FakeNarratorClient([
@@ -107,12 +110,11 @@ def main():
     print(f"Voice used: {service1.voice_profile.name}")
     print()
     
-    # Verify game state unchanged
-    hash_before = state_hash(autoplay_result.final_state.__dict__)
-    hash_after = state_hash(autoplay_result.final_state.__dict__)
+    # Verify game state unchanged after cablecar narration
+    hash_after_cablecar = state_hash(autoplay_result.final_state.__dict__)
     
-    if hash_before != hash_after:
-        print("ERROR: Game state changed during narration!")
+    if hash_before != hash_after_cablecar:
+        print("ERROR: Game state changed during cablecar narration!")
         return False
     
     print(f"Gameplay final hash (cablecar): {autoplay_result.final_state_hash}")
@@ -133,7 +135,7 @@ def main():
     print(f"Voice used: {service2.voice_profile.name}")
     print()
     
-    # Verify game state still unchanged
+    # Verify game state still unchanged after jingxuan narration
     hash_after_jingxuan = state_hash(autoplay_result.final_state.__dict__)
     
     if hash_before != hash_after_jingxuan:
@@ -152,7 +154,7 @@ def main():
         return False
     
     # Both should have same game state hash
-    if hash_after != hash_after_jingxuan:
+    if hash_after_cablecar != hash_after_jingxuan:
         print("ERROR: Different game state hashes!")
         return False
     
