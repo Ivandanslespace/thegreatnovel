@@ -4,7 +4,7 @@
 > 目标：从当前"大而全、持续修 Bug"的架构退回一个可验证、可重放、可自动测试的最小核心，然后通过确定性验证与 scripted autoplay 一层一层增加功能（LLM autoplay 在 LLM Player 层建立后引入）。  
 > 原始 Legacy 审查基线：2026-07-31 `main`，最初审查时约为 `4141e905...`。  
 > 当前开发线：`mvp-rewrite`。  
-> 当前工程阶段：Phase 4 frozen；下一 active implementation phase 由 Section 52 V2 Active Roadmap 定义。  
+> 当前工程阶段：Phase 5 frozen；下一 active implementation phase 由 Section 52 V2 Active Roadmap 定义。  
 > 参考作品：用户上传的《全民纜車求生，我一級一個三選一》。
 
 > **V2 修订说明 (2026-07-31)：** 本文档经过增量架构修订。第一 WorldPack 仍可以是缆车求生 Demo，但它的 Base / Expedition / Day-Night / Three-choice 属于第一批 vertical slice 局部实现，不是整个 Engine 的宇宙规则。V2 新增反主题/结构性硬编码原则、反过度抽象原则、Knowledge boundary、Habitat 可选抽象、ProgressionTrack/Gate、Feature Module 责任边界、Compatibility Pressure Test，并更新 Phase 5+ 路线图。原有工程架构内容（EventStore、Replay、Test Pyramid、Autoplay、ExploitAgent 等）完整保留。
@@ -2925,7 +2925,8 @@ Phase 2 — frozen (phase2-action-v1)
 Phase 3 — implemented / accepted historical gameplay slice
 Phase 3.5–3.7 — narration/voice infrastructure introduced and frozen (phase-3.7-frozen)
 Phase 4 — deterministic risk slice frozen (phase-4-frozen)
-Next active phase — Phase 5: World Clock + World Phase / Hazard Window
+Phase 5 — frozen (phase-5-frozen): World Clock + World Phase / Hazard Window
+Next active phase — Phase 6: ProgressionTrack + ProgressionGate
 ```
 
 The implementation deliberately split the original "Phase 2 — Minimal Action Engine" into smaller, independently verifiable stages.
@@ -3002,7 +3003,7 @@ These were **deferred**, not removed. The remaining gameplay-oriented parts of t
 >
 > Phase 3 is no longer the next phase. Phase 3 has been implemented and its accepted behavior is now regression history.
 >
-> The current next implementation phase is defined only by the V2 Active Roadmap below: Phase 5 — World Clock + World Phase / Hazard Window.
+> The current next implementation phase is defined only by the V2 Active Roadmap below: Phase 6 — ProgressionTrack + ProgressionGate.
 
 Phase 3 was the first real gameplay vertical slice proving CableCar loop.
 
