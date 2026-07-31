@@ -67,12 +67,12 @@ def main():
     print(f"  Stop reason: {autoplay_result.stop_reason}")
     print(f"  Frames: {len(autoplay_result.frames)}\n")
     
-    # Step 3: Narrate frames
-    print("Step 3: Narrating frames...")
+    # Step 3: Narrate frames with Jingxuan-style examples
+    print("Step 3: Narrating frames with Jingxuan Writing Voice...")
     fake_client = FakeNarratorClient([
-        "你从基地出发，沿着标记的路径向目标地点移动。十分钟后，你抵达了探索地点。",
-        "你在探索地点仔细搜索，从废墟中找到了 salvage ×2，携带在身上准备返回。",
-        "你带着收获沿原路返回基地，将 salvage ×2 安全入库。",
+        "你从安全区域的边缘向下落去，绳索贴着掌心缓慢滑动，脚下原本模糊成一团的结构一点一点有了边缘，像一块沉在灰水里的铁终于浮近眼前，而你知道，在双脚真正踩上它以前，这地方仍旧只是一个名字。",
+        "你把能够翻开的地方一处处翻过去，时间也跟着动作缓慢向前挪，直到那两份还能利用的材料终于从废物之间显露出来，像浓汤里忽然碰到牙齿的一小块硬物，微不足道，却足够让人立刻知道这一趟并不是空手而归；只是最后一点力气，也在这半小时里被用得干干净净。",
+        "已经没有继续留下来的必要了，你带着刚找到的东西沿原路返回，身体里的疲惫并不壮烈，它只是沉，安静地坠在四肢末端，直到安全区域重新把你包进去，那两份材料从'找到'变成'拥有'，这趟短得几乎没有故事的旅程，才算真正结束。",
     ])
     service = NarratorService(fake_client)
     

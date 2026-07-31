@@ -3,25 +3,33 @@
 from __future__ import annotations
 
 from .models import NarrationContext
+from .voice import WritingVoiceProfile, DEFAULT_VOICE
 
 
 def build_narrator_prompt(
     context: NarrationContext,
+    voice_profile: WritingVoiceProfile | None = None,
     previous_text: str | None = None,
 ) -> str:
     """
     Build deterministic prompt for LLM narrator.
     
-    Same context always produces same prompt.
+    Same context + voice profile always produces same prompt.
     
-    The prompt explicitly forbids the LLM from:
-    - Creating new rewards, items, NPCs, enemies, locations
-    - Modifying numerical values (stamina, quantities)
-    - Revealing future information
-    - Changing game outcomes
+    Prompt structure (priority order):
+    1. [ROLE]
+    2. [NON-NEGOTIABLE FACT RULES] - highest priority
+    3. [CURRENT VERIFIED FACTS]
+    4. [WRITING VOICE] - can be overridden by facts
+    5. [PREVIOUS NARRATION] - optional
+    6. [OUTPUT REQUIREMENTS]
     
     The narrator is a PRESENTATION LAYER ONLY.
+    Facts ALWAYS override voice requirements.
     """
+    if voice_profile is None:
+        voice_profile = DEFAULT_VOICE
+    
     sections = []
     
     # Role
@@ -79,6 +87,10 @@ def build_narrator_prompt(
         sections.append("[PREVIOUS NARRATION]")
         sections.append(previous_text)
         sections.append("")
+    
+    # Writing Voice (inserted after facts, before output requirements)
+    sections.append(voice_profile.instructions)
+    sections.append("")
     
     # Output requirements
     sections.append("[OUTPUT REQUIREMENTS]")

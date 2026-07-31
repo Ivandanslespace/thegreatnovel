@@ -9,6 +9,7 @@ from .models import (
 )
 from .context import build_narration_context
 from .prompt import build_narrator_prompt
+from .voice import WritingVoiceProfile, JINGXUAN_WRITING_VOICE, DEFAULT_VOICE
 from .guard import validate_narration, NarrationValidationError
 from .service import NarratorService, narrate_run
 from .render import render_narrated_run
@@ -27,6 +28,11 @@ __all__ = [
     
     # Prompt
     "build_narrator_prompt",
+    
+    # Voice
+    "WritingVoiceProfile",
+    "JINGXUAN_WRITING_VOICE",
+    "DEFAULT_VOICE",
     
     # Guard
     "validate_narration",

@@ -7,6 +7,7 @@ from typing import Any
 from ..autoplay.models import AutoplayRunResult, StopReason, WatchFrame
 from .context import build_narration_context
 from .prompt import build_narrator_prompt
+from .voice import WritingVoiceProfile, DEFAULT_VOICE
 from .guard import validate_narration, NarrationValidationError
 from .models import NarratedFrame, NarrationError, NarrationRunResult, NarratorClient
 
@@ -17,16 +18,23 @@ class NarratorService:
     
     Flow:
     1. WatchFrame → NarrationContext (context.py)
-    2. NarrationContext → prompt (prompt.py)
+    2. NarrationContext + VoiceProfile → prompt (prompt.py)
     3. prompt → narration text (client)
     4. Validate narration (guard.py)
     5. Return NarratedFrame
     
     The narrator is PRESENTATION ONLY. It cannot modify game state.
+    Voice profile determines HOW to write, facts determine WHAT happened.
+    Facts ALWAYS override voice requirements.
     """
     
-    def __init__(self, client: NarratorClient):
+    def __init__(
+        self,
+        client: NarratorClient,
+        voice_profile: WritingVoiceProfile | None = None,
+    ):
         self.client = client
+        self.voice_profile = voice_profile if voice_profile is not None else DEFAULT_VOICE
     
     def narrate_frame(
         self,
@@ -50,8 +58,8 @@ class NarratorService:
             # Build context from frame (pure function)
             context = build_narration_context(frame)
             
-            # Build prompt (deterministic)
-            prompt = build_narrator_prompt(context, previous_text)
+            # Build prompt with voice profile (deterministic)
+            prompt = build_narrator_prompt(context, self.voice_profile, previous_text)
             
             # Generate narration via client
             narration = self.client.generate(prompt)
