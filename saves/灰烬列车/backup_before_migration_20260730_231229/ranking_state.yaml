@@ -1,9 +1,0 @@
-ranking_state:
-  rankings_enabled: true
-  player_rank_global: null
-  player_rank_regional: null
-  leaderboards: []
-  rank_season_current: 1
-  rank_season_end_turn: 100
-  prestige_points: 0
-  player_percentile_regional: null
