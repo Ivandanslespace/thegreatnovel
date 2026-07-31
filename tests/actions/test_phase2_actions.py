@@ -1,6 +1,7 @@
 """Phase 2 - Action Contract Tests (Mandatory Acceptance Tests)."""
 
 import pytest
+import sqlite3
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -157,25 +158,32 @@ class TestWaitRejectsNonIntegerAndBoolean:
 class TestActionIntentCannotControlMetadata:
     """Intent cannot control engine metadata like event_seq/game_minute."""
     
-    def test_action_intent_cannot_control_engine_metadata(self):
-        """Intent with event_seq in params should be rejected or ignored."""
+    @pytest.mark.parametrize("forbidden_field", [
+        "event_seq",
+        "decision_seq", 
+        "game_minute",
+        "state_hash",
+        "event_id",
+        "created_at",
+    ])
+    def test_action_intent_cannot_control_engine_metadata(self, forbidden_field):
+        """Intent with forbidden metadata should be rejected."""
+        params = {"minutes": 60}
+        params[forbidden_field] = 999  # Try to inject metadata
+        
         intent = ActionIntent(
             action_id="test-001",
             actor_id="player",
             action_type="WAIT",
-            params={
-                "minutes": 60,
-                "event_seq": 999,  # Should be ignored/rejected
-            },
+            params=params,
         )
         
         state = GameState.initial()
         result = validate_action(state, intent)
         
-        # Metadata fields should not affect validation
-        assert result.valid
-        # But we could also reject unknown params
-        # For now, we accept but don't use them
+        assert not result.valid
+        assert result.action is None
+        assert any(e.code == "FORBIDDEN_ENGINE_METADATA" for e in result.errors)
 
 
 class TestValidationDoesNotMutateState:
@@ -234,6 +242,63 @@ class TestAcceptedActionIncrementsDecisionSeq:
         
         assert not result.accepted
         assert len(result.events) == 0
+
+
+class TestEventSequenceSemantics:
+    """Event sequence must be controlled by engine, not by actions."""
+    
+    def test_accepted_action_uses_next_event_seq(self):
+        """Accepted action produces event with event_seq = old + 1."""
+        state = GameState(
+            schema_version=1,
+            event_seq=5,
+            decision_seq=0,
+            game_minute=0,
+            seed="seq-test",
+            data={},
+        )
+        
+        intent = ActionIntent(
+            action_id="test-001",
+            actor_id="player",
+            action_type="WAIT",
+            params={"minutes": 60},
+        )
+        
+        result = execute_action(state, intent)
+        
+        assert result.accepted
+        assert len(result.events) == 1
+        assert result.events[0].event_seq == 6
+        assert result.final_state is not None
+        assert result.final_state.event_seq == 6
+    
+    def test_rejected_action_does_not_increment_event_seq(self):
+        """Rejected action produces no events and doesn't change event_seq."""
+        state = GameState(
+            schema_version=1,
+            event_seq=10,
+            decision_seq=0,
+            game_minute=0,
+            seed="reject-seq-test",
+            data={},
+        )
+        
+        intent = ActionIntent(
+            action_id="test-001",
+            actor_id="player",
+            action_type="FLY_TO_MOON",
+            params={},
+        )
+        
+        result = execute_action(state, intent)
+        
+        assert not result.accepted
+        assert len(result.events) == 0
+        assert result.final_state is None
+        
+        # Original state should remain unchanged (no mutation occurred)
+        assert state.event_seq == 10
 
 
 class TestSequenceSemantics:
@@ -321,6 +386,64 @@ class TestTimeSemantics:
         
         assert not result.accepted
         assert result.final_state is None
+
+
+class TestIllegalActionZeroSideEffects:
+    """Comprehensive integration test proving illegal actions have ZERO side effects."""
+    
+    def test_illegal_action_has_zero_side_effects_end_to_end(self):
+        """One complete test proving all zero side effect invariants."""
+        from pathlib import Path
+        from tgn.storage import EventStore
+        
+        with TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "zero_side.db"
+            
+            # Setup
+            store = EventStore(db_path)
+            try:
+                initial = GameState.initial(seed="zero-test")
+                store.initialize("camp_zero", initial.__dict__)
+                
+                # Record initial state hashes and counts
+                initial_hash = f"{initial.event_seq}-{initial.decision_seq}-{initial.game_minute}"
+                
+                conn = sqlite3.connect(str(db_path))
+                events_before = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+                snapshots_before = conn.execute("SELECT COUNT(*) FROM snapshots").fetchone()[0]
+                conn.close()
+                
+                # Execute illegal action
+                intent = ActionIntent(
+                    action_id="illegal-001",
+                    actor_id="player",
+                    action_type="FLY_TO_MOON",  # Unknown, illegal action
+                    params={},
+                )
+                
+                result = execute_action(initial, intent)
+                
+                # Assert 1: Execution returns rejected
+                assert not result.accepted
+                assert len(result.events) == 0
+                assert result.final_state is None
+                
+                # Assert 2: Original state unchanged (by value, since we don't mutate it)
+                assert initial.event_seq == 0
+                assert initial.decision_seq == 0
+                assert initial.game_minute == 0
+                
+                # Assert 3: No database changes
+                conn = sqlite3.connect(str(db_path))
+                events_after = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+                snapshots_after = conn.execute("SELECT COUNT(*) FROM snapshots").fetchone()[0]
+                conn.close()
+                
+                assert events_after == events_before, "Event count changed!"
+                assert snapshots_after == snapshots_before, "Snapshot count changed!"
+                
+            finally:
+                store.close()
 
 
 class TestCausation:

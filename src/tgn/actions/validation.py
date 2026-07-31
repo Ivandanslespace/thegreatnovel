@@ -15,6 +15,16 @@ from .models import (
 # Only WAIT is legal in Phase 2
 LEGAL_ACTION_TYPES = frozenset({"WAIT"})
 
+# Reserved metadata that intents cannot control
+FORBIDDEN_METADATA_FIELDS = frozenset({
+    "event_seq",
+    "decision_seq",
+    "game_minute",
+    "state_hash",
+    "event_id",
+    "created_at",
+})
+
 
 def validate_action(
     state: GameState,
@@ -31,13 +41,19 @@ def validate_action(
     """
     errors: list[ActionValidationError] = []
     
-    # Check action type
+    # Check action type first
     if intent.action_type not in LEGAL_ACTION_TYPES:
         errors.append(ActionValidationError(
             code="UNKNOWN_ACTION",
             message=f"Unknown action type: {intent.action_type}",
             field="action_type",
         ))
+        return ActionValidationResult(valid=False, action=None, errors=tuple(errors))
+    
+    # Check for forbidden metadata (for WAIT only since unknown already rejected)
+    _check_forbidden_metadata(intent, errors)
+    
+    if errors:
         return ActionValidationResult(valid=False, action=None, errors=tuple(errors))
     
     # Only WAIT allowed
@@ -58,6 +74,18 @@ def validate_action(
     )
     
     return ActionValidationResult(valid=True, action=validated)
+
+
+def _check_forbidden_metadata(intent: ActionIntent, errors: list[ActionValidationError]) -> None:
+    """Check for forbidden engine-controlled metadata in params."""
+    for key in FORBIDDEN_METADATA_FIELDS:
+        if key in intent.params:
+            errors.append(ActionValidationError(
+                code="FORBIDDEN_ENGINE_METADATA",
+                message=f"Metadata field '{key}' is controlled by the engine, not by player actions",
+                field=f"params.{key}",
+            ))
+            return  # Single error for simplicity
 
 
 def _validate_wait(intent: ActionIntent, errors: list[ActionValidationError]) -> None:
@@ -121,6 +149,38 @@ def execute_action(
     
     This may call reducer but must NOT mutate input state directly.
     Illegal actions produce NO side effects.
+    
+    Future Extension Seam:
+    ----------------------
+    The current path is intentionally minimal for Phase 2:
+    
+        ValidatedAction
+          ↓
+      [future opportunity candidate generation]
+          ↓
+      Deterministic resolution
+          ↓
+      DomainEvent(s)
+    
+    In future phases, fortune_bias may influence which legal opportunities
+    enter a candidate pool before deterministic resolution. Important constraints:
+    
+    - Opportunity ≠ guaranteed reward
+    - Opportunity ≠ automatic success  
+    - Opportunity ≠ Narrator cheating
+    
+    Fortune should ONLY affect:
+      - Which opportunities become visible/available
+      - Probability of certain legal actions being presented
+    
+    Fortune should NEVER:
+      - Modify the reducer's truth
+      - Guarantee success after action execution
+      - Rewrite action results after the fact
+      - Bypass deterministic verification
+    
+    This keeps the engine core pure and verifiable while allowing future
+    design features that operate BEFORE validation, not after.
     """
     # Step 1: Validate
     validation_result = validate_action(state, intent)
