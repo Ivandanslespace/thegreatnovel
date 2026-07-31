@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from ..core.models import DomainEvent, GameState
@@ -11,6 +11,7 @@ from ..actions.models import (
     ValidatedAction,
     ActionValidationResult,
     ActionValidationError,
+    ActionExecutionResult,
 )
 
 
@@ -327,15 +328,6 @@ class LegalAction:
     action_type: str
     duration_minutes: int | None
     stamina_cost: int
-
-
-@dataclass
-class ActionExecutionResult:
-    """Result of attempting to execute an ActionIntent."""
-    accepted: bool
-    validation: ActionValidationResult
-    events: tuple = ()
-    final_state: Any | None = None
 
 
 # Observation Builder - returns player-visible info
