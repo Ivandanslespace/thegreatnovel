@@ -68,8 +68,12 @@ class DomainEvent:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     
     @classmethod
-    def advance_time(cls, game_minute: int, minutes: int, event_seq: int = 0, **kwargs) -> "DomainEvent":
-        """Helper to create TIME_ADVANCED event."""
+    def advance_time(cls, game_minute: int, minutes: int, event_seq: int, **kwargs) -> "DomainEvent":
+        """Helper to create TIME_ADVANCED event.
+        
+        IMPORTANT: event_seq is REQUIRED and must be explicit.
+        Never allow default values that could lead to invalid events.
+        """
         if minutes < 0:
             raise ValueError("Time advancement cannot be negative")
         

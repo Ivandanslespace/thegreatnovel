@@ -59,21 +59,14 @@ def reduce_event(state: GameState, event: DomainEvent) -> GameState:
     if event.game_minute < new_state.game_minute:
         raise ReducerError(f"Game minute retrogression: {event.game_minute} < {new_state.game_minute}")
     
-    # Apply TIME_ADVANCED event
+    # Only TIME_ADVANCED is valid in Phase 1
     if event.event_type == "TIME_ADVANCED":
         _apply_time_advanced(new_state, event)
     else:
-        # For future event types, keep track but don't modify state yet
-        # World-specific events will be handled by world packs
-        pass
+        raise ReducerError(f"Unknown event type '{event.event_type}'. Phase 1 only supports 'TIME_ADVANCED'.")
     
     # Update sequence number
     new_state.event_seq = event.event_seq
-    
-    # Store event payload in history for replay verification
-    if "events_history" not in new_state.data:
-        new_state.data["events_history"] = []
-    new_state.data["events_history"].append(event.to_dict())
     
     # Verify invariants after application
     try:
@@ -101,7 +94,3 @@ def _apply_time_advanced(state: GameState, event: DomainEvent) -> None:
         )
     
     state.game_minute = actual_minute
-    
-    # Ensure non-retrogression
-    if actual_minute < state.game_minute:
-        raise ReducerError(f"Game time reversal detected: {actual_minute} < previous")

@@ -127,7 +127,9 @@ class TestReducerSequenceConstraints:
         event = DomainEvent(
             event_seq=6,
             decision_seq=4,  # Advancing
-            payload={},
+            event_type="TIME_ADVANCED",  # Required in Phase 1!
+            game_minute=200,
+            payload={"minutes": 200},
         )
         
         new_state = reduce_event(state, event)
@@ -139,19 +141,19 @@ class TestReducerSequenceConstraints:
         state.event_seq = 5
         state.game_minute = 500
         
-        # Attempting to set game_minute lower than current (not through TIME_ADVANCED)
+        # Attempting to set game_minute lower than current through TIME_ADVANCED
         event = DomainEvent(
             event_seq=6,
-            event_type="UNKNOWN_EVENT",  # Not TIME_ADVANCED, so no time validation
+            event_type="TIME_ADVANCED",
             game_minute=400,  # Goes back in time!
-            payload={},
+            payload={"minutes": -100},  # Negative minutes
         )
         
-        # This should fail because we're trying to set an older time
+        # This should fail because of negative minutes or retrogression
         with pytest.raises(ReducerError) as exc_info:
             reduce_event(state, event)
         
-        assert "retrogression" in str(exc_info.value).lower()
+        assert "retrogression" in str(exc_info.value).lower() or "negative" in str(exc_info.value).lower()
     
     def test_all_three_sequences_independent(self):
         """event_seq, decision_seq, game_minute are independent counters."""
@@ -173,32 +175,21 @@ class TestReducerSequenceConstraints:
         assert new_state.event_seq == 11
         assert new_state.decision_seq == 6
         assert new_state.game_minute == 1120
-
-
-class TestReducerHistoryTracking:
-    """Tests for event history tracking in data."""
     
-    def test_events_history_populated(self):
-        """After applying TIME_ADVANCED, events_history should contain it."""
-        state = GameState.initial(seed="history-test")
+    def test_events_dont_go_into_gamestate_data(self):
+        """GameState.data should NOT contain events_history (Phase 1.1 rule)."""
+        state = GameState.initial(seed="no-history")
         
-        event = DomainEvent.advance_time(game_minute=0, minutes=30, event_seq=1)
+        event = DomainEvent(
+            event_seq=1,
+            decision_seq=0,
+            game_minute=60,
+            event_type="TIME_ADVANCED",
+            payload={"minutes": 60},
+        )
+        
         new_state = reduce_event(state, event)
         
-        assert "events_history" in new_state.data
-        assert len(new_state.data["events_history"]) == 1
-        assert new_state.data["events_history"][0]["event_type"] == "TIME_ADVANCED"
+        # Critical: events_history must not be in data
+        assert "events_history" not in new_state.data
     
-    def test_multiple_events_accumulate(self):
-        """Multiple events accumulate in history."""
-        state = GameState.initial()
-        
-        event1 = DomainEvent.advance_time(game_minute=0, minutes=60, event_seq=1)
-        state = reduce_event(state, event1)
-        
-        event2 = DomainEvent.advance_time(game_minute=60, minutes=60, event_seq=2)
-        state = reduce_event(state, event2)
-        
-        assert len(state.data["events_history"]) == 2
-        assert state.data["events_history"][0]["game_minute"] == 60
-        assert state.data["events_history"][1]["game_minute"] == 120
