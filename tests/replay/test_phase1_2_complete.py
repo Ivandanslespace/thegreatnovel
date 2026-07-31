@@ -347,28 +347,34 @@ class TestMalformedJSONAndAtomicity:
                         END;
                     """)
                     conn.commit()
+                    
+                    # Count before using raw SQL for accuracy
+                    events_before = conn.execute("""SELECT COUNT(*) FROM events WHERE campaign_id='camp_rb'""").fetchone()[0]
+                    snapshots_before = conn.execute("""SELECT COUNT(*) FROM snapshots WHERE campaign_id='camp_rb'""").fetchone()[0]
+                    
+                    # Try event_seq=2 - this will succeed on event INSERT but fail on snapshot INSERT
+                    evt2 = DomainEvent(event_seq=2, decision_seq=0, game_minute=120,
+                                       event_type="TIME_ADVANCED", payload={"minutes": 60})
+                    state2 = reduce_event(state1, evt2)
+                    
+                    try:
+                        store.append_transition("camp_rb", evt2, state1, state2)
+                        assert False, "Should have raised EventStoreError"
+                    except EventStoreError as e:
+                        assert "forced snapshot failure" in str(e), f"Unexpected error: {e}"
+                        pass  # Expected - trigger causes ABORT which gets wrapped as EventStoreError
+                    
+                    # Critical: verify NOTHING was inserted (transaction fully rolled back)
+                    events_after = conn.execute("""SELECT COUNT(*) FROM events WHERE campaign_id='camp_rb'""").fetchone()[0]
+                    snapshots_after = conn.execute("""SELECT COUNT(*) FROM snapshots WHERE campaign_id='camp_rb'""").fetchone()[0]
+                    
+                    conn.commit()  # Commit the trigger creation and any other changes
+                    
                 finally:
                     conn.close()
                 
-                # Count before
-                events_before = len(store.all_event_records("camp_rb"))
-                snapshots_before = len(store.latest_snapshot_record("camp_rb").__dict__) if store.latest_snapshot_record("camp_rb") else 0
-                
-                # Try event_seq=2 - this will succeed on event INSERT but fail on snapshot INSERT
-                evt2 = DomainEvent(event_seq=2, decision_seq=0, game_minute=120,
-                                   event_type="TIME_ADVANCED", payload={"minutes": 60})
-                state2 = reduce_event(state1, evt2)
-                
-                try:
-                    store.append_transition("camp_rb", evt2, state1, state2)
-                    assert False, "Should have raised EventStoreError"
-                except EventStoreError as e:
-                    assert "forced snapshot failure" in str(e), f"Unexpected error: {e}"
-                    pass  # Expected - trigger causes ABORT which gets wrapped as EventStoreError
-                
-                # Critical: verify NOTHING was inserted (transaction fully rolled back)
-                events_after = len(store.all_event_records("camp_rb"))
                 assert events_after == events_before, f"Rollback failed! Events: Before={events_before}, After={events_after}"
+                assert snapshots_after == snapshots_before, f"Rollback failed! Snapshots: Before={snapshots_before}, After={snapshots_after}"
                 
                 # Verify event_seq=2 doesn't exist
                 all_events = store.all_event_records("camp_rb")

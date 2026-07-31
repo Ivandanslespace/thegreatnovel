@@ -223,9 +223,35 @@ def verify_persistence_integrity(campaign_id: str, db_path: str | Path) -> Repla
                     error_message=f"Event {event_seq}: state_hash_after ({actual_after_hash[:16]}...) doesn't match stored ({expected_after_hash[:16]}...)",
                 )
         
-        # Final verification: latest snapshot must match final state
-        snapshot = store.latest_snapshot_record(campaign_id)
-        if snapshot:
+        # Final verification: snapshot must exist and match final state
+        if not event_records:
+            # No events - check for orphan snapshots
+            all_snapshots = store.all_event_records(campaign_id)
+            # Just verify by attempting to get latest snapshot
+            snapshot = store.latest_snapshot_record(campaign_id)
+            if snapshot and snapshot.event_seq > 0:
+                return ReplayResult(
+                    success=False,
+                    error_message="Orphan snapshot exists without any events",
+                    failed_event_seq=snapshot.event_seq,
+                )
+        else:
+            # Must have a snapshot matching the last event
+            snapshot = store.latest_snapshot_record(campaign_id)
+            if snapshot is None:
+                return ReplayResult(
+                    success=False,
+                    error_message=f"Missing snapshot for campaign with {len(event_records)} events",
+                    failed_event_seq=event_records[-1]["event_seq"],
+                )
+            
+            if snapshot.event_seq != event_records[-1]["event_seq"]:
+                return ReplayResult(
+                    success=False,
+                    error_message=f"Snapshot seq ({snapshot.event_seq}) doesn't match last event seq ({event_records[-1]['event_seq']})",
+                    failed_event_seq=event_records[-1]["event_seq"],
+                )
+            
             final_state_hash = state_hash(current_state)
             
             if snapshot.state_hash != final_state_hash:
