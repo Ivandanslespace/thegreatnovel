@@ -516,10 +516,21 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
     cycle_days = first_number(setting["disaster_cycle"])
     if cycle_days is None or cycle_days < 1:
         raise GeneratorError("灾难周期必须包含一个正整数天数")
-    disaster_rules = world.setdefault("rules", {}).setdefault("disaster", {})
+    
+    # P0-1: 修复 rules:null 与 setdefault() 不兼容的问题
+    rules = world.setdefault("rules", {})
+    
+    if not isinstance(rules.get("disaster"), dict):
+        rules["disaster"] = {}
+    
+    if not isinstance(rules.get("death"), dict):
+        rules["death"] = {}
+    
+    disaster_rules = rules["disaster"]
+    death_rules = rules["death"]
+    
     disaster_rules["cycle_days"] = cycle_days
     disaster_rules["first_event"] = str(disaster_rules.get("first_event") or f"第{cycle_days}天")
-    death_rules = world["rules"].setdefault("death", {})
     death_rules["type"] = death_rules.get("type") or infer_death_mode(world["difficulty"])
     if death_rules["type"] not in DEATH_MODES:
         raise GeneratorError("rules.death.type 必须是 permanent/checkpoint/legacy")
@@ -561,6 +572,9 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
         bundle = copy.deepcopy(supplied_bundle)
         mechanics_source = "llm_compiled_bundle"
     else:
+        # P0-2/P0-3/P0-4: 从统一的 world.mechanics 路径读取 capabilities 和 ranking
+        mechanics_cfg = world.get("mechanics", {})
+        
         try:
             bundle = compile_world_bundle(
                 theme=world["theme"],
@@ -573,6 +587,10 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
                     "creative_slots": world.get("creative_slots", {}),
                     "motifs": world.get("motifs", []),
                     "taboo_domains": world.get("taboo_domains", []),
+                    # P0-2/P0-3/P0-4: 传递统一的 mechanics 配置
+                    "capabilities": mechanics_cfg.get("capabilities", {}),
+                    "ranking": mechanics_cfg.get("ranking", {}),
+                    "peer_simulation": mechanics_cfg.get("peer_simulation", {}),
                 },
                 safe_base=setting["safe_base"],
                 primary_resources=[item["name"] for item in resources["primary"]],

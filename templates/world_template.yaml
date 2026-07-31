@@ -78,7 +78,7 @@ world:
     disaster:
       cycle_days: 7
       first_event: ""
-      escalation: "每次灾难强度+10%"
+      escalation: "每次灾难强度 +10%"
     pvp:
       enabled: true
       safe_zone_pvp: false
@@ -86,6 +86,28 @@ world:
       player_level: true
       base_level: true
       talent_per_level: true  # 每级三选一
+  
+  # P0-2/P0-3/P0-4: 统一 mechanics 路径，compiler 从此处读取 capabilities/ranking/peer_simulation
+  mechanics:
+    capabilities:
+      combat: null          # null = 由 LLM 定义；true/false = 显式启用/禁用
+      building: null
+      crafting: null
+      factions: null
+      disasters: null
+      trading: null
+      peer_simulation: null
+      
+    ranking:
+      enabled_dimensions: []  # 空 = 全部启用；或指定 ["combat", "information"] 等
+      dimension_weights: {}   # {"combat": 0.3, "resources": 0.25}
+      dimension_scales: {}    # {"combat_multiplier": 0.1}
+      
+    peer_simulation:
+      enabled: true
+      action_pool: []         # 动态动作池 (EXPLORATION/COMBAT/CRAFTING/NAVIGATION 等)
+      population_size: 20     # 可见同行数量
+      rolling_window: 10      # 统计窗口（与主角保持一致）
 
   # 世界创建审计元数据（由 tools/create_save.py 写入）
   generation:

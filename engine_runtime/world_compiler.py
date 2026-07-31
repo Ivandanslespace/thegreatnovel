@@ -217,7 +217,14 @@ def compile_world_bundle(
     """校验并登记 LLM 已完整创作的世界首日与后续事件池。"""
     if not isinstance(mechanics, Mapping):
         raise ValueError("mechanics 必须是对象")
+    
     blueprint = _mapping(mechanics.get("world_blueprint"), "")
+    
+    # P0-2/P0-3/P0-4: 从统一路径读取 capabilities/ranking/peer_simulation
+    capabilities = mechanics.get("capabilities", {})
+    ranking_config = mechanics.get("ranking", {})
+    peer_simulation_cfg = mechanics.get("peer_simulation", {})
+    
     resource_names = {str(item).strip() for item in primary_resources if str(item).strip()}
     if not resource_names:
         raise ValueError("primary_resources 至少需要一种资源")
@@ -286,15 +293,14 @@ def compile_world_bundle(
     _validate_events(event_pool)
     creative_slots = _mapping(blueprint.get("creative_slots"), "creative_slots")
 
-    # 这里只保留登记与索引；不得写入任何主题、职业、数值或叙事默认值。
-    return {
+    # P0-2/P0-3/P0-4: 在 bundle 中保存这些配置供运行时使用
+    bundle_result = {
         "compiler_version": COMPILER_VERSION,
         "theme": str(theme),
         "language": str(language),
         "profile": "llm_generated",
         "starting_location": starting_location,
         "locations": locations,
-        "enemies": enemies,
         "targets": {},
         "enemy_definitions": _registry(enemies),
         "encounter_entities": {},
@@ -316,7 +322,15 @@ def compile_world_bundle(
         "motifs": list(mechanics.get("motifs", [])) if isinstance(mechanics.get("motifs", []), list) else [],
         "taboo_domains": list(mechanics.get("taboo_domains", [])) if isinstance(mechanics.get("taboo_domains", []), list) else [],
         "genre_contract": deepcopy(genre_contract) if isinstance(genre_contract, Mapping) else {},
+        # P0-2/P0-3/P0-4: 保存 mechanics 配置
+        "mechanics": {
+            "capabilities": capabilities,
+            "ranking": ranking_config,
+            "peer_simulation": peer_simulation_cfg,
+        },
     }
+    
+    return bundle_result
 
 
 def _generate_peer_agents_from_public_survival(world_data, world_blueprint):

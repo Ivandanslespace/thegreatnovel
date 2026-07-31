@@ -17,6 +17,9 @@ DEFAULT_RANKING_WEIGHTS = {
     "social": 0.10
 }
 
+# Alias for backward compatibility with tests
+WEIGHTS = DEFAULT_RANKING_WEIGHTS
+
 # 维度尺度配置 (默认乘数/bonuses)
 DEFAULT_RANKING_SCALES = {
     "combat_multiplier": 0.1,
@@ -37,10 +40,24 @@ def _merge_weights(custom_scales: Optional[Dict[str, Any]] = None) -> Dict[str, 
                        - Already-merged validated config dict (from world_compiler._validate_ranking_config)
         
     Returns:
-        Merged weight/scale configuration
+        Merged weight/scale configuration with separate "weights" and "scales" keys
+        
+    Structure:
+        {
+            "combat": 0.30,
+            "resources": 0.25,
+            ...
+            "_scales": {
+                "combat_multiplier": 0.1,
+                "resource_multiplier": 0.5,
+                ...
+            }
+        }
+        
+    CRITICAL: Must filter out "_scales" when iterating dimensions!
     """
     if custom_scales is None:
-        return DEFAULT_RANKING_WEIGHTS.copy()
+        return {**DEFAULT_RANKING_WEIGHTS.copy(), "_scales": DEFAULT_RANKING_SCALES.copy()}
     
     # Check if this is already a merged config from validation
     has_scaled_keys = "_scales" in custom_scales and isinstance(custom_scales["_scales"], Mapping)
@@ -48,23 +65,23 @@ def _merge_weights(custom_scales: Optional[Dict[str, Any]] = None) -> Dict[str, 
     
     if has_scaled_keys or all_dims_present:
         # This is an already-merged validated config
-        merged = defaultdict(float, DEFAULT_RANKING_WEIGHTS.copy())
+        result = defaultdict(float)
         
-        # Override with custom weights (skip _scales key)
+        # Copy dimension weights first (filter out _scales)
         for dim in DEFAULT_RANKING_WEIGHTS.keys():
             if dim in custom_scales and isinstance(custom_scales[dim], (int, float)):
-                merged[dim] = float(custom_scales[dim])
+                result[dim] = float(custom_scales[dim])
+            else:
+                result[dim] = DEFAULT_RANKING_WEIGHTS[dim]
         
-        # Add scales
+        # Add scales under _scales key
         base_scales = DEFAULT_RANKING_SCALES.copy()
         custom_dim_scales = dict(custom_scales["_scales"]) if isinstance(custom_scales.get("_scales"), Mapping) else {}
         base_scales.update(custom_dim_scales)
         
-        for key, value in base_scales.items():
-            if isinstance(value, (int, float)):
-                merged[key] = float(value)
+        result["_scales"] = base_scales
         
-        return dict(merged)
+        return dict(result)
     
     # Check if this looks like raw config from YAML (has enabled_dimensions/dimension_weights)
     has_raw_structure = "enabled_dimensions" in custom_scales or "dimension_weights" in custom_scales
@@ -101,17 +118,17 @@ def _merge_weights(custom_scales: Optional[Dict[str, Any]] = None) -> Dict[str, 
                 if isinstance(v, (int, float)):
                     result_scales[str(k)] = float(v)
         
-        merged = defaultdict(float, DEFAULT_RANKING_WEIGHTS.copy())
+        result = defaultdict(float)
         for dim, val in temp_weights.items():
-            merged[dim] = val
+            result[dim] = val
         
-        for key, val in result_scales.items():
-            merged[key] = val
+        # Add scales under _scales key
+        result["_scales"] = dict(result_scales)
         
-        return dict(merged)
+        return dict(result)
     
     # Default to no override
-    return DEFAULT_RANKING_WEIGHTS.copy()
+    return {**DEFAULT_RANKING_WEIGHTS.copy(), "_scales": DEFAULT_RANKING_SCALES.copy()}
 
 
 def calculate_dimension_scores(action_result: Dict[str, Any], 
@@ -185,7 +202,11 @@ def calculate_cdf_percentile(protag_scores: Dict[str, float],
     weighted_sum = 0.0
     n_peers = len(peer_scores_list)
     
-    for dim, weight in weights.items():
+    # CRITICAL: Filter out _scales - only iterate actual dimension names
+    valid_dimensions = [k for k in weights.keys() if k != "_scales" and isinstance(weights[k], (int, float))]
+    
+    for dim in valid_dimensions:
+        weight = weights[dim]
         protag_val = protag_scores.get(dim, 0.0)
         below = sum(1 for p in peer_scores_list if p.get(dim, 0.0) < protag_val - 1e-9)
         dim_pct = below / n_peers
