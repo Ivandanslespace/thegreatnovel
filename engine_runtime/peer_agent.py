@@ -15,6 +15,7 @@ class PeerAgent:
     id: str
     name: str
     profession: str = "survivor"
+    profession_level: float = 1.0
     level: int = 1
     location_id: str = "starting_area"
     hp: float = 100.0

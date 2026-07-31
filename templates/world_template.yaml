@@ -6,7 +6,7 @@ world:
   theme: ""                   # 主题描述
   narrative_style: ""         # 叙述风格（冷酷/幽默/史诗/日常）
   difficulty: ""              # 休闲/标准/硬核
-  narrative_length: 7         # 叙述长度偏好(1-10)，每轮约 length×100~120字
+  narrative_length: 7         # 叙述长度偏好 (1-10)，每轮约 length×100~120 字
   language: "中文"            # 游戏语言（任何语言，默认中文）
   genre_contract: "1"         # 1=全民系统投放，2=百倍奖励，3=孤独生存；创建时会固化成合同对象
 
@@ -30,7 +30,7 @@ world:
 
   # 资源体系
   resources:
-    primary: []               # LLM 创作，3-5种
+    primary: []               # LLM 创作，3-5 种
     secondary: []             # LLM 创作
     rare: []                  # LLM 创作
     currency: ""              # LLM 创作；无交易世界可为空
@@ -63,29 +63,44 @@ world:
       rank_season_end_turn: null
       active_rival_count: null
 
-  # 世界规则
+  # 世界规则 - 必须明确定义，否则全部禁用
+  
+  # NOTE: 以下所有 rules.*字段均为占位符，默认值全为 null。
+  # LLM 在创建世界时必须显式定义每个要启用的机制及其参数。
+  # 任何未定义的规则字段将不会生效，防止注入虚假的通用生存规则。
   rules:
-    safe_zone:
-      description: "基地内部受到保护"
-      limitation: "基地核心被摧毁后保护失效"
-    exploration:
-      frequency: "每天一次"
-      return_rule: "找到撤离点才能返回"
-      night_modifier: "夜间危险×2"
-    death:
-      type: ""                # permanent/checkpoint/legacy
-      inventory_drop_rate: 0.7
-    disaster:
-      cycle_days: 7
-      first_event: ""
-      escalation: "每次灾难强度+10%"
-    pvp:
-      enabled: true
-      safe_zone_pvp: false
-    progression:
-      player_level: true
-      base_level: true
-      talent_per_level: true  # 每级三选一
+    safe_zone: null           # null = 无保护区域机制；需定义{description, limitation, boundary_rules?}
+    exploration: null         # null = 无探索限制；需定义{frequency, return_rule, night_modifier?, cost?}
+    death: null               # null = 无死亡惩罚；需定义{type: permanent/checkpoint/legacy, inventory_drop_rate?}
+    disaster: null            # null = 无周期性灾难；需定义{cycle_days?, first_event, escalation?}
+    pvp: null                 # null = 禁止玩家对战；需定义{enabled, safe_zone_pvp?, mechanics?}
+    progression: null         # null = 无等级系统；需定义{player_level, base_level, talent_per_level?}
+  
+  # 机制注册表 - 用于声明世界支持的可执行机制
+  # 这是比 rules 更底层的契约：LLM 在此声明世界实际具备的系统能力
+  mechanics:
+    capabilities: {}          # 空字典，LLM 填入世界实际启用的能力（如 base_protection, exploration_limit 等）
+    rulesets: {}              # 自定义规则集注册表，按世界需求原创
+    ranking:                  # 排名系统配置；如需启用则填充此节
+      enabled_dimensions: []  # 默认显示维度；自动填充时提供维度 ID 列表
+      dimension_weights: {}   # 维度权重总和=1.0(±0.05)
+      dimension_scales: {}    # 维度缩放系数/bonuses
+  
+  # 系统能力开关：由 LLM 根据世界类型声明启用的子系统
+  # combat: 战斗相关（敌人、区域敌群、提取规则）
+  # building: 建造模块（模块、空间成本）  
+  # crafting: 制作系统（配方、资源转化）
+  # trading: 交易系统（市场、税价）
+  # factions: 势力系统（NPC 关系影响度）
+  # disasters: 灾难系统（周期事件与预警）
+  mechanics:
+    capabilities:
+      combat: true            # 启用战斗系统（若为 false，enemies/areas 的敌群字段变为可选）
+      building: true          # 启用建造系统（若为 false，modules 变为可选）
+      crafting: true          # 启用制作系统（若为 false，recipes 变为可选）
+      trading: true           # 启用交易系统（依赖 factions）
+      factions: true          # 启用势力系统（若为 false，factions 变为可选）
+      disasters: true         # 启用灾难系统（若为 false，disasters 变为可选）
 
   # 世界创建审计元数据（由 tools/create_save.py 写入）
   generation:
@@ -137,7 +152,7 @@ world:
   monsters:
     day_creatures: []         # 白天怪物类型
     night_creatures: []       # 夜晚怪物类型
-    bosses: []                # 已知BOSS
+    bosses: []                # 已知 BOSS
     ecology_notes: ""         # 生态关系说明
 
   # 长期悬念和阶段规划也由 LLM 创作；允许为空，但不可引用其他主题的预设剧情。
@@ -154,7 +169,7 @@ player_talent:
   trigger: ""                 # 触发条件
   effect: ""                  # 具体效果
   limitations: ""             # 限制条件
-  # Python 不再按“信息/个人/建设”或固定作用域替能力套模板。
+  # Python 不再按"信息/个人/建设"或固定作用域替能力套模板。
   # LLM 直接给出本能力实际改变的、可审计的行动修正合同。
   mechanical_effect:
     action_modifiers: {}

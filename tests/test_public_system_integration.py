@@ -67,7 +67,7 @@ class PublicSystemIntegrationTests(unittest.TestCase):
             from engine_runtime.public_survival import initial_public_states
             
             dummy_data = {
-                "meta": {"campaign_id": "test_campaign_integration", "world_name": "test"},
+                "meta": {"campaign_id": "test_campaign_integration", "world_name": "test", "current_turn": 1},
                 "world": world,
                 **initial_public_states(world),  # Add required public state keys
             }
@@ -88,6 +88,15 @@ class PublicSystemIntegrationTests(unittest.TestCase):
             mock_state = MockState()
             mock_state.store = store
             mock_state.data = dict(dummy_data)
+            
+            # Add minimal world for channel messages template support
+            if "world" not in dummy_data:
+                dummy_data["world"] = {}
+            dummy_data["world"]["world_blueprint"] = {
+                "messaging_templates": {
+                    "default": "{name}于第{turn}回合完成了{action_type}"
+                }
+            }
             
             # Insert peer
             insert_peer_agent(mock_state, "test_campaign_integration", peer)

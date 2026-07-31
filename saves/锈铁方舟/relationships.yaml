@@ -1,7 +1,0 @@
-relationships:
-- npc_id: old_jin
-  trust: 0
-  respect: 0
-  affection: 0
-  fear: 0
-  dependency: 0

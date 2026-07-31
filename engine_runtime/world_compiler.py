@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from collections import defaultdict
 from typing import Any, Dict, Mapping, Sequence
 
 
@@ -16,6 +17,121 @@ EVENT_FAMILIES = {
     "rule_anomaly", "macro_crisis", "forced_convergence", "living_resource",
     "system_irregularity", "hidden_civilization",
 }
+DEFAULT_RANKING_WEIGHTS = {
+    "combat": 0.30,
+    "resources": 0.25,
+    "base": 0.20,
+    "information": 0.15,
+    "social": 0.10
+}
+RANKING_WEIGHT_TOLERANCE = 0.05  # Weights must sum to ~1.0 within ±0.05
+
+
+def _validate_ranking_config(ranking_config: Any) -> Dict[str, Any]:
+    """Validate and normalize ranking configuration from world blueprint.
+    
+    Args:
+        ranking_config: Raw ranking config from world template
+        
+    Returns:
+        Validated ranking config dict
+        
+    Raises:
+        ValueError: If config is invalid
+    """
+    if ranking_config in (None, {}):
+        return DEFAULT_RANKING_WEIGHTS.copy()
+    
+    if not isinstance(ranking_config, Mapping):
+        raise ValueError("ranking config must be an object or empty")
+    
+    # Get enabled dimensions (empty means all defaults)
+    enabled_dims = ranking_config.get("enabled_dimensions", [])
+    if not isinstance(enabled_dims, list) or not enabled_dims:
+        enabled_dims = list(DEFAULT_RANKING_WEIGHTS.keys())
+    else:
+        # Validate dimension IDs
+        valid_base_ids = set(DEFAULT_RANKING_WEIGHTS.keys())
+        for dim_id in enabled_dims:
+            if str(dim_id) not in valid_base_ids:
+                raise ValueError(f"ranking dimension '{dim_id}' not supported; use one of: {', '.join(sorted(valid_base_ids))}")
+    
+    # Get dimension weights with validation
+    custom_weights = ranking_config.get("dimension_weights", {})
+    if not isinstance(custom_weights, Mapping):
+        raise ValueError("dimension_weights must be an object")
+    
+    # Validate that custom weights only reference enabled dimensions
+    for weight_key in custom_weights:
+        if str(weight_key) not in enabled_dims:
+            raise ValueError(f"dimension_weights references disabled dimension '{weight_key}'")
+    
+    # Check if ALL enabled dims have weights defined or NONE do (partial = mixed)
+    custom_weight_keys = {str(dim) for dim in enabled_dims if str(dim) in custom_weights}
+    all_dims_defined = len(custom_weight_keys) == len(enabled_dims)
+    
+    if not custom_weight_keys:
+        # No custom weights at all - return defaults
+        normalized_weights = {dim: DEFAULT_RANKING_WEIGHTS[dim] for dim in enabled_dims}
+    elif all_dims_defined:
+        # All specified - validate they sum to 1.0
+        custom_weight_sum = 0.0
+        for dim in enabled_dims:
+            val = float(custom_weights[str(dim)])
+            if val < 0:
+                raise ValueError(f"dimension_weights['{dim}'] cannot be negative")
+            custom_weight_sum += val
+        
+        if abs(custom_weight_sum - 1.0) > RANKING_WEIGHT_TOLERANCE:
+            raise ValueError(
+                f"All dimension_weights must sum to ≈1.0 within ±{RANKING_WEIGHT_TOLERANCE}, "
+                f"but got {custom_weight_sum:.2f}"
+            )
+        
+        # Use custom weights directly
+        normalized_weights = {dim: float(custom_weights[str(dim)]) for dim in enabled_dims}
+    else:
+        # Partial override - some specified, some use defaults
+        # Normalize the whole set to sum to 1.0
+        partial_sum = 0.0
+        temp_weights = {}
+        
+        for dim in enabled_dims:
+            if str(dim) in custom_weights:
+                val = float(custom_weights[str(dim)])
+                if val < 0:
+                    raise ValueError(f"dimension_weights['{dim}'] cannot be negative")
+                temp_weights[dim] = val
+                partial_sum += val
+            else:
+                temp_weights[dim] = DEFAULT_RANKING_WEIGHTS[dim]
+        
+        # If user explicitly set combat=0.50 only, normalize everything
+        # Original sum with defaults might exceed tolerance; scale down
+        if abs(partial_sum - 1.0) > RANKING_WEIGHT_TOLERANCE:
+            # Scale all values proportionally to make them sum to 1.0
+            for dim in temp_weights:
+                temp_weights[dim] /= partial_sum
+        
+        normalized_weights = temp_weights
+    
+    result_scales = defaultdict(float)
+    # Load default scales
+    for key, value in DEFAULT_RANKING_SCALES.items():
+        result_scales[key] = value
+    
+    # Override with custom scales if provided
+    custom_scales = ranking_config.get("dimension_scales", {})
+    if isinstance(custom_scales, Mapping):
+        for k, v in custom_scales.items():
+            if str(k) in enabled_dims or not str(k).startswith("_"):
+                if isinstance(v, (int, float)):
+                    result_scales[str(k)] = float(v)
+    
+    return {
+        **normalized_weights,
+        "_scales": dict(result_scales),
+    }
 
 
 def _mapping(value: Any, label: str) -> Dict[str, Any]:
@@ -31,9 +147,35 @@ def _text(record: Mapping[str, Any], key: str, label: str) -> str:
     return value
 
 
-def _records(value: Any, label: str, required: Sequence[str]) -> list[Dict[str, Any]]:
-    if not isinstance(value, list) or not value:
-        raise ValueError(f"world_blueprint.{label} 至少需要一条记录")
+def _records(value: Any, label: str, required: Sequence[str], *,
+             required_if_capability: str | None = None,
+             capability_enabled: bool = True) -> list[Dict[str, Any]]:
+    """校验并登记记录列表。
+    
+    Args:
+        value: 原始列表数据
+        label: 字段路径标签（如 "enemies"）
+        required: 必需字段列表
+        required_if_capability: 当此能力启用时才强制要求的字段组（用于条件验证）
+        capability_enabled: 若为 False 且存在列表，则跳过非核心字段的强制要求
+    
+    Raises:
+        ValueError: 当列表为空或记录缺少必需字段时抛出
+    """
+    # 如果能力被禁用且列表为空或被省略（None），允许空列表
+    if not capability_enabled:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise ValueError(f"world_blueprint.{label} 必须是列表或省略（当前能力已禁用）")
+        if not value:
+            return []
+    
+    # 能力启用时，要求至少有一条记录
+    if capability_enabled:
+        if not isinstance(value, list) or not value:
+            raise ValueError(f"world_blueprint.{label} 至少需要一条记录（能力已启用）")
+    
     records = []
     ids = set()
     for index, raw in enumerate(value):
@@ -43,6 +185,13 @@ def _records(value: Any, label: str, required: Sequence[str]) -> list[Dict[str, 
         for field in required:
             if field not in record or record[field] in (None, ""):
                 raise ValueError(f"world_blueprint.{label}[{index}].{field} 不能为空")
+        
+        # 如果有关联的能力且该能力未启用，跳过条件性必需字段
+        if required_if_capability and not capability_enabled:
+            # 移除这些字段而不报错
+            for field in required_if_capability:
+                record.pop(field, None)
+        
         record_id = str(record.get("id", "")).strip()
         if not record_id:
             raise ValueError(f"world_blueprint.{label}[{index}].id 不能为空")
@@ -217,6 +366,22 @@ def compile_world_bundle(
     """校验并登记 LLM 已完整创作的世界首日与后续事件池。"""
     if not isinstance(mechanics, Mapping):
         raise ValueError("mechanics 必须是对象")
+    
+    # P0-6: Validate and extract ranking configuration
+    ranking_config = mechanics.get("ranking", {})
+    validated_ranking = _validate_ranking_config(ranking_config)
+    
+    # Read capability flags (backward compatible: default to all enabled if missing)
+    capabilities = mechanics.get("world_blueprint", {}).get("mechanics", {}).get("capabilities", {})
+    capability_state = {
+        "combat": bool(capabilities.get("combat", True)),
+        "building": bool(capabilities.get("building", True)),
+        "crafting": bool(capabilities.get("crafting", True)),
+        "trading": bool(capabilities.get("trading", True)),
+        "factions": bool(capabilities.get("factions", True)),
+        "disasters": bool(capabilities.get("disasters", True)),
+    }
+    
     blueprint = _mapping(mechanics.get("world_blueprint"), "")
     resource_names = {str(item).strip() for item in primary_resources if str(item).strip()}
     if not resource_names:
@@ -233,20 +398,55 @@ def compile_world_bundle(
         raise ValueError("world_blueprint.starting_location 必须是已发现的安全地点")
     if safe_base and str(start.get("name")) != str(safe_base):
         raise ValueError("安全基地名称必须与 world_blueprint.starting_location 一致")
-
-    enemies = _records(blueprint.get("enemies"), "enemies", ("id", "name"))
-    _validate_enemies(enemies, location_ids, resource_names)
-    areas = _records(blueprint.get("areas"), "areas", ("id", "name", "location_id", "enemy_groups", "farmability_components", "extraction_rule"))
-    for area in areas:
-        if str(area["location_id"]) not in location_ids:
-            raise ValueError(f"world_blueprint.areas.{area['id']}.location_id 未注册")
-    modules = _records(blueprint.get("modules"), "modules", ("id", "name"))
-    _validate_modules(modules, resource_names)
-    recipes = _records(blueprint.get("recipes"), "recipes", ("id", "name"))
-    _validate_recipes(recipes, resource_names)
+    
+    # 敌人系统：根据 combat 能力决定是否必需
+    if capability_state["combat"]:
+        enemies = _records(blueprint.get("enemies"), "enemies", ("id", "name"), 
+                          capability_enabled=True)
+        _validate_enemies(enemies, location_ids, resource_names)
+    else:
+        enemies = _records(blueprint.get("enemies"), "enemies", ("id", "name"), 
+                          capability_enabled=False)
+        
+    # 区域系统：战斗启用时需要敌群、可耕作性、提取规则；禁用时仅需要基本信息
+    if capability_state["combat"]:
+        areas = _records(blueprint.get("areas"), "areas", 
+                        ("id", "name", "location_id", "enemy_groups", "farmability_components", "extraction_rule"),
+                        capability_enabled=True)
+        for area in areas:
+            if str(area["location_id"]) not in location_ids:
+                raise ValueError(f"world_blueprint.areas.{area['id']}.location_id 未注册")
+    else:
+        areas = _records(blueprint.get("areas"), "areas", 
+                        ("id", "name", "location_id"),
+                        capability_enabled=False)
+        raw_areas = blueprint.get("areas")
+        if isinstance(raw_areas, list):
+            for area in raw_areas:
+                if str(area["location_id"]) not in location_ids:
+                    raise ValueError(f"world_blueprint.areas.{area['id']}.location_id 未注册")
+        
+    # 建造系统：根据 building 能力决定是否必需
+    if capability_state["building"]:
+        modules = _records(blueprint.get("modules"), "modules", ("id", "name"),
+                          capability_enabled=True)
+        _validate_modules(modules, resource_names)
+    else:
+        modules = _records(blueprint.get("modules"), "modules", ("id", "name"),
+                          capability_enabled=False)
+        
+    # 制作系统：根据 crafting 能力决定是否必需  
+    if capability_state["crafting"]:
+        recipes = _records(blueprint.get("recipes"), "recipes", ("id", "name"),
+                          capability_enabled=True)
+        _validate_recipes(recipes, resource_names)
+    else:
+        recipes = _records(blueprint.get("recipes"), "recipes", ("id", "name"),
+                          capability_enabled=False)
+        
     action_targets = _records(blueprint.get("action_targets"), "action_targets", ("id",))
     _validate_action_targets(action_targets, location_ids)
-
+    
     professions = _profession_definitions(mechanics.get("professions", {}))
     npcs = _records(blueprint.get("npcs"), "npcs", ("id", "name", "status", "location", "goal", "schedule", "autonomous_yield", "utility_profile"))
     for npc in npcs:
@@ -255,10 +455,20 @@ def compile_world_bundle(
         profession = str(npc.get("profession") or "").strip()
         if profession and profession not in professions:
             raise ValueError(f"world_blueprint.npcs.{npc['id']}.profession 未注册")
-    factions = _records(blueprint.get("factions"), "factions", ("id", "name", "status", "location", "goal", "schedule", "treasury", "tax_rate", "influence", "utility_profile"))
-    for faction in factions:
-        if str(faction["location"]) not in location_ids:
-            raise ValueError(f"world_blueprint.factions.{faction['id']}.location 未注册")
+        
+    # 势力系统：根据 factions 能力决定是否必需
+    if capability_state["factions"]:
+        factions = _records(blueprint.get("factions"), "factions", 
+                           ("id", "name", "status", "location", "goal", "schedule", "treasury", "tax_rate", "influence", "utility_profile"),
+                           capability_enabled=True)
+        for faction in factions:
+            if str(faction["location"]) not in location_ids:
+                raise ValueError(f"world_blueprint.factions.{faction['id']}.location 未注册")
+    else:
+        factions = _records(blueprint.get("factions"), "factions", 
+                           ("id", "name"),
+                           capability_enabled=False)
+        
     relationships = blueprint.get("relationships")
     if not isinstance(relationships, list):
         raise ValueError("world_blueprint.relationships 必须是列表")
@@ -266,7 +476,7 @@ def compile_world_bundle(
     for index, relation in enumerate(relationships):
         if not isinstance(relation, Mapping) or str(relation.get("npc_id") or "") not in npc_ids:
             raise ValueError(f"world_blueprint.relationships[{index}] 必须引用已注册 NPC")
-
+    
     inventory = _mapping(blueprint.get("starting_inventory"), "starting_inventory")
     for field in ("resources", "equipment", "items"):
         if field not in inventory:
@@ -276,18 +486,25 @@ def compile_world_bundle(
     unknown_inventory = set(map(str, inventory["resources"].keys())) - resource_names
     if unknown_inventory:
         raise ValueError(f"world_blueprint.starting_inventory 引用了未注册资源：{', '.join(sorted(unknown_inventory))}")
-
-    disasters = _records(blueprint.get("disasters"), "disasters", ("id", "type", "cycle_days", "warning"))
-    for disaster in disasters:
-        _require_number(disaster, "cycle_days", f"disasters.{disaster['id']}", minimum=1.0)
+    
+    # 灾难系统：根据 disasters 能力决定是否必需
+    if capability_state["disasters"]:
+        disasters = _records(blueprint.get("disasters"), "disasters", ("id", "type", "cycle_days", "warning"),
+                            capability_enabled=True)
+        for disaster in disasters:
+            _require_number(disaster, "cycle_days", f"disasters.{disaster['id']}", minimum=1.0)
+    else:
+        disasters = _records(blueprint.get("disasters"), "disasters", ("id", "type"),
+                            capability_enabled=False)
+        
     event_pool = _records(blueprint.get("event_pool"), "event_pool", ("id",))
     if len(event_pool) < 3:
-        raise ValueError("world_blueprint.event_pool 至少需要3个原创后续事件")
+        raise ValueError("world_blueprint.event_pool 至少需要 3 个原创后续事件")
     _validate_events(event_pool)
     creative_slots = _mapping(blueprint.get("creative_slots"), "creative_slots")
 
-    # 这里只保留登记与索引；不得写入任何主题、职业、数值或叙事默认值。
-    return {
+    # P0-6: Embed validated ranking config into generation bundle
+    result_bundle = {
         "compiler_version": COMPILER_VERSION,
         "theme": str(theme),
         "language": str(language),
@@ -316,7 +533,10 @@ def compile_world_bundle(
         "motifs": list(mechanics.get("motifs", [])) if isinstance(mechanics.get("motifs", []), list) else [],
         "taboo_domains": list(mechanics.get("taboo_domains", [])) if isinstance(mechanics.get("taboo_domains", []), list) else [],
         "genre_contract": deepcopy(genre_contract) if isinstance(genre_contract, Mapping) else {},
+        "ranking_config": validated_ranking,  # P0-6: Inject ranking weights/scales
     }
+    
+    return result_bundle
 
 
 def _generate_peer_agents_from_public_survival(world_data, world_blueprint):

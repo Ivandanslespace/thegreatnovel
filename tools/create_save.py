@@ -48,7 +48,7 @@ DEATH_MODES = {"permanent", "checkpoint", "legacy"}
 
 REQUIRED_QUESTIONS = (
     ("theme", "世界主题", "永夜冰川 / 巨兽背部 / 废土列车 / 深渊裂隙；也可自定义"),
-    ("genre_contract", "世界类型", "1=全民系统投放型求生（推荐），2=全民求生：百倍奖励，3=孤独生存"),
+    ("genre_contract", "世界类型", "1=全民系统投放型求生（推荐），2=全民求生：百倍奖励，3=孤独生存，4=星舰/文明无灾模式"),
     ("difficulty", "游戏残酷程度", "1=休闲，2=标准，3=硬核永久死亡"),
     ("narrative_length", "每段叙述长度（1-10）", "1=极短，5=中等，7=标准，10=极长"),
     ("language", "游戏语言", "1=中文，2=English，3=日本語；留空为中文"),
@@ -113,6 +113,7 @@ def parse_genre_contract_choice(choice: str, theme: str) -> dict:
                 "severe_failure_pct": {"min": 0.30, "max": 0.40},
                 "catastrophic_failure_pct": 0.05,
             },
+            "requirements": ["safe_base", "external_dangers", "exploration_method", "disaster_cycle", "disaster_type"],
         }
     
     # 选项 2: 全民求生：百倍奖励
@@ -162,6 +163,7 @@ def parse_genre_contract_choice(choice: str, theme: str) -> dict:
                 "severe_failure_pct": {"min": 0.30, "max": 0.40},
                 "catastrophic_failure_pct": 0.05,
             },
+            "requirements": ["safe_base", "external_dangers", "exploration_method", "disaster_cycle", "disaster_type"],
         }
     
     # 选项 3: 孤独生存
@@ -180,6 +182,33 @@ def parse_genre_contract_choice(choice: str, theme: str) -> dict:
                 "automatic_success": False,
                 "tone": ["isolated", "cautious"],
             },
+            "requirements": ["safe_base", "external_dangers", "exploration_method"],
+        }
+    
+    # 选项 4: 星舰/文明无灾模式
+    elif choice in ["4", "ship_no_disaster", "星舰", "文明", "无灾难"]:
+        return {
+            "id": "ship_no_disaster",
+            "name": "星舰/文明无灾模式",
+            "collective_transmission": True,
+            "shared_start": True,
+            "region_size": None,
+            "global_count": None,
+            "public_system": {
+                "regional_chat": True,
+                "private_chat": True,
+                "trading": True,
+                "rankings": False,
+                "achievements": True,
+                "announcements": False,
+            },
+            "protagonist_contract": {
+                "unique_mechanic_required": False,
+                "comparative_advantage_target": None,
+                "automatic_success": False,
+                "tone": ["civilized", "progressive"],
+            },
+            "requirements": ["vehicle_base", "navigation_tools"],
         }
     
     # 默认：全民系统投放型求生
@@ -419,6 +448,27 @@ def infer_base_type(name):
     return "other"
 
 
+def infer_vehicle_type(setting):
+    """根据世界设定推断载具类型。"""
+    safe_base = str(setting.get("safe_base") or "").lower()
+    vehicle_base = str(setting.get("vehicle_base") or safe_base)
+    
+    lowered = vehicle_base.lower()
+    if "列车" in vehicle_base or "train" in lowered:
+        return "train"
+    if "木筏" in vehicle_base or "raft" in lowered:
+        return "raft"
+    if "巨兽" in vehicle_base or "beast" in lowered:
+        return "beast"
+    if "缆车" in vehicle_base or "cable" in lowered:
+        return "cable_car"
+    if "星舰" in vehicle_base or "飞船" in vehicle_base or "spaceship" in lowered or "ship" in lowered:
+        return "spaceship"
+    if "殖民船" in vehicle_base or "colony_ship" in lowered:
+        return "colony_ship"
+    return "other"
+
+
 def normalize_prompt_answer(key, raw):
     raw = str(raw or "").strip()
     if key == "difficulty":
@@ -453,8 +503,10 @@ def answers_to_package(raw):
         "language": raw.get("language", "中文"),
         "setting": {
             "safe_base": raw.get("safe_base", ""),
+            "vehicle_base": raw.get("vehicle_base", ""),
             "external_dangers": raw.get("external_dangers", []),
             "exploration_method": raw.get("exploration_method", ""),
+            "navigation_tools": raw.get("navigation_tools", ""),
             "disaster_cycle": raw.get("disaster_cycle", ""),
             "disaster_type": raw.get("disaster_type", ""),
         },
@@ -485,8 +537,10 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
 
     setting = world.setdefault("setting", {})
     setting["safe_base"] = str(setting.get("safe_base") or "").strip()
+    setting["vehicle_base"] = str(setting.get("vehicle_base") or "").strip()
     setting["external_dangers"] = split_items(setting.get("external_dangers"))
     setting["exploration_method"] = str(setting.get("exploration_method") or "").strip()
+    setting["navigation_tools"] = str(setting.get("navigation_tools") or "").strip()
     setting["disaster_cycle"] = str(setting.get("disaster_cycle") or "").strip()
     setting["disaster_type"] = str(setting.get("disaster_type") or "").strip()
 
@@ -498,27 +552,33 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
 
     if not world["theme"]:
         raise GeneratorError("世界主题不能为空")
-    if not setting["safe_base"]:
-        raise GeneratorError("LLM 世界包必须定义安全基地")
-    if not setting["external_dangers"]:
-        raise GeneratorError("LLM 世界包必须定义至少一项外部主要危险")
-    if not setting["exploration_method"]:
-        raise GeneratorError("LLM 世界包必须定义探索方式")
-    if not setting["disaster_cycle"] or not setting["disaster_type"]:
-        raise GeneratorError("LLM 世界包必须定义灾难类型与周期")
     if world["difficulty"] not in DIFFICULTIES:
         raise GeneratorError("difficulty 必须是：休闲、标准或硬核")
     if not 1 <= world["narrative_length"] <= 10:
-        raise GeneratorError("narrative_length 必须在1到10之间")
+        raise GeneratorError("narrative_length 必须在 1 到 10 之间")
     if not 3 <= len(resources["primary"]) <= 5:
-        raise GeneratorError("基础资源必须是3到5种")
+        raise GeneratorError("基础资源必须是 3 到 5 种")
 
+    # Extract genre name from selected contract
+    genre_name = selected_genre_contract.get('id', selected_genre_contract.get('name', 'unknown'))
+    
+    # Genre contract-based requirement enforcement (replaces universal survival checks)
+    required_for_genre = selected_genre_contract.get('requirements', {})
+    for field in required_for_genre:
+        if not setting.get(field):
+            raise GeneratorError(f"世界类型'{genre_name}'要求设置字段：{field}")
+
+    # Handle disaster cycle flexibly - allow None for non-survival worlds
     cycle_days = first_number(setting["disaster_cycle"])
-    if cycle_days is None or cycle_days < 1:
-        raise GeneratorError("灾难周期必须包含一个正整数天数")
     disaster_rules = world.setdefault("rules", {}).setdefault("disaster", {})
-    disaster_rules["cycle_days"] = cycle_days
-    disaster_rules["first_event"] = str(disaster_rules.get("first_event") or f"第{cycle_days}天")
+    if cycle_days is not None and cycle_days >= 1:
+        # Survival genres with periodic disasters
+        disaster_rules["cycle_days"] = cycle_days
+        disaster_rules["first_event"] = str(disaster_rules.get("first_event") or f"第{cycle_days}天")
+    else:
+        # Stable environments or ship worlds without periodic disasters
+        disaster_rules["cycle_days"] = None
+        disaster_rules["first_event"] = None
     death_rules = world["rules"].setdefault("death", {})
     death_rules["type"] = death_rules.get("type") or infer_death_mode(world["difficulty"])
     if death_rules["type"] not in DEATH_MODES:
@@ -719,7 +779,7 @@ def build_files(template_dir, world, talent):
             "in_combat": False,
             "available_time_minutes": 720,
             "day_elapsed_minutes": 0,
-            "next_disaster_day": world["rules"]["disaster"]["cycle_days"],
+            "next_disaster_day": world["rules"]["disaster"]["cycle_days"] if world["rules"]["disaster"]["cycle_days"] else None,
             "active_encounters": [],
             "current_encounter_id": None,
             "encounter_history": [],

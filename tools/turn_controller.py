@@ -196,117 +196,15 @@ def advance_public_system(engine: GameEngine, execution_result: dict | None) -> 
 
 
 def _generate_npc_topics(engine: GameEngine) -> list[dict]:
-    """生成 NPC 具体对话话题（P0-4）。"""
-    topics = []
-    current_location = engine._current_location()
+    """生成 NPC 具体对话话题（P0-4）。
     
-    # P0-4: 从 state.data.npcs 而不是 world.npcs 获取 NPC 列表
-    npcs = engine.state.data.get("npcs", []) if isinstance(engine.state.data, dict) else []
-    
-    # 找到当前 NPC（目前只有阿苔）
-    npc = next((n for n in npcs if isinstance(n, dict) and n.get("id") == "npc_atai" and n.get("location") == current_location), None)
-    if not npc:
-        return topics
-    
-    player = engine.state.player
-    knowledge = set(player.get("knowledge", []))
-    
-    # P0-4: 所有话题都有前置条件和一次性奖励
-    topic_definitions = [
-        {
-            "id": "ask-route-plan",
-            "label": "询问下一次停靠路线",
-            "description": "了解列车即将停泊的位置和预计停留时间",
-            "requirements": [],
-            "cooldown_turns": 7,
-            "last_used": -100,  # 假设很久没用了
-            "effects": {
-                "success": {"knowledge_additions": ["route_plan_day7"]}
-            }
-        },
-        {
-            "id": "help-water-system",
-            "label": "协助检查供水管",
-            "description": "和阿苔一起巡视列车净水循环系统",
-            "requirements": ["has_basic_knowledge"],
-            "cooldown_turns": 5,
-            "last_used": -100,
-            "effects": {
-                "success": {
-                    "relationship_changes": {"npc_atai": {"trust": 2, "respect": 1}},
-                    "resource_changes": {"净水": 1}
-                }
-            }
-        },
-        {
-            "id": "propose-search-natural-source",
-            "label": "提出共同搜索净水源",
-            "description": "建议离开列车寻找天然水源",
-            "requirements": [],
-            "cooldown_turns": 10,
-            "last_used": -100,
-            "effects": {
-                "success": {"knowledge_additions": ["water_source_risk_assessment"]},
-                "relationship_changes": {"npc_atai": {"trust": 3}}
-            }
-        },
-        {
-            "id": "ask-about-dagger-calluses",
-            "label": "追问她手上的刀茧",
-            "description": "观察并询问她手上的旧伤",
-            "requirements": [],
-            "cooldown_turns": 20,  # 很长，暗示很私密
-            "last_used": -100,
-            "effects": {
-                "success": {
-                    "knowledge_additions": ["atai_past_military_background"],
-                    "relationship_changes": {"npc_atai": {"affection": 2, "intimacy": 1}}
-                }
-            }
-        },
-        {
-            "id": "promise-scout-scrap-yard",
-            "label": "向她承诺负责废铁站场侦察",
-            "description": "主动承担探索废铁站场的责任",
-            "requirements": ["npc_atai_goal"],
-            "cooldown_turns": 14,
-            "last_used": -100,
-            "effects": {
-                "success": {
-                    "relationship_changes": {"npc_atai": {"trust": 5, "commitment": 3}},
-                    "promise_additions": [{"npc_id": "npc_atai", "content": "确保废铁站场安全", "due_turn": "next_visit"}]
-                }
-            }
-        }
-    ]
-    
-    for topic in topic_definitions:
-        topic_id = topic["id"]
-        
-        # 检查冷却
-        turn_diff = engine.state.current_turn - topic.get("last_used", 0)
-        if turn_diff < topic["cooldown_turns"]:
-            continue
-        
-        # 检查前置条件
-        requirements_met = all(req in knowledge or req.startswith("has_") for req in topic["requirements"])
-        if not requirements_met:
-            continue
-        
-        topics.append({
-            "label": f"[对话] {topic['label']}",
-            "action": {
-                "action_id": f"auto-topic-{topic_id}",
-                "type": "SOCIAL_INTERACTION",
-                "target": "npc_atai",
-                "goal": topic["label"],
-                "parameters": {"topic": topic_id}
-            },
-            "priority_category": "social_development",
-            "tags": ["conversation", f"topic:{topic_id}"]
-        })
-    
-    return topics
+    P0-4 REMEDIATION STATUS: 
+    - This function now returns an empty list as hardcoded NPC content must be removed
+    - NPC interactions MUST come from world['action_targets'] registry exclusively
+    - No world-specific narrative content (like 'npc_atai', '阿苔') should appear here
+    """
+    # TODO: Future implementation will read NPC topics from world.action_targets registry
+    return []
 
 
 def infer_action_type(profile: dict) -> str | None:
@@ -549,7 +447,8 @@ def generate_smart_candidates(engine: GameEngine) -> list[dict]:
             })
 
     # 对话、维护等候选必须来自 world.action_targets。此前的硬编码 NPC
-    # 话题和“整理物资”没有注册状态效果，会制造无法结算的伪选项，故不再注入。
+    # 话题和"整理物资"没有注册状态效果，会制造无法结算的伪选项，故不再注入。
+    # P0-1: ALL NPC interactions must be defined in world['action_targets'] registry.
 
     # P0-5: 按类别平衡选择最终输出
     return balance_options_by_category(candidates, max_output=MAX_VISIBLE_OPTIONS)
@@ -654,63 +553,6 @@ def generate_merged_short_actions(engine: GameEngine) -> list[dict]:
     
     player = engine.state.player
     available_time = float(player.get("fatigue", 100)) < 30  # 精力较好
-    
-    if available_time and len(inventory) >= 3:
-        # 检查背包/装备的多种维护行动
-        candidates.append({
-            "label": "为下一次停靠做准备",
-            "action": {
-                "action_id": "auto-merge-preparation",
-                "type": "ACTION_PLAN",
-                "plan_id": "prep-for-stop",
-                "accept_dilution": False,
-                "steps": [
-                    {
-                        "action_id": "step-inspect-gear",
-                        "type": "SHORT_ACTION",
-                        "target": current_location,
-                        "goal": "检查武器和工具的耐久状况"
-                    },
-                    {
-                        "action_id": "step-organize",
-                        "type": "BASE_MANAGEMENT",
-                        "target": current_location,
-                        "goal": "清点和整理物资储备"
-                    }
-                ],
-                "goal": "为下一次列车停靠做好综合准备"
-            },
-            "priority_category": "base_management"
-        })
-        
-        # 询问 + 休息组合
-        if player.get("fatigue", 0) > 20:
-            candidates.append({
-                "label": "问完阿苔就去补觉",
-                "action": {
-                    "action_id": "auto-merge-question-rest",
-                    "type": "ACTION_PLAN",
-                    "plan_id": "ask-and-rest",
-                    "accept_dilution": True,
-                    "steps": [
-                        {
-                            "action_id": "step-talk-atai",
-                            "type": "SOCIAL_INTERACTION",
-                            "target": "npc_atai",
-                            "goal": "快速询问当前状况",
-                            "parameters": {"topic": "status-check"}
-                        },
-                        {
-                            "action_id": "step-rest",
-                            "type": "REST",
-                            "target": current_location,
-                            "goal": "恢复体力"
-                        }
-                    ],
-                    "goal": "先确认信息再休息恢复"
-                },
-                "priority_category": "social_recovery"
-            })
     
     return candidates
 

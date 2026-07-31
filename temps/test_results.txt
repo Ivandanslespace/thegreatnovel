@@ -1,0 +1,8 @@
+....FF...F..........F.F................................................  [100%]
+=========================== short test summary info ===========================
+FAILED tests/test_engine_runtime.py::FormulaTests::test_create_save_rejects_action_without_llm_costs
+FAILED tests/test_engine_runtime.py::FormulaTests::test_create_save_rejects_legacy_talent_category_fallback
+FAILED tests/test_engine_runtime.py::FormulaTests::test_llm_world_package_is_compiled_without_theme_profile_fallback
+FAILED tests/test_engine_runtime.py::RuntimeIntegrationTests::test_collective_opening_is_visible_and_public_progression_replays
+FAILED tests/test_engine_runtime.py::RuntimeIntegrationTests::test_compiled_world_supports_core_loop_and_sql_replay
+5 failed, 66 passed in 4.45s
