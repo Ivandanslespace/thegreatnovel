@@ -353,17 +353,25 @@ TheGreatNovel 应该明确承认：
 
 ```yaml
 protagonist_curve:
-  heroic_intensity: 1.0    # 总控旋钮
-  progression_rate: 1.0    # 成长速度
-  fortune_bias: 1.0        # 幸运偏置
-  talent_leverage: 1.0     # 天赋复利
-  tier_entry_percentile: 0.25
-  tier_mastery_percentile: 0.92
+  heroic_intensity: standard    # 作品风格 preset，不直接参与机制计算
+  progression_rate: 1.0         # 成长节奏（可被 heroic_intensity preset 覆盖）
+  fortune_bias: 1.0             # 幸运偏置（可被 heroic_intensity preset 覆盖）
+  talent_leverage: 1.0          # 天赋复利（可被 heroic_intensity preset 覆盖）
+  diagnostic_entry_percentile: 0.25    # Autoplay diagnostic reference
+  diagnostic_mastery_percentile: 0.92  # Autoplay diagnostic reference
 ```
 
 这些参数的含义不是直接修改结果，而是控制长期分布。
 
-#### heroic_intensity
+`heroic_intensity` 是作品风格 preset，**不直接参与机制计算**。它只为 `progression_rate`、`fortune_bias`、`talent_leverage` 提供默认配置；显式子参数可以覆盖 preset。
+
+概念示例：
+
+- **low**: 较低 progression / fortune / leverage 默认值 → 更残酷、慢热、接近硬核生存
+- **standard**: 1.0 baseline → 明显是主角，但成功仍需要策略
+- **high**: 较高 progression / fortune / leverage 默认值 → 典型爽文主角，优势建立和复利速度更快
+
+#### heroic_intensity 作为 preset
 
 整体主角光环强度。
 
@@ -1165,17 +1173,19 @@ TheGreatNovel 可以有非常复杂的底层状态。
 - 改变整个区域的力量平衡。
 
 ## 超长周期 / 阶层跃迁
-从当前群体中的普通成员成长为核心成员；
-从追随规则的人变成能够影响规则的人；
-从当前区域的普通竞争者进入顶尖集团；
-超越曾经无法对抗的人；
-回看旧区域时明确感受到自己的成长；
-发现比当前环境更大的竞争层级；
-带着旧世界积累进入新世界；
-在新的强者群体中重新开始向上攀升。
+
+- 从当前群体中的普通成员成长为核心成员；
+- 从追随规则的人变成能够影响规则的人；
+- 从当前区域的普通竞争者进入顶尖集团；
+- 超越曾经无法对抗的人；
+- 回看旧区域时明确感受到自己的成长；
+- 发现比当前环境更大的竞争层级；
+- 带着旧世界积累进入新世界；
+- 在新的强者群体中重新开始向上攀升。
 
 长期爽点的核心循环应该是：
 
+```text
 陌生
 → 生存
 → 理解
@@ -1185,6 +1195,7 @@ TheGreatNovel 可以有非常复杂的底层状态。
 → 成为顶尖
 → 世界扩大
 → 再次陌生
+```
 
 玩家应该始终感觉：
 
@@ -1292,9 +1303,7 @@ TheGreatNovel 可以有非常复杂的底层状态。
 - 社会与政治问题开始超过纯生存问题。
 世界层级升级也是打破永久最优策略的重要方式。
 
-当主角达到当前环境 P90+ 后：
-
-过去形成的强势策略不应该完全失效，但其边际优势应该下降。
+当主角已经接近当前环境顶层，并且通过真实世界因果开始接触更高层级环境时，过去形成的强势策略不应该完全失效，但在新的环境中其边际优势可能自然下降。
 
 例如：
 
@@ -1342,6 +1351,7 @@ Autoplay 不仅应该监控资源、策略和状态，也应该监控主角长�
 
 至少记录：
 
+```text
 current_cohort
 relative_percentile
 absolute_capability
@@ -1352,9 +1362,11 @@ time_to_P75
 time_to_P90
 number_of_tier_transitions
 progression_stall_duration
+```
 
 需要检测：
 
+```text
 主角长期停留在 P20–P40
 → 爽点不足 / 主角光环过弱
 
@@ -1369,19 +1381,13 @@ progression_stall_duration
 
 主角无需做正确决策也自动上升
 → 主角光环变成剧情保护
+```
 
 理想状态不是固定数字，而是能够形成反复的：
 
-P25
-→ P60
-→ P75
-→ P90+
-→ 新 cohort
-→ P25–P35
-→ P60
-→ P75
-→ P90+
-→ ...
+```text
+P25 → P60 → P75 → P90+ → 新 cohort → P25–P35 → P60 → P75 → P90+ → ...
+```
 
 同时 Absolute Power 长期保持上升。
 
@@ -1496,13 +1502,16 @@ TheGreatNovel 可以明确存在主角幸运偏置。
 
 区别在于：
 
-错误：
+**错误：**
 
+```text
 剧情需要主角赢
 → 临时制造巧合
+```
 
-正确：
+**正确：**
 
+```text
 世界生成事件
 ↓
 根据预先声明的 protagonist fortune bias
@@ -1513,6 +1522,7 @@ TheGreatNovel 可以明确存在主角幸运偏置。
 机会正常进入世界
 ↓
 玩家仍然必须识别、选择、承担代价并利用它
+```
 
 因此：
 
@@ -1522,15 +1532,17 @@ TheGreatNovel 可以明确存在主角幸运偏置。
 
 只要它：
 
-预先定义；
-可以结构化记录；
-可以由 seed 重放；
-不在结果产生以后偷偷修改；
-不取消玩家决策；
+- 预先定义；
+- 可以结构化记录；
+- 可以由 seed 重放；
+- 不在结果产生以后偷偷修改；
+- 不取消玩家决策；
 
 它就不违反世界真实性。
 
 ---
+
+
 
 # 32. 游戏感不能通过牺牲小说感获得
 
