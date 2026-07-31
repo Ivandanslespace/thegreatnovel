@@ -489,15 +489,24 @@ def advance_progression(player: Mapping[str, Any], gained_exp: float, talent_dec
         updated["free_points"] = int(number(updated.get("free_points"), 0)) + 2
     updated["exp"] = rounded(updated["exp"])
     updated["levels_gained"] = levels_gained
-    options = talent_options_for_level(updated["level"], talent_deck) if levels_gained > 0 else []
-    updated["talent_choice_required"] = bool(options)
-    if options:
-        updated["pending_decision"] = {
-            "type": "TALENT_CHOICE",
-            "level": updated["level"],
-            "options": options,
-            "must_resolve_before_continue": True,
-        }
+    # P1-08: Generate one talent decision per level gained, not just one for the
+    # final level. Each entry in the queue is resolved as a separate zero-time
+    # TALENT_CHOICE action. The queue persists across turns.
+    queue = list(updated.get("pending_decision_queue", [])) if isinstance(updated.get("pending_decision_queue"), list) else []
+    for level_offset in range(levels_gained):
+        level = updated["level"] - levels_gained + level_offset + 1
+        options = talent_options_for_level(level, talent_deck)
+        if options:
+            queue.append({
+                "type": "TALENT_CHOICE",
+                "level": level,
+                "options": options,
+                "must_resolve_before_continue": True,
+            })
+    updated["pending_decision_queue"] = queue
+    if queue and not updated.get("pending_decision"):
+        updated["pending_decision"] = deepcopy(dict(queue[0]))
+    updated["talent_choice_required"] = bool(updated.get("pending_decision"))
     return updated
 
 
@@ -536,7 +545,8 @@ def apply_skill_cost(skill: Mapping[str, Any], player: Mapping[str, Any], invent
     resources = new_inventory.setdefault("resources", {})
     for resource, amount in cost.items():
         if resource not in {"stamina", "mental"}:
-            resources[resource] = number(resources.get(resource)) - amount
+            # P1-07: Resources must never go below 0 after skill cost deduction.
+            resources[resource] = max(0.0, number(resources.get(resource)) - amount)
     return new_player, new_inventory
 
 

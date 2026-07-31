@@ -60,6 +60,9 @@ class PeerAgent:
             "outcome": outcome,
             "scores": scores or {},
         })
+        # P1-06: Bound action_history to last 100 entries to prevent entity bloat
+        if len(self.action_history) > 100:
+            self.action_history = self.action_history[-100:]
 
     def to_dict(self) -> dict:
         return self.__dict__.copy()

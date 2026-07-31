@@ -62,8 +62,12 @@ def calculate_peer_capability(peer, action_type):
     return 10.0
 
 
-def select_action_by_personality(peer, available_actions):
-    """Choose action based on peer's personality traits
+def select_action_by_personality(peer, available_actions, rng: random.Random | None = None):
+    """Choose action based on peer's personality traits.
+
+    P1-02: Accepts an optional deterministic *rng* so that replays with the
+    same seed always produce identical action choices.  Falls back to the
+    global ``random`` module only when no *rng* is supplied (legacy path).
     
     This function weights action selection based on the peer's 6-dimension
     personality profile, creating distinct behavioral patterns.
@@ -71,7 +75,8 @@ def select_action_by_personality(peer, available_actions):
     Returns:
         str: Selected action type from available options
     """
-    import random
+    if rng is None:
+        rng = random
     
     if not available_actions:
         return "EXPLORATION"
@@ -93,49 +98,51 @@ def select_action_by_personality(peer, available_actions):
         "SOCIAL_INTERACTION": 1.0
     }
     
-    # --- Trait-based modifiers ---
+    # --- Trait-based modifiers (P1 personality-strength fix) ---
+    # Multipliers raised to 2.5-3.5x so that extreme personalities choose
+    # their dominant action ≥70% of the time over a 20-turn window.
     
     # Cautious peers (high caution > 70): prefer building and avoiding risk
     if caution > 70:
-        weights["BUILD"] *= 1.5
-        weights["EXPLORATION"] *= 0.8
-        weights["COMBAT"] *= 0.5
+        weights["BUILD"] *= 3.0
+        weights["EXPLORATION"] *= 0.6
+        weights["COMBAT"] *= 0.3
     elif caution < 30:  # Reckless peers
-        weights["COMBAT"] *= 1.3
-        weights["EXPLORATION"] *= 1.2
-        weights["BUILD"] *= 0.8
+        weights["COMBAT"] *= 2.8
+        weights["EXPLORATION"] *= 2.0
+        weights["BUILD"] *= 0.5
     
     # Open/adventurous peers (high openness > 70): like trying new experiences
     if openness > 70:
-        weights["EXPLORATION"] *= 1.4
-        weights["COMBAT"] *= 1.2
-        weights["SOCIAL_INTERACTION"] *= 1.1
-    elif openness < 30:  # Traditional/closed peers
-        weights["BUILD"] *= 1.3
+        weights["EXPLORATION"] *= 2.5
+        weights["COMBAT"] *= 1.5
         weights["SOCIAL_INTERACTION"] *= 1.2
+    elif openness < 30:  # Traditional/closed peers
+        weights["BUILD"] *= 2.5
+        weights["SOCIAL_INTERACTION"] *= 1.8
     
     # Ambitious peers (high ambition > 70): seek high-reward risks
     if ambition > 70:
-        weights["COMBAT"] *= 1.5
-        weights["EXPLORATION"] *= 1.3
-        weights["BUILD"] *= 0.9
+        weights["COMBAT"] *= 3.5
+        weights["EXPLORATION"] *= 2.5
+        weights["BUILD"] *= 0.5
     elif ambition < 30:  # Content peers
-        weights["BUILD"] *= 1.4
-        weights["SOCIAL_INTERACTION"] *= 1.2
+        weights["BUILD"] *= 2.8
+        weights["SOCIAL_INTERACTION"] *= 1.8
     
     # Highly empathetic/social peers (high empathy > 70): prioritize social connections
     if empathy > 70:
-        weights["SOCIAL_INTERACTION"] *= 1.6
-        weights["BUILD"] *= 1.1
+        weights["SOCIAL_INTERACTION"] *= 3.0
+        weights["BUILD"] *= 1.2
     
     # Collectivist peers (high collectivism > 70): group-focused behavior
     if collectivism > 70:
-        weights["SOCIAL_INTERACTION"] *= 1.5
-        weights["BUILD"] *= 1.2
-        weights["EXPLORATION"] *= 0.9
+        weights["SOCIAL_INTERACTION"] *= 3.0
+        weights["BUILD"] *= 1.4
+        weights["EXPLORATION"] *= 0.7
     elif collectivism < 30:  # Individualist peers
-        weights["EXPLORATION"] *= 1.3
-        weights["COMBAT"] *= 1.2
+        weights["EXPLORATION"] *= 2.5
+        weights["COMBAT"] *= 2.0
     
     # Filter to only available actions
     filtered_weights = {action: weight for action, weight in weights.items() 
@@ -143,14 +150,14 @@ def select_action_by_personality(peer, available_actions):
     
     # Ensure we have at least one option
     if not filtered_weights:
-        return random.choice(available_actions)
+        return rng.choice(available_actions)
     
     # Normalize weights for probability distribution
     total_weight = sum(filtered_weights.values())
     normalized = {k: v / total_weight for k, v in filtered_weights.items()}
     
     # Weighted random selection
-    r = random.random()
+    r = rng.random()
     cumulative = 0.0
     for action, weight in normalized.items():
         cumulative += weight
@@ -358,29 +365,30 @@ def advance_public_states(state_data: Mapping[str, Any], action_result: Mapping[
         # If loading fails, default to empty list
         peer_agents = []
     
-    # Build cumulative scores from all peer action histories
-    peer_scores_list = []
+    # P1-03: Build per-action average scores from a rolling window of last 10
+    # actions for both protagonist and peers, eliminating the systematic
+    # degradation caused by comparing single-turn vs cumulative scores.
+    WEIGHTS = {"combat": 0.0, "resources": 0.0, "base": 0.0, "information": 0.0, "social": 0.0}
+    peer_avg_scores = []
     for peer in peer_agents:
-        # Aggregate ALL historical dimension scores
-        cumulative_dims = {
-            "combat": 0.0,
-            "resources": 0.0,
-            "base": 0.0,
-            "information": 0.0,
-            "social": 0.0
-        }
-        
-        # Sum up actions from history
-        for record in peer.action_history:
-            if "scores" in record or "dimensional_scores" in record:
-                dim_key = "scores" if "scores" in record else "dimensional_scores"
-                for dim in cumulative_dims.keys():
-                    if dim in record[dim_key]:
-                        cumulative_dims[dim] += record[dim_key][dim]
-        
-        peer_scores_list.append(cumulative_dims)
-    
-    percentile = calculate_cdf_percentile(protag_dims, peer_scores_list)
+        recent = peer.action_history[-10:]  # rolling window
+        if recent:
+            avg_dims = dict(WEIGHTS)
+            scored_records = 0
+            for record in recent:
+                scores = record.get("scores") or record.get("dimensional_scores", {})
+                if scores:
+                    scored_records += 1
+                    for dim in avg_dims:
+                        avg_dims[dim] += scores.get(dim, 0.0)
+            if scored_records:
+                for dim in avg_dims:
+                    avg_dims[dim] /= scored_records
+            peer_avg_scores.append(avg_dims)
+        else:
+            peer_avg_scores.append(dict(WEIGHTS))
+
+    percentile = calculate_cdf_percentile(protag_dims, peer_avg_scores)
     percentile = max(1.0, min(99.0, percentile))
     player_rank = convert_percentile_to_rank(percentile, alive_after)
     
@@ -392,17 +400,22 @@ def advance_public_states(state_data: Mapping[str, Any], action_result: Mapping[
     }
     history = comparative.setdefault("performance_metrics_history", [])
     history.append(metric)
+    # P1-05: Bound performance_metrics_history to last 100 entries to prevent save bloat
+    if len(history) > 100:
+        comparative["performance_metrics_history"] = history[-100:]
 
     # === PHASE 3: 频道消息生成（极简） ===
     # Simulate one action per peer with deterministic RNG based on capabilities
     peer_results = []
 
     for peer in peer_agents:
+        # P1-02: Deterministic RNG seeded per-peer, per-turn for reproducible replays
+        action_rng = random.Random(f"{peer.id}|{turn}|action_select")
         # 1. Pick random available action type
         available_actions = ["EXPLORATION", "COMBAT", "BUILD", "SOCIAL_INTERACTION"]
         
-        # 2. Select based on personality/risk preference
-        chosen_type = select_action_by_personality(peer, available_actions)
+        # 2. Select based on personality/risk preference (deterministic via action_rng)
+        chosen_type = select_action_by_personality(peer, available_actions, rng=action_rng)
         
         # 3. Calculate peer's capability
         capability = calculate_peer_capability(peer, chosen_type)
@@ -467,6 +480,10 @@ def advance_public_states(state_data: Mapping[str, Any], action_result: Mapping[
         rng_seed=meta.get("rng_seed", meta.get("world_name", "world")),
     )
     public.setdefault("channel_feed", []).extend(new_msgs)
+    # P1-04: Bound channel_feed to last 100 entries to prevent save bloat
+    feed = public.get("channel_feed", [])
+    if len(feed) > 100:
+        public["channel_feed"] = feed[-100:]
 
     # === PHASE 4: Update peer states with new action records ===
     for result in peer_results:

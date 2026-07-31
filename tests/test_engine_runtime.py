@@ -1656,7 +1656,7 @@ class MechanismClosureTests(unittest.TestCase):
         )
         result = apply_event(state, standard_event(
             "large-gap", "ACTION_RESOLVED", "player", None,
-            {"time_cost": 0}, 1, "Day 1000000 清晨",
+            {"time_cost": 30}, 1, "Day 1000000 清晨",
         ))
         events = result["meta"]["system_event_history"]
         self.assertLessEqual(len(events), 50)
@@ -1720,6 +1720,61 @@ class MechanismClosureTests(unittest.TestCase):
             self.assertTrue(state.migrate_projection_schema())
             self.assertEqual(state.data["market_state"]["market_prices"]["water"], 3)
             self.assertTrue(state.store.verify_projection(apply_event)["ok"])
+
+    # P0-05: NPC return_to_base 应回到基地而非玩家位置
+    def test_return_to_base_moves_npc_to_base_not_player(self):
+        npc = {"id": "npc-1", "status": "alive", "location": "forest",
+               "schedule": {"白天": "return_to_base"}, "utility_profile": {}}
+        state = minimal_state(
+            npcs=[npc],
+            world={"name": "基地回归世界", "difficulty": "标准", "starting_location": "camp_core"},
+            meta={"current_location": "signal_tower_ruins", "time_of_day": "白天",
+                  "day_elapsed_minutes": 120, "available_time_minutes": 600},
+        )
+        result = apply_event(state, standard_event(
+            "rtb-1", "ACTION_RESOLVED", "player", None,
+            {"time_cost": 30}, 1, "Day 1 白天",
+        ))
+        self.assertEqual(result["npcs"][0]["location"], "camp_core")
+
+    # P0-06: Observer 系统应兼容 NPC 列表格式更新 beliefs
+    def test_observer_belief_updates_when_npcs_stored_as_list(self):
+        npc = {"id": "npc_observer", "name": "观察者", "status": "alive"}
+        state = minimal_state(npcs=[npc])
+        event = standard_event(
+            "obs-1", "OBSERVATION_OCCURRED", "npc_observer", "player",
+            {
+                "observer_id": "npc_observer",
+                "target_id": "player",
+                "subject": "combat_skill",
+                "prior_belief": {"estimate": "ordinary"},
+                "evidence": {"action": "combat"},
+                "revealed_result": {"outcome": "victory"},
+                "belief_change": {"new_estimate": "strong"},
+                "behavioral_consequences": [],
+            },
+            1, "Day 1 清晨",
+        )
+        result = apply_event(state, event)
+        observer = next(n for n in result["npcs"] if n["id"] == "npc_observer")
+        self.assertEqual(observer["beliefs"]["combat_skill"], "strong")
+
+    # P0-07: 零时间行动不应推进灾难计时器
+    def test_zero_time_action_does_not_advance_disaster_timer(self):
+        state = minimal_state(
+            world={"rules": {"disaster": {"cycle_days": 3}}, "setting": {"disaster_type": "测试灾难"}},
+            meta={"game_day": 1, "next_disaster_day": 2, "available_time_minutes": 720},
+        )
+        # ATTRIBUTE_ALLOCATION 的 time_cost 为 0
+        result = apply_event(state, standard_event(
+            "alloc-1", "ATTRIBUTES_ALLOCATED", "player", "player",
+            {"time_cost": 0, "attribute_allocations": {"strength": 1}},
+            1, "Day 1 清晨",
+        ))
+        # 灾难计时器不应被推进
+        self.assertEqual(result["meta"].get("next_disaster_day"), 2)
+        # 不应产生 system_event_history（NPC 日程/灾难未执行）
+        self.assertNotIn("system_event_history", result["meta"])
 
 
 if __name__ == "__main__":

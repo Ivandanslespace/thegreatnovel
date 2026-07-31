@@ -259,6 +259,15 @@ def _apply_relationship_changes(updated: Dict[str, Any], changes: Any) -> None:
             if isinstance(value, Mapping):
                 continue
             _add_delta(relation, str(key), value)
+        # P1-07: Clamp relationship dimensions to [-10, +10].
+        for dim in ("trust", "respect", "affection", "fear", "loyalty"):
+            if dim in relation:
+                try:
+                    relation[dim] = max(-10, min(10, float(relation[dim])))
+                    if float(relation[dim]).is_integer():
+                        relation[dim] = int(relation[dim])
+                except (TypeError, ValueError):
+                    pass
 
 
 def _apply_actor_deltas(updated: Dict[str, Any], target_deltas: Any) -> None:
@@ -280,6 +289,15 @@ def _apply_actor_deltas(updated: Dict[str, Any], target_deltas: Any) -> None:
                 if isinstance(relation, dict) and relation.get("npc_id") == target_id:
                     _add_delta(relation, "trust", -20)
                     _add_delta(relation, "fear", 20)
+                    # P1-07: Clamp relationship dimensions to [-10, +10] after death penalty.
+                    for dim in ("trust", "respect", "affection", "fear", "loyalty"):
+                        if dim in relation:
+                            try:
+                                relation[dim] = max(-10, min(10, float(relation[dim])))
+                                if float(relation[dim]).is_integer():
+                                    relation[dim] = int(relation[dim])
+                            except (TypeError, ValueError):
+                                pass
 
 
 def _advance_timeline(meta: Dict[str, Any], world: Mapping[str, Any], minutes: float) -> None:
@@ -380,7 +398,18 @@ def _advance_npcs_and_scheduled_events(updated: Dict[str, Any]) -> None:
                 continue
             npc["last_schedule_execution"] = schedule_slot
             if action == "return_to_base":
-                npc["location"] = meta.get("current_location", npc.get("location"))
+                # P0-05: 解析真实基地位置，而非玩家当前位置
+                base = updated.get("base", {}) if isinstance(updated.get("base", {}), Mapping) else {}
+                world = updated.get("world", {}) if isinstance(updated.get("world", {}), Mapping) else {}
+                bundle = world.get("generation_bundle", {}) if isinstance(world.get("generation_bundle", {}), Mapping) else {}
+                base_location = str(
+                    meta.get("base_location")
+                    or base.get("location_id")
+                    or world.get("starting_location")
+                    or bundle.get("starting_location")
+                    or "camp_core"
+                )
+                npc["location"] = base_location
             npc["last_autonomous_action"] = action
             utility = calculate_npc_utility(npc.get("utility_profile", {}))
             if action == "resource_search":
@@ -423,7 +452,13 @@ def _advance_npcs_and_scheduled_events(updated: Dict[str, Any]) -> None:
             conditions = item.get("trigger_conditions", {}) if isinstance(item.get("trigger_conditions", {}), Mapping) else {}
             trigger_day = conditions.get("day") or conditions.get("game_day")
             trigger_turn = conditions.get("turn")
-            if (trigger_day is not None and current_day >= int(trigger_day)) or (trigger_turn is not None and current_turn >= int(trigger_turn)):
+            # P0-04: ALL declared conditions must be simultaneously satisfied (AND logic).
+            # Previously used OR which caused events to fire prematurely when EITHER condition was met.
+            # If only one condition type is declared, that single condition is sufficient.
+            day_met = trigger_day is None or current_day >= int(trigger_day)
+            turn_met = trigger_turn is None or current_turn >= int(trigger_turn)
+            has_condition = trigger_day is not None or trigger_turn is not None
+            if has_condition and day_met and turn_met:
                 item["status"] = "triggered"
                 item["triggered_turn"] = current_turn
                 system_events.append({"type": "SCHEDULED_EVENT_TRIGGERED", "target": item.get("id"), "turn": current_turn})
@@ -584,11 +619,21 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
         observations.append(observation_record)
 
         # Also update observer's belief if they're an NPC/peer
+        # P0-06: 兼容 NPC 存储为列表和 dict 两种格式
         observer_id = payload.get("observer_id")
         if observer_id:
-            npcs = updated.setdefault("npcs", {})
-            if observer_id in npcs and isinstance(npcs[observer_id], dict):
-                beliefs = npcs[observer_id].setdefault("beliefs", {})
+            npcs = updated.get("npcs", [])
+            observer_npc = None
+            if isinstance(npcs, dict):
+                if observer_id in npcs and isinstance(npcs[observer_id], dict):
+                    observer_npc = npcs[observer_id]
+            elif isinstance(npcs, list):
+                observer_npc = next(
+                    (n for n in npcs if isinstance(n, dict) and n.get("id") == observer_id),
+                    None,
+                )
+            if observer_npc is not None:
+                beliefs = observer_npc.setdefault("beliefs", {})
                 beliefs[payload.get("subject", "unknown")] = (
                     payload.get("belief_change", {}).get("new_estimate", "unknown")
                 )
@@ -624,6 +669,14 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
     resources = inventory.setdefault("resources", {})
     for key, delta in (payload.get("resource_changes", {}) or {}).items():
         _add_delta(resources, str(key), delta)
+    # P1-07: Resources must never go below 0 unless contract explicitly allows it.
+    for key in list(resources):
+        try:
+            resources[key] = max(0, float(resources[key]))
+            if float(resources[key]).is_integer():
+                resources[key] = int(resources[key])
+        except (TypeError, ValueError):
+            pass
 
     item_additions = payload.get("item_additions", [])
     if isinstance(item_additions, list):
@@ -706,8 +759,18 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
                 target = modifiers.setdefault(str(action_type), {})
                 for key, delta in (values or {}).items():
                     _add_delta(target, str(key), delta)
-            player.pop("pending_decision", None)
-            player["talent_choice_required"] = False
+            # P1-08: Advance the pending_decision_queue. Remove the resolved
+            # entry and promote the next one (if any) to pending_decision.
+            queue = player.get("pending_decision_queue", []) if isinstance(player.get("pending_decision_queue"), list) else []
+            if queue:
+                queue.pop(0)
+            player["pending_decision_queue"] = queue
+            if queue:
+                player["pending_decision"] = deepcopy(dict(queue[0]))
+                player["talent_choice_required"] = True
+            else:
+                player.pop("pending_decision", None)
+                player["talent_choice_required"] = False
 
     if payload.get("time_cost") is not None:
         _advance_timeline(meta, world, float(payload.get("time_cost", 0)))
@@ -749,6 +812,14 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
         meta["checkpoints_used"] = int(meta.get("checkpoints_used", 0)) + int(payload.get("checkpoint_increment", 0))
     _update_narrative_state(meta, player, inventory, record)
 
+    # P0-01: Every time-advancing action decrements cooldown_remaining by 1
+    # for all skills. Zero-time actions (ATTRIBUTE_ALLOCATION, TALENT_SELECTION)
+    # are excluded because their time_cost is 0.
+    time_cost = float(payload.get("time_cost", 0) or 0)
+    if time_cost > 0:
+        from .calculators import tick_cooldowns
+        player.update(tick_cooldowns(player))
+
     cooldown_changes = payload.get("cooldown_changes", {})
     for skill in player.get("skills", []) if isinstance(player.get("skills"), list) else []:
         if isinstance(skill, dict) and skill.get("id") in cooldown_changes:
@@ -756,7 +827,10 @@ def apply_event(data: Dict[str, Any], record: Mapping[str, Any]) -> Dict[str, An
 
     meta["current_turn"] = int(record.get("turn", meta.get("current_turn", 0)))
     _cleanup_encounters(meta)
-    _advance_npcs_and_scheduled_events(updated)
+    # P0-07: 零时间行动（time_cost == 0，如 ATTRIBUTE_ALLOCATION、TALENT_CHOICE）
+    # 不应推进 NPC 日程、定时事件队列和灾难计时器。
+    if time_cost > 0:
+        _advance_npcs_and_scheduled_events(updated)
     meta["event_format_version"] = max(2, int(meta.get("event_format_version", 1)))
     # 回放必须得到同一状态；不能在投影器里写入当前墙上时间。
     meta["last_played"] = str(record.get("timestamp") or meta.get("last_played", ""))
