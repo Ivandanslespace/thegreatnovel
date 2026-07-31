@@ -273,6 +273,7 @@ def verify_persistence_integrity(campaign_id: str, db_path: str | Path) -> Repla
             final_state=current_state,
             expected_hash=final_state_hash if 'final_state_hash' in locals() else None,
             actual_hash=final_state_hash if 'final_state_hash' in locals() else None,
+            states_replayed=len(event_records),
         )
     
     finally:

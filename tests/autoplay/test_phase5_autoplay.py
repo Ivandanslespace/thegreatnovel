@@ -5,11 +5,13 @@ from typing import Any
 
 from tgn.core.models import GameState, DomainEvent
 from tgn.core.hashing import state_hash
-from tgn.gameplay.expedition import build_observation
+from tgn.gameplay.expedition import build_observation, get_legal_actions
+from tgn.gameplay.world_phase import get_current_phase
 from tgn.autoplay.runner import run_autoplay
 from tgn.autoplay.models import AutoplayConfig, StopReason
 from tgn.actions.models import ActionIntent
-from tgn.storage.replay import replay_events
+from tgn.storage.replay import replay_events, verify_persistence_integrity
+from tgn.storage.event_store import EventStore
 
 
 PHASE_CYCLE_CONFIG = {
@@ -224,3 +226,93 @@ class TestReplayAcrossBoundaries:
             return state_hash(r2.final_state.__dict__)
 
         assert run_sequence() == run_sequence()
+
+
+# --- SQLite persistence + reopen + full verification (Phase 5.1 acceptance gap fix) ---
+
+class TestSQLitePersistenceAcrossBoundaries:
+    """Real SQLite persistence acceptance: persist, close, reopen, verify."""
+
+    def test_persistence_reopen_verification(self, tmp_path):
+        """Full persistence lifecycle: run → persist → close → reopen → verify."""
+        db_path = tmp_path / "phase5.sqlite3"
+        campaign_id = "phase5-persist-test"
+
+        # --- Run autoplay with real EventStore ---
+        store = EventStore(db_path)
+        state = _make_phase5_state(55)
+        config = AutoplayConfig(max_decisions=10, actor_id="phase5-bot")
+
+        result = run_autoplay(
+            state,
+            _phase5_policy,
+            config,
+            event_store=store,
+            campaign_id=campaign_id,
+        )
+
+        # --- Assert runtime result before closing (spec #6) ---
+        assert result.completed is True
+        assert result.decisions == 2
+        assert result.events == 2
+        assert result.final_state.game_minute == 120
+        assert result.final_state_hash == state_hash(result.final_state.__dict__)
+
+        final_obs = build_observation(result.final_state)
+        assert final_obs["world_phase"] == "DAY"
+        legal_types = [la.action_type for la in final_obs["legal_actions"]]
+        assert "DROP" in legal_types
+
+        runtime_final_hash = result.final_state_hash
+
+        # --- Close the original database connection (spec #7) ---
+        store.close()
+
+        # --- Reopen with a NEW EventStore instance (spec #8) ---
+        reopened = EventStore(db_path)
+
+        # Campaign exists
+        campaign = reopened.get_campaign(campaign_id)
+        assert campaign is not None
+        assert campaign.campaign_id == campaign_id
+
+        # 2 persisted event records
+        event_records = reopened.all_event_records(campaign_id)
+        assert len(event_records) == 2
+
+        # Event 1: TIME_ADVANCED, game_minute = 65
+        assert event_records[0]["event_type"] == "TIME_ADVANCED"
+        assert event_records[0]["game_minute"] == 65
+
+        # Event 2: TIME_ADVANCED, game_minute = 120
+        assert event_records[1]["event_type"] == "TIME_ADVANCED"
+        assert event_records[1]["game_minute"] == 120
+
+        # --- Verify persisted phase configuration survives (spec #9) ---
+        snapshot = reopened.latest_snapshot_record(campaign_id)
+        assert snapshot is not None
+        assert snapshot.event_seq == 2
+        assert snapshot.state["game_minute"] == 120
+        assert snapshot.state["data"]["phase_cycle"]["cycle_minutes"] == 120
+        assert snapshot.state["data"]["phase_cycle"]["boundary_minute"] == 60
+        assert snapshot.state["data"]["phase_cycle"]["phase_before"] == "DAY"
+        assert snapshot.state["data"]["phase_cycle"]["phase_after"] == "NIGHT"
+
+        # Snapshot hash matches runtime final hash
+        assert snapshot.state_hash == runtime_final_hash
+
+        reopened.close()
+
+        # --- Full persistence verification from disk (spec #10) ---
+        verification = verify_persistence_integrity(campaign_id, db_path)
+        assert verification.success is True
+        assert verification.states_replayed == 2
+        assert verification.actual_hash == runtime_final_hash
+
+        # --- Verify reconstructed final gameplay meaning (spec #11) ---
+        reconstructed = GameState(**verification.final_state)
+        assert reconstructed.game_minute == 120
+        assert get_current_phase(reconstructed) == "DAY"
+
+        legal_types = [la.action_type for la in get_legal_actions(reconstructed)]
+        assert "DROP" in legal_types
