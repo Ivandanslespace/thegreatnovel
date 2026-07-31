@@ -5,6 +5,7 @@ world:
   difficulty: "标准"
   narrative_length: 7
   language: "中文"
+  
   genre_contract:
     id: "mass_system_survival"
     name: "全民系统投放型求生"
@@ -43,6 +44,18 @@ world:
       partial_failure_pct: {min: 0.55, max: 0.65}
       severe_failure_pct: {min: 0.30, max: 0.40}
       catastrophic_failure_pct: 0.05
+  
+  # P0-5 FIX: Explicitly define all capabilities as true/false (not null)
+  mechanics:
+    capabilities:
+      combat: true
+      building: true
+      crafting: true
+      factions: true
+      disasters: true
+    
+    ranking: {}
+    
   professions: {}
   starting_profession: null
   talent_deck:

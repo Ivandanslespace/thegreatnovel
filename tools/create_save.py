@@ -40,7 +40,6 @@ from engine_runtime.world_compiler import COMPILER_VERSION, compile_world_bundle
 from engine_runtime.ratings import normalize_rating
 from engine_runtime.public_survival import initial_public_states
 from engine_runtime.state import load_game_state
-from engine_runtime.validators_aggregate import ValidationContext
 
 
 DIFFICULTIES = {"休闲", "标准", "硬核"}
@@ -55,19 +54,31 @@ def validate_world_aggregate(world: dict) -> str:
     This is the new P0-5 improvement: instead of fail-fast validation that
     makes LLM fix fields one by one, we now collect ALL errors at once so
     the LLM can fix everything in one round.
+    
+    Uses unified_validator for shared schema definitions.
     """
     try:
+        from engine_runtime.unified_validator import ValidationContext
+        
         ctx = ValidationContext()
         
         # Normalize capabilities first (fixes null/disaster issue)
-        from engine_runtime.validators_aggregate import _normalize_capabilities
-        capabilities = _normalize_capabilities(world.get("capabilities", {}), ctx)
+        mechanics_cfg = world.get("mechanics", {}) or {}
+        capabilities_raw = mechanics_cfg.get("capabilities")
         
-        # Check for common schema mismatches
+        if capabilities_raw is None:
+            ctx.add("MISSING_REQUIRED_FIELD", 
+                   "world.mechanics.capabilities",
+                   "Capabilities must be explicitly defined as true/false for each feature")
+        else:
+            from engine_runtime.unified_validator import _normalize_capabilities
+            _normalize_capabilities(capabilities_raw, ctx)
+        
+        # Check common schema mismatches
         blueprint = world.get("world_blueprint", {})
         
-        # Validate starting_location against locations registry
-        starting_loc = str(world.get("starting_location") or "")
+        # Validate starting_location from correct path: world_blueprint.starting_location
+        starting_loc = str(blueprint.get("starting_location") or "")
         location_ids = set()
         for loc in blueprint.get("locations", []) or []:
             if isinstance(loc, dict) and loc.get("id"):
@@ -75,25 +86,37 @@ def validate_world_aggregate(world: dict) -> str:
         
         if starting_loc and starting_loc not in location_ids:
             ctx.add("MISSING_REQUIRED_FIELD", 
-                   "starting_location",
+                   "world_blueprint.starting_location",
                    f"Location '{starting_loc}' not found in locations registry")
             if location_ids:
-                ctx.add("SUGGESTION", "starting_location",
+                ctx.add("SUGGESTION", "world_blueprint.starting_location",
                        f"Available locations: {', '.join(sorted(location_ids)[:3])}")
         
-        # Collect action_targets errors
+        # Collect action_targets errors - check ALL required fields per compiler
         for target in blueprint.get("action_targets", []) or []:
             if not isinstance(target, dict):
                 continue
             target_id = target.get("id", "unknown")
             label = f"world_blueprint.action_targets.{target_id}"
             
-            for field in ("name", "location_id", "primary_attribute", 
+            # Compiler requires ALL these fields
+            for field in ("name", "action_type", "location_id", "primary_attribute", 
+                         "target_difficulty", "time_minutes", "stamina_cost", "mental_cost", 
                          "effects"):
                 if field not in target or target[field] in (None, ""):
                     ctx.add("MISSING_REQUIRED_FIELD", 
                            f"{label}.{field}",
-                           f"Required field is missing")
+                           "Required field is missing (compiler requirement)")
+            
+            # Special validation for effects structure
+            if "effects" in target:
+                effects = target["effects"]
+                if not isinstance(effects, dict):
+                    ctx.add("INVALID_TYPE", f"{label}.effects", 
+                           "Must be an object with success/partial_failure/failure keys")
+                elif not any(effects.get(branch) for branch in ("success", "partial_failure", "failure")):
+                    ctx.add("MISSING_REQUIRED_FIELD", f"{label}.effects", 
+                           "At least one outcome branch (success/partial_failure/failure) must have content")
         
         if not ctx.has_p0():
             return ""
@@ -647,8 +670,7 @@ def normalize_package(template, supplied_world, supplied_talent, world_name_over
             # P0-5: Run aggregate validation first to collect ALL errors at once
             error_report = validate_world_aggregate(world)
             if error_report:
-                print(error_report, file=sys.stderr)
-                return 1
+                raise GeneratorError(error_report)
             
             bundle = compile_world_bundle(
                 theme=world["theme"],
