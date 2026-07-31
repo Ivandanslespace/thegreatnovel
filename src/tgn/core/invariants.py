@@ -49,6 +49,10 @@ def check_invariants(state: "GameState") -> None:
     # Phase 3 expedition invariants
     if state.data.get("expedition"):
         _check_expedition_invariants(state)
+    
+    # Phase 4 combat invariants
+    if state.data.get("player") and "hp" in state.data.get("player", {}):
+        _check_combat_invariants(state)
 
 
 def _check_expedition_invariants(state: "GameState") -> None:
@@ -144,3 +148,82 @@ def _check_expedition_invariants(state: "GameState") -> None:
         target_loot = exp.get("target_loot")
         if target_loot and any(qty > 0 for qty in target_loot.values()):
             raise InvariantError("Target already searched: target_loot must be empty")
+
+
+def _check_combat_invariants(state: "GameState") -> None:
+    """Verify Phase 4 combat-specific invariants."""
+    player = state.data.get("player", {})
+    exp = state.data.get("expedition", {})
+    
+    # HP must be int, not bool
+    hp = player.get("hp")
+    if hp is not None:
+        if isinstance(hp, bool):
+            raise InvariantError("hp must be int, not bool")
+        if not isinstance(hp, int):
+            raise InvariantError(f"hp must be int, got {type(hp).__name__}")
+    
+    # max_hp must be positive int, not bool
+    max_hp = player.get("max_hp")
+    if max_hp is not None:
+        if isinstance(max_hp, bool):
+            raise InvariantError("max_hp must be int, not bool")
+        if not isinstance(max_hp, int):
+            raise InvariantError(f"max_hp must be int, got {type(max_hp).__name__}")
+        if max_hp <= 0:
+            raise InvariantError(f"max_hp must be positive, got {max_hp}")
+    
+    # HP range: 0 <= hp <= max_hp
+    if hp is not None and max_hp is not None:
+        if hp < 0:
+            raise InvariantError(f"hp must be non-negative, got {hp}")
+        if hp > max_hp:
+            raise InvariantError(f"hp must be <= max_hp, got {hp} > {max_hp}")
+    
+    # attack must be non-negative int, not bool
+    attack = player.get("attack")
+    if attack is not None:
+        if isinstance(attack, bool):
+            raise InvariantError("attack must be int, not bool")
+        if not isinstance(attack, int):
+            raise InvariantError(f"attack must be int, got {type(attack).__name__}")
+        if attack < 0:
+            raise InvariantError(f"attack must be non-negative, got {attack}")
+    
+    # Encounter invariants
+    encounter = exp.get("encounter")
+    if encounter is not None:
+        enemy_hp = encounter.get("enemy_hp")
+        enemy_max_hp = encounter.get("enemy_max_hp")
+        enemy_attack = encounter.get("enemy_attack")
+        
+        # enemy_hp must be int, not bool, and non-negative
+        if enemy_hp is not None:
+            if isinstance(enemy_hp, bool):
+                raise InvariantError("enemy_hp must be int, not bool")
+            if not isinstance(enemy_hp, int):
+                raise InvariantError(f"enemy_hp must be int, got {type(enemy_hp).__name__}")
+            if enemy_hp < 0:
+                raise InvariantError(f"enemy_hp must be non-negative, got {enemy_hp}")
+        
+        # enemy_max_hp must be positive int
+        if enemy_max_hp is not None:
+            if isinstance(enemy_max_hp, bool):
+                raise InvariantError("enemy_max_hp must be int, not bool")
+            if not isinstance(enemy_max_hp, int):
+                raise InvariantError(f"enemy_max_hp must be int, got {type(enemy_max_hp).__name__}")
+            if enemy_max_hp <= 0:
+                raise InvariantError(f"enemy_max_hp must be positive, got {enemy_max_hp}")
+        
+        # enemy_attack must be non-negative int
+        if enemy_attack is not None:
+            if isinstance(enemy_attack, bool):
+                raise InvariantError("enemy_attack must be int, not bool")
+            if not isinstance(enemy_attack, int):
+                raise InvariantError(f"enemy_attack must be int, got {type(enemy_attack).__name__}")
+            if enemy_attack < 0:
+                raise InvariantError(f"enemy_attack must be non-negative, got {enemy_attack}")
+        
+        # Active encounter cannot have dead enemy
+        if encounter.get("active") and enemy_hp is not None and enemy_hp <= 0:
+            raise InvariantError("Active encounter cannot have dead enemy (enemy_hp <= 0)")

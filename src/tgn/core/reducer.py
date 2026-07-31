@@ -73,8 +73,15 @@ def reduce_event(state: GameState, event: DomainEvent) -> GameState:
     elif event.event_type == "EXPEDITION_EXTRACTED":
         _apply_expedition_extracted(new_state, event)
     
+    # Phase 4 risk events
+    elif event.event_type == "COMBAT_RESOLVED":
+        _apply_combat_resolved(new_state, event)
+    
+    elif event.event_type == "EXPEDITION_FLED":
+        _apply_expedition_fled(new_state, event)
+    
     else:
-        raise ReducerError(f"Unknown event type '{event.event_type}'. Phase 1 only supports 'TIME_ADVANCED'. Phase 3 adds expedition events.")
+        raise ReducerError(f"Unknown event type '{event.event_type}'.")
     
     # Update sequence number
     new_state.event_seq = event.event_seq
@@ -189,6 +196,11 @@ def _apply_search_resolved(state: GameState, event: DomainEvent) -> None:
     state.data["expedition"]["carried_loot"] = dict(state.data["expedition"]["target_loot"])
     state.data["expedition"]["target_loot"] = {}
     state.data["expedition"]["target_searched"] = True
+    
+    # Phase 4: Activate encounter after search (if encounter data exists)
+    encounter = state.data["expedition"].get("encounter")
+    if encounter is not None:
+        encounter["active"] = True
 
 
 def _apply_expedition_extracted(state: GameState, event: DomainEvent) -> None:
@@ -229,3 +241,141 @@ def _apply_expedition_extracted(state: GameState, event: DomainEvent) -> None:
     state.data["expedition"]["carried_loot"] = {}
     state.data["expedition"]["active"] = False
     state.data["player"]["location_id"] = state.data["expedition"]["base_location_id"]
+
+
+# Phase 4 risk event handlers
+
+def _apply_combat_resolved(state: GameState, event: DomainEvent) -> None:
+    """Apply COMBAT_RESOLVED event (Phase 4 deterministic combat)."""
+    payload = event.payload
+    exp = state.data["expedition"]
+    player = state.data["player"]
+    encounter = exp["encounter"]
+    
+    # Verify preconditions
+    if player["hp"] <= 0:
+        raise ReducerError("Cannot fight: player is dead")
+    
+    if not encounter["active"]:
+        raise ReducerError("Cannot fight: no active encounter")
+    
+    if encounter["enemy_hp"] <= 0:
+        raise ReducerError("Cannot fight: enemy already defeated")
+    
+    if player["stamina"] < 1:
+        raise ReducerError("Cannot fight: insufficient stamina")
+    
+    # Verify payload costs
+    if payload.get("time") != 10:
+        raise ReducerError(f"Fight time cost must be 10, got {payload.get('time')}")
+    
+    if payload.get("stamina_cost") != 1:
+        raise ReducerError(f"Fight stamina cost must be 1, got {payload.get('stamina_cost')}")
+    
+    # Verify game_minute
+    expected_minute = state.game_minute + 10
+    if event.game_minute != expected_minute:
+        raise ReducerError(f"Game minute mismatch: expected {expected_minute}, got {event.game_minute}")
+    
+    # Verify enemy_id matches
+    if payload.get("enemy_id") != encounter["enemy_id"]:
+        raise ReducerError(f"Enemy ID mismatch: expected {encounter['enemy_id']}, got {payload.get('enemy_id')}")
+    
+    # Compute deterministic combat resolution
+    player_damage_dealt = player["attack"]
+    new_enemy_hp = encounter["enemy_hp"] - player_damage_dealt
+    if new_enemy_hp < 0:
+        new_enemy_hp = 0
+    
+    # Enemy retaliates only if it survives
+    if new_enemy_hp > 0:
+        enemy_damage_dealt = encounter["enemy_attack"]
+    else:
+        enemy_damage_dealt = 0
+    
+    new_player_hp = player["hp"] - enemy_damage_dealt
+    if new_player_hp < 0:
+        new_player_hp = 0
+    
+    # Verify payload matches engine-computed values (anti-forgery)
+    if payload.get("player_damage_dealt") != player_damage_dealt:
+        raise ReducerError(
+            f"Forged player_damage_dealt: expected {player_damage_dealt}, got {payload.get('player_damage_dealt')}"
+        )
+    
+    if payload.get("enemy_damage_dealt") != enemy_damage_dealt:
+        raise ReducerError(
+            f"Forged enemy_damage_dealt: expected {enemy_damage_dealt}, got {payload.get('enemy_damage_dealt')}"
+        )
+    
+    if payload.get("enemy_hp_after") != new_enemy_hp:
+        raise ReducerError(
+            f"Forged enemy_hp_after: expected {new_enemy_hp}, got {payload.get('enemy_hp_after')}"
+        )
+    
+    if payload.get("player_hp_after") != new_player_hp:
+        raise ReducerError(
+            f"Forged player_hp_after: expected {new_player_hp}, got {payload.get('player_hp_after')}"
+        )
+    
+    # Determine outcome
+    if new_player_hp <= 0:
+        expected_outcome = "PLAYER_DIED"
+    elif new_enemy_hp <= 0:
+        expected_outcome = "ENEMY_DEFEATED"
+    else:
+        expected_outcome = "ONGOING"
+    
+    if payload.get("outcome") != expected_outcome:
+        raise ReducerError(
+            f"Forged outcome: expected {expected_outcome}, got {payload.get('outcome')}"
+        )
+    
+    # Apply state changes
+    encounter["enemy_hp"] = new_enemy_hp
+    player["hp"] = new_player_hp
+    player["stamina"] -= 1
+    state.game_minute = expected_minute
+    
+    # Deactivate encounter if enemy defeated
+    if new_enemy_hp <= 0:
+        encounter["active"] = False
+
+
+def _apply_expedition_fled(state: GameState, event: DomainEvent) -> None:
+    """Apply EXPEDITION_FLED event (Phase 4 flee mechanics)."""
+    payload = event.payload
+    exp = state.data["expedition"]
+    player = state.data["player"]
+    
+    # Verify preconditions
+    if not exp["active"]:
+        raise ReducerError("Cannot flee: expedition not active")
+    
+    if not exp["encounter"]["active"]:
+        raise ReducerError("Cannot flee: no active encounter")
+    
+    if player["hp"] <= 0:
+        raise ReducerError("Cannot flee: player is dead")
+    
+    # Verify payload time cost
+    if payload.get("time") != 15:
+        raise ReducerError(f"Flee time cost must be 15, got {payload.get('time')}")
+    
+    # Verify game_minute
+    expected_minute = state.game_minute + 15
+    if event.game_minute != expected_minute:
+        raise ReducerError(f"Game minute mismatch: expected {expected_minute}, got {event.game_minute}")
+    
+    # Apply state changes
+    state.game_minute = expected_minute
+    
+    # Discard carried loot (real sacrifice)
+    exp["carried_loot"] = {}
+    
+    # Clear encounter
+    exp["encounter"]["active"] = False
+    
+    # End expedition, return to base
+    exp["active"] = False
+    player["location_id"] = exp["base_location_id"]

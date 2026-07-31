@@ -19,6 +19,8 @@ from ..actions.models import (
 DROP_COST = {"time": 10, "stamina": 1}
 SEARCH_COST = {"time": 30, "stamina": 2}
 EXTRACT_COST = {"time": 15, "stamina": 0}
+FIGHT_COST = {"time": 10, "stamina": 1}
+FLEE_COST = {"time": 15, "stamina": 0}
 
 
 def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
@@ -37,10 +39,31 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
     exp = state.data["expedition"]
     player = state.data["player"]
     stamina = player["stamina"]
-    max_stamina = player["max_stamina"]
     
-    # Always can WAIT
-    legal: list[LegalAction] = [
+    # Phase 4: Dead player cannot act (P0 invariant)
+    hp = player.get("hp")
+    if hp is not None and hp <= 0:
+        return ()
+    
+    # Phase 4: Active encounter forces FIGHT or FLEE only
+    encounter = exp.get("encounter")
+    if encounter and encounter.get("active"):
+        legal: list[LegalAction] = []
+        if stamina >= FIGHT_COST["stamina"]:
+            legal.append(LegalAction(
+                action_type="FIGHT",
+                duration_minutes=FIGHT_COST["time"],
+                stamina_cost=FIGHT_COST["stamina"],
+            ))
+        legal.append(LegalAction(
+            action_type="FLEE",
+            duration_minutes=FLEE_COST["time"],
+            stamina_cost=FLEE_COST["stamina"],
+        ))
+        return tuple(legal)
+    
+    # Normal expedition logic (Phase 3)
+    legal = [
         LegalAction(action_type="WAIT", duration_minutes=None, stamina_cost=0)
     ]
     
@@ -89,11 +112,11 @@ def validate_action(
     state: GameState,
     intent: ActionIntent,
 ) -> ActionValidationResult:
-    """Validate Phase 3 actions against state using single source of truth."""
+    """Validate Phase 3/4 actions against state using single source of truth."""
     errors: list[ActionValidationError] = []
     
     # Check action type is supported
-    if intent.action_type not in ["WAIT", "DROP", "SEARCH", "EXTRACT"]:
+    if intent.action_type not in ["WAIT", "DROP", "SEARCH", "EXTRACT", "FIGHT", "FLEE"]:
         errors.append(ActionValidationError(
             code="UNKNOWN_ACTION",
             message=f"Unknown action type: {intent.action_type}",
@@ -145,6 +168,24 @@ def validate_action(
                 field=f"params.{key}",
             ))
     
+    elif intent.action_type == "FIGHT":
+        # No params allowed for FIGHT
+        for key in intent.params:
+            errors.append(ActionValidationError(
+                code="UNEXPECTED_PARAMETER",
+                message=f"FIGHT does not accept parameter: {key}",
+                field=f"params.{key}",
+            ))
+    
+    elif intent.action_type == "FLEE":
+        # No params allowed for FLEE
+        for key in intent.params:
+            errors.append(ActionValidationError(
+                code="UNEXPECTED_PARAMETER",
+                message=f"FLEE does not accept parameter: {key}",
+                field=f"params.{key}",
+            ))
+    
     if errors:
         return ActionValidationResult(valid=False, action=None, errors=tuple(errors))
     
@@ -170,12 +211,51 @@ def execute_action(
 ) -> "ActionExecutionResult":
     """Execute validated action, produce event, apply via reducer."""
     
-    # Handle Phase 3 actions directly
-    if intent.action_type in ["DROP", "SEARCH", "EXTRACT"]:
+    # Handle Phase 3/4 actions directly
+    if intent.action_type in ["DROP", "SEARCH", "EXTRACT", "FIGHT", "FLEE"]:
         return _execute_phase3_action(state, intent)
     
-    # Delegate WAIT to Phase 2 validation (preserves Phase 2 behavior)
+    # WAIT: check Phase 4 encounter gate first
     elif intent.action_type == "WAIT":
+        # Phase 4: WAIT not legal during active encounter
+        exp = state.data.get("expedition")
+        if exp:
+            encounter = exp.get("encounter")
+            if encounter and encounter.get("active"):
+                return ActionExecutionResult(
+                    accepted=False,
+                    validation=ActionValidationResult(
+                        valid=False,
+                        action=None,
+                        errors=(
+                            ActionValidationError(
+                                code="ACTION_NOT_LEGAL_IN_STATE",
+                                message="WAIT not legal during active hostile encounter",
+                            ),
+                        ),
+                    ),
+                    events=tuple(),
+                    final_state=None,
+                )
+            # Phase 4: Dead player cannot WAIT
+            player = state.data.get("player", {})
+            if player.get("hp") is not None and player["hp"] <= 0:
+                return ActionExecutionResult(
+                    accepted=False,
+                    validation=ActionValidationResult(
+                        valid=False,
+                        action=None,
+                        errors=(
+                            ActionValidationError(
+                                code="ACTION_NOT_LEGAL_IN_STATE",
+                                message="Dead player cannot act",
+                            ),
+                        ),
+                    ),
+                    events=tuple(),
+                    final_state=None,
+                )
+        
         from tgn.actions.validation import validate_action as base_validate
         
         validation = base_validate(state, intent)
@@ -237,9 +317,9 @@ def _execute_phase3_action(
     state: GameState,
     intent: ActionIntent,
 ) -> ActionExecutionResult:
-    """Execute Phase 3 actions (DROP, SEARCH, EXTRACT) with built-in validation."""
+    """Execute Phase 3/4 actions (DROP, SEARCH, EXTRACT, FIGHT, FLEE) with built-in validation."""
     
-    # Validate using Phase 3 logic
+    # Validate using Phase 3/4 logic
     validation = validate_action(state, intent)
     
     if not validation.valid:
@@ -309,6 +389,61 @@ def _execute_phase3_action(
             },
         )
     
+    elif intent.action_type == "FIGHT":
+        # Phase 4: Deterministic combat resolution
+        player = state.data["player"]
+        encounter = state.data["expedition"]["encounter"]
+        
+        # Compute combat outcome (engine authority)
+        player_damage_dealt = player["attack"]
+        new_enemy_hp = max(0, encounter["enemy_hp"] - player_damage_dealt)
+        
+        if new_enemy_hp > 0:
+            enemy_damage_dealt = encounter["enemy_attack"]
+        else:
+            enemy_damage_dealt = 0
+        
+        new_player_hp = max(0, player["hp"] - enemy_damage_dealt)
+        
+        if new_player_hp <= 0:
+            outcome = "PLAYER_DIED"
+        elif new_enemy_hp <= 0:
+            outcome = "ENEMY_DEFEATED"
+        else:
+            outcome = "ONGOING"
+        
+        event = DomainEvent(
+            event_seq=state.event_seq + 1,
+            event_type="COMBAT_RESOLVED",
+            game_minute=state.game_minute + FIGHT_COST["time"],
+            decision_seq=state.decision_seq + 1,
+            action_id=validated.action_id,
+            actor_id=validated.actor_id,
+            payload={
+                "enemy_id": encounter["enemy_id"],
+                "player_damage_dealt": player_damage_dealt,
+                "enemy_damage_dealt": enemy_damage_dealt,
+                "enemy_hp_after": new_enemy_hp,
+                "player_hp_after": new_player_hp,
+                "outcome": outcome,
+                "time": FIGHT_COST["time"],
+                "stamina_cost": FIGHT_COST["stamina"],
+            },
+        )
+    
+    elif intent.action_type == "FLEE":
+        event = DomainEvent(
+            event_seq=state.event_seq + 1,
+            event_type="EXPEDITION_FLED",
+            game_minute=state.game_minute + FLEE_COST["time"],
+            decision_seq=state.decision_seq + 1,
+            action_id=validated.action_id,
+            actor_id=validated.actor_id,
+            payload={
+                "time": FLEE_COST["time"],
+            },
+        )
+    
     # Apply via reducer
     from ..core.reducer import reduce_event
     
@@ -339,25 +474,47 @@ def build_observation(state: GameState) -> dict[str, Any]:
     
     Player MAY see:
     - game_minute, location_id, stamina, max_stamina
+    - hp, max_hp (Phase 4)
     - inventory, carried_loot
     - expedition_active, target_searched
     - legal_actions with known costs
+    - enemy state when encounter active (Phase 4)
     
     Player MUST NOT see:
     - target_loot (undiscovered information)
+    - enemy data before encounter activation
+    - future combat results
     """
+    player = state.data["player"]
+    exp = state.data["expedition"]
+    
     # Deep copy to avoid mutating state
     observation = {
         "game_minute": state.game_minute,
-        "location_id": state.data["player"]["location_id"],
-        "stamina": state.data["player"]["stamina"],
-        "max_stamina": state.data["player"]["max_stamina"],
+        "location_id": player["location_id"],
+        "stamina": player["stamina"],
+        "max_stamina": player["max_stamina"],
         "inventory": dict(state.data["inventory"]),
-        "carried_loot": dict(state.data["expedition"]["carried_loot"]),  # Now visible!
-        "expedition_active": state.data["expedition"]["active"],
-        "target_searched": state.data["expedition"]["target_searched"],
+        "carried_loot": dict(exp["carried_loot"]),
+        "expedition_active": exp["active"],
+        "target_searched": exp["target_searched"],
         "legal_actions": get_legal_actions(state),
     }
+    
+    # Phase 4: HP visible
+    if "hp" in player:
+        observation["hp"] = player["hp"]
+        observation["max_hp"] = player["max_hp"]
+    
+    # Phase 4: Enemy visible only when encounter active
+    encounter = exp.get("encounter")
+    if encounter and encounter.get("active"):
+        observation["enemy"] = {
+            "enemy_id": encounter["enemy_id"],
+            "enemy_hp": encounter["enemy_hp"],
+            "enemy_max_hp": encounter["enemy_max_hp"],
+            "enemy_attack": encounter["enemy_attack"],
+        }
     
     # target_loot is always hidden (information asymmetry)
     
