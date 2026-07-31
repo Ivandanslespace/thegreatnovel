@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 import sqlite3
 
 from tgn.core import GameState, DomainEvent, reduce_event, ReducerError, state_hash
-from tgn.storage import EventStore, verify_persistence_integrity, replay_campaign
+from tgn.storage import EventStore, verify_persistence_integrity, EventStoreError
 
 
 class TestEndToEndGoldens:
@@ -72,7 +72,7 @@ class TestMultiCampaignRealIsolation:
         with TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "multi.db"
             
-            # Create both campaigns
+            # Create both campaigns with events [1,2]
             store = EventStore(db_path)
             try:
                 # Campaign A - use GameState with extra data in .data field
@@ -87,6 +87,12 @@ class TestMultiCampaignRealIsolation:
                 state_a1 = reduce_event(init_a_state, evt_a1)
                 store.append_transition("camp_A", evt_a1, init_a_state, state_a1)
                 
+                # Event 2 for campaign A
+                evt_a2 = DomainEvent(event_seq=2, decision_seq=0, game_minute=120,
+                                    event_type="TIME_ADVANCED", payload={"minutes": 60})
+                state_a2 = reduce_event(state_a1, evt_a2)
+                store.append_transition("camp_A", evt_a2, state_a1, state_a2)
+                
                 # Campaign B - same seq numbers!
                 init_b_state = GameState.initial(seed="camp-b")
                 init_b_state.data["campaign"] = "B"
@@ -99,12 +105,32 @@ class TestMultiCampaignRealIsolation:
                 state_b1 = reduce_event(init_b_state, evt_b1)
                 store.append_transition("camp_B", evt_b1, init_b_state, state_b1)
                 
+                # Event 2 for campaign B
+                evt_b2 = DomainEvent(event_seq=2, decision_seq=0, game_minute=90,
+                                    event_type="TIME_ADVANCED", payload={"minutes": 60})
+                state_b2 = reduce_event(state_b1, evt_b2)
+                store.append_transition("camp_B", evt_b2, state_b1, state_b2)
+                
             finally:
                 store.close()
             
             # Reopen and verify both independently
             new_store = EventStore(db_path)
             try:
+                # Verify events for both campaigns
+                events_a = new_store.all_event_records("camp_A")
+                events_b = new_store.all_event_records("camp_B")
+                
+                assert len(events_a) == 2, f"Expected 2 events for A, got {len(events_a)}"
+                assert len(events_b) == 2, f"Expected 2 events for B, got {len(events_b)}"
+                
+                # Verify sequence numbers
+                assert events_a[0]["event_seq"] == 1
+                assert events_a[1]["event_seq"] == 2
+                assert events_b[0]["event_seq"] == 1
+                assert events_b[1]["event_seq"] == 2
+                
+                # Verify snapshots
                 snap_a = new_store.latest_snapshot_record("camp_A")
                 snap_b = new_store.latest_snapshot_record("camp_B")
                 
@@ -120,6 +146,11 @@ class TestMultiCampaignRealIsolation:
                 
                 assert result_a.success, f"A failed: {result_a.error_message}"
                 assert result_b.success, f"B failed: {result_b.error_message}"
+                
+                # Verify final states are different (no contamination)
+                assert result_a.final_state["game_minute"] == 120
+                assert result_b.final_state["game_minute"] == 90
+                assert result_a.final_state["seed"] != result_b.final_state["seed"]
                 
             finally:
                 new_store.close()
@@ -151,6 +182,12 @@ class TestCorruptionDetectionAllTypes:
                                   event_type="TIME_ADVANCED", payload={"minutes": 60})
                 state2 = reduce_event(state1, evt2)
                 store.append_transition("camp_c", evt2, state1, state2)
+                
+                # Add event 3 for missing middle test
+                evt3 = DomainEvent(event_seq=3, decision_seq=0, game_minute=180,
+                                  event_type="TIME_ADVANCED", payload={"minutes": 60})
+                state3 = reduce_event(state2, evt3)
+                store.append_transition("camp_c", evt3, state2, state3)
                 
             finally:
                 store.close()
@@ -202,9 +239,9 @@ class TestCorruptionDetectionAllTypes:
     def test_snapshot_state_tampering_detected(self, valid_campaign_db):
         """Snapshot state_json tampering must be detected."""
         conn = sqlite3.connect(str(valid_campaign_db))
-        # Corrupt the latest snapshot (event_seq=2)
+        # Corrupt the latest snapshot (event_seq=3)
         conn.execute("""UPDATE snapshots SET state_json='{"fake":"state"}' 
-                       WHERE campaign_id='camp_c' AND event_seq=2""")
+                       WHERE campaign_id='camp_c' AND event_seq=3""")
         conn.commit()
         conn.close()
         
@@ -216,31 +253,34 @@ class TestCorruptionDetectionAllTypes:
         """Snapshot state_hash tampering must be detected."""
         conn = sqlite3.connect(str(valid_campaign_db))
         original_hash = conn.execute("""SELECT state_hash FROM snapshots 
-                                        WHERE campaign_id='camp_c' AND event_seq=2""").fetchone()[0]
+                                        WHERE campaign_id='camp_c' AND event_seq=3""").fetchone()[0]
         fake_hash = "a" * 64
         
         conn.execute(f"""UPDATE snapshots SET state_hash='{fake_hash}' 
-                       WHERE campaign_id='camp_c' AND event_seq=2""")
+                       WHERE campaign_id='camp_c' AND event_seq=3""")
         conn.commit()
         conn.close()
         
         result = verify_persistence_integrity("camp_c", valid_campaign_db)
         assert not result.success
-        assert "snapshot hash" in result.error_message.lower() or "doesn't match" in result.error_message.lower()
+        assert ("snapshot hash" in result.error_message.lower() or 
+                "doesn't match" in result.error_message.lower())
     
     def test_missing_middle_persisted_event_detected(self, valid_campaign_db):
-        """Missing event 2 must cause verification failure."""
-        # Delete event 2 but KEEP its snapshot
-        # This causes mismatch: snapshot exists at seq=2 but no corresponding event
+        """Missing event 2 must cause verification failure at event 3."""
+        # Delete only event 2 - this creates a gap: events [1, 3] with no event 2
         conn = sqlite3.connect(str(valid_campaign_db))
-        conn.execute("""DELETE FROM events WHERE campaign_id='camp_c' AND event_seq=2""")
-        conn.commit()
-        conn.close()
+        try:
+            conn.execute("""DELETE FROM events WHERE campaign_id='camp_c' AND event_seq=2""")
+            conn.commit()
+        finally:
+            conn.close()
         
         result = verify_persistence_integrity("camp_c", valid_campaign_db)
         assert not result.success
-        # Detection could be at event 2 (snapshot without event) or during hash check
-        assert result.failed_event_seq is not None
+        # Should detect at event 3 because its before-hash won't match
+        # (event 3 expects state after event 2, but event 2 is missing)
+        assert result.failed_event_seq == 3, f"Expected failure at event 3, got {result.failed_event_seq}"
 
 
 class TestMalformedJSONAndAtomicity:
@@ -296,24 +336,43 @@ class TestMalformedJSONAndAtomicity:
                 state1 = reduce_event(init_state, evt1)
                 store.append_transition("camp_rb", evt1, init_state, state1)
                 
+                # Create trigger to force snapshot INSERT failure
+                conn = sqlite3.connect(str(db_path))
+                try:
+                    conn.execute("""
+                        CREATE TRIGGER fail_snapshot_insert
+                        BEFORE INSERT ON snapshots
+                        BEGIN
+                            SELECT RAISE(ABORT, 'forced snapshot failure');
+                        END;
+                    """)
+                    conn.commit()
+                finally:
+                    conn.close()
+                
                 # Count before
                 events_before = len(store.all_event_records("camp_rb"))
+                snapshots_before = len(store.latest_snapshot_record("camp_rb").__dict__) if store.latest_snapshot_record("camp_rb") else 0
                 
-                # Try duplicate event_seq (will fail inside transaction after event INSERT)
-                evt_dup = DomainEvent(event_seq=1, decision_seq=0, game_minute=70,
-                                     event_type="TIME_ADVANCED", payload={"minutes": 10})
+                # Try event_seq=2 - this will succeed on event INSERT but fail on snapshot INSERT
+                evt2 = DomainEvent(event_seq=2, decision_seq=0, game_minute=120,
+                                   event_type="TIME_ADVANCED", payload={"minutes": 60})
+                state2 = reduce_event(state1, evt2)
                 
                 try:
-                    # This will fail on UNIQUE constraint for (campaign_id, event_seq)
-                    # But we want to ensure it ROLLBACKS completely
-                    store.append_transition("camp_rb", evt_dup, state1, state1)
-                    assert False, "Should have raised"
-                except Exception:
-                    pass  # Expected
+                    store.append_transition("camp_rb", evt2, state1, state2)
+                    assert False, "Should have raised EventStoreError"
+                except EventStoreError as e:
+                    assert "forced snapshot failure" in str(e), f"Unexpected error: {e}"
+                    pass  # Expected - trigger causes ABORT which gets wrapped as EventStoreError
                 
-                # Critical: check count unchanged
+                # Critical: verify NOTHING was inserted (transaction fully rolled back)
                 events_after = len(store.all_event_records("camp_rb"))
-                assert events_after == events_before, f"Rollback failed! Before={events_before}, After={events_after}"
+                assert events_after == events_before, f"Rollback failed! Events: Before={events_before}, After={events_after}"
+                
+                # Verify event_seq=2 doesn't exist
+                all_events = store.all_event_records("camp_rb")
+                assert all(e["event_seq"] != 2 for e in all_events), "event_seq=2 should not exist after rollback"
                 
             finally:
                 store.close()

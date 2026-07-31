@@ -2,7 +2,7 @@
 
 import pytest
 from tgn.core import GameState, DomainEvent, state_hash, reduce_event
-from tgn.storage import replay_events, verify_replay, ReplayResult
+from tgn.storage import replay_events, verify_replay, ReplayResult, EventStoreError
 
 
 def _build_event_records(initial: GameState, events: list[DomainEvent]) -> list[dict]:
@@ -236,6 +236,102 @@ class TestHashVerification:
         
         assert hash1 == hash2
         assert len(hash1) == 64
+
+
+class TestVerifyReplay:
+    """Tests for the pure verify_replay function."""
+    
+    def test_verify_replay_correct_hash(self):
+        """verify_replay should succeed with correct expected hash."""
+        initial = GameState.initial(seed="verify-correct")
+        
+        events = [
+            DomainEvent(event_seq=1, decision_seq=0, game_minute=60,
+                       event_type="TIME_ADVANCED", payload={"minutes": 60}),
+        ]
+        
+        # First run replay to get actual hash
+        result = replay_events(initial, events)
+        assert result.success
+        
+        # Now verify against that hash - should pass
+        verify_result = verify_replay(initial, events, result.actual_hash)
+        assert verify_result.success
+    
+    def test_verify_replay_wrong_hash(self):
+        """verify_replay should fail with wrong expected hash."""
+        initial = GameState.initial(seed="verify-wrong")
+        
+        events = [
+            DomainEvent(event_seq=1, decision_seq=0, game_minute=60,
+                       event_type="TIME_ADVANCED", payload={"minutes": 60}),
+        ]
+        
+        result = replay_events(initial, events)
+        assert result.success
+        
+        # Try to verify with wrong hash - should fail
+        wrong_hash = "a" * 64
+        verify_result = verify_replay(initial, events, wrong_hash)
+        assert not verify_result.success
+        assert "Hash mismatch" in verify_result.error_message
+
+
+class TestStatesReplayedRegression:
+    """Regression tests for states_replayed counter."""
+    
+    def test_first_event_failure_returns_zero_states_replayed(self):
+        """When first event fails, states_replayed should be 0, not -1."""
+        initial = GameState.initial()
+        initial.event_seq = 5
+        
+        events = [
+            DomainEvent(event_seq=10,  # Gap from 5!
+                       decision_seq=0, 
+                       game_minute=200,
+                       event_type="TIME_ADVANCED", 
+                       payload={"minutes": 200}),
+        ]
+        
+        result = replay_events(initial, events)
+        
+        assert not result.success
+        assert result.states_replayed == 0, f"Expected 0 but got {result.states_replayed}"
+    
+    def test_second_event_failure_returns_one_state_replayed(self):
+        """When second event fails, states_replayed should be 1."""
+        initial = GameState.initial()
+        
+        events = [
+            DomainEvent(event_seq=1, decision_seq=0, game_minute=60,
+                       event_type="TIME_ADVANCED", payload={"minutes": 60}),
+            DomainEvent(event_seq=5,  # Gap!
+                       decision_seq=0, 
+                       game_minute=200,
+                       event_type="TIME_ADVANCED", 
+                       payload={"minutes": 200}),
+        ]
+        
+        result = replay_events(initial, events)
+        
+        assert not result.success
+        assert result.states_replayed == 1, f"Expected 1 but got {result.states_replayed}"
+    
+    def test_all_events_succeed(self):
+        """When all events succeed, states_replayed equals total count."""
+        initial = GameState.initial()
+        
+        events = [
+            DomainEvent(event_seq=1, decision_seq=0, game_minute=60,
+                       event_type="TIME_ADVANCED", payload={"minutes": 60}),
+            DomainEvent(event_seq=2, decision_seq=0, game_minute=120,
+                       event_type="TIME_ADVANCED", payload={"minutes": 60}),
+        ]
+        
+        result = replay_events(initial, events)
+        
+        assert result.success
+        assert result.states_replayed == 2
 
 
 class TestReplayWithHistory:

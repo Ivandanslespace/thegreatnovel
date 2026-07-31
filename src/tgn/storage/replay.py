@@ -54,6 +54,9 @@ def replay_events(
     if state_at_each_step:
         history = [current_state.__dict__.copy()]
     
+    # Track successful reductions separately from history
+    processed_count = 0
+    
     for i, event in enumerate(events):
         try:
             # Apply event using ONLY the reducer - no duplicate logic
@@ -63,6 +66,9 @@ def replay_events(
             
             if state_at_each_step:
                 history.append(current_state.__dict__.copy())
+            
+            # Increment count only after successful reduction
+            processed_count += 1
                 
         except Exception as e:
             return ReplayResult(
@@ -72,7 +78,7 @@ def replay_events(
                 actual_hash=None,
                 failed_event_seq=event.event_seq,
                 error_message=str(e),
-                states_replayed=len(history) - 1,
+                states_replayed=processed_count,  # Number of events successfully reduced
             )
     
     # Calculate final hash
@@ -85,7 +91,7 @@ def replay_events(
         final_state=final_dict,
         expected_hash=final_hash,
         actual_hash=final_hash,
-        states_replayed=len(events),
+        states_replayed=processed_count,  # Always >= 0
     )
     
     if state_at_each_step:
@@ -113,108 +119,6 @@ def record_to_domain_event(record: dict[str, Any]) -> DomainEvent:
         payload=record["payload"],
         created_at=record.get("created_at"),
     )
-
-
-def replay_campaign(
-    initial_state: dict[str, Any],
-    event_records: list[dict[str, Any]],
-    state_at_each_step: bool = False,
-) -> ReplayResult:
-    """
-    Replay a sequence of events from an initial state.
-    
-    Args:
-        initial_state: Starting game state as dictionary OR GameState object
-        event_records: List of persisted event records (with extra metadata)
-        state_at_each_step: If True, track all intermediate states (memory intensive)
-        
-    Returns:
-        ReplayResult with final state or error details
-    """
-    from copy import deepcopy
-    
-    # Convert dict to GameState if needed
-    if isinstance(initial_state, dict):
-        current_state = GameState(
-            schema_version=initial_state.get("schema_version", 1),
-            event_seq=initial_state.get("event_seq", 0),
-            decision_seq=initial_state.get("decision_seq", 0),
-            game_minute=initial_state.get("game_minute", 0),
-            seed=initial_state.get("seed", ""),
-            data=initial_state.get("data", {}),
-        )
-    else:
-        current_state = deepcopy(initial_state)
-    
-    history = []
-    
-    if state_at_each_step:
-        history = [current_state.__dict__.copy()]
-    
-    for record in event_records:
-        try:
-            # Verify before-hash first
-            expected_before_hash = record["state_hash_before"]
-            actual_before_hash = state_hash(current_state.__dict__)
-            
-            if expected_before_hash != actual_before_hash:
-                return ReplayResult(
-                    success=False,
-                    failed_event_seq=record["event_seq"],
-                    error_message=f"Event {record['event_seq']}: state_hash_before mismatch ({actual_before_hash[:16]}... vs {expected_before_hash[:16]}...)",
-                    states_replayed=len(history),
-                )
-            
-            # Convert record to DomainEvent
-            domain_event = record_to_domain_event(record)
-            
-            # Apply event using REDUCER ONLY - no second implementation
-            from ..core.reducer import reduce_event
-            
-            current_state = reduce_event(current_state, domain_event)
-            
-            # Verify after-hash
-            expected_after_hash = record["state_hash_after"]
-            actual_after_hash = state_hash(current_state.__dict__)
-            
-            if expected_after_hash != actual_after_hash:
-                return ReplayResult(
-                    success=False,
-                    failed_event_seq=record["event_seq"],
-                    error_message=f"Event {record['event_seq']}: state_hash_after mismatch ({actual_after_hash[:16]}... vs {expected_after_hash[:16]}...)",
-                    states_replayed=len(history),
-                )
-            
-            if state_at_each_step:
-                history.append(current_state.__dict__.copy())
-                
-        except Exception as e:
-            return ReplayResult(
-                success=False,
-                final_state=None,
-                expected_hash=None,
-                actual_hash=None,
-                failed_event_seq=record.get("event_seq", 0),
-                error_message=str(e),
-                states_replayed=len(history),
-            )
-    
-    # Calculate final hash
-    final_hash = state_hash(current_state.__dict__)
-    final_dict = current_state.__dict__
-    
-    result = ReplayResult(
-        success=True,
-        final_state=final_dict,
-        expected_hash=final_hash,
-        actual_hash=final_hash,
-        states_replayed=len(event_records),
-    )
-    
-    if state_at_each_step:
-        result.history = history
-    
-    return result
 
 
 def verify_persistence_integrity(campaign_id: str, db_path: str | Path) -> ReplayResult:
@@ -352,12 +256,19 @@ def verify_persistence_integrity(campaign_id: str, db_path: str | Path) -> Repla
 
 
 def verify_replay(
-    initial_state: dict[str, Any],
-    event_records: list[dict[str, Any]],
+    initial_state: GameState,
+    events: list[DomainEvent],
     expected_final_hash: str,
 ) -> ReplayResult:
-    """Verify that replay produces expected hash."""
-    result = replay_campaign(initial_state, event_records, state_at_each_step=True)
+    """Verify that pure replay produces expected hash.
+    
+    This is the pure function layer - it uses replay_events() which operates on
+    GameState + DomainEvent[], not persisted records. It has no knowledge of:
+    - SQLite
+    - PersistedEventRecord  
+    - state_hash_before/after
+    """
+    result = replay_events(initial_state, events, state_at_each_step=True)
     
     if not result.success:
         return result
