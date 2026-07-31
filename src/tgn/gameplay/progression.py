@@ -67,6 +67,7 @@ def get_gate_cost(state: GameState, track_id: str) -> dict | None:
     """Get the resource cost for the next advancement.
 
     Returns None if no gate or track already past gate.
+    Returns a detached copy to prevent observation aliasing canonical state.
     """
     gate = get_progression_gate(state, track_id)
     if gate is None:
@@ -79,7 +80,10 @@ def get_gate_cost(state: GameState, track_id: str) -> dict | None:
     if stage != gate["from_stage"]:
         return None
 
-    return gate.get("cost")
+    cost = gate.get("cost")
+    if cost is None:
+        return None
+    return dict(cost)
 
 
 def progression_enabled(state: GameState) -> bool:

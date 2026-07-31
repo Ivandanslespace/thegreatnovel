@@ -5,7 +5,7 @@ from tgn.core.models import GameState, DomainEvent
 from tgn.core.reducer import reduce_event, ReducerError
 from tgn.core.invariants import check_invariants, InvariantError
 from tgn.core.hashing import state_hash
-from tgn.gameplay.expedition import get_legal_actions, execute_action
+from tgn.gameplay.expedition import get_legal_actions, execute_action, build_observation
 from tgn.actions.models import ActionIntent
 
 
@@ -492,3 +492,50 @@ class TestAdditionalInvariants:
         state.data["progression_gates"]["player"]["cost"] = {"salvage": 2.5}
         with pytest.raises(InvariantError):
             check_invariants(state)
+
+
+# --- Observation authority isolation (Phase 6.1 fix) ---
+
+class TestObservationAuthorityIsolation:
+    def test_progression_observation_cost_is_detached_from_canonical_state(self):
+        """Mutating observation next_cost must NOT alter canonical GameState."""
+        state = _make_phase6_state(inventory={"salvage": 2, "parts": 1})
+        original_hash = state_hash(state.__dict__)
+
+        obs = build_observation(state)
+
+        # Attempt to mutate through observation alias
+        obs["progression"]["tracks"]["player"]["next_cost"]["salvage"] = 999
+
+        # Canonical state must be unchanged
+        assert state.data["progression_gates"]["player"]["cost"]["salvage"] == 2
+        assert state_hash(state.__dict__) == original_hash
+
+    def test_malicious_policy_cannot_lower_gate_via_observation(self):
+        """Exploit regression: policy mutating observation cannot change legality."""
+        # Gate requires salvage=2, player only has salvage=1
+        state = _make_phase6_state(inventory={"salvage": 1, "parts": 1})
+
+        # Before: UPGRADE_PLAYER not legal
+        legal_types = [la.action_type for la in get_legal_actions(state)]
+        assert "UPGRADE_PLAYER" not in legal_types
+
+        # Malicious policy mutates observation
+        obs = build_observation(state)
+        obs["progression"]["tracks"]["player"]["next_cost"]["salvage"] = 1
+
+        # After mutation: canonical gate still requires salvage=2
+        assert state.data["progression_gates"]["player"]["cost"]["salvage"] == 2
+
+        # Direct UPGRADE_PLAYER still rejected
+        intent = ActionIntent(
+            action_id="exploit-1", actor_id="bot", action_type="UPGRADE_PLAYER", params={}
+        )
+        result = execute_action(state, intent)
+        assert result.accepted is False
+        assert result.events == ()
+        assert result.final_state is None
+
+        # No progression, no inventory consumption
+        assert state.data["progression"]["tracks"]["player"] == 0
+        assert state.data["inventory"]["salvage"] == 1
