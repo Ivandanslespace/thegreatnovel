@@ -127,12 +127,13 @@ class TelemetryRecorder:
                    actual_choice: Optional[str], reason_fallback: Optional[str],
                    before: Dict[str, Any], options_before: Dict[str, str],
                    result: Dict[str, Any], after: Dict[str, Any], 
-                   events_created: List[Dict[str, Any]]) -> None:
+                   events_created: List[Dict[str, Any]],
+                   option_contracts: Optional[Dict[str, Dict]] = None) -> None:
         self.turns.append({
             "decision": decision, "turn": turn,
             "requested_choice": requested_choice, "actual_choice": actual_choice,
             "reason_fallback": reason_fallback, "before": before, "options_before": options_before,
-            "result": result, "after": after,
+            "result": result, "after": after, "option_contracts": option_contracts or {},
             "events_created": [dict(e) for e in events_created],
             "warnings": [],
         })
@@ -163,27 +164,58 @@ class AutoAuditor:
         return findings
     
     def _detect_time_jump_anomaly(self) -> List[Dict[str, Any]]:
-        """Detect impossible time jumps (> 1 hour forward in one decision)"""
-        findings = []
-        prev_end_abs = None
+        """Detect time inconsistencies between expected and actual.
         
-        for turn in self.telemetry.turns:
-            time_cost = float(turn["result"].get("time_cost", 0) or 0)
+        Instead of flagging any single action >60min (which is normal for WAIT/REST/BUILD),
+        we compare the sum of all action time costs against actual state time delta.
+        """
+        findings = []
+        
+        if len(self.telemetry.turns) < 2:
+            return findings
+        
+        for i in range(1, len(self.telemetry.turns)):
+            turn = self.telemetry.turns[i]
             
-            if prev_end_abs is not None and time_cost > 60:
+            # Expected time = this turn's recorded time_cost
+            expected_time = float(turn["result"].get("time_cost", 0) or 0)
+            
+            # Get actual absolute times from snapshots
+            before = turn["before"]
+            after = turn["after"]
+            
+            before_day = before.get("game_day", 1)
+            before_elapsed = before.get("day_elapsed_minutes", 0) or 0
+            after_day = after.get("game_day", 1)
+            after_elapsed = after.get("day_elapsed_minutes", 0) or 0
+            
+            before_abs = (before_day - 1) * DAY_MINUTES + before_elapsed
+            after_abs = (after_day - 1) * DAY_MINUTES + after_elapsed
+            actual_time = after_abs - before_abs
+            
+            # Allow small tolerance (±5 minutes) for rounding/system events
+            tolerance = 5.0
+            discrepancy = abs(actual_time - expected_time)
+            
+            if discrepancy > tolerance:
                 findings.append({
-                    "level": "P1", 
+                    "level": "P1",
                     "category": "TIME_JUMP_ANOMALY",
-                    "message": f"Decision {turn['decision']} jumped {time_cost:.1f} minutes (expected <= 60)"
+                    "message": f"Decision {turn['decision']}: expected {expected_time:.1f}min, actual {actual_time:.1f}min (discrepancy={discrepancy:.1f}min)",
+                    "detail": {
+                        "expected_minutes": expected_time,
+                        "actual_minutes": actual_time,
+                        "discrepancy_minutes": discrepancy
+                    }
                 })
-            
-            # Track cumulative time
-            prev_end_abs = (prev_end_abs or 0) + time_cost
         
         return findings
     
     def _detect_mechanism_unreachable(self) -> List[Dict[str, Any]]:
-        """Detect action types that never appeared but were observed in options"""
+        """Detect action types that were offered but never executed.
+        
+        Now reads from option_contracts if available, falling back to label parsing.
+        """
         findings = []
         
         # Skip if no turns recorded
@@ -191,7 +223,7 @@ class AutoAuditor:
             return findings
         
         all_leaf_actions = set()
-        all_observed_option_types = set()
+        all_offered_types = set()
         
         for turn in self.telemetry.turns:
             # Collect actual executed leaf actions
@@ -199,24 +231,35 @@ class AutoAuditor:
             if isinstance(leaf_actions, list):
                 all_leaf_actions.update(leaf_actions)
             
-            # Collect action types from available options
-            options_before = turn.get("options_before", {})
-            for opt_key, opt_label in options_before.items():
-                # Try to extract action type from option label or key
-                # This is a heuristic - we look for common action type patterns
-                for action_type in ["EXPLORATION", "COMBAT", "SOCIAL_INTERACTION", "BUILD", 
-                                   "TRADE", "RESEARCH", "REST", "TRAVEL", "EXTRACT", "WAIT"]:
-                    if action_type in opt_label.upper() or action_type in opt_key.upper():
-                        all_observed_option_types.add(action_type)
+            # Try to get option_contracts first (preferred method)
+            option_contracts = turn.get("option_contracts", {})
+            if option_contracts:
+                for opt_key, contract in option_contracts.items():
+                    if isinstance(contract, dict):
+                        offered_type = contract.get("action_type")
+                        if offered_type:
+                            all_offered_types.add(offered_type)
+                        leaf_types = contract.get("leaf_types", [])
+                        if isinstance(leaf_types, list):
+                            all_offered_types.update(leaf_types)
+            else:
+                # Fallback: parse labels (less reliable, mostly fails for Chinese labels)
+                options_before = turn.get("options_before", {})
+                for opt_label in options_before.values():
+                    if isinstance(opt_label, str):
+                        for action_type in ["EXPLORATION", "COMBAT", "SOCIAL_INTERACTION", "BUILD", 
+                                           "TRADE", "RESEARCH", "REST", "TRAVEL", "EXTRACT", "WAIT"]:
+                            if action_type in opt_label.upper():
+                                all_offered_types.add(action_type)
         
-        # Only report mechanisms that were offered as options but never executed
-        unreachable = all_observed_option_types - all_leaf_actions
+        # Only report mechanisms that were offered but never executed
+        unreachable = all_offered_types - all_leaf_actions
         
         if unreachable:
             findings.append({
                 "level": "P1", 
                 "category": "MECHANISM_UNREACHABLE",
-                "message": f"Mechanisms offered but never triggered: {', '.join(sorted(unreachable))}",
+                "message": f"Action types offered {len(unreachable)}x but never executed: {', '.join(sorted(unreachable))}",
                 "detail": {"unreachable_mechanisms": sorted(unreachable)}
             })
         
@@ -358,7 +401,16 @@ class AutoplayRunner:
         # Get real peer agent states from SQLite
         peer_last_action_turns = {}
         try:
-            campaign_id = engine.state.data.get("meta", {}).get("campaign_id", "unknown")
+            # CRITICAL: Use same campaign_id resolution as public_survival.py
+            meta = engine.state.meta
+            world = engine.state.data.get("world", {})
+            
+            campaign_id = (
+                meta.get("campaign_id")
+                or world.get("name")
+                or engine.state.store.campaign_id
+            )
+            
             peers = load_peer_agents(engine.state, campaign_id)
             for peer in peers:
                 # Track last action turn for each peer
@@ -464,6 +516,18 @@ class AutoplayRunner:
                     pending_opts = engine.state.meta.get("pending_options", {})
                 
                 visible_options = pending_opts.get("options", {})
+                
+                # Extract option contracts for better mechanism detection
+                option_contracts = {}
+                for opt_key, opt_data in visible_options.items():
+                    if isinstance(opt_data, dict):
+                        contract = {
+                            "label": opt_data.get("label", ""),
+                            "action_type": opt_data.get("action", {}).get("type", ""),
+                            "leaf_types": opt_data.get("action", {}).get("leaf_actions", []),
+                        }
+                        option_contracts[opt_key] = contract
+                
                 option_labels = {k: v.get("label", "") for k, v in visible_options.items()}
                 
                 requested = policy.choose(decision, visible_options, pending_opts)
@@ -548,6 +612,7 @@ class AutoplayRunner:
                         "leaf_actions": sorted(list(leaf_actions))
                     },
                     after=after, events_created=[dict(e) for e in new_events],
+                    option_contracts=option_contracts,
                 )
                 
                 self.all_new_events.extend(new_events)
@@ -618,7 +683,11 @@ def main():
         output_dir = Path("autoplay_runs") / f"{timestamp}_{args.policy}"
     
     output_dir.mkdir(parents=True, exist_ok=True)
-    temp_save_dir = output_dir / "temp_save"
+    
+    # CRITICAL: Preserve original save directory name to maintain campaign identity
+    # SQLiteEventStore uses save_dir.name as default campaign_id
+    sandbox_root = output_dir / "temp_save"
+    temp_save_dir = sandbox_root / base_path.name
     
     # Copy save
     print(f"📁 Copying save: {base_path} → {temp_save_dir}")
