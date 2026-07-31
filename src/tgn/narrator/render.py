@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from ..autoplay.models import AutoplayRunResult, StopReason
@@ -100,3 +101,25 @@ def render_narrated_run(
         sections.append(f"narration_failures: {narration_result.narration_failures}")
     
     return "\n".join(sections)
+
+
+def write_narrated_run_text(
+    narration_result: NarrationRunResult,
+    path: Path,
+) -> None:
+    """
+    Write narrated run to a UTF-8 text file.
+    
+    This is a PRESENTATION ARTIFACT only.
+    It is NOT:
+    - Runtime truth
+    - Replay source
+    - EventStore data
+    - GameState
+    
+    Args:
+        narration_result: The narration run result to export
+        path: Output file path
+    """
+    text = render_narrated_run(narration_result)
+    path.write_text(text, encoding="utf-8")

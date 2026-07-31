@@ -21,9 +21,8 @@ def validate_narration(context: NarrationContext, narration: str) -> None:
     but it catches obvious numerical/resource tampering.
     
     Checks:
-    1. Resource quantities match context (if explicitly stated)
+    1. Resource quantities match context (rejects unknown resources)
     2. Stamina transitions match context (if explicitly stated)
-    3. No unknown system rewards (if pattern detected)
     
     Does NOT:
     - Understand all natural language
@@ -35,26 +34,53 @@ def validate_narration(context: NarrationContext, narration: str) -> None:
     if not narration or not narration.strip():
         raise NarrationValidationError("Narration is empty")
     
-    # Check resource quantities
+    # Check resource quantities (also rejects unknown resources)
     _validate_resource_quantities(context, narration)
     
     # Check stamina transitions
     _validate_stamina_transitions(context, narration)
-    
-    # Check for unknown system rewards
-    _validate_no_unknown_rewards(context, narration)
 
 
 def _validate_resource_quantities(context: NarrationContext, narration: str) -> None:
-    """Check that explicitly stated resource quantities match context."""
-    # Look for patterns like "salvage ×2" or "salvage x 2"
+    """
+    Check that resource quantities in narration match context.
+    
+    This guard:
+    1. Extracts ALL "resource ×N" or "resource xN" patterns
+    2. Rejects any resource not in the allowed set from context
+    3. For known resources, verifies quantity matches
+    
+    Allowed resources come from:
+    - inventory_before / inventory_after
+    - carried_before / carried_after
+    - event_payload.loot_gained (for SEARCH)
+    """
+    # Look for patterns like "salvage ×2" or "gold x999"
     resource_pattern = re.compile(r'(\w+)\s*[×x]\s*(\d+)', re.IGNORECASE)
+    
+    # Build set of allowed resources from context
+    allowed_resources = set()
+    allowed_resources.update(context.inventory_before.keys())
+    allowed_resources.update(context.inventory_after.keys())
+    allowed_resources.update(context.carried_before.keys())
+    allowed_resources.update(context.carried_after.keys())
+    
+    # For SEARCH: add loot_gained
+    if "loot_gained" in context.event_payload:
+        allowed_resources.update(context.event_payload["loot_gained"].keys())
     
     for match in resource_pattern.finditer(narration):
         resource = match.group(1)
         quantity = int(match.group(2))
         
-        # Check if this resource exists in context
+        # Reject unknown resources immediately
+        if resource not in allowed_resources:
+            raise NarrationValidationError(
+                f"Unknown resource in narration: {resource} ×{quantity} "
+                f"(allowed: {sorted(allowed_resources)})"
+            )
+        
+        # For known resources, verify quantity
         # For SEARCH: check loot_gained in event_payload
         if context.action_type == "SEARCH" and resource in context.event_payload.get("loot_gained", {}):
             expected = context.event_payload["loot_gained"][resource]
@@ -64,15 +90,14 @@ def _validate_resource_quantities(context: NarrationContext, narration: str) -> 
                 )
         
         # For EXTRACT: check inventory changes
-        elif context.action_type == "EXTRACT":
-            if resource in context.inventory_after:
-                before = context.inventory_before.get(resource, 0)
-                after = context.inventory_after[resource]
-                expected = after - before
-                if quantity != expected:
-                    raise NarrationValidationError(
-                        f"Resource quantity mismatch: {resource} ×{quantity} (expected ×{expected})"
-                    )
+        elif context.action_type == "EXTRACT" and resource in context.inventory_after:
+            before = context.inventory_before.get(resource, 0)
+            after = context.inventory_after[resource]
+            expected = after - before
+            if quantity != expected:
+                raise NarrationValidationError(
+                    f"Resource quantity mismatch: {resource} ×{quantity} (expected ×{expected})"
+                )
 
 
 def _validate_stamina_transitions(context: NarrationContext, narration: str) -> None:
@@ -89,33 +114,4 @@ def _validate_stamina_transitions(context: NarrationContext, narration: str) -> 
             raise NarrationValidationError(
                 f"Stamina transition mismatch: {before}→{after} "
                 f"(expected {context.stamina_before}→{context.stamina_after})"
-            )
-
-
-def _validate_no_unknown_rewards(context: NarrationContext, narration: str) -> None:
-    """Check for unknown system rewards that weren't in context."""
-    # Look for reward patterns like "获得：gold ×10" or "入库：crystal ×5"
-    reward_pattern = re.compile(r'(?:获得|入库|携带)[:：]\s*(\w+)\s*[×x]\s*(\d+)', re.IGNORECASE)
-    
-    for match in reward_pattern.finditer(narration):
-        resource = match.group(1)
-        
-        # Check if this resource is mentioned in context
-        known_resources = set()
-        
-        # Add resources from inventory
-        known_resources.update(context.inventory_before.keys())
-        known_resources.update(context.inventory_after.keys())
-        
-        # Add resources from carried loot
-        known_resources.update(context.carried_before.keys())
-        known_resources.update(context.carried_after.keys())
-        
-        # Add resources from event payload
-        if "loot_gained" in context.event_payload:
-            known_resources.update(context.event_payload["loot_gained"].keys())
-        
-        if resource not in known_resources:
-            raise NarrationValidationError(
-                f"Unknown reward resource: {resource} (not in context)"
             )

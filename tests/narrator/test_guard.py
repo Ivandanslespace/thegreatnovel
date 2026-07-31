@@ -34,7 +34,7 @@ class TestHallucinationGuard:
         # Context has salvage, narration invents gold
         bad_narration = "你搜索了废墟。获得：gold ×10。"
         
-        with pytest.raises(NarrationValidationError, match="Unknown reward resource"):
+        with pytest.raises(NarrationValidationError, match="Unknown"):
             validate_narration(search_context, bad_narration)
     
     def test_guard_accepts_narration_without_numeric_restating(self, drop_context):
@@ -152,3 +152,104 @@ def search_watch_frame():
         state_hash_before="hash-before-search",
         state_hash_after="hash-after-search",
     )
+
+
+class TestExactExploitRejection:
+    """Tests for exact exploit patterns from spec."""
+    
+    def test_guard_rejects_exact_gold_999_exploit(self, search_context):
+        """CRITICAL: Exact exploit '你找到了 gold ×999。' must be rejected."""
+        bad_narration = "你找到了 gold ×999。"
+        
+        with pytest.raises(NarrationValidationError, match="Unknown"):
+            validate_narration(search_context, bad_narration)
+    
+    def test_guard_rejects_unknown_resource_without_reward_prefix(self, search_context):
+        """Unknown resource without '获得：' prefix must be rejected."""
+        bad_narration = "从里面翻出了 gold ×999。"
+        
+        with pytest.raises(NarrationValidationError, match="Unknown"):
+            validate_narration(search_context, bad_narration)
+    
+    def test_guard_rejects_unknown_resource_with_x_not_multiplication_sign(self, search_context):
+        """Unknown resource with 'x' (not '×') must be rejected."""
+        bad_narration = "你找到了 gold x999。"
+        
+        with pytest.raises(NarrationValidationError, match="Unknown"):
+            validate_narration(search_context, bad_narration)
+    
+    def test_guard_accepts_known_salvage_quantity(self, search_context):
+        """Known resource with correct quantity is accepted."""
+        good_narration = "你在探索地点仔细搜索，找到了 salvage ×2，携带在身上准备返回。"
+        
+        # Should not raise
+        validate_narration(search_context, good_narration)
+    
+    def test_guard_rejects_wrong_known_salvage_quantity(self, search_context):
+        """Known resource with wrong quantity is rejected."""
+        bad_narration = "你在探索地点仔细搜索，找到了 salvage ×3。"
+        
+        with pytest.raises(NarrationValidationError, match="quantity mismatch"):
+            validate_narration(search_context, bad_narration)
+    
+    def test_guard_accepts_narration_without_resource_mentions(self, search_context):
+        """Narration without resource mentions is accepted."""
+        narration = "你在探索地点仔细搜索了一番，虽然过程艰辛，但最终有所收获。"
+        
+        # Should not raise
+        validate_narration(search_context, narration)
+    
+    def test_guard_rejects_wrong_extract_quantity(self, extract_context):
+        """EXTRACT with wrong inventory quantity is rejected."""
+        # Context shows inventory went from {} to {"salvage": 2}
+        bad_narration = "你带着 salvage ×3 返回基地。"
+        
+        with pytest.raises(NarrationValidationError, match="quantity mismatch"):
+            validate_narration(extract_context, bad_narration)
+    
+    def test_guard_accepts_correct_extract_quantity(self, extract_context):
+        """EXTRACT with correct inventory quantity is accepted."""
+        good_narration = "你带着 salvage ×2 返回基地，将物资安全入库。"
+        
+        # Should not raise
+        validate_narration(extract_context, good_narration)
+
+
+@pytest.fixture
+def extract_context():
+    """EXTRACT narration context."""
+    from tgn.narrator.context import build_narration_context
+    from tgn.autoplay.models import WatchFrame
+    
+    extract_frame = WatchFrame(
+        step=3,
+        action_id="action-003",
+        actor_id="bot-001",
+        action_type="EXTRACT",
+        event_type="EXPEDITION_EXTRACTED",
+        game_minute_before=40,
+        game_minute_after=55,
+        observation_before={
+            "location_id": "site-1",
+            "stamina": 0,
+            "max_stamina": 3,
+            "inventory": {},
+            "carried_loot": {"salvage": 2},
+        },
+        observation_after={
+            "location_id": "base-1",
+            "stamina": 0,
+            "max_stamina": 3,
+            "inventory": {"salvage": 2},
+            "carried_loot": {},
+        },
+        event_payload={
+            "destination": "base-1",
+            "time_minutes": 15,
+            "stamina_cost": 0,
+        },
+        state_hash_before="hash-before-extract",
+        state_hash_after="hash-after-extract",
+    )
+    
+    return build_narration_context(extract_frame)

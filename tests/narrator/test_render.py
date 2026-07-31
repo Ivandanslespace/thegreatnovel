@@ -232,3 +232,55 @@ def narrated_run_result():
         narration_failures=0,
         source_run=run_result,
     )
+
+
+class TestTextExport:
+    """Tests for write_narrated_run_text."""
+    
+    def test_write_narrated_run_text_creates_utf8_file(self, narrated_run_result, tmp_path):
+        """write_narrated_run_text creates UTF-8 file."""
+        from tgn.narrator.render import write_narrated_run_text
+        
+        output_path = tmp_path / "output.txt"
+        write_narrated_run_text(narrated_run_result, output_path)
+        
+        assert output_path.exists()
+        # Verify it's valid UTF-8
+        content = output_path.read_text(encoding="utf-8")
+        assert len(content) > 0
+    
+    def test_written_text_matches_render_narrated_run(self, narrated_run_result, tmp_path):
+        """Written text matches render_narrated_run output."""
+        from tgn.narrator.render import write_narrated_run_text, render_narrated_run
+        
+        output_path = tmp_path / "output.txt"
+        write_narrated_run_text(narrated_run_result, output_path)
+        
+        written = output_path.read_text(encoding="utf-8")
+        rendered = render_narrated_run(narrated_run_result)
+        
+        assert written == rendered
+    
+    def test_written_text_contains_all_narrated_frames(self, narrated_run_result, tmp_path):
+        """Written text contains all narrated frames."""
+        from tgn.narrator.render import write_narrated_run_text
+        
+        output_path = tmp_path / "output.txt"
+        write_narrated_run_text(narrated_run_result, output_path)
+        
+        content = output_path.read_text(encoding="utf-8")
+        
+        assert "Narration 1" in content
+        assert "Narration 2" in content
+        assert "Narration 3" in content
+    
+    def test_written_text_contains_run_complete(self, narrated_run_result, tmp_path):
+        """Written text contains RUN COMPLETE marker."""
+        from tgn.narrator.render import write_narrated_run_text
+        
+        output_path = tmp_path / "output.txt"
+        write_narrated_run_text(narrated_run_result, output_path)
+        
+        content = output_path.read_text(encoding="utf-8")
+        
+        assert "=== RUN COMPLETE ===" in content

@@ -109,10 +109,13 @@ def narrate_run(
     Returns:
         NarrationRunResult with all narrated frames
     
+    Raises:
+        NarrationError: If any frame narration fails (fail-fast)
+    
     Notes:
     - If run was rejected (ACTION_REJECTED, 0 frames), returns empty result
     - If run hit MAX_DECISIONS, narrates all completed frames
-    - Narration failures are counted but don't stop the process
+    - FAIL-FAST: Any narration failure stops the entire run immediately
     - Game state hash is verified unchanged after narration
     """
     # Check for rejected run (no frames)
@@ -126,21 +129,16 @@ def narrate_run(
         )
     
     narrated_frames = []
-    failures = 0
     previous_text = None
     
     # Verify game state hash before narration
     initial_hash = run_result.initial_state_hash
     
+    # FAIL-FAST: Let NarrationError propagate immediately
     for frame in run_result.frames:
-        try:
-            narrated = narrator.narrate_frame(frame, previous_text)
-            narrated_frames.append(narrated)
-            previous_text = narrated.narration
-        except NarrationError as e:
-            # Log failure but continue
-            failures += 1
-            # Don't update previous_text on failure
+        narrated = narrator.narrate_frame(frame, previous_text)
+        narrated_frames.append(narrated)
+        previous_text = narrated.narration
     
     # Verify game state hash unchanged after narration
     # (narration should be pure presentation, no side effects)
@@ -150,6 +148,6 @@ def narrate_run(
         narrated_frames=tuple(narrated_frames),
         source_initial_hash=run_result.initial_state_hash,
         source_final_hash=run_result.final_state_hash,
-        narration_failures=failures,
+        narration_failures=0,  # Always 0 for successful result
         source_run=run_result,
     )

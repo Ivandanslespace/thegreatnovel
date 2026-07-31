@@ -66,22 +66,6 @@ class TestNarratorService:
         assert len(result.narrated_frames) == 0
         assert result.narration_failures == 0
     
-    def test_narrate_run_counts_failures(self, complete_run_result):
-        """narrate_run counts narration failures."""
-        # Client that fails on second frame
-        failing_client = FakeNarratorClient([
-            "Narration 1",
-            "",  # Empty = failure
-            "Narration 3",
-        ])
-        service = NarratorService(failing_client)
-        
-        result = narrate_run(complete_run_result, service)
-        
-        assert result.narration_failures == 1
-        assert len(result.narrated_frames) == 2  # 2 succeeded, 1 failed
-
-
 class TestGameStateIsolation:
     """Tests ensuring narration doesn't modify game state."""
     
@@ -257,3 +241,96 @@ def rejected_run_result():
         frames=(),
         final_state=None,  # Not needed for narrator tests
     )
+
+
+class TestFailFastBehavior:
+    """Tests for fail-fast contract."""
+    
+    def test_narrate_run_fails_fast_on_frame_error(self, complete_run_result):
+        """narrate_run fails fast and stops on first error."""
+        # Client that fails on second frame
+        failing_client = FakeNarratorClient([
+            "Narration 1",
+            "",  # Empty = failure
+            "Narration 3",  # Should never be called
+        ])
+        service = NarratorService(failing_client)
+        
+        from tgn.narrator.models import NarrationError
+        with pytest.raises(NarrationError):
+            narrate_run(complete_run_result, service)
+        
+        # Verify client was only called twice (stopped after second failure)
+        assert failing_client.call_count == 2
+    
+    def test_narrate_run_fails_fast_on_hallucination(self, complete_run_result):
+        """narrate_run fails fast when hallucination guard rejects."""
+        # Client that produces hallucination on second frame
+        hallucinating_client = FakeNarratorClient([
+            "你从基地出发，沿着路径前往探索地点。",
+            "你找到了 gold ×999。",  # Hallucination!
+            "你带着收获返回基地。",  # Should never be called
+        ])
+        service = NarratorService(hallucinating_client)
+        
+        from tgn.narrator.models import NarrationError
+        with pytest.raises(NarrationError, match="Hallucination"):
+            narrate_run(complete_run_result, service)
+        
+        # Verify client was only called twice
+        assert hallucinating_client.call_count == 2
+
+
+class TestMaliciousNarrationIsolation:
+    """Tests ensuring malicious narration doesn't affect game state."""
+    
+    def test_malicious_narration_preserves_game_state(self, phase36_initial_state):
+        """Malicious narration that fails guard doesn't change game state."""
+        from tgn.autoplay.runner import run_autoplay
+        from tgn.autoplay.policy import choose_action
+        from tgn.autoplay.models import AutoplayConfig
+        from tgn.core.hashing import state_hash
+        
+        # Run autoplay
+        config = AutoplayConfig(max_decisions=10)
+        autoplay_result = run_autoplay(
+            phase36_initial_state,
+            choose_action,
+            config,
+        )
+        
+        # Hash before narration
+        hash_before = state_hash(autoplay_result.final_state.__dict__)
+        
+        # Try to narrate with malicious client
+        malicious_client = FakeNarratorClient([
+            "你从基地出发。",
+            "你找到了 gold ×999。",  # Hallucination!
+            "你返回基地。",
+        ])
+        service = NarratorService(malicious_client)
+        
+        from tgn.narrator.models import NarrationError
+        with pytest.raises(NarrationError):
+            narrate_run(autoplay_result, service)
+        
+        # Hash after failed narration should be unchanged
+        hash_after = state_hash(autoplay_result.final_state.__dict__)
+        assert hash_before == hash_after
+
+
+class TestClientErrorHandling:
+    """Tests for client error handling."""
+    
+    def test_narrate_frame_handles_client_exception(self, drop_watch_frame):
+        """narrate_frame wraps client exceptions in NarrationError."""
+        class BrokenClient:
+            """Client that always raises exceptions."""
+            def generate(self, prompt: str) -> str:
+                raise RuntimeError("Network error")
+        
+        service = NarratorService(BrokenClient())
+        
+        from tgn.narrator.models import NarrationError
+        with pytest.raises(NarrationError, match="Narration generation failed"):
+            service.narrate_frame(drop_watch_frame)

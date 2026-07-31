@@ -12,7 +12,7 @@ from .prompt import build_narrator_prompt
 from .voice import WritingVoiceProfile, JINGXUAN_WRITING_VOICE, DEFAULT_VOICE
 from .guard import validate_narration, NarrationValidationError
 from .service import NarratorService, narrate_run
-from .render import render_narrated_run
+from .render import render_narrated_run, write_narrated_run_text
 from .client import FakeNarratorClient, OpenAICompatibleClient, create_client_from_env
 
 __all__ = [
@@ -44,6 +44,7 @@ __all__ = [
     
     # Render
     "render_narrated_run",
+    "write_narrated_run_text",
     
     # Clients
     "FakeNarratorClient",
