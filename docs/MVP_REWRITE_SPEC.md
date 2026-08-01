@@ -4,7 +4,7 @@
 > 目标：从当前"大而全、持续修 Bug"的架构退回一个可验证、可重放、可自动测试的最小核心，然后通过确定性验证与 scripted autoplay 一层一层增加功能（LLM autoplay 在 LLM Player 层建立后引入）。  
 > 原始 Legacy 审查基线：2026-07-31 `main`，最初审查时约为 `4141e905...`。  
 > 当前开发线：`mvp-rewrite`。  
-> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9A frozen；Phase 9B1 frozen；Phase 9B2A frozen (`phase-9b2a-frozen`)；Phase 9B2B frozen (`phase-9b2b-frozen`)；Phase 9C not started。
+> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9A frozen；Phase 9B1 frozen；Phase 9B2A frozen (`phase-9b2a-frozen`)；Phase 9B2B frozen (`phase-9b2b-frozen`)；Phase 9C design contract candidate / implementation not started。
 > 参考作品：用户上传的《全民纜車求生，我一級一個三選一》。
 
 > **V2 修订说明 (2026-07-31)：** 本文档经过增量架构修订。第一 WorldPack 仍可以是缆车求生 Demo，但它的 Base / Expedition / Day-Night / Three-choice 属于第一批 vertical slice 局部实现，不是整个 Engine 的宇宙规则。V2 新增反主题/结构性硬编码原则、反过度抽象原则、Knowledge boundary、Habitat 可选抽象、ProgressionTrack/Gate、Feature Module 责任边界、Compatibility Pressure Test，并更新 Phase 5+ 路线图。原有工程架构内容（EventStore、Replay、Test Pyramid、Autoplay、ExploitAgent 等）完整保留。
@@ -2943,7 +2943,7 @@ Phase 9A — frozen (`phase-9a-frozen`): External Client Session Protocol
 Phase 9B1 — frozen (`phase-9b1-frozen`): Bounded World Draft Compilation
 Phase 9B2A — frozen (`phase-9b2a-frozen`): Player-Visible Projection Map
 Phase 9B2B — frozen (`phase-9b2b-frozen`): Atomic Campaign Bootstrap and Projected Session Integration
-Phase 9C — not started
+Phase 9C — design contract candidate / implementation not started
 ```
 
 The implementation deliberately split the original "Phase 2 — Minimal Action Engine" into smaller, independently verifiable stages.
@@ -3713,7 +3713,8 @@ relationship runtime, vector memory, and Phase 9 experiments
 
 ### Phase 9 — External-Client Generated-World Playable Loop
 
-**Status:** Phase 9B2B frozen at `phase-9b2b-frozen`; Phase 9C not started.
+**Status:** Phase 9B2B frozen at `phase-9b2b-frozen`; Phase 9C design contract candidate /
+implementation not started.
 
 **Product goal:**
 
@@ -4112,7 +4113,7 @@ Campaign uses copied and locked WorldPack, Projection, and Phase 9A Session
 artifacts. This freeze does not include Narration, novel export, an LLM
 provider, translation, or any Phase 9C functionality. The frozen implementation
 must not be modified directly; any fix requires an explicit reopen or
-superseding-phase process. Phase 9C remains not started.
+superseding-phase process. Phase 9C is a design contract candidate / implementation not started.
 
 **Accepted frozen baselines:**
 
@@ -5046,7 +5047,15 @@ unreachable-code marker, deleted assertion, or other percentage-only bypass is
 allowed. The frozen implementation satisfies these gates; this section does not
 authorize Phase 9C work.
 
-#### Phase 9C — External Client Narration, Resume and Novel Export
+#### Phase 9C — Persistent External Narration, Resume and Novel Export
+
+**Status:** design contract candidate / implementation not started
+
+**Contract type:** documentation-only design contract. 本节不实现任何 Phase 9C
+代码、测试、CLI、数据库、Narrator adapter、provider adapter 或 artifact writer；
+不得创建、移动、删除或重建任何 tag。
+
+以下 9C.0–9C.18 是本 Phase 的 authoritative contract，覆盖并细化本节的产品方向。
 
 **Product question:** Can the same external client turn deterministic play into traceable
 prose, preserve every completed turn, resume after interruption, and export a novel?
@@ -5064,11 +5073,1009 @@ Engine persists Event and State
 
 不能先输出小说，再补写权威状态。每段 narration 至少应能追溯到 decision number、
 action ID、relevant event sequence、state hash before/after、narration locale 和
-narration artifact identity；具体 schema 留给 Phase 9C Feature Contract。
+narration artifact identity；本节以下 9C.0–9C.18 定义具体 schema。
 
 必须支持每轮增量保存、从最后一个已提交回合恢复、保留已保存 Event、在 Narrator
 失败时将 narration 标为 pending 而不回滚世界事实，并最终导出 `novel.md` 或等价
 Markdown。原始逐轮 narration artifact 继续保留；novel export 不是权威世界状态。
+
+##### 9C.0 Product question and authority order
+
+Phase 9C 必须回答：
+
+> 同一个外部客户端能否在每次确定性 Campaign 决策已经持久化后，取得一个严格
+> 受限、玩家可见的 Narration Request，生成结构化 claims 和 prose，将它们作为
+> 可验证、可恢复、非权威的 Story artifact 提交，并最终从已提交 artifact
+> 确定性导出小说？
+
+权威顺序固定为：
+
+~~~text
+Campaign verifies current boundary
+→ external client submits canonical request fingerprint + choice_id or STOP
+→ Phase 9A / Phase 9B2B persists the authoritative RecordedDecision, Event(s) and State
+→ Phase 9C derives a deterministic player-visible Narration Request
+→ Narration Request is atomically persisted as pending
+→ external client generates bounded structured claims + prose
+→ deterministic structured-claims guard validates the response
+→ committed Turn Narration artifact is atomically published
+→ prose may be displayed to the player
+→ novel.md is derived later from committed Turn Narration artifacts
+~~~
+
+其中 Simulation / State → Consequence → Narrative 是不可逆的责任方向。Narration
+永远不是 Engine truth，不得修改 Action、Event、GameState、RecordedDecision、
+Campaign 或 legality。严禁以下反向流程：
+
+~~~text
+generate prose
+→ execute or modify an Engine action
+→ infer or backfill GameState from prose
+~~~
+
+Campaign 的 accepted decision、Event 和 state hash 在 prose 生成失败时也不回滚。
+外部客户端只能在 Campaign 的公开边界提交 choice_id 或 STOP，不能提交 Action、
+Event、state delta、reward 或任何新的世界事实。
+
+##### 9C.1 Scope and implementation slices
+
+Phase 9C 是一个 Phase，但分为两个有顺序依赖的 implementation slice：
+
+**Phase 9C1 — Campaign-bound Story persistence**
+
+- Campaign-bound Story initialization；
+- deterministic Narration Request；
+- pending / retry / resume protocol；
+- bounded structured claims validation；
+- committed per-turn narration artifacts；
+- read-only Story verification。
+
+**Phase 9C2 — Locale and export completion**
+
+- locale switching；
+- deterministic novel.md export；
+- terminal completion report；
+- full interruption / resume acceptance proof。
+
+9C2 依赖 9C1。当前文档只定义合同，不实现任一 slice。Phase 9C1/9C2 都不
+直接修改 Phase 3.6–3.7 Narrator/Guard/Voice Pack、Phase 9A Session、Phase 9B2A
+Projection 或 Phase 9B2B Campaign 的冻结实现。
+
+##### 9C.2 Campaign / Story boundary
+
+Phase 9B2B Campaign 是 authoritative deterministic play。它的十四文件 exact-tree
+contract 继续严格适用：
+
+~~~text
+campaign/
+├── campaign.json
+├── world/
+│   ├── bundle.json
+│   ├── world_request.json
+│   ├── world_draft.json
+│   ├── compiled_worldpack.json
+│   ├── initial_state.json
+│   └── compile_report.json
+├── projection/
+│   ├── projection_manifest.json
+│   ├── projection_draft.json
+│   ├── player_projection.json
+│   └── projection_report.json
+└── session/
+    ├── campaign.sqlite3
+    ├── session.json
+    └── recorded_decisions.json
+~~~
+
+Phase 9C 必须遵守：
+
+- 不修改 phase-9b2b-frozen implementation；
+- 不在上述 Campaign 目录中添加 narration、request、trace、novel、provider 或
+  任何其他文件；
+- 不重写 campaign.json，也不向其添加 Story 字段；
+- 不改变十四文件 exact-tree contract；
+- 不复制 Campaign SQLite、完整 GameState、全部 EventStore 或私有 World Truth
+  到 Story；
+- 不建立 narration SQLite、vector DB、provider cache 或通用 document database；
+- 不通过 Story 文件反向改变 Campaign truth。
+
+Story 是一个由调用者指定、与 Campaign 分离的 sidecar directory。Story root 不得
+是 Campaign root，也不得位于 Campaign tree 内；未来实现必须在初始化时拒绝这种
+目录冲突。Story 通过以下 binding 与 Campaign 关联：
+
+~~~text
+campaign_id
+campaign_manifest_hash
+worldpack_hash
+source_initial_state_hash
+player_projection_hash
+session_id
+~~~
+
+Story identity 不使用绝对 Campaign 路径、Story 绝对路径、用户名、主机名或进程
+信息。Story directory 被删除、丢失或损坏，不得改变 Campaign truth；Campaign
+删除、Campaign binding 改变或 Campaign verify 失败时，Story verify 必须 fail
+closed，不能自动改绑到另一个 Campaign。任何重新绑定都必须是新的 Story 初始化，
+不是修复旧 Story。
+
+产品命名采用：
+
+~~~text
+Campaign = authoritative deterministic play
+Story    = non-authoritative narration journal and novel export
+~~~
+
+##### 9C.3 Exact Story sidecar directory protocol
+
+第一版只允许以下最小目录形状：
+
+~~~text
+story/
+├── story.json
+├── requests/
+│   ├── turn-000001.json
+│   ├── turn-000002.json
+│   └── ...
+├── turns/
+│   ├── turn-000001.json
+│   ├── turn-000002.json
+│   └── ...
+└── novel.md
+~~~
+
+实际初始化时必须创建 Story root、story.json、requests/ 和 turns/。novel.md 在
+初始化时不存在；它只在 export 时生成，是可删除、可重建的派生文件。requests/
+和 turns/ 随 accepted action 增长。不存在空的占位 turn 文件。
+
+目录规则：
+
+- story.json 是 Campaign/Story provenance binding，不是 GameState；
+- requests/turn-XXXXXX.json 是确定性、不可变的 Narration Request；
+- request 存在而对应 turn artifact 不存在，表示该 accepted action 为 pending；
+- 不得通过删除 pending request 表示完成，request 必须保留；
+- turns/turn-XXXXXX.json 是通过 deterministic claims guard 后的 committed artifact；
+- committed turn 一旦发布不得重写；
+- novel.md 不是权威 artifact，不参与 Campaign replay；
+- requests/、turns/ 以及 Story root 中禁止额外文件、隐藏文件、SQLite sidecar、
+  lock 文件或 provider cache；
+- symlink、junction、FIFO、socket、Windows reparse point、目录替代物和其他
+  special file 都拒绝；
+- 所有 JSON 与 Markdown 均为 UTF-8；JSON 必须是 canonical JSON；
+- Story 不保存原始 Campaign path，不保存 private World Truth，不保存 provider
+  secret。
+
+写操作期间可以在 canonical directory 之外的临时 sibling 使用 temporary file；
+成功后必须清除临时文件，失败时只清除当前 writer 自己创建且已验证为 regular
+file 的 temporary file。任何残留 temporary file 或 lock 都不是合法 Story 内容：
+read-only verify 不删除它们，而是返回安全的 publication/integrity error；下一次
+mutating command 只有在获得独占 writer 边界、确认 target 状态和 lstat 类型后才可
+清理自己可证明归属的残留临时物。不得用宽泛 glob 删除未知文件。
+
+##### 9C.4 Immutable story.json schema
+
+story.json 的 field set 必须严格等于下面十一项，不允许额外字段：
+
+~~~json
+{
+  "schema_version": 1,
+  "story_format_id": "phase9c-story-v1",
+  "story_id": "story-example",
+  "campaign_id": "campaign-example",
+  "campaign_manifest_hash": "64 lowercase hex characters",
+  "worldpack_hash": "64 lowercase hex characters",
+  "source_initial_state_hash": "64 lowercase hex characters",
+  "player_projection_hash": "64 lowercase hex characters",
+  "session_id": "campaign-example",
+  "initial_narration_locale": "zh-CN",
+  "initial_voice_id": "cablecar_survival"
+}
+~~~
+
+精确定义：
+
+| 字段 | 类型与约束 |
+|---|---|
+| schema_version | integer，严格为 1 |
+| story_format_id | string，严格为 phase9c-story-v1 |
+| story_id | stable machine ID，匹配 [a-z0-9][a-z0-9_-]{0,63} |
+| campaign_id | frozen Campaign manifest 中的 stable campaign_id |
+| campaign_manifest_hash | 对 canonical campaign.json JSON 做 SHA-256，lowercase hex |
+| worldpack_hash | 必须等于 frozen Campaign manifest 的 worldpack_hash |
+| source_initial_state_hash | 必须等于 frozen Campaign manifest 的 source_initial_state_hash |
+| player_projection_hash | 必须等于 frozen Campaign manifest 的 player_projection_hash |
+| session_id | 必须等于 Campaign manifest 的 session_id；当前 Phase 9B2B 中也等于 campaign_id |
+| initial_narration_locale | 规范 locale，只能是 zh-CN、en 或 ar |
+| initial_voice_id | 非空、稳定、经批准的 voice ID；第一版不允许 null 或空字符串 |
+
+Story manifest 在初始化时一次性写入，成功后完全不可变。hash 的输入是
+canonical UTF-8 JSON 的 UTF-8 bytes；不使用 wall-clock time、绝对路径、用户名、
+主机名、random nonce、API key 或 provider secret。canonical JSON 的重复 key、
+非标准数字、Unicode surrogate 和非 UTF-8 内容均拒绝。
+
+Story manifest 不包含 progress、last_turn、pending_count 或任何重复计数器。
+Progress 必须从 Campaign accepted decisions、requests/ 和 turns/ 的 immutable
+artifact 重新推导。这样不会维护多个可能漂移的进度真相。
+
+第一版 initial_voice_id 必须有值。默认可以使用现有冻结 Voice Pack 的
+cablecar_survival，但未来实现必须验证该 ID 属于 approved Voice Profile，而不能
+把任意 provider/model 名字当成 voice ID。当前 manifest 不记录 provider/model
+identity；未来若增加非权威 provenance，也不能进入 Campaign 行为、claim legality、
+state hash 或 Story truth。
+
+##### 9C.5 Story turn identity and decision semantics
+
+一个 Story turn 的精确定义是：
+
+~~~text
+1 Story turn = 1 Phase 9A Engine-accepted player ACTION decision
+~~~
+
+它不等于 completion call、DomainEvent、game day、paragraph、chapter、next/status
+operation 或 retry。一个 accepted decision 可能产生多个 DomainEvents，也可能只
+产生一个；未来允许 accepted decision 合法但 event 范围为空。所有这些情况仍只有
+一个 Story turn。
+
+每个 action turn 的 identity：
+
+- turn_id 是 turn- 加上 accepted_decision_number 的十进制数字，至少六位左零填充，
+  例如 accepted decision 1 是 turn-000001；
+- accepted_decision_number 等于 Phase 9A action RecordedDecision 的 decision_number；
+- recorded_decision_index 是该 ACTION 在 recorded_decisions.json 全部记录中的
+  1-based ordinal，STOP 记录也占用 ordinal；
+- action_id 是 Campaign/Session authoritative transition 的稳定 action identity；
+  外部客户端只能间接触发它，不能在 Narration Request 或 response 中自定义；
+- choice_id、action_type、canonical params、duration_minutes 和 stamina_cost
+  必须来自该 accepted choice 的 frozen canonical request，不能由外部客户端重写；
+- event_seq_start 和 event_seq_end 是该 decision 的 authoritative Event sequence
+  闭区间；一个 Event 时二者相等；多个 Event 时包含且只包含该 decision 的连续
+  Event；零 Event 时二者都为 null；
+- state_hash_before 和 state_hash_after 来自 authoritative transition；
+  零 Event 不得凭空生成 Event，hash 是否相同由 Engine truth 决定。
+
+explicit STOP 会产生 Phase 9A RecordedDecision，但不增加 accepted-decision Story
+turn，不创建 request，不创建 turn artifact，也不得虚构 DomainEvent。STOP 的
+terminal summary 由 Session stop_reason 确定性导出。MAX_DECISIONS、NO_LEGAL_ACTIONS
+和 terminal state 都由 Session/Engine 状态决定：触发终止的 accepted action 仍有
+自己的 Story turn；没有对应 accepted action 的 terminal 状态没有 Story turn。
+Narrator failure 不是 Engine rollback 理由。
+
+##### 9C.6 Deterministic Narration Request
+
+requests/ 下每个 JSON 的 field set 必须严格等于下面二十六项：
+
+~~~json
+{
+  "schema_version": 1,
+  "request_format_id": "phase9c-narration-request-v1",
+  "narration_request_id": "story-example:turn-000001",
+  "narration_request_hash": "64 lowercase hex characters",
+  "story_id": "story-example",
+  "turn_id": "turn-000001",
+  "campaign_id": "campaign-example",
+  "session_id": "campaign-example",
+  "accepted_decision_number": 1,
+  "recorded_decision_index": 1,
+  "request_fingerprint_before": "64 lowercase hex characters",
+  "source_request_hash": "64 lowercase hex characters",
+  "choice_id": "choice-000",
+  "action_type": "DROP",
+  "action_id": "actor-external-campaign-example-1",
+  "params": {},
+  "duration_minutes": 10,
+  "stamina_cost": 1,
+  "event_seq_start": 1,
+  "event_seq_end": 1,
+  "state_hash_before": "64 lowercase hex characters",
+  "state_hash_after": "64 lowercase hex characters",
+  "narration_locale": "zh-CN",
+  "voice_id": "cablecar_survival",
+  "public_brief": {
+    "observation_before": {},
+    "observation_after": {},
+    "action_result": {
+      "choice_id": "choice-000",
+      "action_type": "DROP",
+      "event_types": ["EXPEDITION_DROPPED"],
+      "event_seq_start": 1,
+      "event_seq_end": 1,
+      "public_event_facts": []
+    }
+  },
+  "claim_requirements": []
+}
+~~~
+
+上面 JSON 只展示类型和结构；实际 params、observation、facts 和 claims 必须是
+真实 Campaign 的 canonical values。表格中的字段约束如下：
+
+| 字段 | 约束 |
+|---|---|
+| schema_version | integer，严格为 1 |
+| request_format_id | string，严格为 phase9c-narration-request-v1 |
+| narration_request_id | 精确为 story_id + 冒号 + turn_id，不是路径 |
+| narration_request_hash | 对去掉自身后其余完整 request object 的 canonical UTF-8 JSON 做 SHA-256 |
+| story_id / campaign_id / session_id / turn_id | 必须与 Story binding 和 turn identity 相等 |
+| accepted_decision_number | positive integer；一个 Engine-accepted ACTION 一个值 |
+| recorded_decision_index | positive integer；recorded_decisions.json 中 1-based index |
+| request_fingerprint_before | frozen Phase 9A canonical request 的 fingerprint |
+| source_request_hash | 对重建的 frozen Phase 9A request envelope 的 canonical UTF-8 JSON 做 SHA-256 |
+| choice_id / action_type / action_id | choice/action identity 和 action ID 必须来自 verified authoritative transition；不得由 client 重写 |
+| params | canonical JSON object，逐字复制 accepted choice params |
+| duration_minutes | integer 或 null，逐字复制 canonical choice |
+| stamina_cost | integer，逐字复制 canonical choice |
+| event_seq_start / event_seq_end | non-negative integer 闭区间，或同时为 null |
+| state_hash_before / state_hash_after | authoritative lowercase SHA-256 |
+| narration_locale | 只能是 zh-CN、en、ar |
+| voice_id | approved stable Voice Profile ID；第一版等于 story.json 的 initial_voice_id |
+| public_brief | 只含公开可见、脱离 Engine 的 brief，见下文 |
+| claim_requirements | deterministic guard 要求外部响应逐项满足的 bounded claims |
+
+public_brief 的 field set 严格为 observation_before、observation_after、
+action_result 三项。两份 observation 必须是 frozen Player Presentation 的 detached
+player-visible observation，不包含 raw GameState、Engine private fields 或 private
+Actor data。action_result 的 field set 严格为 choice_id、action_type、event_types、
+event_seq_start、event_seq_end、public_event_facts；public_event_facts 的每项
+field set 严格为 event_seq、event_type、facts，facts 只能来自已批准的公开
+Event/Presentation projection，不能把私有 Event payload 原样搬入 Story。
+
+claim_requirements 是由 verified Campaign boundary、authoritative Events、pre/
+post public observation 和 approved public action result 计算出的结构化义务。它
+不是外部客户端可以扩大的事实清单。第一版 claim value 只允许使用下节定义的
+bounded claim kinds。
+
+Narration Request 的事实来源只能是：
+
+- frozen Campaign binding；
+- frozen Session / RecordedDecision；
+- authoritative Event sequence；
+- frozen canonical request；
+- Phase 9B2A Player Presentation；
+- player-visible pre/post observation；
+- approved public action result。
+
+Narration Request 禁止包含 raw private GameState、private Actor goals、private
+Actor knowledge、hidden loot、unrevealed world facts、World Truth、Reducer
+internals、decision 后临时发明的 alternative legal actions、Narrator prompt
+injection 作为 authority，或 external client 的猜测。
+
+对同一个 verified Campaign boundary、同一个 accepted decision、同一个 locale 和
+同一个 voice binding，重复构建必须生成 byte-identical canonical request JSON 和
+相同 narration_request_hash。locale 不改变 frozen Engine canonical request、
+request_fingerprint_before、Action、Event、state hash 或 Replay；locale 和 voice
+只是 Phase 9C request 的表达绑定，因此不同 narration locale 的 Story request
+identity 可以不同，但其 authoritative facts 必须完全相同。
+
+##### 9C.7 External client response and structured claims
+
+外部客户端的 response field set 必须严格等于以下六项，unknown fields fail closed：
+
+~~~json
+{
+  "schema_version": 1,
+  "narration_request_id": "story-example:turn-000001",
+  "narration_request_hash": "64 lowercase hex characters",
+  "locale": "zh-CN",
+  "claims": [],
+  "prose": "非空 UTF-8 文本"
+}
+~~~
+
+输入约束：
+
+- schema_version 严格为 1；
+- narration_request_id 和 narration_request_hash 必须匹配现存 pending request；
+- locale 必须等于 request.narration_locale；
+- claims 必须是最多 32 项的 JSON array，不能有重复义务或未知 kind；
+- prose 必须是 UTF-8、非空、无 Unicode surrogate、无 NUL、无 carriage return，
+  且长度必须为 1 至 20,000 个 Unicode scalar values；首尾空白由 validator 拒绝；
+- response 不得提交 Action、Event、state delta、reward、新 public fact、provider
+  metadata、prompt、secret 或任何 GameState；
+- response 不得代替 NPC 决定隐藏 intent、爱憎、承诺、同意或私有 Knowledge；
+- prose 不是 authoritative input，永远不能被 parse 回 GameState。
+
+每个 claim 的 field set 严格为 kind、value 两项。kind 只能是以下七种之一，
+client 不能自定义 claim type：
+
+~~~text
+action_performed
+location_changed
+resource_delta
+stamina_changed
+public_fact_revealed
+relationship_public_change
+terminal_reason
+~~~
+
+第一版 value schema：
+
+| kind | value 的 exact field set 与约束 |
+|---|---|
+| action_performed | choice_id、action_type；两者必须等于 request |
+| location_changed | from_location_id、to_location_id；stable machine IDs |
+| resource_delta | resource_id、delta；resource_id 为 stable ID，delta 为 integer |
+| stamina_changed | before、after、delta；三个值为 integer，且 delta = after - before |
+| public_fact_revealed | fact_id、value；fact_id 为 stable ID，value 只能是 approved public scalar |
+| relationship_public_change | actor_id、relationship_id、before、after；IDs 为 stable ID，数值由 public result 约束 |
+| terminal_reason | reason；只能是 request 允许的 MAX_DECISIONS、NO_LEGAL_ACTIONS 或 TERMINAL_STATE |
+
+Claims 使用 machine IDs，不使用仅显示名称。guard 必须要求 claim_requirements
+中的每一项恰好出现一次；省略关键 resource_delta、stamina_changed 或其他
+required claim 不能绕过数值验证。除 request 明确允许的要求外，不接受额外 claim。
+claim 的顺序 canonicalize 为 kind 后再按 value 的 canonical JSON 排序；重复、
+越界、改名、数值不一致或隐藏事实都 fail closed。
+
+structured claims validation 是第一版的 primary deterministic factual gate：
+
+- 每个 claim 必须能从 Narration Request 的公开 facts 和 authoritative Event/
+  state transition 确定性验证；
+- claim 不得扩大 request 已允许的事实集合；
+- claim overreach、unknown ID、未知 kind、数值不符、遗漏 required claim 都不
+  发布 turn artifact；
+- validation failure 不回滚 Campaign；
+- pending request 保留，外部客户端可重新生成响应；
+- identical response 重交必须幂等成功或返回 already committed；
+- different response 不得覆盖已 committed turn。
+
+现有 Phase 3.6–3.7 prose guard 只是最小 regex/resource/stamina 检查，不能被描述
+成通用自然语言事实验证器。它可以作为 supplemental bounded check，但不能替代
+structured claims guard。系统必须诚实承认：
+
+- 无法对任意自然语言 prose 做完整语义证明；
+- structured claims 可以证明 artifact 声称的核心事实；
+- prose guard 只能捕获有限的明显冲突；
+- Story verification 不得声称数学证明整段自然语言没有任何 hallucination；
+- prose 任何情况下都不能写回 GameState。
+
+##### 9C.7a Committed Turn Narration artifact
+
+turns/turn-XXXXXX.json 的 field set 必须严格等于以下字段；不得添加 committed_at、
+wall-clock time、provider/model secret、prompt、raw GameState 或新的事实字段：
+
+~~~json
+{
+  "schema_version": 1,
+  "artifact_format_id": "phase9c-turn-narration-v1",
+  "turn_artifact_hash": "64 lowercase hex characters",
+  "story_id": "story-example",
+  "turn_id": "turn-000001",
+  "narration_request_id": "story-example:turn-000001",
+  "narration_request_hash": "64 lowercase hex characters",
+  "source_request_hash": "64 lowercase hex characters",
+  "campaign_id": "campaign-example",
+  "session_id": "campaign-example",
+  "accepted_decision_number": 1,
+  "recorded_decision_index": 1,
+  "request_fingerprint_before": "64 lowercase hex characters",
+  "choice_id": "choice-000",
+  "action_type": "DROP",
+  "action_id": "actor-external-campaign-example-1",
+  "params": {},
+  "duration_minutes": 10,
+  "stamina_cost": 1,
+  "event_seq_start": 1,
+  "event_seq_end": 1,
+  "state_hash_before": "64 lowercase hex characters",
+  "state_hash_after": "64 lowercase hex characters",
+  "narration_locale": "zh-CN",
+  "voice_id": "cablecar_survival",
+  "claims": [],
+  "prose": "已经通过验证的非空 UTF-8 文本"
+}
+~~~
+
+除 turn_artifact_hash 外，所有字段都必须与同名 Narration Request 字段相等，或是
+该 request/response 的严格 canonical copy；turn_artifact_hash 是对去掉自身后的
+完整 turn object 做 canonical UTF-8 JSON SHA-256。claims 使用 request 要求的
+canonical 顺序，prose 保留已经通过 response validator 的 exact text。turn artifact
+的 commit 不产生新的 Campaign mutation；一旦 no-replace 发布，不得用同一 turn 的
+另一份 prose、claims、locale 或 voice 覆盖。
+
+##### 9C.8 Pending, retry and crash recovery
+
+Story 状态不存一个 mutable status counter，而是由 Campaign history、requests/
+和 turns/ 派生。最小状态机为：
+
+~~~text
+accepted decision without request
+        ↓ prepare
+pending request without committed turn
+        ↓ valid response + claims guard + atomic publish
+committed turn
+        ↓ later export
+derived novel.md
+~~~
+
+以下 crash boundaries 必须逐点成立：
+
+| 边界 | 允许观察到的状态 | 恢复语义 |
+|---|---|---|
+| A. Campaign decision 已提交，request 尚未创建 | Campaign 已有 RecordedDecision/Event/State，Story 可能无 request | Campaign truth 永不回滚；prepare 可从 authoritative history 确定性补建 request；read-only verify 不修复 |
+| B. request 已原子提交，client 尚未返回 | request 存在、turn 不存在 | 这是正常 pending；重开 Story 后原 request 保留并可重复读取 |
+| C. response 已收到，guard 尚未完成 | request 存在、turn 不存在；response 本身不是 Story truth | 重新提交 response；不把自由 prose 当完成证明 |
+| D. guard 已通过，turn 尚未发布 | request 存在、turn 可能不存在 | 重试 atomic no-replace；同内容成功/返回 already committed，冲突内容返回 TURN_CONFLICT |
+| E. turn 已发布，novel.md 尚未更新 | committed turn 是 truth，novel 可缺失或旧 | 直接由 committed turns 重新 export；不重跑 Engine/LLM |
+| F. novel.md 写入 temporary file 但尚未 replace | committed turns 不变，derived temp 不具权威性 | 清理当前 temporary；重新生成 novel.md；不改变 turn truth |
+
+重新打开 Story 时必须扫描 Campaign accepted decisions、requests 和 committed
+turns。缺少 request 的 accepted action 可以确定性补建，但 verify 是只读操作，不能
+借此自动写文件。request 存在而 turn 缺失是 pending；同一个 request 可重试生成
+多个候选 response，但只有一个 committed artifact。不得通过检查 prose 是否存在
+来判断 turn 完成。
+
+如果 Campaign 已继续推进、Story 只保存到较早的 accepted decision，且 requests/
+与 turns/ 是合法 contiguous prefix，则这是：
+
+~~~text
+valid Story with pending or missing narration work
+!= integrity failure
+~~~
+
+但只要已提交 request/turn 与 Campaign authoritative history 不一致，就是
+STORY_INTEGRITY_MISMATCH 或 CAMPAIGN_INTEGRITY_MISMATCH，必须 fail closed。
+
+##### 9C.9 Atomic publication and concurrency
+
+未来实现必须使用稳定的公共 publication boundary，不得直接修改或复用冻结实现
+中的 private underscore publication API。Phase 9C 当前只定义以下要求：
+
+1. Story initialization 在目标旁边建立 temporary sibling，完成所有 schema、
+   binding、目录和初始文件验证后，使用 atomic no-replace publication；target
+   已存在不得覆盖。
+2. request artifact 使用 temporary sibling + fsync/close + atomic no-replace；
+   已存在 target 不覆盖。
+3. committed turn artifact 使用 temporary sibling + fsync/close + atomic
+   no-replace；已存在 target 不覆盖。
+4. 同一 Story 对同一 turn 的 competing identical submission 可以返回相同成功或
+   already committed；competing conflicting submission 必须返回 TURN_CONFLICT，
+   绝不能 last-writer-wins。
+5. novel.md 是 derived artifact，可以 temporary file + atomic replace；replace
+   失败不改变任何 committed request/turn/Campaign truth。
+6. 每个 writer 必须在 open 前 lstat，并拒绝 symlink、junction、FIFO、socket、
+   reparse point、非 regular file 和目标替换；读写必须验证 identity，不能依赖
+   path 重新打开来绕过 race。
+7. temporary 与 lock 只存在于 publication boundary 外或操作期间，不进入成功的
+   exact Story tree；close、失败清理和 cleanup failure 必须有 bounded error mapping。
+8. read-only verify 不创建 lock、temporary、novel、request 或 turn，也不修复任何
+   artifact。
+
+同一 Story 的 concurrent writer 不得通过全局 mutable progress 竞争。request/turn
+的 no-replace target 是 per-turn single-winner boundary；novel replace 只产生派生
+输出，下一次 verify 会检查其是否仍与 committed artifacts 一致。未来如使用 lock，
+lock 必须是非权威、短生命周期、可安全确认归属的 sibling；stale/unknown lock 不
+得被任意删除，应返回 STORY_PUBLICATION_UNAVAILABLE。
+
+##### 9C.10 Locale and Voice independence
+
+Phase 9C1/9C2 至少支持以下规范 narration locale：
+
+~~~text
+zh-CN
+en
+ar
+~~~
+
+必须保持以下不变量：
+
+- narration locale 与 WorldPack content_locale 分离；
+- narration locale 不改变 WorldPack、Projection、Engine canonical request、
+  request_fingerprint_before、Action、Event、state hash 或 Replay；
+- 每个 Narration Request 和 committed turn 独立保存 narration_locale；
+- 已提交中文 turn 不因之后切换到 ar 而重写；
+- locale 一旦写入 pending request 就不可变；切换只影响尚未创建的下一个
+  request，不能删除 pending request 后换语言；
+- prepare 未指定 locale 时，第一轮使用 story.json 的 initial_narration_locale，
+  之后使用最近 request/turn 的 locale；显式切换只在新 request 创建时生效；
+- 第一版 voice 绑定固定为 story.json 的 initial_voice_id；每个 request/turn
+  都记录 voice_id，不能因 provider/model 改写；
+- Voice 只决定 HOW，不能修改 claims、事实、choice、数值或结果；
+- 所有 artifact 使用 UTF-8；RTL web rendering 继续延期；
+- 不建立 TranslationDatabase 或通用 localization framework。
+
+现有 frozen Voice Pack 以兼容输入存在，稳定的 Voice Profile 概念可以被未来
+薄集成层复用。Phase 9C 不修改 Phase 3.6–3.7 infrastructure，不把 Campaign、
+raw GameState 或 private truth 塞进旧 NarrationContext。Facts determine WHAT
+happened；voice determines HOW it is written。
+
+##### 9C.11 Deterministic novel.md export
+
+export 只读取已经 committed 的 turns/ 和验证所需的 Session terminal metadata：
+
+- 按 accepted_decision_number / turn_id 顺序读取，每个 accepted decision 只有一
+  个 turn；多个 DomainEvents 不得导出成多个 player rounds；
+- 不读取 prose 来恢复事实，不读取外部 source bundle，不调用 Engine，不调用
+  LLM，不调用 provider，不修改 Campaign；
+- 不修改 committed request/turn artifacts；原始 per-turn artifacts 永久保留；
+- novel.md 删除后必须能从同一 committed artifacts 完全重建；
+- header、turn heading、locale/voice 行、分隔符、terminal summary 和最终 newline
+  规则固定，且相同 Story artifacts 必须得到 byte-identical UTF-8 Markdown；
+- pending gap、missing request、missing turn、conflicting turn 或 invalid claim
+  不得静默跳过，不写占位剧情，直接返回 STORY_INCOMPLETE；
+- novel.md 被篡改不改变 Story truth，但 verify 必须发现它与 deterministic rebuild
+  不一致。
+
+第一版支持两个明确模式：
+
+- active Campaign 可以做 snapshot export，但前提是当前全部 accepted actions 都
+  已有连续 committed turn，且没有 pending/missing narration；否则返回
+  STORY_INCOMPLETE；
+- final export 要求 Session 已经 terminal，且全部 accepted actions 都有连续
+  committed turn。STOP 的 explicit stop 不生成 turn，但 terminal summary 必须
+  记录 Session 的 EXPLICIT_STOP；MAX_DECISIONS、NO_LEGAL_ACTIONS 和 terminal
+  state 使用 Session/Engine 的确定性 stop reason。
+
+Markdown 的 canonical layout 为：
+
+~~~text
+# TheGreatNovel
+
+story_id: <story_id>
+campaign_id: <campaign_id>
+session_id: <session_id>
+export_mode: snapshot|final
+
+## turn-000001
+locale: zh-CN
+voice_id: cablecar_survival
+action_type: DROP
+
+<stored prose>
+
+---
+
+## terminal
+stop_reason: EXPLICIT_STOP
+accepted_decisions: <integer>
+recorded_decision_count: <integer>
+~~~
+
+active snapshot 将末尾 terminal block 替换为：
+
+~~~text
+## status
+status: SNAPSHOT
+accepted_decisions: <integer>
+recorded_decision_count: <integer>
+~~~
+
+每个 turn block 的顺序、字段名、空行、分隔线和 final newline 都固定；prose 在
+commit 时必须已通过 UTF-8/bounded validation，export 不进行语义修复。terminal
+summary 不是新的 GameState，也不通过 prose 推导。
+
+##### 9C.12 Read-only Story verification
+
+verify story 是只读、可重复、fail-closed 的 boundary operation，至少验证：
+
+1. Story root 是真实目录，不是 symlink、junction 或 reparse point；
+2. story.json exact schema、canonical UTF-8、hash 格式和全部 Campaign bindings；
+3. 绑定 Campaign 通过 frozen Phase 9B2B verification；
+4. Story root exact tree；requests/ 与 turns/ 没有额外文件、special file、
+   SQLite sidecar 或不可识别版本；
+5. requests 与 Campaign accepted decisions 一一对应，或仅形成合法的连续 prefix/
+   pending 状态；不允许中间洞；
+6. 每个 request 可以从 verified Campaign boundary 确定性重建，canonical bytes
+   与 request hash 相同；
+7. 每个 committed turn 严格绑定现存 request，且不超出 request prefix；
+8. claims 重新通过 deterministic structured claims validation；
+9. turn IDs、accepted decision numbers、recorded decision indices 和适用 event
+   ranges 连续、不重复、与 authoritative history 一致；
+10. state_hash_before/after、choice、action、params 和 event range 与 Campaign
+    authoritative history 一致；
+11. locale/voice binding 有效，且 locale 不改变 Engine truth；
+12. committed turn 文件没有冲突版本、被覆盖迹象或不一致 hash；
+13. novel.md 如果存在，可以从 committed turns 和当前合法 export mode
+    byte-identical 重建；
+14. verify 前后所有 Story files 的 hash、size、mtime_ns 不变；
+15. verify 前后 Campaign files 和 SQLite authoritative rows 不变。
+
+verify 必须使用只读文件句柄和 SQLite read-only boundary；不能调用 LLM、completion
+call、provider SDK、Engine action、Reducer、Event append、RecordedDecision append、
+request/turn repair 或 novel rewrite。它可以读取并重放来验证，但不能改变任何
+observable。Campaign 已继续推进而 Story 合法落后时，verify 返回 valid plus
+pending/missing narration work，而不是把正常 pending 误报为 integrity failure。
+
+##### 9C.13 Small local CLI / external-client protocol
+
+Phase 9C 只定义一个小型 local CLI 概念协议，不实现 HTTP、MCP 或 daemon。统一的
+机器输出是 canonical UTF-8 JSON：
+
+~~~json
+{"ok": true, "...": "..."}
+{"ok": false, "error": {"code": "STORY_INTEGRITY_MISMATCH", "message": "safe message"}}
+~~~
+
+error message 不得包含 SQLite error、Campaign absolute path、provider exception、
+prompt 内容、secret、raw traceback 或 private World Truth。
+
+**init**
+
+- 输入：Story directory、已存在的 Campaign directory、story_id、
+  initial_narration_locale、initial_voice_id；
+- 行为：先 read-only verify Campaign，再写 immutable story.json、requests/ 和
+  turns/；
+- 写文件：只创建一个由 caller 指定且尚不存在的 Story root，使用 temporary
+  sibling + atomic no-replace；
+- 不调用 Campaign action，不调用 LLM，不修改 Campaign；
+- target 已存在、binding 不符、路径在 Campaign tree 内或 publication capability
+  不可用时零副作用失败。
+
+**prepare**
+
+- 输入：Story directory，可选 turn_id，可选新 locale；
+- 行为：验证 Campaign binding，寻找最早尚未拥有 request 的 accepted ACTION，或
+  返回已有 pending request；重建 request 必须 deterministic；
+- 写文件：只在 request 缺失时 atomic no-replace 创建 requests/turn-XXXXXX.json；
+- 不调用 LLM，不执行 Engine action，不提交 choice_id/STOP；
+- request 已存在时不得用新 locale 覆盖；已有 pending request 返回其原 locale；
+- Campaign 尚无新的 accepted ACTION 时返回机器可识别的 normal no-request/
+  terminal 状态，不虚构 turn。
+
+**commit**
+
+- 输入：Story directory 和严格的 external response JSON；
+- 行为：匹配 pending request，验证 response exact schema、request identity、
+  claims、prose 和 supplemental prose guard，然后 atomic no-replace 发布 turn；
+- 写文件：只写 turns/turn-XXXXXX.json；不写 Campaign，不更新 Session，不执行
+  Engine action；
+- 同一内容重交返回 ok=true 的 already_committed 结果或
+  TURN_ALREADY_COMMITTED；不同内容返回 TURN_CONFLICT；
+- response validation failure 保留 request，不产生 turn；
+- terminal Campaign 不允许为 STOP 创建 narration turn。
+
+**status**
+
+- 输入：Story directory；
+- 行为：只读验证并从 immutable artifacts 派生 request/turn counts、pending turn、
+  committed prefix、Campaign status 和 export readiness；
+- 不写文件、不调用 LLM、不执行 action；
+- pending 是正常状态，不被包装成 integrity damage。
+
+**verify**
+
+- 输入：Story directory；
+- 行为：执行 9C.12 的完整只读 verification；
+- 不写文件、不创建/修复 artifact、不调用 LLM、Engine action、Event append 或
+  provider；
+- 对合法 lagging Story 返回 valid/pending；对 binding、Campaign、request、turn
+  或 novel 不一致返回对应 boundary error。
+
+**export**
+
+- 输入：Story directory 和 snapshot 或 final mode；
+- 行为：先验证，再只用 committed turns + 必要 terminal metadata 确定性生成
+  novel.md；
+- 写文件：只允许 novel.md temporary + atomic replace；replace 失败不改 truth；
+- 不调用 LLM、不调用 Engine、不读取外部 source bundle、不修改 Campaign 或
+  committed artifacts；
+- pending/incomplete 直接返回 STORY_INCOMPLETE，不生成占位剧情；
+- active snapshot 和 terminal final 的前置条件见 9C.11。
+
+推荐外部客户端协议：
+
+~~~text
+campaign choose
+→ story prepare
+→ external client reads machine JSON
+→ external client returns structured JSON
+→ story commit
+~~~
+
+prepare 不调用 LLM，commit 不执行 Engine action，export 不调用 LLM。不得添加
+provider registry、API key management、model routing、fallback model、automatic
+prompt optimization、background retry worker 或 generic agent orchestration。
+
+##### 9C.14 Small Story error namespace
+
+第一版 Story boundary 只暴露以下小型、稳定、与 transport 无关的错误名：
+
+| Code | 语义 |
+|---|---|
+| INVALID_STORY_INPUT | 参数、schema、locale、voice、路径边界或 response 基本输入无效 |
+| STORY_ALREADY_EXISTS | init target 或 no-replace target 已存在 |
+| STORY_NOT_FOUND | Story root 或必须的 Story artifact 不存在 |
+| STORY_INTEGRITY_MISMATCH | Story 文件、hash、目录、request、turn 或 novel 损坏/不一致 |
+| CAMPAIGN_BINDING_MISMATCH | Story manifest 与 Campaign ID/hash/session binding 不匹配，不能改绑 |
+| CAMPAIGN_INTEGRITY_MISMATCH | 绑定 Campaign verify 失败；不暴露 SQLite 细节 |
+| NARRATION_REQUEST_NOT_FOUND | 指定 request 不存在且当前 boundary 不能提供它 |
+| NARRATION_REQUEST_PENDING | request 存在但 turn 尚未 committed；正常可恢复状态 |
+| NARRATION_RESPONSE_INVALID | response exact schema、identity、claims 或 prose validation 失败 |
+| TURN_ALREADY_COMMITTED | 相同 turn 已有相同 artifact；可作为幂等成功结果 |
+| TURN_CONFLICT | 同一 turn 已有不同 artifact，禁止覆盖 |
+| STORY_INCOMPLETE | export 所需 request/turn/terminal 条件未满足 |
+| UNSUPPORTED_STORY_FORMAT | story format 或 schema_version 不支持 |
+| STORY_PUBLICATION_UNAVAILABLE | no-replace/atomic replace、文件类型、lock 或 cleanup capability 不可用 |
+
+NARRATION_REQUEST_PENDING 是 normal pending state，不等于 integrity failure。
+NARRATION_RESPONSE_INVALID 是外部响应验证失败，不等于 Story 文件损坏；
+STORY_INTEGRITY_MISMATCH 是 Story artifact damage；CAMPAIGN_INTEGRITY_MISMATCH
+是 Campaign authoritative boundary failure。底层 SQLite error、绝对路径、provider
+异常、prompt、内部 traceback 和 private World Truth 都必须映射为上述安全错误。
+
+##### 9C.15 Future implementation acceptance matrix
+
+Phase 9C implementation 必须直接测试下列行为，不得只测试行覆盖：
+
+**Boundary and initialization**
+
+- Story initialization and immutable Campaign binding；
+- Campaign exact fourteen-file tree remains unchanged；
+- Story cannot be initialized inside Campaign tree；
+- decision is persisted before request；
+- missing Story directory/Campaign directory and binding mismatch；
+- story.json exact field set、canonical UTF-8、hash and no progress counter；
+- no absolute path/user/host/provider secret in Story；
+- Story deletion/corruption does not change Campaign。
+
+**Request, turn and truth mapping**
+
+- deterministic request rebuild；
+- one decision producing multiple DomainEvents；
+- one decision producing one DomainEvent；
+- accepted decision with zero DomainEvents；
+- exact recorded-decision index and accepted-decision number；
+- STOP produces no fabricated Event and no Story turn；
+- MAX_DECISIONS、NO_LEGAL_ACTIONS、terminal state；
+- Event Replay and RecordedDecision Replay with zero completion calls；
+- private Actor goal/knowledge absence and Knowledge Boundary；
+- external client cannot submit Action/Event/state delta/reward；
+- no provider SDK or completion call inside deterministic tests。
+
+**Pending and recovery**
+
+- decision persisted before request；
+- pending after client failure；
+- resume after every crash boundary A–F；
+- response validation failure keeps request；
+- narration failure never rolls back Campaign state；
+- duplicate identical commit；
+- conflicting commit；
+- Story lagging behind a valid continued Campaign；
+- committed turn immutability and no overwrite；
+- novel.md delete/rebuild。
+
+**Tamper and security**
+
+- Campaign tamper；
+- request tamper；
+- turn artifact tamper；
+- claims overreach；
+- hidden knowledge rejection；
+- prose empty；
+- obvious numerical contradiction；
+- request/turn gaps and duplicate IDs；
+- symlink、junction、FIFO、socket、reparse point、late/existing targets；
+- temporary/lock cleanup and publication races；
+- read-only verification leaves every Story/Campaign hash、size、mtime_ns unchanged。
+
+**Locale, voice and export**
+
+- zh-CN、en、ar；
+- mid-run zh-CN → ar switch；
+- same decisions/events/final hash across locales；
+- locale does not change WorldPack、Projection、canonical Engine request、Replay；
+- voice changes style only and cannot change claims；
+- terminal export；
+- active snapshot export rules；
+- incomplete export rejection；
+- deterministic byte-identical novel.md rebuild；
+- terminal stop reason and completion report；
+- export does not call Engine、LLM、provider or source bundle。
+
+**完整产品 proof**
+
+固定 fixture 必须能够执行以下路径；如果第一 WorldPack 的可行动作条件不同，
+测试 fixture 必须保持相同语义而不能跳过步骤：
+
+~~~text
+create frozen Campaign
+→ initialize Story
+→ choose DROP with canonical request fingerprint
+→ persist Campaign RecordedDecision/Event/State
+→ prepare request
+→ simulate external structured narration
+→ commit turn
+→ close Story / Campaign and reopen
+→ choose SEARCH
+→ narrator failure
+→ close/reopen
+→ pending request remains
+→ retry and commit SEARCH
+→ choose EXTRACT
+→ switch narration locale
+→ commit an Arabic turn
+→ choose TALK_TO_ACTOR
+→ verify Knowledge Boundary
+→ STOP
+→ export final novel.md
+→ verify Campaign replay
+→ verify Story
+→ rebuild byte-identical novel.md
+~~~
+
+该 proof 必须同时证明：Engine 事实先于 Narration、Narrator failure 不回滚、STOP
+没有虚构 Event、TALK_TO_ACTOR 不越过 Knowledge Boundary、中文和阿拉伯语 artifact
+都保留、Story export 不成为 replay source。
+
+##### 9C.16 Coverage gate for future implementation
+
+未来 Phase 9C implementation 的硬门槛为：
+
+~~~text
+new Phase 9C Story integration package >= 95%
+src/tgn/campaign remains >= 95%
+src/tgn/projection remains == 100%
+full src/tgn remains >= 97%
+~~~
+
+不得使用 coverage exclusion、新增 pragma: no cover、unreachable code、删除或弱化
+断言、只执行代码行而不验证行为来达到门槛。不得修改冻结测试。当前这个
+documentation-only contract task 不运行 coverage，也不添加测试。
+
+##### 9C.17 Explicit non-goals
+
+Phase 9C 第一版明确不包括：
+
+~~~text
+OpenAI/Anthropic/Qwen SDK
+HTTP API
+provider registry
+API key storage
+model router or fallback
+automatic multi-model evaluation
+background narration worker
+streaming transport framework
+vector memory
+semantic prose truth theorem
+general translation database
+RTL web UI
+audiobook/TTS
+image generation
+chapter planning agent
+automatic literary editing agent
+multiple alternative novel versions
+collaborative editing
+cloud sync
+distributed transactions
+general document management system
+Narration-controlled GameState
+prose-to-Event parsing
+HTTP server
+MCP server
+background retry daemon
+generic workflow/plugin/agent framework
+~~~
+
+也不建立通用 MediaAsset、DocumentStore、WorkflowEngine、TranslationDatabase、
+Plugin framework、ProviderRouter 或 model fallback framework。外部客户端是
+transport/LLM edge，不是 Engine、Campaign 或 Story 的 authority。
+
+##### 9C.18 Relationship to frozen Narrator infrastructure
+
+Phase 3.6–3.7 Narrator / Guard / Voice Pack 保持冻结。现有 NarratorService 是
+WatchFrame/autoplay-oriented、fail-fast 的旧边缘基础设施：
+
+- NarrationContext 从 WatchFrame 派生，只有 deep-copied player-visible data；
+- NarratorService 生成 prose、调用旧 minimal guard，失败时 fail-fast；
+- NarratedFrame/NarrationRunResult 是 presentation artifact，不是 GameState/Event；
+- Voice Profile 只定义写作方式，不能访问 GameState、hidden world state 或 override
+  facts；
+- 旧 OpenAICompatibleClient 的存在不改变 Phase 9C 不引入 provider SDK/API/key
+  管理的 non-goal。
+
+Phase 9C 的未来实现应增加一个薄的 Campaign-bound Story integration layer。它
+可以复用稳定的纯函数或 Voice Profile 概念，但不得为了复用把 private Campaign、
+GameState、EventStore 或 World Truth 塞进旧 NarrationContext；structured claims
+guard 是 Phase 9C 的新边界，不能假装现有 regex guard 已经满足。若未来确实
+必须改变 frozen Narrator behavior，必须走显式 reopen 或 superseding contract，
+不能静默修改冻结基础设施。
+
+本章的唯一当前状态是：
+
+~~~text
+Phase 9B2A — frozen at phase-9b2a-frozen
+Phase 9B2B — frozen at phase-9b2b-frozen
+Phase 9C  — design contract candidate / implementation not started
+Phase 9D  — deferred
+~~~
 
 #### Phase 9D — Evaluation Matrix（Deferred Phase 9D）
 

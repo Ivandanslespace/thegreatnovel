@@ -22,7 +22,13 @@ Frozen implementation SHA: `60ebf493ba90114c4f03048558e316ac07118ee2`
 
 Frozen implementation SHA: `218a246add4481088872487e80ac83ad1099171b`
 
-**Phase 9C — not started**
+**Phase 9C — design contract candidate / implementation not started**
+
+Phase 9C 的合同范围是 Persistent External Narration, Resume and Novel Export：
+使用与 Campaign 分离的 immutable Story sidecar 保存 deterministic Narration Request、
+pending/resume 状态和 committed turn artifacts，再从这些 artifact 确定性导出
+novel.md。Phase 9C 尚未实现，不包含 Narration provider、Narrator adapter、翻译
+数据库或 Phase 9C 以外的功能。
 
 This branch contains the first WorldPack's local Phase 7 permanent build-choice
 slice and the frozen Phase 7.5 named actor, relationship, and knowledge slice.
@@ -47,7 +53,7 @@ include Narration, novel export, an LLM provider, translation, or any Phase 9C
 functionality. Its frozen implementation SHA is
 `218a246add4481088872487e80ac83ad1099171b`. Frozen implementation must not be
 modified directly; any fix requires an explicit reopen or superseding-phase
-process. Phase 9C has not started.
+process. Phase 9C is a design contract candidate / implementation not started.
 
 ## Legacy Implementation
 
@@ -73,7 +79,8 @@ frozen at `phase-7.5-frozen`; Phase 8 is frozen at `phase-8-frozen`; Phase 9A is
 frozen at `phase-9a-frozen`; Phase 9B1 is frozen at `phase-9b1-frozen`; Phase
 9B2A is frozen at `phase-9b2a-frozen`; Phase 9B2B is frozen at
 `phase-9b2b-frozen` with implementation SHA
-`218a246add4481088872487e80ac83ad1099171b`. Phase 9C has not started.
+`218a246add4481088872487e80ac83ad1099171b`. Phase 9C is a design contract
+candidate / implementation not started.
 
 ## Getting Started
 
