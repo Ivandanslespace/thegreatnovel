@@ -71,6 +71,9 @@ def test_request_and_choice_mutation_is_detached_from_source_objects():
     before_hash = state_hash(state.__dict__)
     observation = build_observation(state)
     request = build_llm_decision_request(observation, 1)
+    before_request = request.to_dict()
+    before_fingerprint = request.request_fingerprint
+    choice_params = request.choices[0].params
     source_choice = next(
         choice for choice in observation["legal_actions"] if choice.action_type == "DROP"
     )
@@ -78,15 +81,29 @@ def test_request_and_choice_mutation_is_detached_from_source_objects():
 
     observation["inventory"]["forged"] = 1
     source_choice.params["source_forged"] = "source mutation"
-    request.observation["inventory"]["request"] = 2
-    request_choice.params["request_forged"] = "request mutation"
+    request.observation["inventory"]["forged"] = 2
+    choice_params["forged"] = 3
 
     assert state_hash(state.__dict__) == before_hash
+    assert request.to_dict() == before_request
+    assert request.request_fingerprint == before_fingerprint
     assert "forged" not in request.observation["inventory"]
     assert "source_forged" not in next(
         choice for choice in request.choices if choice.action_type == "DROP"
     ).params
-    assert "request_forged" not in source_choice.params
+    assert "forged" not in request.choices[0].params
+    assert "forged" not in source_choice.params
+
+
+def test_choice_params_are_observationally_immutable():
+    choice = LLMActionChoice("choice-000", "TALK_TO_ACTOR", {"actor_id": "mara"}, 5, 0)
+    before = choice.to_dict()
+    params = choice.params
+    params["actor_id"] = "other"
+    params["forged"] = True
+
+    assert choice.to_dict() == before
+    assert choice.params == {"actor_id": "mara"}
 
 
 @pytest.mark.parametrize(

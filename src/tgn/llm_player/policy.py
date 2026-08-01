@@ -224,6 +224,7 @@ def _validated_record_sequence(
     decisions: Iterable[RecordedDecision],
 ) -> tuple[RecordedDecision, ...]:
     records = tuple(copy.deepcopy(tuple(decisions)))
+    stop_seen = False
     for expected_number, record in enumerate(records, start=1):
         if not isinstance(record, RecordedDecision):
             raise RecordedDecisionFormatError(
@@ -234,7 +235,31 @@ def _validated_record_sequence(
                 "NON_CONTIGUOUS_DECISIONS",
                 "decision_number values must start at 1 and be continuous",
             )
+        if record.outcome == "STOP":
+            if stop_seen:
+                raise RecordedDecisionFormatError(
+                    "MULTIPLE_STOP_DECISIONS",
+                    "a RecordedDecision sequence may contain only one STOP",
+                )
+            stop_seen = True
+        elif stop_seen:
+            raise RecordedDecisionFormatError(
+                "NON_TERMINAL_STOP",
+                "STOP must be the final RecordedDecision",
+            )
     return records
+
+
+def _validate_canonical_json_value(value: Any) -> None:
+    """Reject parsed JSON values that canonical_json cannot represent."""
+
+    try:
+        canonical_json(value)
+    except (TypeError, ValueError) as exc:
+        raise RecordedDecisionFormatError(
+            "NON_CANONICAL_JSON",
+            "recorded decision bundle contains a non-canonical JSON value",
+        ) from exc
 
 
 def export_recorded_decisions(
@@ -242,13 +267,19 @@ def export_recorded_decisions(
 ) -> str:
     """Export a strict canonical JSON RecordedDecision bundle."""
 
-    records = _validated_record_sequence(decisions)
-    return canonical_json(
-        {
+    try:
+        records = _validated_record_sequence(decisions)
+        bundle = {
             "schema_version": _RECORDED_SCHEMA_VERSION,
             "decisions": [record.to_dict() for record in records],
         }
-    )
+        return canonical_json(bundle)
+    except RecordedDecisionFormatError:
+        raise
+    except (TypeError, ValueError) as exc:
+        raise RecordedDecisionFormatError(
+            "NON_CANONICAL_JSON", "recorded decision bundle is not canonical JSON"
+        ) from exc
 
 
 def import_recorded_decisions(payload: str) -> tuple[RecordedDecision, ...]:
@@ -260,11 +291,15 @@ def import_recorded_decisions(payload: str) -> tuple[RecordedDecision, ...]:
         parsed = _load_json(payload)
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
         raise RecordedDecisionFormatError("INVALID_JSON", "invalid JSON bundle") from exc
+    _validate_canonical_json_value(parsed)
     if not isinstance(parsed, dict) or set(parsed) != {"schema_version", "decisions"}:
         raise RecordedDecisionFormatError(
             "INVALID_SCHEMA", "bundle fields must be schema_version and decisions"
         )
-    if parsed["schema_version"] != _RECORDED_SCHEMA_VERSION:
+    if (
+        type(parsed["schema_version"]) is not int
+        or parsed["schema_version"] != _RECORDED_SCHEMA_VERSION
+    ):
         raise RecordedDecisionFormatError(
             "UNSUPPORTED_SCHEMA_VERSION", "schema_version must be 1"
         )
