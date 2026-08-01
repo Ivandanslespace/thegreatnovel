@@ -39,7 +39,29 @@ def test_projection_covers_bounded_runtime_identity_set(compiled_projection):
     assert set(identities["builds"]) == {"window_runner", "field_rest", "quick_rest"}
     assert set(identities["world_phases"]) == {"DAY", "NIGHT"}
     assert result.report["unmapped_identity_count"] == 0
-    assert result.report["mapped_identity_count"] > 0
+    expected_counts = {
+        "locations": 2,
+        "resources": 2,
+        "actors": 1,
+        "actor_goals": 3,
+        "fact_ids": 1,
+        "fact_values": 2,
+        "progression_tracks": 2,
+        "builds": 3,
+        "world_phases": 2,
+    }
+    assert expected_counts["locations"] == len(identities["locations"])
+    assert expected_counts["resources"] == len(identities["resources"])
+    assert expected_counts["actors"] == len(identities["actors"])
+    assert expected_counts["actor_goals"] == len(identities["actor_goals"])
+    assert expected_counts["fact_ids"] == len(identities["facts"])
+    assert expected_counts["fact_values"] == sum(
+        len(fact["values"]) for fact in identities["facts"].values()
+    )
+    assert expected_counts["progression_tracks"] == len(identities["progression_tracks"])
+    assert expected_counts["builds"] == len(identities["builds"])
+    assert expected_counts["world_phases"] == len(identities["world_phases"])
+    assert result.report["mapped_identity_count"] == sum(expected_counts.values()) == 18
 
 
 def test_presentation_preserves_canonical_request_and_adds_display_labels(compiled_projection):
@@ -54,6 +76,31 @@ def test_presentation_preserves_canonical_request_and_adds_display_labels(compil
     assert presentation["observation"]["build"]["choices"][0]["display_name"]
     assert presentation["choices"][0]["choice_id"] == "choice-000"
     assert presentation["choices"][0]["duration_minutes"] is None
+
+
+def test_presentation_removes_legacy_actor_and_build_display_leakage(compiled_projection):
+    result, _ = compiled_projection
+    presentation = result.initial_presentation.to_dict()
+    actor = presentation["observation"]["actor"]
+    actor_map = result.projection.identities["actors"]["mara"]
+    assert "canonical_name" not in actor
+    assert actor["name"] == actor_map["name"]
+    assert actor["display_name"] == actor_map["name"]
+    assert actor["name"] != result.initial_request.observation["actor"]["name"]
+
+    canonical_build = result.initial_request.observation["build"]["choices"][0]
+    visible_build = presentation["observation"]["build"]["choices"][0]
+    assert "title" not in visible_build
+    assert visible_build["build_id"] == canonical_build["build_id"]
+    assert visible_build["display_name"] == result.projection.identities["builds"][canonical_build["build_id"]]
+    for field in (
+        "effect_summary",
+        "relevant_condition_or_limitation",
+        "permanence",
+        "opportunity_cost",
+    ):
+        assert visible_build[field] == canonical_build[field]
+    assert presentation["observation"]["build"]["selection_rule"] == result.initial_request.observation["build"]["selection_rule"]
 
 
 def test_presentation_maps_sorted_inventory_and_public_fact_without_private_leak(compiled_projection):
@@ -154,38 +201,78 @@ def test_hash_helpers_are_separate_from_embedded_projection_map(compiled_project
     assert presentation_hash(result.initial_presentation) == result.presentation_hash
 
 
-def test_presenter_maps_parameter_identities_and_selected_build(compiled_projection):
+def test_presenter_maps_supported_choice_parameter_identities_and_selected_build(compiled_projection):
     result, _ = compiled_projection
     observation = result.initial_request.observation
     observation["inventory"] = None
     observation["carried_loot"] = {"salvage": 1}
     observation["build"] = copy.deepcopy(observation["build"])
     observation["build"]["selected"] = "quick_rest"
-    choice = LLMActionChoice(
-        "choice-parameters",
-        "CUSTOM",
-        {
-            "location_id": "base-1",
-            "resource_id": "salvage",
-            "actor_id": "mara",
-            "build_id": "quick_rest",
-            "track_id": "player",
-            "phase": "DAY",
-            "other": "preserved",
-        },
-        1,
-        0,
-    )
-    presentation = build_player_presentation(_request(result, observation, [choice]), result.projection).to_dict()
+    choices = [
+        LLMActionChoice(
+            "choice-build",
+            "CHOOSE_BUILD",
+            {"build_id": "quick_rest"},
+            1,
+            0,
+        ),
+        LLMActionChoice(
+            "choice-actor",
+            "TALK_TO_ACTOR",
+            {"actor_id": "mara"},
+            5,
+            0,
+        ),
+    ]
+    presentation = build_player_presentation(_request(result, observation, choices), result.projection).to_dict()
     assert presentation["observation"]["build"]["selected_display_name"]
-    display = presentation["choices"][0]["display_params"]
-    assert display["location_id"]["label"]
-    assert display["resource_id"]["label"]
-    assert display["actor_id"]["label"]
-    assert display["build_id"]["label"]
-    assert display["track_id"]["label"]
-    assert display["phase"]["label"]
-    assert display["other"] == "preserved"
+    build_display = presentation["choices"][0]["display_params"]
+    assert build_display["build_id"]["label"]
+    assert build_display["build"]["label"] == build_display["build_id"]["label"]
+    actor_display = presentation["choices"][1]["display_params"]
+    assert actor_display["actor_id"]["label"]
+    assert actor_display["actor"]["label"] == actor_display["actor_id"]["label"]
+
+
+@pytest.mark.parametrize(
+    ("action_type", "params", "path"),
+    [
+        ("UNKNOWN_ACTION", {}, "/choices/0/action_type"),
+        ("WAIT", {"enemy_id": "enemy-1"}, "/choices/0/params/enemy_id"),
+        ("CHOOSE_BUILD", {}, "/choices/0/params/build_id"),
+        ("TALK_TO_ACTOR", {"actor_id": "mara", "fact_id": "hidden-fact"}, "/choices/0/params/fact_id"),
+    ],
+)
+def test_presenter_fails_closed_on_unsupported_choice_schemas(compiled_projection, action_type, params, path):
+    result, _ = compiled_projection
+    choice = LLMActionChoice("choice-schema", action_type, params, 1, 0)
+    request = LLMDecisionRequest(1, result.initial_request.observation, (choice,), "fingerprint")
+    with pytest.raises(WorldGenError) as raised:
+        build_player_presentation(request, result.projection)
+    assert raised.value.code == "UNSUPPORTED_PRESENTATION_ACTION_SCHEMA"
+    assert raised.value.issues[0].path == path
+
+
+@pytest.mark.parametrize(
+    ("action_type", "params"),
+    [("CHOOSE_BUILD", {"build_id": "unknown-build"}), ("TALK_TO_ACTOR", {"actor_id": "secret-actor"})],
+)
+def test_presenter_fails_closed_on_unmapped_supported_choice_identities(compiled_projection, action_type, params):
+    result, _ = compiled_projection
+    choice = LLMActionChoice("choice-identity", action_type, params, 1, 0)
+    request = LLMDecisionRequest(1, result.initial_request.observation, (choice,), "fingerprint")
+    with pytest.raises(WorldGenError) as raised:
+        build_player_presentation(request, result.projection)
+    assert raised.value.code == "UNMAPPED_PLAYER_IDENTITY"
+
+
+def test_unknown_observation_fields_are_omitted_without_false_failure(compiled_projection):
+    result, _ = compiled_projection
+    observation = result.initial_request.observation
+    observation["future_unreviewed_field"] = {"enemy_id": "enemy-1", "fact_id": "hidden-fact"}
+    request = LLMDecisionRequest(1, observation, result.initial_request.choices, "fingerprint")
+    presentation = build_player_presentation(request, result.projection).to_dict()
+    assert "future_unreviewed_field" not in presentation["observation"]
 
 
 @pytest.mark.parametrize(

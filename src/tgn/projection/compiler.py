@@ -360,6 +360,8 @@ def _verified_source(source_bundle_dir: str | Path) -> _VerifiedSource:
     try:
         if state_hash(initial_state_value) != initial_state_hash:
             raise ValueError("initial state hash mismatch")
+        if state_hash(compiled_worldpack) != worldpack_hash:
+            raise ValueError("compiled worldpack hash mismatch")
         assert_canonical_utf8(compiled_worldpack)
         assert_canonical_utf8(initial_state_value)
     except Exception as exc:
@@ -454,17 +456,17 @@ def _build_projection(source: _VerifiedSource, draft: ProjectionDraft) -> Player
 
 def _mapped_identity_count(projection: PlayerProjectionMap) -> int:
     identities = projection.identities
-    count = 0
-    for category, values in identities.items():
-        if category == "actors":
-            count += len(values)
-            count += sum(len(item) for item in values.values())
-        elif category == "facts":
-            count += len(values)
-            count += sum(1 + len(item.get("values", {})) for item in values.values())
-        else:
-            count += len(values)
-    return count
+    return (
+        len(identities["locations"])
+        + len(identities["resources"])
+        + len(identities["actors"])
+        + len(identities["actor_goals"])
+        + len(identities["facts"])
+        + sum(len(fact["values"]) for fact in identities["facts"].values())
+        + len(identities["progression_tracks"])
+        + len(identities["builds"])
+        + len(identities["world_phases"])
+    )
 
 
 def projection_hash(projection: PlayerProjectionMap | Mapping[str, Any]) -> str:
@@ -487,14 +489,10 @@ def build_initial_request(state: GameState):
     return build_llm_decision_request(build_observation(state), 1)
 
 
-def compile_projection(
-    source_bundle_dir: str | Path,
-    draft: ProjectionDraft | Mapping[str, Any] | str | Path,
+def _compile_projection_from_verified_source(
+    source: _VerifiedSource,
+    normalized_draft: ProjectionDraft,
 ) -> ProjectionCompilationResult:
-    """Verify source, compile one local projection, and never write files."""
-
-    source = _verified_source(source_bundle_dir)
-    normalized_draft = _coerce_draft(draft)
     if normalized_draft.source_worldpack_hash != source.worldpack_hash:
         raise error(
             "SOURCE_HASH_MISMATCH",
@@ -534,6 +532,17 @@ def compile_projection(
     )
     assert_canonical_utf8(result.to_dict())
     return result
+
+
+def compile_projection(
+    source_bundle_dir: str | Path,
+    draft: ProjectionDraft | Mapping[str, Any] | str | Path,
+) -> ProjectionCompilationResult:
+    """Verify source, compile one local projection, and never write files."""
+
+    source = _verified_source(source_bundle_dir)
+    normalized_draft = _coerce_draft(draft)
+    return _compile_projection_from_verified_source(source, normalized_draft)
 
 
 __all__ = [

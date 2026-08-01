@@ -27,6 +27,27 @@ def _unmapped(path: str, identity: Any) -> WorldGenError:
     )
 
 
+def _unsupported_schema(
+    path: str,
+    message: str,
+    expected: Any = None,
+    actual: Any = None,
+) -> WorldGenError:
+    return error(
+        "UNSUPPORTED_PRESENTATION_ACTION_SCHEMA",
+        message,
+        issues=(
+            issue(
+                "UNSUPPORTED_PRESENTATION_ACTION_SCHEMA",
+                path,
+                message,
+                expected,
+                actual,
+            ),
+        ),
+    )
+
+
 def _identity(mapping: dict[str, Any], value: Any, path: str) -> Any:
     if not isinstance(value, str) or value not in mapping:
         raise _unmapped(path, value)
@@ -80,7 +101,6 @@ def _map_actor(actor: Any, identities: dict[str, Any], path: str) -> dict[str, A
         raise _unmapped(f"{path}/actor_id", actor_id)
     result: dict[str, Any] = {
         "actor_id": actor_id,
-        "canonical_name": copy.deepcopy(actor.get("name")),
         "name": copy.deepcopy(actor_map.get("name")),
         "display_name": copy.deepcopy(actor_map.get("name")),
         "role": copy.deepcopy(actor_map.get("role")),
@@ -176,66 +196,134 @@ def _map_build(value: Any, identities: dict[str, Any], path: str) -> dict[str, A
         if not isinstance(choice, dict):
             raise _unmapped(f"{path}/choices/{index}", type(choice).__name__)
         build_id = choice.get("build_id")
-        mapped = copy.deepcopy(choice)
-        mapped["display_name"] = _identity(
+        if not isinstance(build_id, str):
+            raise _unmapped(f"{path}/choices/{index}/build_id", build_id)
+        mapped = {
+            "build_id": build_id,
+            "display_name": _identity(
             identities.get("builds", {}), build_id, f"{path}/choices/{index}/build_id"
-        )
+            ),
+        }
+        for field in (
+            "effect_summary",
+            "relevant_condition_or_limitation",
+            "permanence",
+            "opportunity_cost",
+        ):
+            if field not in choice:
+                raise _unsupported_schema(
+                    f"{path}/choices/{index}/{field}",
+                    "canonical build choice is missing an authoritative field",
+                    "present",
+                    None,
+                )
+            mapped[field] = copy.deepcopy(choice[field])
         mapped_choices.append(mapped)
     result["choices"] = mapped_choices
     return result
 
 
-def _display_params(params: dict[str, Any], identities: dict[str, Any], path: str) -> dict[str, Any]:
-    display: dict[str, Any] = {}
-    for key, value in params.items():
-        if key == "location_id":
-            display[key] = {
-                "id": value,
-                "label": _identity(identities.get("locations", {}), value, f"{path}/params/{key}"),
-            }
-            display["location"] = copy.deepcopy(display[key])
-        elif key == "resource_id":
-            display[key] = {
-                "id": value,
-                "label": _identity(identities.get("resources", {}), value, f"{path}/params/{key}"),
-            }
-            display["resource"] = copy.deepcopy(display[key])
-        elif key == "actor_id":
-            actor = _identity(identities.get("actors", {}), value, f"{path}/params/{key}")
-            display[key] = {"id": value, "label": actor.get("name") if isinstance(actor, dict) else actor}
-            display["actor"] = copy.deepcopy(display[key])
-        elif key == "build_id":
-            display[key] = {
-                "id": value,
-                "label": _identity(identities.get("builds", {}), value, f"{path}/params/{key}"),
-            }
-            display["build"] = copy.deepcopy(display[key])
-        elif key == "track_id":
-            display[key] = {
-                "id": value,
-                "label": _identity(identities.get("progression_tracks", {}), value, f"{path}/params/{key}"),
-            }
-            display["track"] = copy.deepcopy(display[key])
-        elif key == "phase":
-            display[key] = {
-                "id": value,
-                "label": _identity(identities.get("world_phases", {}), value, f"{path}/params/{key}"),
-            }
-            display["world_phase"] = copy.deepcopy(display[key])
-        else:
-            display[key] = copy.deepcopy(value)
-    return display
+_ACTION_PARAM_SCHEMA: dict[str, tuple[str, ...]] = {
+    "WAIT": (),
+    "DROP": (),
+    "SEARCH": (),
+    "EXTRACT": (),
+    "FIGHT": (),
+    "FLEE": (),
+    "UPGRADE_PLAYER": (),
+    "UPGRADE_BASE": (),
+    "REST": (),
+    "CHOOSE_BUILD": ("build_id",),
+    "TALK_TO_ACTOR": ("actor_id",),
+}
+
+
+def _validate_choice_schema(choice: dict[str, Any], path: str) -> tuple[str, dict[str, Any]]:
+    action_type = choice.get("action_type")
+    if not isinstance(action_type, str) or action_type not in _ACTION_PARAM_SCHEMA:
+        raise _unsupported_schema(
+            f"{path}/action_type",
+            "action type is not supported by the bounded presentation schema",
+            sorted(_ACTION_PARAM_SCHEMA),
+            action_type,
+        )
+    params = choice.get("params")
+    if not isinstance(params, dict):
+        raise _unsupported_schema(
+            f"{path}/params",
+            "choice params must be an object",
+            "object",
+            type(params).__name__,
+        )
+    expected = set(_ACTION_PARAM_SCHEMA[action_type])
+    unexpected = sorted(set(params) - expected, key=str)
+    if unexpected:
+        key = unexpected[0]
+        raise _unsupported_schema(
+            f"{path}/params/{key}",
+            "choice parameter is not allowed for this action type",
+            sorted(expected),
+            key,
+        )
+    missing = sorted(expected - set(params))
+    if missing:
+        key = missing[0]
+        raise _unsupported_schema(
+            f"{path}/params/{key}",
+            "required choice parameter is missing",
+            "present",
+            None,
+        )
+    return action_type, params
+
+
+def _display_params(
+    action_type: str,
+    params: dict[str, Any],
+    identities: dict[str, Any],
+    path: str,
+) -> dict[str, Any]:
+    if action_type == "CHOOSE_BUILD":
+        value = params["build_id"]
+        display = {
+            "id": value,
+            "label": _identity(identities.get("builds", {}), value, f"{path}/params/build_id"),
+        }
+        return {"build_id": display, "build": copy.deepcopy(display)}
+    if action_type == "TALK_TO_ACTOR":
+        value = params["actor_id"]
+        actor = _identity(identities.get("actors", {}), value, f"{path}/params/actor_id")
+        display = {"id": value, "label": actor.get("name") if isinstance(actor, dict) else actor}
+        return {"actor_id": display, "actor": copy.deepcopy(display)}
+    return {}
 
 
 def _map_choice(choice: Any, projection: PlayerProjectionMap, index: int) -> dict[str, Any]:
     if not isinstance(choice, dict):
-        raise _unmapped(f"/choices/{index}", type(choice).__name__)
-    result = copy.deepcopy(choice)
-    params = choice.get("params", {})
-    if not isinstance(params, dict):
-        raise _unmapped(f"/choices/{index}/params", type(params).__name__)
-    result["display_params"] = _display_params(params, projection.identities, f"/choices/{index}")
-    return result
+        raise _unsupported_schema(
+            f"/choices/{index}",
+            "canonical choice must be an object",
+            "object",
+            type(choice).__name__,
+        )
+    path = f"/choices/{index}"
+    action_type, params = _validate_choice_schema(choice, path)
+    for field in ("choice_id", "duration_minutes", "stamina_cost"):
+        if field not in choice:
+            raise _unsupported_schema(
+                f"{path}/{field}",
+                "canonical choice is missing a required field",
+                "present",
+                None,
+            )
+    return {
+        "choice_id": copy.deepcopy(choice["choice_id"]),
+        "action_type": action_type,
+        "params": copy.deepcopy(params),
+        "duration_minutes": copy.deepcopy(choice["duration_minutes"]),
+        "stamina_cost": copy.deepcopy(choice["stamina_cost"]),
+        "display_params": _display_params(action_type, params, projection.identities, path),
+    }
 
 
 def _map_observation(observation: dict[str, Any], projection: PlayerProjectionMap) -> dict[str, Any]:

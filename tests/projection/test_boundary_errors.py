@@ -87,6 +87,112 @@ def test_compile_wraps_public_source_verification_errors(monkeypatch, source_bun
     assert raised.value.code == "SOURCE_BUNDLE_INVALID"
 
 
+def test_public_projection_operations_verify_source_before_draft_or_projection(monkeypatch, source_bundle, valid_projection_draft, tmp_path):
+    calls = []
+    original_verify = compiler_module.verify_bundle
+    original_draft = compiler_module._coerce_draft
+    original_bundle_draft = bundle_module._coerce_draft_input
+    original_read = bundle_module._read_projection_artifacts
+
+    def verify(source):
+        calls.append("source")
+        return original_verify(source)
+
+    def coerce(value):
+        calls.append("draft")
+        return original_draft(value)
+
+    def bundle_draft(value):
+        calls.append("draft")
+        return original_bundle_draft(value)
+
+    def read(projection):
+        calls.append("projection")
+        return original_read(projection)
+
+    monkeypatch.setattr(compiler_module, "verify_bundle", verify)
+    monkeypatch.setattr(compiler_module, "_coerce_draft", coerce)
+    monkeypatch.setattr(bundle_module, "_coerce_draft_input", bundle_draft)
+    monkeypatch.setattr(bundle_module, "_read_projection_artifacts", read)
+
+    compile_projection(source_bundle, valid_projection_draft)
+    assert calls[0] == "source"
+
+    calls.clear()
+    output = tmp_path / "projection"
+    compile_projection_bundle(source_bundle, valid_projection_draft, output)
+    assert calls[0] == "source"
+
+    calls.clear()
+    bundle_module.verify_projection_bundle(source_bundle, output)
+    assert calls[0] == "source"
+    assert "projection" in calls[1:]
+
+    calls.clear()
+    preview_projection(source_bundle, output)
+    assert calls[0] == "source"
+    assert "projection" in calls[1:]
+
+
+def test_dual_invalid_source_wins_before_draft_or_projection_errors(source_bundle, valid_projection_draft, tmp_path):
+    invalid_source = _copy_source(source_bundle, tmp_path)
+    worldpack = json.loads((invalid_source / "compiled_worldpack.json").read_text(encoding="utf-8"))
+    worldpack["public_content"]["title"] = "tampered source"
+    _rewrite(invalid_source / "compiled_worldpack.json", worldpack)
+    invalid_draft = dict(valid_projection_draft)
+    invalid_draft["labels"] = dict(invalid_draft["labels"])
+    invalid_draft["labels"]["phase_day"] = 10
+
+    with pytest.raises(WorldGenError) as compile_error:
+        compile_projection(invalid_source, invalid_draft)
+    assert compile_error.value.code == "SOURCE_BUNDLE_INVALID"
+
+    with pytest.raises(WorldGenError) as publish_error:
+        compile_projection_bundle(invalid_source, invalid_draft, tmp_path / "new-output")
+    assert publish_error.value.code == "SOURCE_BUNDLE_INVALID"
+
+    with pytest.raises(WorldGenError) as verify_error:
+        bundle_module.verify_projection_bundle(invalid_source, tmp_path / "missing-projection")
+    assert verify_error.value.code == "SOURCE_BUNDLE_INVALID"
+
+    with pytest.raises(WorldGenError) as preview_error:
+        preview_projection(invalid_source, tmp_path / "missing-projection")
+    assert preview_error.value.code == "SOURCE_BUNDLE_INVALID"
+
+
+@pytest.mark.parametrize("mutation", ["title", "premise", "public_label", "content_locale", "world_id"])
+def test_source_verification_return_race_rebinds_consumed_worldpack_hash(
+    monkeypatch, source_bundle, valid_projection_draft, mutation
+):
+    original_verify = compiler_module.verify_bundle
+    mutated = False
+
+    def verify(source):
+        nonlocal mutated
+        verification = original_verify(source)
+        if not mutated:
+            worldpack_path = Path(source) / "compiled_worldpack.json"
+            worldpack = json.loads(worldpack_path.read_text(encoding="utf-8"))
+            if mutation == "title":
+                worldpack["public_content"]["title"] = "race-mutated-title"
+            elif mutation == "premise":
+                worldpack["public_content"]["premise"] = "race-mutated-premise"
+            elif mutation == "public_label":
+                worldpack["public_content"]["labels"]["base"] = "race-mutated-label"
+            elif mutation == "world_id":
+                worldpack["world_id"] = "race-mutated-world-id"
+            else:
+                worldpack["content_locale"] = "fr"
+            _rewrite(worldpack_path, worldpack)
+            mutated = True
+        return verification
+
+    monkeypatch.setattr(compiler_module, "verify_bundle", verify)
+    with pytest.raises(WorldGenError) as raised:
+        compile_projection(source_bundle, valid_projection_draft)
+    assert raised.value.code == "SOURCE_BUNDLE_INVALID"
+
+
 @pytest.mark.parametrize("mutation", ["manifest", "profile", "runtime", "public", "labels", "label_type", "state", "hash"])
 def test_source_artifact_integrity_and_profile_checks(monkeypatch, source_bundle, valid_projection_draft, tmp_path, mutation):
     source = _copy_source(source_bundle, tmp_path)
@@ -131,7 +237,7 @@ def test_source_artifact_integrity_and_profile_checks(monkeypatch, source_bundle
 def test_bundle_missing_invalid_manifest_and_invalid_saved_draft(compiled_projection, valid_projection_draft, tmp_path):
     _, output = compiled_projection
     with pytest.raises(WorldGenError) as missing:
-        bundle_module.verify_projection_bundle(output.parent / "does-not-exist", output.parent / "does-not-exist")
+        bundle_module.verify_projection_bundle(output.parent / "source-bundle", output.parent / "does-not-exist")
     assert missing.value.code == "PROJECTION_NOT_FOUND"
 
     bad_manifest = json.loads((output / "projection_manifest.json").read_text(encoding="utf-8"))
@@ -165,7 +271,11 @@ def test_bundle_publication_lock_and_rename_fail_closed(monkeypatch, source_bund
 
     monkeypatch.undo()
     target2 = tmp_path / "rename-race"
-    monkeypatch.setattr(bundle_module.os, "rename", lambda *_args: (_ for _ in ()).throw(FileExistsError("target")))
+    monkeypatch.setattr(
+        bundle_module,
+        "_publish_directory_no_replace",
+        lambda *_args: (_ for _ in ()).throw(FileExistsError("target")),
+    )
     with pytest.raises(WorldGenError) as rename_error:
         compile_projection_bundle(source_bundle, valid_projection_draft, target2)
     assert rename_error.value.code == "PROJECTION_ALREADY_EXISTS"
@@ -190,13 +300,12 @@ def test_verify_recompile_failure_and_preview_saved_draft_branch(monkeypatch, co
     def fail_compile(*_args):
         raise WorldGenError("SOURCE_HASH_MISMATCH", "mismatch")
 
-    monkeypatch.setattr(bundle_module, "compile_projection", fail_compile)
+    monkeypatch.setattr(bundle_module, "_compile_projection_from_verified_source", fail_compile)
     with pytest.raises(WorldGenError) as raised:
         bundle_module.verify_projection_bundle(source, output)
     assert raised.value.code == "PROJECTION_INTEGRITY_MISMATCH"
 
     monkeypatch.undo()
-    original_verify = bundle_module.verify_projection_bundle
     monkeypatch.setattr(bundle_module, "verify_projection_bundle", lambda *_args: {"valid": True})
     draft = json.loads((output / "projection_draft.json").read_text(encoding="utf-8"))
     del draft["labels"]["phase_day"]

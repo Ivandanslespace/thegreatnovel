@@ -52,6 +52,14 @@ def test_existing_target_and_existing_lock_are_preserved(source_bundle, valid_pr
     assert target_error.value.code == "PROJECTION_ALREADY_EXISTS"
     assert marker.read_text(encoding="utf-8") == "keep"
 
+    empty_target = tmp_path / "empty-projection"
+    empty_target.mkdir()
+    with pytest.raises(WorldGenError) as empty_error:
+        compile_projection_bundle(source_bundle, valid_projection_draft, empty_target)
+    assert empty_error.value.code == "PROJECTION_ALREADY_EXISTS"
+    assert empty_target.is_dir()
+    assert list(empty_target.iterdir()) == []
+
     locked_target = tmp_path / "locked"
     lock = publication_lock_path(locked_target)
     lock.write_text("pre-existing", encoding="utf-8")
@@ -64,8 +72,8 @@ def test_existing_target_and_existing_lock_are_preserved(source_bundle, valid_pr
 
 def test_competing_target_is_preserved_and_rename_is_not_called(monkeypatch, source_bundle, valid_projection_draft, tmp_path):
     target = tmp_path / "race"
-    original_verify = bundle_module.verify_projection_bundle
-    rename_calls = []
+    original_verify = bundle_module._verify_projection_bundle_with_source
+    publish_calls = []
 
     def create_competing_target(source, temporary):
         result = original_verify(source, temporary)
@@ -73,15 +81,39 @@ def test_competing_target_is_preserved_and_rename_is_not_called(monkeypatch, sou
         (target / "marker.txt").write_text("competing", encoding="utf-8")
         return result
 
-    monkeypatch.setattr(bundle_module, "verify_projection_bundle", create_competing_target)
-    monkeypatch.setattr(bundle_module.os, "rename", lambda *args: rename_calls.append(args))
+    def record_publish(*args):
+        publish_calls.append(args)
+        return bundle_module._publish_directory_no_replace(*args)
+
+    monkeypatch.setattr(bundle_module, "_verify_projection_bundle_with_source", create_competing_target)
+    monkeypatch.setattr(bundle_module, "_publish_directory_no_replace", record_publish)
     with pytest.raises(WorldGenError) as raised:
         compile_projection_bundle(source_bundle, valid_projection_draft, target)
     assert raised.value.code == "PROJECTION_ALREADY_EXISTS"
     assert (target / "marker.txt").read_text(encoding="utf-8") == "competing"
-    assert rename_calls == []
+    assert publish_calls == []
     assert not publication_lock_path(target).exists()
     assert not list(tmp_path.glob(".race.*"))
+
+
+def test_no_replace_publication_primitive_rejects_target_that_appears_at_publication(
+    monkeypatch, source_bundle, valid_projection_draft, tmp_path
+):
+    target = tmp_path / "late-race"
+    original_publish = bundle_module._publish_directory_no_replace
+
+    def appear_then_publish(temporary, destination):
+        destination.mkdir()
+        (destination / "marker.txt").write_text("preserve", encoding="utf-8")
+        return original_publish(temporary, destination)
+
+    monkeypatch.setattr(bundle_module, "_publish_directory_no_replace", appear_then_publish)
+    with pytest.raises(WorldGenError) as raised:
+        compile_projection_bundle(source_bundle, valid_projection_draft, target)
+    assert raised.value.code == "PROJECTION_ALREADY_EXISTS"
+    assert (target / "marker.txt").read_text(encoding="utf-8") == "preserve"
+    assert not publication_lock_path(target).exists()
+    assert not list(tmp_path.glob(".late-race.*"))
 
 
 def test_two_cooperating_writers_have_one_success_and_no_debris(source_bundle, valid_projection_draft, tmp_path):
@@ -106,14 +138,14 @@ def test_two_cooperating_writers_have_one_success_and_no_debris(source_bundle, v
 
 def test_compile_verifies_temporary_bundle_once_without_post_publish_call(monkeypatch, source_bundle, valid_projection_draft, tmp_path):
     target = tmp_path / "counted"
-    original_verify = bundle_module.verify_projection_bundle
+    original_verify = bundle_module._verify_projection_bundle_with_source
     calls = []
 
     def count_verify(source, projection):
         calls.append(Path(projection))
         return original_verify(source, projection)
 
-    monkeypatch.setattr(bundle_module, "verify_projection_bundle", count_verify)
+    monkeypatch.setattr(bundle_module, "_verify_projection_bundle_with_source", count_verify)
     result = compile_projection_bundle(source_bundle, valid_projection_draft, target)
     assert result["ok"] is True
     assert len(calls) == 1

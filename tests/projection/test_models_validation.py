@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import json
+import math
 
 import pytest
 
 from tgn.core.hashing import canonical_json
-from tgn.projection import PROJECTION_DRAFT_LABEL_FIELDS, load_projection_draft, validate_projection_draft
+from tgn.projection import (
+    PROJECTION_DRAFT_LABEL_FIELDS,
+    PlayerPresentation,
+    PlayerProjectionMap,
+    ProjectionDraft,
+    load_projection_draft,
+    validate_projection_draft,
+)
 from tgn.worldgen.models import WorldGenError
 
 
@@ -103,3 +111,63 @@ def test_projection_draft_reports_wrong_label_types_and_empty_text(valid_project
     _, issues = validate_projection_draft(candidate)
     assert any(item.path == "/labels/phase_day" and item.code == "INVALID_TYPE" for item in issues)
     assert any(item.path == "/labels/phase_night" and item.code == "INVALID_TEXT" for item in issues)
+
+
+def test_projection_edge_models_return_detached_snapshots_without_hash_drift(compiled_projection):
+    result, _ = compiled_projection
+    draft_before = result.draft.to_dict()
+    projection_before = result.projection.to_dict()
+    presentation_before = result.initial_presentation.to_dict()
+    result_before = result.to_dict()
+    projection_hash_before = result.projection_hash
+    presentation_hash_before = result.presentation_hash
+
+    result.draft.labels["phase_day"] = "forged"
+    result.projection.world["title"] = "forged"
+    result.projection.identities["locations"]["base-1"] = "forged"
+    result.initial_presentation.observation["location_id"] = "forged"
+    result.initial_presentation.choices[0]["params"]["forged"] = True
+    result.report["mapped_identity_count"] = 999
+
+    assert result.draft.to_dict() == draft_before
+    assert result.projection.to_dict() == projection_before
+    assert result.initial_presentation.to_dict() == presentation_before
+    assert result.to_dict() == result_before
+    assert result.projection_hash == projection_hash_before
+    assert result.presentation_hash == presentation_hash_before
+
+
+@pytest.mark.parametrize(
+    "bad_value",
+    [
+        math.nan,
+        math.inf,
+        "\ud800",
+        object(),
+        {1: "invalid JSON object key"},
+    ],
+)
+def test_projection_edge_models_reject_values_without_canonical_utf8_snapshot(bad_value):
+    with pytest.raises(ValueError):
+        ProjectionDraft(1, "a" * 64, {"phase_day": bad_value})
+    with pytest.raises(ValueError):
+        PlayerProjectionMap(
+            1,
+            "compiler",
+            "profile",
+            "a" * 64,
+            "b" * 64,
+            "zh-CN",
+            {"title": bad_value},
+            {},
+        )
+    with pytest.raises(ValueError):
+        PlayerPresentation(
+            1,
+            "a" * 64,
+            "fingerprint",
+            "zh-CN",
+            {},
+            {"field": bad_value},
+            (),
+        )

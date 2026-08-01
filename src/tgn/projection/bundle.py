@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import copy
+import ctypes
+import errno
 import os
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Mapping
@@ -21,7 +24,8 @@ from .common import (
     write_json,
 )
 from .compiler import (
-    compile_projection,
+    _compile_projection_from_verified_source,
+    _verified_source,
     load_projection_draft,
     presentation_hash,
     projection_hash,
@@ -86,6 +90,94 @@ def _already_exists_error(message: str, actual: Any) -> WorldGenError:
         expected="absent target and publication lock",
         actual=actual,
     )
+
+
+class _NoReplaceUnavailable(RuntimeError):
+    """The host does not expose a safe atomic directory no-replace primitive."""
+
+
+def _publish_directory_no_replace(source: Path, target: Path) -> None:
+    """Atomically move a sibling directory without replacing an existing target."""
+
+    if os.name == "nt":
+        try:
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            move_file = kernel32.MoveFileExW
+            move_file.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32]
+            move_file.restype = ctypes.c_int
+            # Omitting MOVEFILE_REPLACE_EXISTING is the Windows no-replace mode.
+            if move_file(str(source), str(target), 0x00000008) == 0:
+                error_number = ctypes.get_last_error()
+                if error_number in {80, 183}:
+                    raise FileExistsError(error_number, "target already exists", str(target))
+                raise OSError(error_number, "atomic directory publication failed", str(target))
+            return
+        except FileExistsError:
+            raise
+        except (AttributeError, OSError) as exc:
+            raise _NoReplaceUnavailable("Windows atomic no-replace publication is unavailable") from exc
+
+    if sys.platform.startswith("linux"):
+        try:
+            libc = ctypes.CDLL(None, use_errno=True)
+            renameat2 = getattr(libc, "renameat2")
+            renameat2.argtypes = [
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_uint,
+            ]
+            renameat2.restype = ctypes.c_int
+            result = renameat2(
+                -100,
+                os.fsencode(source),
+                -100,
+                os.fsencode(target),
+                1,
+            )
+            if result == 0:
+                return
+            error_number = ctypes.get_errno()
+            if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
+                raise FileExistsError(error_number, "target already exists", str(target))
+            raise OSError(error_number, "atomic directory publication failed", str(target))
+        except FileExistsError:
+            raise
+        except (AttributeError, OSError) as exc:
+            raise _NoReplaceUnavailable("Linux renameat2(RENAME_NOREPLACE) is unavailable") from exc
+
+    if sys.platform == "darwin":
+        try:
+            libc = ctypes.CDLL(None, use_errno=True)
+            renameatx_np = getattr(libc, "renameatx_np")
+            renameatx_np.argtypes = [
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_uint,
+            ]
+            renameatx_np.restype = ctypes.c_int
+            result = renameatx_np(
+                -2,
+                os.fsencode(source),
+                -2,
+                os.fsencode(target),
+                0x00000004,
+            )
+            if result == 0:
+                return
+            error_number = ctypes.get_errno()
+            if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
+                raise FileExistsError(error_number, "target already exists", str(target))
+            raise OSError(error_number, "atomic directory publication failed", str(target))
+        except FileExistsError:
+            raise
+        except (AttributeError, OSError) as exc:
+            raise _NoReplaceUnavailable("macOS renameatx_np(RENAME_EXCL) is unavailable") from exc
+
+    raise _NoReplaceUnavailable("host platform has no supported atomic no-replace directory primitive")
 
 
 def _read_projection_artifacts(root: Path) -> dict[str, Any]:
@@ -185,11 +277,11 @@ def _coerce_draft_input(value: ProjectionDraft | Mapping[str, Any] | str | Path)
     return draft
 
 
-def verify_projection_bundle(
-    source_bundle_dir: str | Path,
+def _verify_projection_bundle_with_source(
+    source: Any,
     projection_dir: str | Path,
-) -> dict[str, Any]:
-    """Re-verify source, projection draft, map, report, and all hashes."""
+) -> tuple[dict[str, Any], dict[str, Any], ProjectionCompilationResult]:
+    """Verify projection artifacts against one already verified source snapshot."""
 
     root = Path(projection_dir)
     artifacts = _read_projection_artifacts(root)
@@ -200,7 +292,7 @@ def verify_projection_bundle(
     if draft_issues or draft is None:
         raise _bundle_error("saved projection draft is invalid", path="/projection/projection_draft.json")
     try:
-        expected = compile_projection(source_bundle_dir, draft)
+        expected = _compile_projection_from_verified_source(source, draft)
     except WorldGenError as exc:
         if exc.code == "SOURCE_HASH_MISMATCH":
             raise _bundle_error("projection draft source hash does not match source bundle") from exc
@@ -220,7 +312,7 @@ def verify_projection_bundle(
     if manifest["source_initial_state_hash"] != expected.projection.source_initial_state_hash:
         raise _bundle_error("source_initial_state_hash does not match verified source")
 
-    return {
+    verification = {
         "valid": True,
         "projection_compiler_id": "phase9b2a-player-projection-v1",
         "source_worldpack_hash": expected.projection.source_worldpack_hash,
@@ -229,6 +321,18 @@ def verify_projection_bundle(
         "initial_request_fingerprint": expected.initial_request.request_fingerprint,
         "initial_presentation_hash": expected.presentation_hash,
     }
+    return verification, artifacts, expected
+
+
+def verify_projection_bundle(
+    source_bundle_dir: str | Path,
+    projection_dir: str | Path,
+) -> dict[str, Any]:
+    """Re-verify source, projection draft, map, report, and all hashes."""
+
+    source = _verified_source(source_bundle_dir)
+    verification, _, _ = _verify_projection_bundle_with_source(source, projection_dir)
+    return verification
 
 
 def compile_projection_bundle(
@@ -238,6 +342,8 @@ def compile_projection_bundle(
 ) -> dict[str, Any]:
     """Compile and publish exactly one verified projection sidecar."""
 
+    source = _verified_source(source_bundle_dir)
+    normalized_draft = _coerce_draft_input(draft)
     target = Path(output_dir)
     lock_path = _publication_lock_path(target)
     if target.exists():
@@ -245,7 +351,7 @@ def compile_projection_bundle(
     if lock_path.exists():
         raise _already_exists_error("projection publication lock already exists", str(lock_path))
 
-    result = compile_projection(source_bundle_dir, _coerce_draft_input(draft))
+    result = _compile_projection_from_verified_source(source, normalized_draft)
     artifacts = _artifact_payloads(result)
     temporary_dir: Path | None = None
     lock_created = False
@@ -260,7 +366,7 @@ def compile_projection_bundle(
         # Verify exactly once before publication. A successful rename does not
         # change directory contents, so a second post-publication verification
         # would create a published-but-reported-failure state.
-        temporary_verification = verify_projection_bundle(source_bundle_dir, temporary_dir)
+        temporary_verification, _, _ = _verify_projection_bundle_with_source(source, temporary_dir)
 
         try:
             lock_fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
@@ -279,11 +385,15 @@ def compile_projection_bundle(
                 str(target),
             )
         try:
-            os.rename(temporary_dir, target)
+            _publish_directory_no_replace(temporary_dir, target)
         except FileExistsError as exc:
             raise _already_exists_error(
                 "projection output appeared during atomic publication; target was preserved",
                 str(target),
+            ) from exc
+        except _NoReplaceUnavailable as exc:
+            raise _bundle_error(
+                "atomic no-replace directory publication is unavailable on this platform"
             ) from exc
         temporary_dir = None
     except WorldGenError:
@@ -316,12 +426,8 @@ def preview_projection(
 ) -> dict[str, Any]:
     """Verify an existing projection and return detached initial edge data."""
 
-    verification = verify_projection_bundle(source_bundle_dir, projection_dir)
-    artifacts = _read_projection_artifacts(Path(projection_dir))
-    draft, issues = validate_projection_draft(artifacts["projection_draft.json"])
-    if issues or draft is None:
-        raise _bundle_error("projection draft is invalid during preview")
-    result = compile_projection(source_bundle_dir, draft)
+    source = _verified_source(source_bundle_dir)
+    verification, _, result = _verify_projection_bundle_with_source(source, projection_dir)
     return {
         "verification": verification,
         "request": result.initial_request.to_dict(),
