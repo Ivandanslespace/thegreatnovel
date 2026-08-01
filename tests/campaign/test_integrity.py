@@ -93,6 +93,173 @@ def _mutate_db(root: Path, statement: str) -> None:
         connection.close()
 
 
+def _rebuild_same_named_table(
+    root: Path,
+    table: str,
+    create_sql: str,
+    columns: str,
+    index_sql: str | None = None,
+) -> None:
+    connection = sqlite3.connect(root / "session" / "campaign.sqlite3")
+    replacement = f"{table}_replacement"
+    try:
+        connection.execute("PRAGMA foreign_keys = OFF")
+        connection.execute(create_sql.format(table=replacement))
+        connection.execute(
+            f"INSERT INTO {replacement} ({columns}) SELECT {columns} FROM {table}"
+        )
+        connection.execute(f"DROP TABLE {table}")
+        connection.execute(f"ALTER TABLE {replacement} RENAME TO {table}")
+        if index_sql is not None:
+            connection.execute(index_sql)
+        connection.commit()
+    finally:
+        connection.close()
+
+
+_CAMPAIGN_COLUMNS = "campaign_id, engine_version, state_schema_version, seed, initial_state_json, initial_state_hash, created_at"
+_EVENT_COLUMNS = "event_id, campaign_id, event_seq, decision_seq, game_minute, event_type, actor_id, action_id, causation_id, correlation_id, payload_json, state_hash_before, state_hash_after, created_at"
+_SNAPSHOT_COLUMNS = "id, campaign_id, event_seq, state_json, state_hash, created_at"
+
+
+@pytest.mark.parametrize(
+    ("case", "table", "create_sql", "columns", "index_sql"),
+    [
+        (
+            "primary-key",
+            "campaigns",
+            """
+            CREATE TABLE {table} (
+                campaign_id TEXT,
+                engine_version TEXT NOT NULL DEFAULT '1.0.0',
+                state_schema_version INTEGER NOT NULL DEFAULT 1,
+                seed TEXT NOT NULL DEFAULT '',
+                initial_state_json TEXT NOT NULL,
+                initial_state_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """,
+            _CAMPAIGN_COLUMNS,
+            None,
+        ),
+        (
+            "not-null",
+            "campaigns",
+            """
+            CREATE TABLE {table} (
+                campaign_id TEXT PRIMARY KEY,
+                engine_version TEXT DEFAULT '1.0.0',
+                state_schema_version INTEGER NOT NULL DEFAULT 1,
+                seed TEXT NOT NULL DEFAULT '',
+                initial_state_json TEXT NOT NULL,
+                initial_state_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """,
+            _CAMPAIGN_COLUMNS,
+            None,
+        ),
+        (
+            "default",
+            "campaigns",
+            """
+            CREATE TABLE {table} (
+                campaign_id TEXT PRIMARY KEY,
+                engine_version TEXT NOT NULL,
+                state_schema_version INTEGER NOT NULL DEFAULT 1,
+                seed TEXT NOT NULL DEFAULT '',
+                initial_state_json TEXT NOT NULL,
+                initial_state_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """,
+            _CAMPAIGN_COLUMNS,
+            None,
+        ),
+        (
+            "foreign-key",
+            "events",
+            """
+            CREATE TABLE {table} (
+                event_id TEXT PRIMARY KEY,
+                campaign_id TEXT NOT NULL,
+                event_seq INTEGER NOT NULL,
+                decision_seq INTEGER NOT NULL,
+                game_minute INTEGER NOT NULL,
+                event_type TEXT NOT NULL,
+                actor_id TEXT,
+                action_id TEXT,
+                causation_id TEXT,
+                correlation_id TEXT,
+                payload_json TEXT NOT NULL,
+                state_hash_before TEXT NOT NULL,
+                state_hash_after TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(campaign_id, event_seq)
+            )
+            """,
+            _EVENT_COLUMNS,
+            "CREATE INDEX idx_events_campaign_seq ON events(campaign_id, event_seq)",
+        ),
+        (
+            "unique",
+            "events",
+            """
+            CREATE TABLE {table} (
+                event_id TEXT PRIMARY KEY,
+                campaign_id TEXT NOT NULL,
+                event_seq INTEGER NOT NULL,
+                decision_seq INTEGER NOT NULL,
+                game_minute INTEGER NOT NULL,
+                event_type TEXT NOT NULL,
+                actor_id TEXT,
+                action_id TEXT,
+                causation_id TEXT,
+                correlation_id TEXT,
+                payload_json TEXT NOT NULL,
+                state_hash_before TEXT NOT NULL,
+                state_hash_after TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(campaign_id) REFERENCES campaigns(campaign_id)
+            )
+            """,
+            _EVENT_COLUMNS,
+            "CREATE INDEX idx_events_campaign_seq ON events(campaign_id, event_seq)",
+        ),
+        (
+            "autoincrement",
+            "snapshots",
+            """
+            CREATE TABLE {table} (
+                id INTEGER PRIMARY KEY,
+                campaign_id TEXT NOT NULL,
+                event_seq INTEGER NOT NULL,
+                state_json TEXT NOT NULL,
+                state_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(campaign_id) REFERENCES campaigns(campaign_id),
+                UNIQUE(campaign_id, event_seq)
+            )
+            """,
+            _SNAPSHOT_COLUMNS,
+            "CREATE INDEX idx_snapshots_campaign_seq ON snapshots(campaign_id, event_seq)",
+        ),
+    ],
+)
+def test_rebuilt_same_named_tables_missing_frozen_constraints_are_rejected(
+    campaign_factory,
+    case: str,
+    table: str,
+    create_sql: str,
+    columns: str,
+    index_sql: str | None,
+) -> None:
+    target, _ = campaign_factory(name=f"schema-{case}")
+    _rebuild_same_named_table(target, table, create_sql, columns, index_sql)
+    error = expect_error(verify_campaign, target)
+    assert error.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+
+
 @pytest.mark.parametrize(
     "statement",
     [
@@ -174,6 +341,48 @@ def test_session_error_mapping_fails_closed(monkeypatch, campaign_factory) -> No
     error = expect_error(verify_campaign, target)
     assert error.code == "CAMPAIGN_INTEGRITY_MISMATCH"
     assert "raw database" not in error.message
+
+
+@pytest.mark.parametrize(
+    ("symbol", "exception"),
+    [
+        ("verify_session", RuntimeError("raw verify_session")),
+        ("next_session", RuntimeError("raw next_session")),
+        ("presentation_hash", RuntimeError("raw presentation_hash")),
+        ("projection_hash", OSError("raw projection_hash")),
+    ],
+)
+def test_unexpected_verification_exceptions_are_bounded(
+    monkeypatch,
+    campaign_factory,
+    symbol: str,
+    exception: Exception,
+) -> None:
+    target, _ = campaign_factory(name=f"unexpected-{symbol}")
+    before = file_snapshot(target)
+
+    def raise_unexpected(*_args, **_kwargs):
+        raise exception
+
+    monkeypatch.setattr(verification, symbol, raise_unexpected)
+    error = expect_error(verify_campaign, target)
+    assert error.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    assert error.message == "Campaign verification failed"
+    assert "raw" not in error.message
+    assert file_snapshot(target) == before
+
+
+def test_unexpected_observable_comparison_exception_is_bounded(monkeypatch, campaign_factory) -> None:
+    target, _ = campaign_factory(name="unexpected-observable-comparison")
+
+    def raise_unexpected(*_args, **_kwargs):
+        raise RuntimeError("raw observable comparison")
+
+    monkeypatch.setattr(verification, "assert_observables_unchanged", raise_unexpected)
+    error = expect_error(verify_campaign, target)
+    assert error.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    assert error.message == "Campaign verification failed"
+    assert "raw" not in error.message
 
 
 def test_missing_campaign_is_distinct(tmp_path: Path) -> None:

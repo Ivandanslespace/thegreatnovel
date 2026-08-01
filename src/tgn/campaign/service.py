@@ -127,6 +127,40 @@ def _response(verified, *, include_verification: bool = False, result: Any = Non
     return payload
 
 
+def _cleanup_create_artifacts(
+    lock_path: Path,
+    lock_owned: bool,
+    temporary: Path | None,
+) -> None:
+    cleanup_failed = False
+    if lock_owned:
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
+        except Exception:
+            cleanup_failed = True
+        try:
+            if os.path.lexists(str(lock_path)):
+                cleanup_failed = True
+        except Exception:
+            cleanup_failed = True
+    if temporary is not None:
+        try:
+            shutil.rmtree(temporary)
+        except FileNotFoundError:
+            pass
+        except Exception:
+            cleanup_failed = True
+        try:
+            if os.path.lexists(str(temporary)):
+                cleanup_failed = True
+        except Exception:
+            cleanup_failed = True
+    if cleanup_failed:
+        raise CampaignError("CAMPAIGN_INTEGRITY_MISMATCH", "Campaign publication cleanup failed")
+
+
 class CampaignService:
     """One-shot Campaign facade; every public operation reopens the tree."""
 
@@ -256,6 +290,15 @@ class CampaignService:
             try:
                 lock_fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
                 lock_owned = True
+                try:
+                    os.close(lock_fd)
+                except OSError as exc:
+                    raise CampaignError(
+                        "CAMPAIGN_INTEGRITY_MISMATCH",
+                        "Campaign publication lock could not be closed",
+                    ) from exc
+                finally:
+                    lock_fd = None
             except FileExistsError as exc:
                 raise CampaignError("CAMPAIGN_ALREADY_EXISTS", "Campaign publication lock already exists") from exc
             if target.exists():
@@ -266,6 +309,8 @@ class CampaignService:
                 raise CampaignError("CAMPAIGN_ALREADY_EXISTS", "Campaign target appeared during publication") from exc
             except publication._NoReplaceUnavailable as exc:
                 raise CampaignError("CAMPAIGN_PUBLICATION_UNAVAILABLE", "atomic Campaign publication is unavailable") from exc
+            except publication._PublicationRuntimeError as exc:
+                raise CampaignError("CAMPAIGN_INTEGRITY_MISMATCH", "Campaign publication failed") from exc
             temporary = None
             return _response(verified)
         except CampaignError:
@@ -273,18 +318,7 @@ class CampaignService:
         except Exception as exc:
             raise CampaignError("CAMPAIGN_INTEGRITY_MISMATCH", "Campaign creation failed") from exc
         finally:
-            if lock_fd is not None:
-                try:
-                    os.close(lock_fd)
-                except OSError:
-                    pass
-            if lock_owned:
-                try:
-                    lock_path.unlink()
-                except OSError:
-                    pass
-            if temporary is not None:
-                shutil.rmtree(temporary, ignore_errors=True)
+            _cleanup_create_artifacts(lock_path, lock_owned, temporary)
 
     def _verified(self):
         try:

@@ -4,7 +4,7 @@
 > 目标：从当前"大而全、持续修 Bug"的架构退回一个可验证、可重放、可自动测试的最小核心，然后通过确定性验证与 scripted autoplay 一层一层增加功能（LLM autoplay 在 LLM Player 层建立后引入）。  
 > 原始 Legacy 审查基线：2026-07-31 `main`，最初审查时约为 `4141e905...`。  
 > 当前开发线：`mvp-rewrite`。  
-> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9A frozen；Phase 9B1 frozen；Phase 9B2A frozen (`phase-9b2a-frozen`)；Phase 9B2B design contract candidate / implementation not started；Phase 9C not started。
+> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9A frozen；Phase 9B1 frozen；Phase 9B2A frozen (`phase-9b2a-frozen`)；Phase 9B2B implementation candidate / not frozen；Phase 9C not started。
 > 参考作品：用户上传的《全民纜車求生，我一級一個三選一》。
 
 > **V2 修订说明 (2026-07-31)：** 本文档经过增量架构修订。第一 WorldPack 仍可以是缆车求生 Demo，但它的 Base / Expedition / Day-Night / Three-choice 属于第一批 vertical slice 局部实现，不是整个 Engine 的宇宙规则。V2 新增反主题/结构性硬编码原则、反过度抽象原则、Knowledge boundary、Habitat 可选抽象、ProgressionTrack/Gate、Feature Module 责任边界、Compatibility Pressure Test，并更新 Phase 5+ 路线图。原有工程架构内容（EventStore、Replay、Test Pyramid、Autoplay、ExploitAgent 等）完整保留。
@@ -2942,7 +2942,7 @@ Phase 8 — frozen (`phase-8-frozen`): Provider-neutral LLM Player + RecordedDec
 Phase 9A — frozen (`phase-9a-frozen`): External Client Session Protocol
 Phase 9B1 — frozen (`phase-9b1-frozen`): Bounded World Draft Compilation
 Phase 9B2A — frozen (`phase-9b2a-frozen`): Player-Visible Projection Map
-Phase 9B2B — design contract candidate / implementation not started: Atomic Campaign Bootstrap and Projected Session Integration
+Phase 9B2B — implementation candidate / not frozen: Atomic Campaign Bootstrap and Projected Session Integration
 Phase 9C — not started
 ```
 
@@ -3022,7 +3022,7 @@ These were **deferred**, not removed. The remaining gameplay-oriented parts of t
 >
 > Historical status note. The current active phase is defined only by the V2 Active Roadmap
 > below; after the accepted Phase 8 freeze it is Phase 9 design contract active /
-> implementation not started.
+> with a Phase 9B2B implementation candidate that is not frozen.
 
 Phase 3 was the first real gameplay vertical slice proving CableCar loop.
 
@@ -3713,7 +3713,7 @@ relationship runtime, vector memory, and Phase 9 experiments
 
 ### Phase 9 — External-Client Generated-World Playable Loop
 
-**Status:** design contract active / implementation not started.
+**Status:** implementation candidate / not frozen for Phase 9B2B; Phase 9C not started.
 
 **Product goal:**
 
@@ -3943,8 +3943,8 @@ this slice and belong to later contracts.
 ##### Phase 9B2A — Player-Visible Projection Map
 
 **Status:** frozen (`phase-9b2a-frozen`); Phase 9B1 remains frozen at
-`phase-9b1-frozen`, and Phase 9B2B is a design contract candidate; implementation
-has not started.
+`phase-9b1-frozen`, and Phase 9B2B is an implementation candidate that is not
+frozen.
 
 **Accepted source baseline:** `a4c79a47dfac88c3f9b39aa8ca50cc6255d48902`.
 
@@ -4092,8 +4092,8 @@ The Phase 9B2A CLI exposes only `validate`, `compile`, `verify`, and `preview`.
 modifies no files. There is no formal Campaign, `campaign.sqlite3`, Phase 9A
 Session integration, 50-decision gate, Narration, `novel.md`, narration locale,
 translation service, RTL UI, LLM API, Provider SDK, HTTP, MCP, daemon, or general
-localization framework in this slice. Phase 9B2B is a design contract
-candidate; implementation has not started.
+localization framework in this slice. Phase 9B2B is an implementation
+candidate that is not frozen.
 
 Knowledge Boundary remains authoritative: labels for all allowed fact values may
 exist in the projection map, but the presentation may map a fact value only when
@@ -4104,7 +4104,7 @@ presentation.
 
 ##### Phase 9B2B — Atomic Campaign Bootstrap and Projected Session Integration
 
-**Status:** design contract candidate / implementation not started.
+**Status:** implementation candidate / not frozen.
 
 **Accepted frozen baselines:**
 
@@ -4116,9 +4116,9 @@ presentation.
 - Phase 9B2A frozen implementation —
   `60ebf493ba90114c4f03048558e316ac07118ee2`.
 
-This section is a documentation-only contract. It does not authorize a
-`src/tgn/campaign` implementation, a test/configuration change, a new freeze
-tag, or a change to any frozen Phase 9A, 9B1, or 9B2A behavior.
+This section remains the authoritative Phase 9B2B contract. The current
+implementation is an external-review candidate and is not frozen; it must not
+change any frozen Phase 9A, 9B1, or 9B2A behavior.
 
 **Product question:** Can a verified Phase 9B1 compiled bundle and its matching
 verified Phase 9B2A projection bundle be locked into one formal, atomically
@@ -5021,8 +5021,8 @@ publication races, read-only verification, Session bootstrap failure,
 Knowledge Boundary, display independence, Event Replay, and RecordedDecision
 Replay. No pragma exclusion, coverage omission configuration,
 unreachable-code marker, deleted assertion, or other percentage-only bypass is
-allowed. This design task changes no test, coverage, or implementation
-configuration; it defines the gate for the future implementation.
+allowed. The implementation candidate must satisfy these gates; this section
+does not freeze Phase 9B2B or authorize Phase 9C work.
 
 #### Phase 9C — External Client Narration, Resume and Novel Export
 

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import re
 import sqlite3
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -77,29 +79,103 @@ _EXPECTED_COLUMNS = {
         "created_at",
     ),
 }
-_EXPECTED_COLUMN_TYPES = {
-    "campaigns": ("TEXT", "TEXT", "INTEGER", "TEXT", "TEXT", "TEXT", "TEXT"),
-    "events": (
-        "TEXT",
-        "TEXT",
-        "INTEGER",
-        "INTEGER",
-        "INTEGER",
-        "TEXT",
-        "TEXT",
-        "TEXT",
-        "TEXT",
-        "TEXT",
-        "TEXT",
-        "TEXT",
-        "TEXT",
-        "TEXT",
+_EXPECTED_COLUMN_DEFINITIONS = {
+    "campaigns": (
+        ("campaign_id", "TEXT", 0, None, 1),
+        ("engine_version", "TEXT", 1, "'1.0.0'", 0),
+        ("state_schema_version", "INTEGER", 1, "1", 0),
+        ("seed", "TEXT", 1, "''", 0),
+        ("initial_state_json", "TEXT", 1, None, 0),
+        ("initial_state_hash", "TEXT", 1, None, 0),
+        ("created_at", "TEXT", 1, None, 0),
     ),
-    "snapshots": ("INTEGER", "TEXT", "INTEGER", "TEXT", "TEXT", "TEXT"),
+    "events": (
+        ("event_id", "TEXT", 0, None, 1),
+        ("campaign_id", "TEXT", 1, None, 0),
+        ("event_seq", "INTEGER", 1, None, 0),
+        ("decision_seq", "INTEGER", 1, None, 0),
+        ("game_minute", "INTEGER", 1, None, 0),
+        ("event_type", "TEXT", 1, None, 0),
+        ("actor_id", "TEXT", 0, None, 0),
+        ("action_id", "TEXT", 0, None, 0),
+        ("causation_id", "TEXT", 0, None, 0),
+        ("correlation_id", "TEXT", 0, None, 0),
+        ("payload_json", "TEXT", 1, None, 0),
+        ("state_hash_before", "TEXT", 1, None, 0),
+        ("state_hash_after", "TEXT", 1, None, 0),
+        ("created_at", "TEXT", 1, None, 0),
+    ),
+    "snapshots": (
+        ("id", "INTEGER", 0, None, 1),
+        ("campaign_id", "TEXT", 1, None, 0),
+        ("event_seq", "INTEGER", 1, None, 0),
+        ("state_json", "TEXT", 1, None, 0),
+        ("state_hash", "TEXT", 1, None, 0),
+        ("created_at", "TEXT", 1, None, 0),
+    ),
+}
+_EXPECTED_TABLE_SQL = {
+    "campaigns": """
+        CREATE TABLE campaigns (
+            campaign_id TEXT PRIMARY KEY,
+            engine_version TEXT NOT NULL DEFAULT '1.0.0',
+            state_schema_version INTEGER NOT NULL DEFAULT 1,
+            seed TEXT NOT NULL DEFAULT '',
+            initial_state_json TEXT NOT NULL,
+            initial_state_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """,
+    "events": """
+        CREATE TABLE events (
+            event_id TEXT PRIMARY KEY,
+            campaign_id TEXT NOT NULL,
+            event_seq INTEGER NOT NULL,
+            decision_seq INTEGER NOT NULL,
+            game_minute INTEGER NOT NULL,
+            event_type TEXT NOT NULL,
+            actor_id TEXT,
+            action_id TEXT,
+            causation_id TEXT,
+            correlation_id TEXT,
+            payload_json TEXT NOT NULL,
+            state_hash_before TEXT NOT NULL,
+            state_hash_after TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(campaign_id) REFERENCES campaigns(campaign_id),
+            UNIQUE(campaign_id, event_seq)
+        )
+    """,
+    "snapshots": """
+        CREATE TABLE snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            campaign_id TEXT NOT NULL,
+            event_seq INTEGER NOT NULL,
+            state_json TEXT NOT NULL,
+            state_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(campaign_id) REFERENCES campaigns(campaign_id),
+            UNIQUE(campaign_id, event_seq)
+        )
+    """,
+}
+_EXPECTED_INDEX_SQL = {
+    "idx_events_campaign_seq": "CREATE INDEX idx_events_campaign_seq ON events(campaign_id, event_seq)",
+    "idx_snapshots_campaign_seq": "CREATE INDEX idx_snapshots_campaign_seq ON snapshots(campaign_id, event_seq)",
+}
+_EXPECTED_FOREIGN_KEYS = {
+    "campaigns": (),
+    "events": (("campaigns", "campaign_id", "campaign_id", "NO ACTION", "NO ACTION", "NONE"),),
+    "snapshots": (("campaigns", "campaign_id", "campaign_id", "NO ACTION", "NO ACTION", "NONE"),),
 }
 _EXPECTED_INDEX_COLUMNS = {
     "idx_events_campaign_seq": ("campaign_id", "event_seq"),
     "idx_snapshots_campaign_seq": ("campaign_id", "event_seq"),
+}
+_EXPECTED_UNIQUE_INDEX_COLUMNS = {
+    "campaigns": (("campaign_id",),),
+    "events": (("event_id",), ("campaign_id", "event_seq")),
+    "snapshots": (("campaign_id", "event_seq"),),
 }
 
 
@@ -157,20 +233,81 @@ def _reject_json_constant(_: str) -> None:
     raise ValueError("non-standard JSON number")
 
 
-def _assert_exact_tree(root: Path, *, missing_is_not_found: bool = True) -> None:
-    if not root.exists() or not root.is_dir():
+def _normalize_sql(value: str | None) -> str:
+    return re.sub(r"\s+", "", value or "").upper()
+
+
+_REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400)
+
+
+def _is_reparse_point(stat_result: os.stat_result) -> bool:
+    return bool(getattr(stat_result, "st_file_attributes", 0) & _REPARSE_POINT)
+
+
+def _actual_directory(stat_result: os.stat_result) -> bool:
+    return stat.S_ISDIR(stat_result.st_mode) and not stat.S_ISLNK(stat_result.st_mode) and not _is_reparse_point(stat_result)
+
+
+def _actual_regular_file(stat_result: os.stat_result) -> bool:
+    return stat.S_ISREG(stat_result.st_mode) and not stat.S_ISLNK(stat_result.st_mode) and not _is_reparse_point(stat_result)
+
+
+def _lstat(path: Path, *, missing_is_not_found: bool = False) -> os.stat_result:
+    try:
+        return os.lstat(path)
+    except FileNotFoundError as exc:
         if missing_is_not_found:
-            raise CampaignError("CAMPAIGN_NOT_FOUND", "published Campaign does not exist")
-        raise _integrity("temporary Campaign directory does not exist")
+            raise CampaignError("CAMPAIGN_NOT_FOUND", "published Campaign does not exist") from exc
+        raise _integrity("Campaign artifact does not exist") from exc
+    except OSError as exc:
+        raise _integrity("Campaign artifact cannot be inspected") from exc
+
+
+def _require_regular_file(path: Path) -> os.stat_result:
+    stat_result = _lstat(path)
+    if not _actual_regular_file(stat_result):
+        raise _integrity("Campaign artifact is not a regular file")
+    return stat_result
+
+
+def _read_regular_file(path: Path) -> tuple[bytes, os.stat_result]:
+    _require_regular_file(path)
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    if hasattr(os, "O_BINARY"):
+        flags |= os.O_BINARY
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(str(path), flags)
+        opened_stat = os.fstat(descriptor)
+        if not _actual_regular_file(opened_stat):
+            raise _integrity("Campaign artifact is not a regular file")
+        with os.fdopen(descriptor, "rb") as stream:
+            descriptor = None
+            return stream.read(), opened_stat
+    except CampaignError:
+        raise
+    except (OSError, ValueError) as exc:
+        raise _integrity("Campaign file snapshot failed") from exc
+    finally:
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+
+def _assert_exact_tree(root: Path, *, missing_is_not_found: bool = True) -> None:
+    root_stat = _lstat(root, missing_is_not_found=missing_is_not_found)
+    if not _actual_directory(root_stat):
+        raise _integrity("Campaign root is not an actual directory")
     expected_children = {CAMPAIGN_FILE, "world", "projection", "session"}
     try:
         if {item.name for item in root.iterdir()} != expected_children:
             raise _integrity("Campaign tree is not exact")
         for directory in (root / "world", root / "projection", root / "session"):
-            if not directory.is_dir():
+            if not _actual_directory(_lstat(directory)):
                 raise _integrity("Campaign tree has an invalid directory")
-        if not (root / CAMPAIGN_FILE).is_file():
-            raise _integrity("campaign.json is missing")
+        _require_regular_file(root / CAMPAIGN_FILE)
         expected_nested = {
             "world": set(BUNDLE_FILES),
             "projection": set(PROJECTION_FILES),
@@ -180,8 +317,8 @@ def _assert_exact_tree(root: Path, *, missing_is_not_found: bool = True) -> None
             directory = root / directory_name
             if {item.name for item in directory.iterdir()} != names:
                 raise _integrity("Campaign tree contains an unsupported or missing file")
-            if any(not (directory / name).is_file() for name in names):
-                raise _integrity("Campaign tree contains a non-file artifact")
+            for name in names:
+                _require_regular_file(directory / name)
     except CampaignError:
         raise
     except OSError as exc:
@@ -192,25 +329,22 @@ def snapshot_files(root: Path) -> tuple[tuple[str, FileObservable], ...]:
     values: list[tuple[str, FileObservable]] = []
     for relative in sorted(CAMPAIGN_RELATIVE_FILES):
         path = root / relative
-        try:
-            stat = path.stat()
-            payload = path.read_bytes()
-        except OSError as exc:
-            raise _integrity("Campaign file snapshot failed") from exc
-        values.append((relative, FileObservable(sha256_bytes(payload), len(payload), stat.st_mtime_ns)))
+        payload, file_stat = _read_regular_file(path)
+        values.append((relative, FileObservable(sha256_bytes(payload), len(payload), file_stat.st_mtime_ns)))
     return tuple(values)
 
 
 def _sqlite_uri(path: Path) -> str:
-    return path.resolve().as_uri() + "?mode=ro"
+    return path.absolute().as_uri() + "?mode=ro"
 
 
 def _open_read_only(path: Path) -> sqlite3.Connection:
+    _require_regular_file(path)
     try:
         connection = sqlite3.connect(_sqlite_uri(path), uri=True)
         connection.row_factory = sqlite3.Row
         return connection
-    except sqlite3.Error as exc:
+    except Exception as exc:
         raise _integrity("campaign SQLite cannot be opened read-only") from exc
 
 
@@ -254,30 +388,76 @@ def _check_schema(connection: sqlite3.Connection) -> None:
             raise _integrity("SQLite schema contains an unexpected user object")
         for table, expected_columns in _EXPECTED_COLUMNS.items():
             actual_definitions = tuple(
-                (row[1], row[2].upper())
-                for row in connection.execute(f"PRAGMA table_info({table})")
+                (row[1], row[2].upper(), row[3], row[4], row[5], row[6])
+                for row in connection.execute(f"PRAGMA table_xinfo({table})")
             )
             expected_definitions = tuple(
-                zip(expected_columns, _EXPECTED_COLUMN_TYPES[table])
+                (name, column_type, not_null, default, primary_key, 0)
+                for name, column_type, not_null, default, primary_key in _EXPECTED_COLUMN_DEFINITIONS[table]
             )
             if actual_definitions != expected_definitions:
                 raise _integrity("SQLite table columns do not match the frozen schema")
+        table_sql = dict(
+            connection.execute(
+                "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?)",
+                tuple(_EXPECTED_COLUMNS),
+            )
+        )
+        for table, expected_sql in _EXPECTED_TABLE_SQL.items():
+            if _normalize_sql(table_sql.get(table)) != _normalize_sql(expected_sql):
+                raise _integrity("SQLite table constraints do not match the frozen schema")
+        foreign_keys: dict[str, tuple[tuple[str, ...], ...]] = {}
+        for table in _EXPECTED_COLUMNS:
+            foreign_keys[table] = tuple(
+                (
+                    row[2],
+                    row[3],
+                    row[4],
+                    row[5].upper(),
+                    row[6].upper(),
+                    row[7].upper(),
+                )
+                for row in connection.execute(f"PRAGMA foreign_key_list({table})")
+            )
+        if foreign_keys != _EXPECTED_FOREIGN_KEYS:
+            raise _integrity("SQLite foreign keys do not match the frozen schema")
         named_indexes: dict[str, tuple[str, ...]] = {}
+        unique_indexes: dict[str, list[tuple[str, ...]]] = {table: [] for table in _EXPECTED_COLUMNS}
         for table in _EXPECTED_COLUMNS:
             for row in connection.execute(f"PRAGMA index_list({table})"):
                 name = row[1]
-                if name.startswith("sqlite_autoindex_"):
-                    continue
                 columns = tuple(
                     item[2]
                     for item in connection.execute(f"PRAGMA index_info({name})")
                 )
-                named_indexes[name] = columns
+                if name in _EXPECTED_INDEX_COLUMNS:
+                    if row[2] != 0 or len(row) >= 4 and row[3] != "c":
+                        raise _integrity("SQLite named indexes do not match the frozen schema")
+                    named_indexes[name] = columns
+                    continue
+                if name.startswith("sqlite_autoindex_"):
+                    if row[2] != 1:
+                        raise _integrity("SQLite internal indexes do not match the frozen schema")
+                    unique_indexes[table].append(columns)
+                    continue
+                raise _integrity("SQLite schema contains an unexpected index")
         if named_indexes != _EXPECTED_INDEX_COLUMNS:
             raise _integrity("SQLite named indexes do not match the frozen schema")
+        for table, expected_unique in _EXPECTED_UNIQUE_INDEX_COLUMNS.items():
+            if sorted(unique_indexes[table]) != sorted(expected_unique):
+                raise _integrity("SQLite unique constraints do not match the frozen schema")
+        index_sql = dict(
+            connection.execute(
+                "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND name IN (?, ?)",
+                tuple(_EXPECTED_INDEX_SQL),
+            )
+        )
+        for name, expected_sql in _EXPECTED_INDEX_SQL.items():
+            if _normalize_sql(index_sql.get(name)) != _normalize_sql(expected_sql):
+                raise _integrity("SQLite named index definitions do not match the frozen schema")
     except CampaignError:
         raise
-    except sqlite3.Error as exc:
+    except Exception as exc:
         raise _integrity("SQLite schema inspection failed") from exc
 
 
@@ -341,27 +521,25 @@ def preflight_sqlite(root: Path, manifest: CampaignManifest) -> SQLitePreflight:
 
 
 def assert_observables_unchanged(root: Path, preflight: SQLitePreflight) -> None:
+    file_mismatch = False
     try:
         _assert_exact_tree(root, missing_is_not_found=False)
         after_files = snapshot_files(root)
-    except CampaignError as exc:
-        raise _integrity("Campaign files changed during verification") from exc
-    if after_files != preflight.files:
-        raise _integrity("Campaign file observables changed during verification")
-    connection = _open_read_only(root / "session" / "campaign.sqlite3")
+        file_mismatch = after_files != preflight.files
+    except Exception:
+        file_mismatch = True
+    row_mismatch = False
     try:
-        after_rows = _authoritative_rows(connection)
-    except CampaignError:
-        raise
-    except sqlite3.Error as exc:
-        raise _integrity("SQLite rows cannot be compared after verification") from exc
-    finally:
+        connection = _open_read_only(root / "session" / "campaign.sqlite3")
         try:
+            after_rows = _authoritative_rows(connection)
+            row_mismatch = after_rows != preflight.sqlite
+        finally:
             connection.close()
-        except sqlite3.Error as exc:
-            raise _integrity("SQLite comparison connection could not close") from exc
-    if after_rows != preflight.sqlite:
-        raise _integrity("SQLite authoritative rows changed during verification")
+    except Exception:
+        row_mismatch = True
+    if file_mismatch or row_mismatch:
+        raise _integrity("Campaign observables changed during verification")
 
 
 def load_projection_map(root: Path) -> tuple[PlayerProjectionMap, dict[str, Any]]:
@@ -532,10 +710,8 @@ def _artifact_hashes(root: Path) -> dict[str, str]:
     }
     result: dict[str, str] = {}
     for field, relative in names.items():
-        try:
-            result[field] = sha256_bytes((root / relative).read_bytes())
-        except OSError as exc:
-            raise _integrity("Campaign artifact hash cannot be read") from exc
+        payload, _ = _read_regular_file(root / relative)
+        result[field] = sha256_bytes(payload)
     return result
 
 
@@ -552,6 +728,20 @@ def _map_session_error(error: SessionError, *, bootstrap: bool) -> CampaignError
     if error.code == "SESSION_NOT_FOUND":
         return CampaignError("CAMPAIGN_INTEGRITY_MISMATCH", "published Campaign Session is missing")
     return CampaignError("CAMPAIGN_INTEGRITY_MISMATCH", "published Campaign Session is invalid")
+
+
+def _raise_after_observable_check(
+    root: Path,
+    preflight: SQLitePreflight,
+    error: CampaignError,
+) -> None:
+    try:
+        assert_observables_unchanged(root, preflight)
+    except CampaignError:
+        raise
+    except Exception as exc:
+        raise _integrity("Campaign verification failed") from exc
+    raise error
 
 
 def verify_published_campaign(root: Path, *, bootstrap: bool = False) -> VerifiedCampaign:
@@ -657,13 +847,16 @@ def verify_published_campaign(root: Path, *, bootstrap: bool = False) -> Verifie
             current_request=current_request,
             current_presentation=current_presentation,
         )
+    except CampaignError as exc:
+        _raise_after_observable_check(root, preflight, exc)
+    except Exception as exc:
+        _raise_after_observable_check(root, preflight, _integrity("Campaign verification failed"))
+    try:
+        assert_observables_unchanged(root, preflight)
     except CampaignError:
-        assert_observables_unchanged(root, preflight)
         raise
-    except (TypeError, ValueError, KeyError, WorldGenError) as exc:
-        assert_observables_unchanged(root, preflight)
+    except Exception as exc:
         raise _integrity("Campaign verification failed") from exc
-    assert_observables_unchanged(root, preflight)
     return result
 
 

@@ -161,45 +161,42 @@ def test_unexpected_creation_error_is_not_client_input(monkeypatch, bundle_pair,
     assert error.code == "CAMPAIGN_INTEGRITY_MISMATCH"
 
 
-def test_owned_lock_cleanup_tolerates_close_and_missing_lock(monkeypatch, bundle_pair, tmp_path: Path) -> None:
-    primitive_publish = service.publication._publish_directory_no_replace
+def test_lock_close_failure_is_bounded_and_cleaned(monkeypatch, bundle_pair, tmp_path: Path) -> None:
     original_close = service.os.close
 
-    def publish_then_fail_close(source, target):
-        result = primitive_publish(source, target)
-        def close_once(fd):
-            service.os.close = original_close
-            original_close(fd)
-            raise OSError("close")
+    def close_then_fail(fd):
+        original_close(fd)
+        raise OSError("raw close failure")
 
-        service.os.close = close_once
-        return result
+    monkeypatch.setattr(service.os, "close", close_then_fail)
+    error = expect_error(create_campaign, **create_kwargs(tmp_path / "close-error", bundle_pair))
+    assert error.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    assert not (tmp_path / "close-error").exists()
+    assert not list(tmp_path.glob(".close-error.*"))
+    assert not service.publication.publication_lock_path(tmp_path / "close-error").exists()
 
-    monkeypatch.setattr(service.publication, "_publish_directory_no_replace", publish_then_fail_close)
-    result = create_campaign(**create_kwargs(tmp_path / "close-error", bundle_pair))
-    assert result["ok"] is True
-    service.os.close = original_close
 
+def test_missing_owned_lock_is_already_cleaned(monkeypatch, bundle_pair, tmp_path: Path) -> None:
     target = tmp_path / "missing-lock"
     lock = service.publication.publication_lock_path(target)
-    monkeypatch.setattr(service.publication, "_publish_directory_no_replace", primitive_publish)
+    primitive_publish = service.publication._publish_directory_no_replace
     original_unlink = service.Path.unlink
 
     def publish_then_remove_lock(source, destination):
         result = primitive_publish(source, destination)
+
         def missing_lock(self, missing_ok=False):
             if self == lock:
+                original_unlink(self, missing_ok=missing_ok)
                 raise FileNotFoundError(lock)
             return original_unlink(self, missing_ok=missing_ok)
 
-        service.Path.unlink = missing_lock
+        monkeypatch.setattr(service.Path, "unlink", missing_lock)
         return result
 
     monkeypatch.setattr(service.publication, "_publish_directory_no_replace", publish_then_remove_lock)
     result = create_campaign(**create_kwargs(target, bundle_pair))
     assert result["ok"] is True
-    original_unlink(lock)
-    service.Path.unlink = original_unlink
 
 
 def test_verified_session_error_maps_to_campaign_integrity(monkeypatch, tmp_path: Path) -> None:

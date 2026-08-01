@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+import stat
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -64,7 +66,13 @@ def copy_files(source_root: Path, destination_root: Path, names: Iterable[str]) 
         source = source_root / name
         destination = destination_root / name
         try:
-            if not source.is_file():
+            source_stat = os.lstat(source)
+            reparse_point = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400)
+            if (
+                not stat.S_ISREG(source_stat.st_mode)
+                or stat.S_ISLNK(source_stat.st_mode)
+                or bool(getattr(source_stat, "st_file_attributes", 0) & reparse_point)
+            ):
                 raise OSError("source file missing")
             shutil.copyfile(source, destination)
         except (OSError, shutil.Error) as exc:

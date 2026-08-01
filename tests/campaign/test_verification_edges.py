@@ -63,7 +63,7 @@ def test_exact_tree_rejects_missing_invalid_and_extra_artifacts(monkeypatch, cam
 
 def test_snapshot_and_read_only_open_fail_closed(monkeypatch, campaign_factory) -> None:
     target, _ = campaign_factory(name="snapshot-error")
-    monkeypatch.setattr(verification.Path, "stat", lambda _self: (_ for _ in ()).throw(OSError("raw")))
+    monkeypatch.setattr(verification.os, "lstat", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("raw")))
     assert expect_error(verification.snapshot_files, target).code == "CAMPAIGN_INTEGRITY_MISMATCH"
 
     def fail_connect(*_args, **_kwargs):

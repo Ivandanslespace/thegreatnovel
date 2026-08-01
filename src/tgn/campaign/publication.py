@@ -13,6 +13,10 @@ class _NoReplaceUnavailable(RuntimeError):
     """The host cannot provide the required atomic no-replace operation."""
 
 
+class _PublicationRuntimeError(RuntimeError):
+    """The host primitive failed after capability had been established."""
+
+
 def publication_lock_path(target: str | Path) -> Path:
     destination = Path(target)
     return destination.parent / f".{destination.name}.publish.lock"
@@ -83,35 +87,46 @@ def _publish_directory_no_replace(source: Path, target: Path) -> None:
 
     if os.name == "nt":
         move_file = _windows_move_function()
-        if move_file(str(source), str(target), 0x00000008) == 0:
+        try:
+            result = move_file(str(source), str(target), 0x00000008)
+        except OSError as exc:
+            raise _PublicationRuntimeError("Windows atomic directory publication failed") from exc
+        if result == 0:
             error_number = ctypes.get_last_error()
             if error_number in {80, 183}:
                 raise FileExistsError(error_number, "target already exists")
-            raise _NoReplaceUnavailable("Windows atomic directory publication failed")
+            raise _PublicationRuntimeError("Windows atomic directory publication failed")
         return
     if sys.platform.startswith("linux"):
         renameat2 = _linux_rename_function()
-        result = renameat2(-100, os.fsencode(source), -100, os.fsencode(target), 1)
+        try:
+            result = renameat2(-100, os.fsencode(source), -100, os.fsencode(target), 1)
+        except OSError as exc:
+            raise _PublicationRuntimeError("Linux atomic directory publication failed") from exc
         if result != 0:
             error_number = ctypes.get_errno()
             if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
                 raise FileExistsError(error_number, "target already exists")
-            raise _NoReplaceUnavailable("Linux atomic directory publication failed")
+            raise _PublicationRuntimeError("Linux atomic directory publication failed")
         return
     if sys.platform == "darwin":
         renameatx_np = _macos_rename_function()
-        result = renameatx_np(-2, os.fsencode(source), -2, os.fsencode(target), 0x00000004)
+        try:
+            result = renameatx_np(-2, os.fsencode(source), -2, os.fsencode(target), 0x00000004)
+        except OSError as exc:
+            raise _PublicationRuntimeError("macOS atomic directory publication failed") from exc
         if result != 0:
             error_number = ctypes.get_errno()
             if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
                 raise FileExistsError(error_number, "target already exists")
-            raise _NoReplaceUnavailable("macOS atomic directory publication failed")
+            raise _PublicationRuntimeError("macOS atomic directory publication failed")
         return
     raise _NoReplaceUnavailable("host has no supported atomic publication primitive")
 
 
 __all__ = [
     "_NoReplaceUnavailable",
+    "_PublicationRuntimeError",
     "_publish_directory_no_replace",
     "assert_publication_capability",
     "publication_lock_path",

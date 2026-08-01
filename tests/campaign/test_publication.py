@@ -6,6 +6,7 @@ import os
 import pytest
 
 import tgn.campaign.publication as publication
+import tgn.campaign.service as service
 from tgn.campaign import CampaignError, create_campaign
 
 
@@ -22,6 +23,11 @@ class FakeFunction:
 class FakeLibrary:
     def __init__(self, name: str, function: FakeFunction) -> None:
         setattr(self, name, function)
+
+
+class RaisingFunction:
+    def __call__(self, *_args):
+        raise OSError("raw runtime failure")
 
 
 def test_windows_no_replace_success_conflict_and_unavailable(monkeypatch, tmp_path) -> None:
@@ -41,7 +47,15 @@ def test_windows_no_replace_success_conflict_and_unavailable(monkeypatch, tmp_pa
     with pytest.raises(FileExistsError):
         publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
     monkeypatch.setattr(publication.ctypes, "get_last_error", lambda: 5, raising=False)
-    with pytest.raises(publication._NoReplaceUnavailable):
+    with pytest.raises(publication._PublicationRuntimeError):
+        publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
+    monkeypatch.setattr(
+        publication.ctypes,
+        "WinDLL",
+        lambda *_args, **_kwargs: FakeLibrary("MoveFileExW", RaisingFunction()),
+        raising=False,
+    )
+    with pytest.raises(publication._PublicationRuntimeError):
         publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
 
 
@@ -62,7 +76,14 @@ def test_linux_no_replace_success_conflict_and_unavailable(monkeypatch, tmp_path
     with pytest.raises(FileExistsError):
         publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
     monkeypatch.setattr(publication.ctypes, "get_errno", lambda: errno.EIO)
-    with pytest.raises(publication._NoReplaceUnavailable):
+    with pytest.raises(publication._PublicationRuntimeError):
+        publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
+    monkeypatch.setattr(
+        publication.ctypes,
+        "CDLL",
+        lambda *_args, **_kwargs: FakeLibrary("renameat2", RaisingFunction()),
+    )
+    with pytest.raises(publication._PublicationRuntimeError):
         publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
 
 
@@ -83,7 +104,14 @@ def test_macos_and_unsupported_platforms(monkeypatch, tmp_path) -> None:
     with pytest.raises(FileExistsError):
         publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
     monkeypatch.setattr(publication.ctypes, "get_errno", lambda: errno.EIO)
-    with pytest.raises(publication._NoReplaceUnavailable):
+    with pytest.raises(publication._PublicationRuntimeError):
+        publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
+    monkeypatch.setattr(
+        publication.ctypes,
+        "CDLL",
+        lambda *_args, **_kwargs: FakeLibrary("renameatx_np", RaisingFunction()),
+    )
+    with pytest.raises(publication._PublicationRuntimeError):
         publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
     monkeypatch.setattr(publication.sys, "platform", "freebsd")
     with pytest.raises(publication._NoReplaceUnavailable):
@@ -91,10 +119,26 @@ def test_macos_and_unsupported_platforms(monkeypatch, tmp_path) -> None:
 
 
 def test_capability_preflight_unavailable_has_no_side_effect(monkeypatch, bundle_pair, tmp_path) -> None:
+    calls = {"start_session": 0, "temporary": 0, "lock": 0}
+
     def unavailable():
         raise publication._NoReplaceUnavailable("unsupported")
 
+    def start_session(*_args, **_kwargs):
+        calls["start_session"] += 1
+
+    def make_temporary(*_args, **_kwargs):
+        calls["temporary"] += 1
+        raise AssertionError("temporary directory must not be created")
+
+    def open_lock(*_args, **_kwargs):
+        calls["lock"] += 1
+        raise AssertionError("publication lock must not be acquired")
+
     monkeypatch.setattr(publication, "assert_publication_capability", unavailable)
+    monkeypatch.setattr(service.frozen_session, "start_session", start_session)
+    monkeypatch.setattr(service.tempfile, "mkdtemp", make_temporary)
+    monkeypatch.setattr(service.os, "open", open_lock)
     target = tmp_path / "campaign"
     with pytest.raises(CampaignError) as error:
         create_campaign(
@@ -109,6 +153,88 @@ def test_capability_preflight_unavailable_has_no_side_effect(monkeypatch, bundle
     assert not target.exists()
     assert not list(tmp_path.glob(".campaign.*"))
     assert not publication.publication_lock_path(target).exists()
+    assert calls == {"start_session": 0, "temporary": 0, "lock": 0}
+
+
+def test_publication_runtime_eio_is_integrity_error_and_cleaned(monkeypatch, bundle_pair, tmp_path) -> None:
+    monkeypatch.setattr(
+        publication,
+        "_publish_directory_no_replace",
+        lambda *_args: (_ for _ in ()).throw(publication._PublicationRuntimeError("raw EIO")),
+    )
+    target = tmp_path / "runtime-eio"
+    with pytest.raises(CampaignError) as raised:
+        create_campaign(
+            target,
+            world_bundle_dir=bundle_pair[0],
+            projection_bundle_dir=bundle_pair[1],
+            campaign_id="campaign-001",
+            actor_id="player",
+            max_decisions=10,
+        )
+    assert raised.value.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    assert raised.value.message == "Campaign publication failed"
+    assert "raw" not in raised.value.message
+    assert not target.exists()
+    assert not publication.publication_lock_path(target).exists()
+    assert not list(tmp_path.glob(".runtime-eio.*"))
+
+
+def test_lock_cleanup_error_is_not_silently_swallowed(monkeypatch, bundle_pair, tmp_path) -> None:
+    target = tmp_path / "lock-cleanup-error"
+    lock = publication.publication_lock_path(target)
+    original_unlink = service.Path.unlink
+
+    monkeypatch.setattr(
+        publication,
+        "_publish_directory_no_replace",
+        lambda *_args: (_ for _ in ()).throw(publication._PublicationRuntimeError("runtime")),
+    )
+
+    def fail_owned_lock_unlink(self, missing_ok=False):
+        if self == lock:
+            raise OSError("raw unlink")
+        return original_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(service.Path, "unlink", fail_owned_lock_unlink)
+    with pytest.raises(CampaignError) as raised:
+        create_campaign(
+            target,
+            world_bundle_dir=bundle_pair[0],
+            projection_bundle_dir=bundle_pair[1],
+            campaign_id="campaign-001",
+            actor_id="player",
+            max_decisions=10,
+        )
+    assert raised.value.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    assert raised.value.message == "Campaign publication cleanup failed"
+    assert lock.exists()
+    assert list(tmp_path.glob(".lock-cleanup-error.*")) == [lock]
+
+
+def test_temporary_cleanup_error_is_not_silently_swallowed(monkeypatch, bundle_pair, tmp_path) -> None:
+    target = tmp_path / "temporary-cleanup-error"
+
+    monkeypatch.setattr(
+        publication,
+        "_publish_directory_no_replace",
+        lambda *_args: (_ for _ in ()).throw(publication._PublicationRuntimeError("runtime")),
+    )
+    monkeypatch.setattr(service.shutil, "rmtree", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("raw rmtree")))
+    with pytest.raises(CampaignError) as raised:
+        create_campaign(
+            target,
+            world_bundle_dir=bundle_pair[0],
+            projection_bundle_dir=bundle_pair[1],
+            campaign_id="campaign-001",
+            actor_id="player",
+            max_decisions=10,
+        )
+    assert raised.value.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    assert raised.value.message == "Campaign publication cleanup failed"
+    assert not target.exists()
+    assert not publication.publication_lock_path(target).exists()
+    assert list(tmp_path.glob(".temporary-cleanup-error.*"))
 
 
 def test_late_target_is_preserved_and_owned_lock_is_removed(monkeypatch, bundle_pair, tmp_path) -> None:
