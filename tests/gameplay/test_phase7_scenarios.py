@@ -48,6 +48,82 @@ def _make_phase7_state(game_minute=60, player_stage=1, base_stage=0,
 # --- Build divergence hard product test (spec #46) ---
 
 class TestBuildDivergence:
+    @staticmethod
+    def _select_build(state, build_id):
+        result = execute_action(state, ActionIntent(
+            action_id=f"choose-{build_id}", actor_id="p1",
+            action_type="CHOOSE_BUILD", params={"build_id": build_id},
+        ))
+        assert result.accepted
+        return result.final_state
+
+    @staticmethod
+    def _same_followup_policy(state, horizon=2):
+        """Use one observation-driven policy for both counterfactual branches."""
+        for decision in range(horizon):
+            legal = {la.action_type for la in get_legal_actions(state)}
+            if "DROP" in legal:
+                action_type, params = "DROP", {}
+            elif "REST" in legal:
+                action_type, params = "REST", {}
+            else:
+                action_type, params = "WAIT", {"minutes": 1}
+            result = execute_action(state, ActionIntent(
+                action_id=f"same-policy-{decision}", actor_id="p1",
+                action_type=action_type, params=params,
+            ))
+            assert result.accepted
+            state = result.final_state
+        return state
+
+    def test_counterfactual_window_runner_changes_legal_actions_immediately(self):
+        """Same pre-choice state: build choice changes legality before any follow-up action."""
+        pre_choice = _make_phase7_state(game_minute=60, stamina=2)
+        window_runner = self._select_build(pre_choice, "window_runner")
+        field_rest = self._select_build(pre_choice, "field_rest")
+
+        window_actions = {
+            la.action_type for la in get_legal_actions(window_runner)
+        }
+        field_actions = {
+            la.action_type for la in get_legal_actions(field_rest)
+        }
+        assert "DROP" in window_actions
+        assert "DROP" not in field_actions
+        assert window_actions != field_actions
+
+    def test_counterfactual_quick_rest_changes_authoritative_cost(self):
+        """Same pre-choice state and same REST action expose different engine costs."""
+        pre_choice = _make_phase7_state(game_minute=0, stamina=2)
+        quick_rest = self._select_build(pre_choice, "quick_rest")
+        window_runner = self._select_build(pre_choice, "window_runner")
+
+        quick_cost = next(
+            la.duration_minutes for la in get_legal_actions(quick_rest)
+            if la.action_type == "REST"
+        )
+        window_cost = next(
+            la.duration_minutes for la in get_legal_actions(window_runner)
+            if la.action_type == "REST"
+        )
+        assert quick_cost == 10
+        assert window_cost == 20
+
+    def test_counterfactuals_use_same_horizon_and_followup_policy(self):
+        """Different outcomes come from one policy, not hand-written branch scripts."""
+        pre_choice = _make_phase7_state(game_minute=60, stamina=2)
+        window_runner = self._select_build(pre_choice, "window_runner")
+        field_rest = self._select_build(pre_choice, "field_rest")
+
+        window_final = self._same_followup_policy(window_runner, horizon=2)
+        field_final = self._same_followup_policy(field_rest, horizon=2)
+
+        assert (window_final.game_minute, window_final.data["player"]["location_id"],
+                window_final.data["player"]["stamina"]) != (
+            field_final.game_minute, field_final.data["player"]["location_id"],
+            field_final.data["player"]["stamina"],
+        )
+
     def _run_branch_a(self):
         """window_runner: CHOOSE → REST → NIGHT DROP."""
         state = _make_phase7_state(game_minute=60, stamina=2, max_stamina=5)
@@ -136,6 +212,41 @@ class TestQuickRestDivergence:
         assert r_qr.final_state.game_minute == 10
         assert r_wr.final_state.game_minute == 20
         assert state_hash(r_qr.final_state.__dict__) != state_hash(r_wr.final_state.__dict__)
+
+
+class TestBuildDesignSignals:
+    def test_phase6_and_window_runner_drop_unlock_do_not_stack(self):
+        """Design signal: overlapping unlocks stay one legality path, with no extra reward."""
+        phase6_unlock = _make_phase7_state(game_minute=60, base_stage=1, selected=None)
+        build_unlock = _make_phase7_state(game_minute=60, base_stage=0,
+                                          selected="window_runner")
+        both_unlocks = _make_phase7_state(game_minute=60, base_stage=1,
+                                          selected="window_runner")
+
+        outcomes = []
+        for state in (phase6_unlock, build_unlock, both_unlocks):
+            drops = [la for la in get_legal_actions(state) if la.action_type == "DROP"]
+            assert len(drops) == 1
+            result = execute_action(state, ActionIntent(
+                action_id="drop", actor_id="p1", action_type="DROP", params={},
+            ))
+            assert result.accepted
+            assert len(result.events) == 1
+            assert result.events[0].event_type == "EXPEDITION_DROPPED"
+            assert result.final_state.data["inventory"] == {}
+            assert result.final_state.data["expedition"]["carried_loot"] == {}
+            second = execute_action(result.final_state, ActionIntent(
+                action_id="drop-again", actor_id="p1", action_type="DROP", params={},
+            ))
+            assert second.accepted is False
+            outcomes.append((
+                result.final_state.game_minute,
+                result.final_state.data["player"]["location_id"],
+                result.final_state.data["player"]["stamina"],
+                result.final_state.data["expedition"]["active"],
+            ))
+
+        assert outcomes == [(70, "site-1", 1, True)] * 3
 
 
 # --- Legacy compatibility (spec #57) ---

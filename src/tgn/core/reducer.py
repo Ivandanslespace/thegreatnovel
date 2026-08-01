@@ -144,14 +144,13 @@ def _apply_expedition_dropped(state: GameState, event: DomainEvent) -> None:
     
     # Phase 5: reducer anti-forgery — reject DROP if phase blocks it at decision start
     # Phase 6: base stage >= 1 overrides the phase-window DROP block
-    # Phase 7: window_runner build also overrides the phase-window DROP block
     if is_action_blocked_by_phase(state, "DROP"):
         from ..gameplay.progression import get_track_stage
-        from ..gameplay.build_choice import has_selected_build
+        from ..gameplay.build_choice import build_allows_drop_during_phase_window
         base_stage = get_track_stage(state, "base")
         drop_override = (
             (base_stage is not None and base_stage >= 1)
-            or has_selected_build(state, "window_runner")
+            or build_allows_drop_during_phase_window(state)
         )
         if not drop_override:
             raise ReducerError("Cannot drop: action blocked by current world phase")
@@ -543,19 +542,19 @@ def _apply_rest_resolved(state: GameState, event: DomainEvent) -> None:
     
     # Phase 7: two valid location contexts
     # A: inactive expedition + at base
-    # B: field_rest selected + active expedition + at target
-    from ..gameplay.build_choice import has_selected_build, get_rest_duration
+    # B: the selected target-rest build + active expedition + at target
+    from ..gameplay.build_choice import build_allows_rest_at_target, get_rest_duration
     
     at_base_inactive = (
         player["location_id"] == exp["base_location_id"] and not exp["active"]
     )
-    field_rest_at_target = (
-        has_selected_build(state, "field_rest")
+    selected_build_at_target = (
+        build_allows_rest_at_target(state)
         and exp["active"]
         and player["location_id"] == exp["target_location_id"]
     )
-    
-    if not at_base_inactive and not field_rest_at_target:
+
+    if not at_base_inactive and not selected_build_at_target:
         raise ReducerError("Cannot rest: invalid location context")
     
     # Verify stamina not already full
@@ -576,7 +575,7 @@ def _apply_rest_resolved(state: GameState, event: DomainEvent) -> None:
             f"Forged stamina_after: expected {max_stamina}, got {payload.get('stamina_after')}"
         )
     
-    # Verify time cost (quick_rest = 10, default = 20)
+    # Verify the authoritative selected-build REST duration.
     expected_time = get_rest_duration(state)
     if payload.get("time") != expected_time:
         raise ReducerError(f"Rest time cost must be {expected_time}, got {payload.get('time')}")

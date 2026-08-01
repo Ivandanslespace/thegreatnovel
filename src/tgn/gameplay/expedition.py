@@ -17,7 +17,9 @@ from .world_phase import is_action_blocked_by_phase, get_current_phase, minutes_
 from .progression import can_advance_track, get_track_stage, get_gate_cost, progression_enabled
 from .build_choice import (
     build_choice_enabled, build_choice_available, get_selected_build,
-    has_selected_build, get_available_build_ids, get_rest_duration,
+    get_available_build_ids, get_rest_duration,
+    build_allows_drop_during_phase_window, build_allows_rest_at_target,
+    get_player_visible_build_choices,
     BUILD_CHOICE_TIME,
 )
 
@@ -148,9 +150,9 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
                 stamina_cost=EXTRACT_COST["stamina"]
             ))
             
-            # Phase 7: field_rest allows REST at target
+            # Phase 7: selected target-rest build allows REST at target
             encounter = exp.get("encounter")
-            if has_selected_build(state, "field_rest"):
+            if build_allows_rest_at_target(state):
                 player_stage = get_track_stage(state, "player")
                 max_stamina = player.get("max_stamina", 0)
                 if (player_stage is not None and player_stage >= 1
@@ -173,11 +175,10 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
     
     # Phase 5: filter actions blocked by current world phase (opportunity layer only)
     # Phase 6: base stage >= 1 overrides the DROP phase-window block
-    # Phase 7: window_runner build also overrides the DROP phase-window block
     base_stage = get_track_stage(state, "base")
     drop_override = (
         (base_stage is not None and base_stage >= 1)
-        or has_selected_build(state, "window_runner")
+        or build_allows_drop_during_phase_window(state)
     )
     
     filtered = []
@@ -676,7 +677,15 @@ def build_observation(state: GameState) -> dict[str, Any]:
     
     # Phase 7: build visible only when build feature enabled
     if build_choice_enabled(state):
-        observation["build"] = {"selected": get_selected_build(state)}
+        observation["build"] = {
+            "selected": get_selected_build(state),
+            "choice_available": build_choice_available(state),
+            "choices": get_player_visible_build_choices(state),
+            "selection_rule": (
+                "Choose one candidate once; after selection, no other build "
+                "candidate can be chosen."
+            ),
+        }
     
     # target_loot is always hidden (information asymmetry)
     

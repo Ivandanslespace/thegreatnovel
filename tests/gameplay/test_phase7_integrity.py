@@ -175,6 +175,9 @@ class TestObservationIsolation:
         original_hash = state_hash(state.__dict__)
         obs = build_observation(state)
         obs["build"]["selected"] = "window_runner"
+        obs["build"]["choices"][0]["effect_summary"] = "tampered"
+        obs["build"]["choices"].append({"build_id": "forged"})
+        obs["build"]["selection_rule"] = "tampered"
         assert state.data["build"]["selected"] is None
         assert state_hash(state.__dict__) == original_hash
 

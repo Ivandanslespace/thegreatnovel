@@ -280,10 +280,34 @@ class TestQuickRestStrategy:
 # --- Observation contract (spec #26) ---
 
 class TestObservation:
+    def test_build_player_visible_contract(self):
+        state = _make_phase7_state(player_stage=1)
+        obs = build_observation(state)
+
+        assert obs["build"]["choice_available"] is True
+        assert "Choose one candidate once" in obs["build"]["selection_rule"]
+        choices = obs["build"]["choices"]
+        assert [choice["build_id"] for choice in choices] == [
+            "window_runner", "field_rest", "quick_rest",
+        ]
+
+        required_fields = {
+            "build_id", "title", "effect_summary",
+            "relevant_condition_or_limitation", "permanence",
+            "opportunity_cost",
+        }
+        assert all(required_fields <= set(choice) for choice in choices)
+        by_id = {choice["build_id"]: choice for choice in choices}
+        assert "NIGHT DROP" in by_id["window_runner"]["effect_summary"]
+        assert "target" in by_id["field_rest"]["effect_summary"]
+        assert "10" in by_id["quick_rest"]["effect_summary"]
+        assert all("permanently" in choice["opportunity_cost"] for choice in choices)
+
     def test_build_selected_visible(self):
         state = _make_phase7_state(selected="window_runner")
         obs = build_observation(state)
         assert obs["build"]["selected"] == "window_runner"
+        assert obs["build"]["choice_available"] is False
 
     def test_build_null_visible(self):
         state = _make_phase7_state(selected=None)

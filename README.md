@@ -4,13 +4,13 @@ A **deterministic, event-sourced, replayable game simulation core** designed to 
 
 ## Current Status
 
-**Phase 0 — Clean MVP workspace**
+**Phase 7 implementation candidate — awaiting external review**
 
-This is the initial cleanup phase. The core systems are being built from scratch:
-- Game state management
-- Event sourcing and replay
-- Deterministic action resolution
-- Agent testing infrastructure
+This branch contains the first WorldPack's local Phase 7 permanent build-choice
+slice. It supports the explicit `window_runner`, `field_rest`, and `quick_rest`
+candidate effects only; it is not a general build-effect framework.
+
+This candidate remains under external review; Phase 7.5 has not started.
 
 ## Legacy Implementation
 
@@ -30,28 +30,9 @@ The previous implementation is preserved for reference:
 
 ## Development Phases
 
-### Phase 0: Clean Workspace (Current)
-- Basic Python package structure
-- Test infrastructure setup
-
-### Phase 1: Core Engine
-- GameState
-- Event types
-- Reducer/apply_event
-- Snapshot system
-
-### Phase 2: Action System
-- Action validation
-- Deterministic resolution
-- Time cost handling
-
-### Phase 3: Autoplay Testing
-- Scripted agent policies
-- Random policy baseline
-- Telemetry collection
-
-### Future Phases
-Will be defined as Phase 1 work progresses.
+Phases 1–6 establish the deterministic core, action validation, replay and
+the first gameplay slices. The current branch is the Phase 7 implementation
+candidate described above and is awaiting external review.
 
 ## Getting Started
 
@@ -70,9 +51,9 @@ python -m tgn.demo  # (TBD in Phase 1)
 
 ## Documentation
 
-- [DESIGN_VALUES.md](./DESIGN_VALUES.md) - Core design philosophy
-- [MVP_REWRITE_SPEC.md](./MVP_REWRITE_SPEC.md) - Detailed architecture specification
-- [DEFERRED.md](./DEFERRED.md) - Features explicitly out of scope
+- [DESIGN_VALUES.md](docs/DESIGN_VALUES.md) - Core design philosophy
+- [MVP_REWRITE_SPEC.md](docs/MVP_REWRITE_SPEC.md) - Detailed architecture specification
+- [DEFERRED.md](docs/DEFERRED.md) - Features explicitly out of scope
 
 ## License
 
