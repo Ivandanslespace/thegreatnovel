@@ -280,6 +280,78 @@ class TestQuickRestStrategy:
 # --- Observation contract (spec #26) ---
 
 class TestObservation:
+    @staticmethod
+    def _assert_observation_matches_legal_actions(state):
+        obs = build_observation(state)
+        choose_actions = [
+            action for action in obs["legal_actions"]
+            if action.action_type == "CHOOSE_BUILD"
+        ]
+        assert obs["build"]["choice_available"] == any(
+            action.action_type == "CHOOSE_BUILD"
+            for action in obs["legal_actions"]
+        )
+        return obs, choose_actions
+
+    def test_build_choice_observation_matches_legal_actions_when_ready(self):
+        state = _make_phase7_state()
+        obs, choose_actions = self._assert_observation_matches_legal_actions(state)
+        assert obs["build"]["choice_available"] is True
+        assert len(choose_actions) == 3
+
+    def test_build_choice_observation_excludes_active_target_state(self):
+        state = _make_phase7_state()
+        state.data["expedition"]["active"] = True
+        state.data["expedition"]["target_searched"] = True
+        state.data["player"]["location_id"] = "site-1"
+        obs, choose_actions = self._assert_observation_matches_legal_actions(state)
+        assert obs["build"]["choice_available"] is False
+        assert choose_actions == []
+
+    def test_build_choice_observation_excludes_active_base_state(self):
+        state = _make_phase7_state()
+        state.data["expedition"]["active"] = True
+        state.data["expedition"]["target_searched"] = True
+        obs, choose_actions = self._assert_observation_matches_legal_actions(state)
+        assert obs["build"]["choice_available"] is False
+        assert choose_actions == []
+
+    def test_build_choice_observation_excludes_forced_encounter(self):
+        state = _make_phase7_state()
+        state.data["expedition"]["active"] = True
+        state.data["expedition"]["target_searched"] = True
+        state.data["player"]["location_id"] = "site-1"
+        state.data["expedition"]["encounter"] = {
+            "active": True,
+            "enemy_id": "encounter-1",
+            "enemy_hp": 5,
+            "enemy_max_hp": 5,
+            "enemy_attack": 2,
+        }
+        obs, choose_actions = self._assert_observation_matches_legal_actions(state)
+        assert obs["build"]["choice_available"] is False
+        assert choose_actions == []
+
+    def test_build_choice_observation_excludes_dead_player(self):
+        state = _make_phase7_state()
+        state.data["player"]["hp"] = 0
+        obs, choose_actions = self._assert_observation_matches_legal_actions(state)
+        assert obs["build"]["choice_available"] is False
+        assert choose_actions == []
+        assert obs["legal_actions"] == ()
+
+    def test_build_choice_observation_excludes_unmet_trigger(self):
+        state = _make_phase7_state(player_stage=0)
+        obs, choose_actions = self._assert_observation_matches_legal_actions(state)
+        assert obs["build"]["choice_available"] is False
+        assert choose_actions == []
+
+    def test_build_choice_observation_excludes_permanent_selection(self):
+        state = _make_phase7_state(selected="window_runner")
+        obs, choose_actions = self._assert_observation_matches_legal_actions(state)
+        assert obs["build"]["choice_available"] is False
+        assert choose_actions == []
+
     def test_build_player_visible_contract(self):
         state = _make_phase7_state(player_stage=1)
         obs = build_observation(state)

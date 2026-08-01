@@ -23,9 +23,9 @@ _FIRST_WORLD_BUILD_DETAILS: dict[str, dict[str, str]] = {
         "effect_summary": "Allows DROP during the NIGHT DROP phase window.",
         "relevant_condition_or_limitation": (
             "Only the phase-window block is bypassed: normal DROP location, "
-            "stamina, and expedition rules still apply. If base progression "
-            "is already stage 1 or higher, this part is already unlocked by "
-            "the Phase 6 base progression."
+            "stamina, and expedition rules still apply. If the base track is "
+            "already stage 1 or higher, DROP during this window is already "
+            "available, so this build adds no additional unlock."
         ),
         "permanence": "Permanent after selection; CHOOSE_BUILD is no longer legal.",
         "opportunity_cost": "You permanently give up Field Rest and Quick Rest.",
@@ -83,8 +83,13 @@ def has_selected_build(state: GameState, build_id: str) -> bool:
     return get_selected_build(state) == build_id
 
 
-def build_choice_available(state: GameState) -> bool:
-    """Check if build choice is currently actionable (trigger met, not yet selected)."""
+def build_choice_trigger_ready(state: GameState) -> bool:
+    """Check only whether the build-choice trigger is ready.
+
+    This is not a complete legality check. The legal-action builder must still
+    enforce player life, location, expedition, encounter, and other state
+    conditions before exposing CHOOSE_BUILD.
+    """
     if not build_choice_enabled(state):
         return False
 

@@ -16,7 +16,7 @@ from ..actions.models import (
 from .world_phase import is_action_blocked_by_phase, get_current_phase, minutes_until_phase_change
 from .progression import can_advance_track, get_track_stage, get_gate_cost, progression_enabled
 from .build_choice import (
-    build_choice_enabled, build_choice_available, get_selected_build,
+    build_choice_enabled, build_choice_trigger_ready, get_selected_build,
     get_available_build_ids, get_rest_duration,
     build_allows_drop_during_phase_window, build_allows_rest_at_target,
     get_player_visible_build_choices,
@@ -122,7 +122,7 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
                 ))
             
             # Phase 7: CHOOSE_BUILD variants at base (expedition inactive)
-            if build_choice_available(state):
+            if build_choice_trigger_ready(state):
                 for build_id in get_available_build_ids(state):
                     legal.append(LegalAction(
                         action_type="CHOOSE_BUILD",
@@ -628,6 +628,7 @@ def build_observation(state: GameState) -> dict[str, Any]:
     """
     player = state.data["player"]
     exp = state.data["expedition"]
+    legal_actions = get_legal_actions(state)
     
     # Deep copy to avoid mutating state
     observation = {
@@ -639,7 +640,7 @@ def build_observation(state: GameState) -> dict[str, Any]:
         "carried_loot": dict(exp["carried_loot"]),
         "expedition_active": exp["active"],
         "target_searched": exp["target_searched"],
-        "legal_actions": get_legal_actions(state),
+        "legal_actions": legal_actions,
     }
     
     # Phase 4: HP visible
@@ -679,7 +680,10 @@ def build_observation(state: GameState) -> dict[str, Any]:
     if build_choice_enabled(state):
         observation["build"] = {
             "selected": get_selected_build(state),
-            "choice_available": build_choice_available(state),
+            "choice_available": any(
+                action.action_type == "CHOOSE_BUILD"
+                for action in legal_actions
+            ),
             "choices": get_player_visible_build_choices(state),
             "selection_rule": (
                 "Choose one candidate once; after selection, no other build "
