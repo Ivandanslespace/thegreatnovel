@@ -122,22 +122,16 @@ def validate_named_actor_state(state: GameState) -> None:
             "player_knowledge.actors.mara.known_goal must be inspect_signal or reported"
         )
 
-    if not set(facts).issubset(knowledge):
-        raise ValueError("player knowledge cannot contain facts Mara does not know")
-    if facts and goal != MARA_REPORTED_GOAL:
-        raise ValueError("player knowledge fact requires a completed report")
-    if goal == MARA_INITIAL_GOAL and (knowledge or last_action is not None):
-        raise ValueError("initial inspect_signal state cannot already contain actor knowledge")
-    if goal == MARA_REPORT_GOAL:
-        if MARA_FACT_ID not in knowledge or last_action != MARA_AUTONOMOUS_ACTION:
-            raise ValueError("report_finding requires the autonomous inspection result")
-        if facts or known_goal != MARA_INITIAL_GOAL or trust != 0:
-            raise ValueError("report_finding must not already change player knowledge or trust")
-    if goal == MARA_REPORTED_GOAL:
-        if MARA_FACT_ID not in knowledge or MARA_FACT_ID not in facts:
-            raise ValueError("reported requires the inspected fact to be shared")
-        if known_goal != MARA_REPORTED_GOAL or trust != 1:
-            raise ValueError("reported requires known_goal=reported and trust=1")
+    if goal == MARA_INITIAL_GOAL:
+        _validate_initial_state(trust, knowledge, facts, known_goal, last_action)
+    elif goal == MARA_REPORT_GOAL:
+        _validate_report_ready_state(
+            trust, knowledge, facts, known_goal, last_action, fact_value
+        )
+    else:
+        _validate_reported_state(
+            trust, knowledge, facts, known_goal, last_action, fact_value
+        )
 
 
 def build_actor_decision_view(state: GameState) -> NamedActorDecisionView:
@@ -276,16 +270,33 @@ def build_actor_observation(state: GameState) -> dict[str, Any]:
 def count_knowledge_boundary_violations(
     state: GameState, observation: dict[str, Any]
 ) -> int:
-    """Check this local observation contract for autoplay telemetry."""
+    """Check the explicit Mara projection against Player Knowledge."""
 
     if not named_actor_feature_enabled(state):
         return 0
+
+    allowed_fields = {
+        "actor_id",
+        "name",
+        "last_known_location_id",
+        "known_goal",
+        "trust",
+        "visible",
+        "has_something_to_report",
+        "facts",
+    }
     violations = 0
-    actor_observation = observation.get("actor", {})
-    exposed_facts = actor_observation.get("facts", {})
-    player_facts = state.data["player_knowledge"]["facts"]
-    if not set(exposed_facts).issubset(player_facts):
+    actor_observation = observation.get("actor")
+    if not isinstance(actor_observation, dict):
         violations += 1
+        actor_observation = {}
+    else:
+        violations += len(set(actor_observation) - allowed_fields)
+        expected_actor = build_actor_observation(state)
+        for field in allowed_fields:
+            if actor_observation.get(field) != expected_actor.get(field):
+                violations += 1
+
     for forbidden in (
         "world_facts",
         "private_knowledge",
@@ -340,3 +351,64 @@ def _validate_fact_mapping(
     for fact_id, value in mapping.items():
         if value != world_facts.get(fact_id):
             raise ValueError(f"{path}.{fact_id} does not match world truth")
+
+
+def _validate_initial_state(
+    trust: int,
+    knowledge: dict[str, Any],
+    facts: dict[str, Any],
+    known_goal: str,
+    last_action: str | None,
+) -> None:
+    """Validate the one exact pre-inspection state of this local slice."""
+
+    if trust != 0 or knowledge or facts or last_action is not None:
+        raise ValueError(
+            "initial inspect_signal requires trust=0, empty knowledge, empty facts, "
+            "and no autonomous action"
+        )
+    if known_goal != MARA_INITIAL_GOAL:
+        raise ValueError("initial inspect_signal requires known_goal=inspect_signal")
+
+
+def _validate_report_ready_state(
+    trust: int,
+    knowledge: dict[str, Any],
+    facts: dict[str, Any],
+    known_goal: str,
+    last_action: str | None,
+    fact_value: Any,
+) -> None:
+    """Validate the one exact post-inspection, pre-report state."""
+
+    expected_knowledge = {MARA_FACT_ID: fact_value}
+    if trust != 0 or knowledge != expected_knowledge or facts:
+        raise ValueError(
+            "report_finding requires trust=0, the current inspected fact, and no "
+            "player fact"
+        )
+    if known_goal != MARA_INITIAL_GOAL:
+        raise ValueError("report_finding requires known_goal=inspect_signal")
+    if last_action != MARA_AUTONOMOUS_ACTION:
+        raise ValueError("report_finding requires the autonomous inspection result")
+
+
+def _validate_reported_state(
+    trust: int,
+    knowledge: dict[str, Any],
+    facts: dict[str, Any],
+    known_goal: str,
+    last_action: str | None,
+    fact_value: Any,
+) -> None:
+    """Validate the one exact post-report state of this local slice."""
+
+    expected_facts = {MARA_FACT_ID: fact_value}
+    if trust != 1 or knowledge != expected_facts or facts != expected_facts:
+        raise ValueError(
+            "reported requires trust=1 and the current fact in both knowledge maps"
+        )
+    if known_goal != MARA_REPORTED_GOAL:
+        raise ValueError("reported requires known_goal=reported")
+    if last_action != MARA_AUTONOMOUS_ACTION:
+        raise ValueError("reported requires the autonomous inspection result")

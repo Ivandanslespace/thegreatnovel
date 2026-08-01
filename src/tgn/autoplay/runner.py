@@ -163,9 +163,11 @@ def run_autoplay(
     replay_verified = (
         replay_result.success and replay_result.actual_hash == final_state_hash
     )
-    sqlite_reopen_verified = False
+    persistence_integrity_verified = False
     if event_store is not None and campaign_id is not None:
-        sqlite_reopen_verified = verify_persistence_integrity(
+        # verify_persistence_integrity uses an independent EventStore connection;
+        # the caller-owned event_store remains open and is never closed here.
+        persistence_integrity_verified = verify_persistence_integrity(
             campaign_id, event_store.db_path
         ).success
     
@@ -184,5 +186,5 @@ def run_autoplay(
         knowledge_transfers=knowledge_transfers,
         relationship_changes=relationship_changes,
         replay_verified=replay_verified,
-        sqlite_reopen_verified=sqlite_reopen_verified,
+        persistence_integrity_verified=persistence_integrity_verified,
     )

@@ -106,7 +106,7 @@ class AutoplayRunResult:
     knowledge_transfers: int = 0
     relationship_changes: int = 0
     replay_verified: bool = False
-    sqlite_reopen_verified: bool = False
+    persistence_integrity_verified: bool = False
 
     def summary(self) -> dict[str, Any]:
         """Structured run summary."""
@@ -121,7 +121,7 @@ class AutoplayRunResult:
             "knowledge_transfers": self.knowledge_transfers,
             "relationship_changes": self.relationship_changes,
             "replay_verified": self.replay_verified,
-            "sqlite_reopen_verified": self.sqlite_reopen_verified,
+            "persistence_integrity_verified": self.persistence_integrity_verified,
             "start_game_minute": self.frames[0].game_minute_before if self.frames else 0,
             "end_game_minute": self.frames[-1].game_minute_after if self.frames else 0,
             "final_state_hash": self.final_state_hash,

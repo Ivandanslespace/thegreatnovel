@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+import pytest
+
 from tgn.core.hashing import state_hash
 from tgn.gameplay.expedition import build_observation, get_legal_actions
 from tgn.gameplay.named_actor import (
@@ -91,4 +93,48 @@ def test_boundary_detector_flags_only_explicit_local_leaks():
     leaked["world_facts"] = {MARA_FACT_ID: "unstable"}
     leaked["actor"]["private_knowledge"] = {MARA_FACT_ID: "unstable"}
     leaked["actor"]["facts"] = {MARA_FACT_ID: "unstable"}
-    assert count_knowledge_boundary_violations(state, leaked) == 3
+    assert count_knowledge_boundary_violations(state, leaked) == 4
+
+
+@pytest.mark.parametrize(
+    ("state_factory", "mutation"),
+    [
+        (make_phase75_state, lambda actor: actor["facts"].update({MARA_FACT_ID: "safe"})),
+        (make_phase75_state, lambda actor: actor.__setitem__("known_goal", "report_finding")),
+        (make_phase75_state, lambda actor: actor.__setitem__("last_known_location_id", "site-1")),
+    ],
+    ids=["fact-value", "private-goal-via-known-goal", "last-known-location"],
+)
+def test_boundary_detector_rejects_tampered_known_projection(state_factory, mutation):
+    state = state_factory()
+    observation = build_observation(state)
+    mutation(observation["actor"])
+    assert count_knowledge_boundary_violations(state, observation) > 0
+
+
+def test_boundary_detector_rejects_missing_actor_projection():
+    state = make_phase75_state()
+    observation = build_observation(state)
+    del observation["actor"]
+    assert count_knowledge_boundary_violations(state, observation) > 0
+
+
+@pytest.mark.parametrize("field", ["secret_score", "private_feeling", "debug_state"])
+def test_boundary_detector_rejects_unknown_actor_fields(field):
+    state = make_phase75_state()
+    observation = build_observation(state)
+    observation["actor"][field] = "hidden"
+    assert count_knowledge_boundary_violations(state, observation) > 0
+
+
+def test_boundary_detector_accepts_initial_offscreen_visible_and_reported_projections():
+    states = [
+        make_phase75_state(),
+        execute(make_phase75_state(), "DROP", "drop-offscreen"),
+        report_ready_state(),
+        execute(report_ready_state(), "TALK_TO_ACTOR", "talk-for-projection", actor_id="mara"),
+    ]
+    assert all(
+        count_knowledge_boundary_violations(state, build_observation(state)) == 0
+        for state in states
+    )

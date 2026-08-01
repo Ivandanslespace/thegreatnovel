@@ -46,7 +46,7 @@ def test_phase75_scripted_autoplay_reaches_talk_and_records_integrity_metrics(tm
     assert result.knowledge_transfers == 1
     assert result.relationship_changes == 1
     assert result.replay_verified is True
-    assert result.sqlite_reopen_verified is True
+    assert result.persistence_integrity_verified is True
     assert [frame.action_type for frame in result.frames] == [
         "DROP", "SEARCH", "EXTRACT", "TALK_TO_ACTOR"
     ]
@@ -56,6 +56,8 @@ def test_phase75_scripted_autoplay_reaches_talk_and_records_integrity_metrics(tm
         "site-1-condition": "unstable"
     }
 
+    # run_autoplay must not close a caller-owned EventStore.
+    assert store.connection.execute("SELECT 1").fetchone()[0] == 1
     store.close()
     verification = verify_persistence_integrity(campaign_id, db_path)
     assert verification.success is True

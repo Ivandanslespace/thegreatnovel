@@ -139,6 +139,93 @@ def test_legacy_validation_helper_is_a_no_op(phase3_initial_state):
     validate_named_actor_state(phase3_initial_state)
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        pytest.param(
+            lambda state: state.data["named_actor"]["relationship"].__setitem__("trust", 1),
+            id="initial-trust-must-be-zero",
+        ),
+        pytest.param(
+            lambda state: state.data["player_knowledge"]["actors"]["mara"].__setitem__(
+                "known_goal", "reported"
+            ),
+            id="initial-player-goal-must-be-inspect",
+        ),
+    ],
+)
+def test_initial_named_actor_state_is_exact(mutation):
+    state = make_phase75_state()
+    mutation(state)
+    with pytest.raises(InvariantError):
+        check_invariants(state)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        pytest.param(
+            lambda state: state.data["named_actor"]["knowledge"].__setitem__(
+                MARA_FACT_ID, "safe"
+            ),
+            id="report-ready-fact-must-match-world",
+        ),
+        pytest.param(
+            lambda state: state.data["named_actor"].__setitem__(
+                "last_autonomous_action", None
+            ),
+            id="report-ready-requires-inspection-action",
+        ),
+        pytest.param(
+            lambda state: state.data["named_actor"]["relationship"].__setitem__("trust", 1),
+            id="report-ready-trust-must-be-zero",
+        ),
+    ],
+)
+def test_report_ready_named_actor_state_is_exact(mutation):
+    state = execute(make_phase75_state(), "DROP", "drop-for-exact-report")
+    mutation(state)
+    with pytest.raises(InvariantError):
+        check_invariants(state)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        pytest.param(
+            lambda state: state.data["named_actor"].__setitem__(
+                "last_autonomous_action", None
+            ),
+            id="reported-requires-inspection-action",
+        ),
+        pytest.param(
+            lambda state: state.data["named_actor"]["relationship"].__setitem__("trust", 0),
+            id="reported-trust-must-be-one",
+        ),
+        pytest.param(
+            lambda state: state.data["player_knowledge"]["actors"]["mara"].__setitem__(
+                "known_goal", "inspect_signal"
+            ),
+            id="reported-player-goal-must-be-reported",
+        ),
+    ],
+)
+def test_reported_named_actor_state_is_exact(mutation):
+    state = execute(
+        execute(
+            execute(make_phase75_state(), "DROP", "drop-for-exact-reported"),
+            "EXTRACT",
+            "extract-for-exact-reported",
+        ),
+        "TALK_TO_ACTOR",
+        "talk-for-exact-reported",
+        actor_id="mara",
+    )
+    mutation(state)
+    with pytest.raises(InvariantError):
+        check_invariants(state)
+
+
 def test_autonomous_consequence_handles_missing_world_fact_without_mutation():
     state = make_phase75_state()
     state.data["player"]["location_id"] = "site-1"
