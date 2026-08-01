@@ -28,7 +28,8 @@ Phase 9C 的合同范围是 Persistent External Narration, Resume and Novel Expo
 使用与 Campaign 分离的 immutable Story sidecar 保存 deterministic Narration Request、
 pending/resume 状态和 committed turn artifacts，再从这些 artifact 确定性导出
 novel.md。Phase 9C 尚未实现，不包含 Narration provider、Narrator adapter、翻译
-数据库或 Phase 9C 以外的功能。
+数据库或 Phase 9C 以外的功能。合同同时固定历史 snapshot 的自有导出边界、冻结
+Session 的单 Event 基线和稳定 Campaign snapshot 捕获协议。
 
 This branch contains the first WorldPack's local Phase 7 permanent build-choice
 slice and the frozen Phase 7.5 named actor, relationship, and knowledge slice.
