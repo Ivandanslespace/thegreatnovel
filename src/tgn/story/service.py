@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import copy
 import os
-import shutil
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +42,7 @@ from .models import (
     turn_artifact_hash,
 )
 from .publication import (
+    BoundPublicationDirectory,
     PublicationBoundaryChanged,
     PublicationConflict,
     PublicationRuntime,
@@ -191,36 +190,75 @@ def _write_owned_file(path: Path, payload: bytes) -> None:
 def _remove_owned_temp(path: Path | None) -> None:
     if path is None:
         return
+    binding: BoundPublicationDirectory | None = None
     try:
-        if os.path.lexists(path):
-            item_stat = os.lstat(path)
-            if not is_actual_directory(item_stat):
-                raise OSError("temporary Story root is not a directory")
-            shutil.rmtree(path)
+        if not os.path.lexists(path):
+            return
+        binding = BoundPublicationDirectory.bind(path.parent)
+        binding.adopt_existing(path, directory=True, owned=True)
+        binding.cleanup_temp()
     except FileNotFoundError:
         return
     except Exception as exc:
         raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "owned Story temporary cleanup failed") from exc
+    finally:
+        if binding is not None:
+            binding.close_safely()
 
 
-def _publish_directory(source: Path, target: Path) -> None:
+def _publish_directory(
+    source: Path,
+    target: Path,
+    *,
+    parent_binding: BoundPublicationDirectory | None = None,
+    boundary_check: Any | None = None,
+    before_atomic: Any | None = None,
+) -> None:
     try:
-        atomic_no_replace_move(source, target, directory=True)
+        if parent_binding is None:
+            atomic_no_replace_move(source, target, directory=True)
+        else:
+            if parent_binding.temp_name is None:
+                parent_binding.adopt_existing(source, directory=True)
+            parent_binding.publish_adopted(
+                target.name,
+                boundary_check=boundary_check,
+                before_atomic=before_atomic,
+            )
     except PublicationConflict as exc:
         raise StoryError("STORY_ALREADY_EXISTS", "Story target already exists") from exc
     except (PublicationUnavailable, PublicationRuntime) as exc:
         raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "atomic Story publication is unavailable") from exc
 
 
-def _publish_request(path: Path, payload: bytes, *, boundary_check: Any | None = None) -> None:
+def _publish_request(
+    path: Path,
+    payload: bytes,
+    *,
+    parent_binding: BoundPublicationDirectory | None = None,
+    boundary_check: Any | None = None,
+    before_atomic: Any | None = None,
+) -> None:
     try:
-        if boundary_check is None:
-            publish_bytes_no_replace(path, payload)
-        else:
-            publish_bytes_no_replace(path, payload, boundary_check=boundary_check)
+        kwargs: dict[str, Any] = {}
+        if parent_binding is not None:
+            kwargs["parent_binding"] = parent_binding
+        if boundary_check is not None:
+            kwargs["boundary_check"] = boundary_check
+        if before_atomic is not None:
+            kwargs["before_atomic"] = before_atomic
+        publish_bytes_no_replace(path, payload, **kwargs)
     except PublicationBoundaryChanged as exc:
         if str(exc) == "Campaign snapshot changed":
             raise StoryError("CAMPAIGN_SNAPSHOT_CHANGED", "Campaign changed during Story publication") from exc
+        if str(exc).startswith("story-error:"):
+            code = str(exc).split(":", 1)[1]
+            if code == "CAMPAIGN_SNAPSHOT_CHANGED":
+                raise StoryError("CAMPAIGN_SNAPSHOT_CHANGED", "Campaign changed during Story publication") from exc
+            if code == "CAMPAIGN_INTEGRITY_MISMATCH":
+                raise _campaign_integrity("request-bound Campaign history changed") from exc
+            if code == "STORY_INTEGRITY_MISMATCH":
+                raise _story_integrity("pending request changed during publication") from exc
         raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "Story directory identity changed during publication") from exc
     except PublicationConflict as exc:
         raise StoryError("STORY_INTEGRITY_MISMATCH", "request target appeared during publication") from exc
@@ -228,13 +266,36 @@ def _publish_request(path: Path, payload: bytes, *, boundary_check: Any | None =
         raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "request publication is unavailable") from exc
 
 
-def _published_turn(path: Path, payload: bytes, *, boundary_check: Any | None = None) -> str:
+def _published_turn(
+    path: Path,
+    payload: bytes,
+    *,
+    parent_binding: BoundPublicationDirectory | None = None,
+    boundary_check: Any | None = None,
+    before_atomic: Any | None = None,
+) -> str:
     try:
-        if boundary_check is None:
-            publish_bytes_no_replace(path, payload)
-        else:
-            publish_bytes_no_replace(path, payload, boundary_check=boundary_check)
+        kwargs: dict[str, Any] = {}
+        if parent_binding is not None:
+            kwargs["parent_binding"] = parent_binding
+        if boundary_check is not None:
+            kwargs["boundary_check"] = boundary_check
+        if before_atomic is not None:
+            kwargs["before_atomic"] = before_atomic
+        publish_bytes_no_replace(path, payload, **kwargs)
         return "committed"
+    except PublicationBoundaryChanged as exc:
+        if str(exc) == "Campaign snapshot changed":
+            raise StoryError("CAMPAIGN_SNAPSHOT_CHANGED", "Campaign changed during Story publication") from exc
+        if str(exc).startswith("story-error:"):
+            code = str(exc).split(":", 1)[1]
+            if code == "CAMPAIGN_SNAPSHOT_CHANGED":
+                raise StoryError("CAMPAIGN_SNAPSHOT_CHANGED", "Campaign changed during Story publication") from exc
+            if code == "CAMPAIGN_INTEGRITY_MISMATCH":
+                raise _campaign_integrity("request-bound Campaign history changed") from exc
+            if code == "STORY_INTEGRITY_MISMATCH":
+                raise _story_integrity("pending request changed during publication") from exc
+        raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "Story directory identity changed during publication") from exc
     except PublicationConflict:
         try:
             existing, _ = read_regular_file(path)
@@ -269,10 +330,29 @@ def _story_publication_guard(view: StoryView, directory_name: str):
     return check
 
 
+def _anchored_story_publication_guard(
+    view: StoryView,
+    directory_name: str,
+    root_binding: BoundPublicationDirectory,
+    directory_binding: BoundPublicationDirectory,
+):
+    path_check = _story_publication_guard(view, directory_name)
+
+    def check() -> None:
+        path_check()
+        root_binding.check()
+        directory_binding.check()
+
+    return check
+
+
 def _prepare_publication_guard(
     view: StoryView,
     campaign_dir: str | Path,
     before_snapshot: CampaignSnapshot,
+    *,
+    root_binding: BoundPublicationDirectory | None = None,
+    directory_binding: BoundPublicationDirectory | None = None,
 ):
     story_check = _story_publication_guard(view, "requests")
 
@@ -284,8 +364,67 @@ def _prepare_publication_guard(
                 raise PublicationBoundaryChanged("Campaign snapshot changed") from exc
             raise
         story_check()
+        if root_binding is not None:
+            root_binding.check()
+        if directory_binding is not None:
+            directory_binding.check()
 
     return check
+
+
+def _pending_request_unchanged(view: StoryView, request: NarrationRequest) -> None:
+    try:
+        current_payload, _ = read_regular_file(view.root / "requests" / f"{request.turn_id}.json")
+        current_value = NarrationRequest.from_dict(parse_json_bytes(current_payload, require_canonical=True))
+    except Exception as exc:
+        raise PublicationBoundaryChanged("story-error:STORY_INTEGRITY_MISMATCH") from exc
+    if current_value.to_dict() != request.to_dict():
+        raise PublicationBoundaryChanged("story-error:STORY_INTEGRITY_MISMATCH")
+
+
+def _commit_publication_guard(
+    view: StoryView,
+    campaign_dir: str | Path,
+    before_snapshot: CampaignSnapshot,
+    request: NarrationRequest,
+    root_binding: BoundPublicationDirectory,
+    request_binding: BoundPublicationDirectory,
+    directory_binding: BoundPublicationDirectory,
+):
+    story_check = _anchored_story_publication_guard(view, "turns", root_binding, directory_binding)
+
+    def check() -> None:
+        story_check()
+        request_binding.check()
+        try:
+            _commit_prefix_check(campaign_dir, before_snapshot, request)
+        except StoryError as exc:
+            raise PublicationBoundaryChanged(f"story-error:{exc.code}") from exc
+        _pending_request_unchanged(view, request)
+
+    return check
+
+
+def _open_story_publication_bindings(
+    view: StoryView,
+    directory_name: str,
+) -> tuple[BoundPublicationDirectory, BoundPublicationDirectory]:
+    if directory_name not in {"requests", "turns"}:
+        raise ValueError("unsupported Story publication directory")
+    root_binding: BoundPublicationDirectory | None = None
+    directory_binding: BoundPublicationDirectory | None = None
+    try:
+        root_binding = BoundPublicationDirectory.bind(view.root)
+        directory_binding = BoundPublicationDirectory.bind(view.root / directory_name)
+        return root_binding, directory_binding
+    except Exception as exc:
+        if directory_binding is not None:
+            directory_binding.close_safely()
+        if root_binding is not None:
+            root_binding.close_safely()
+        if isinstance(exc, StoryError):
+            raise
+        raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "Story publication parent cannot be anchored") from exc
 
 
 def _resource_map(value: Any) -> dict[str, int]:
@@ -603,17 +742,23 @@ class StoryService:
             initial_narration_locale=initial_narration_locale,
             initial_voice_id=initial_voice_id,
         )
-        temporary: Path | None = None
-        published = False
+        parent_binding: BoundPublicationDirectory | None = None
         try:
-            temporary = Path(tempfile.mkdtemp(prefix=f".{story_target.name}.", dir=parent))
+            parent_binding = BoundPublicationDirectory.bind(parent)
+            # Checkpoint 1: bind and verify the caller-visible Story parent
+            # before creating any owned temporary.
+            parent_binding.checkpoint()
+            temporary = parent_binding.create_temp_directory(story_target.name)
+            # Checkpoint 2: the temporary Story root is now owned by the
+            # anchored parent before any final publication attempt.
+            parent_binding.checkpoint()
             (temporary / "requests").mkdir()
             (temporary / "turns").mkdir()
             _write_owned_file(temporary / "story.json", canonical_bytes(manifest.to_dict()))
             load_story_view(temporary)
-            _publish_directory(temporary, story_target)
-            temporary = None
-            published = True
+            # _publish_directory performs checkpoint 3 and the anchored
+            # no-replace publication.  The temporary is owned by the binding.
+            _publish_directory(temporary, story_target, parent_binding=parent_binding)
             return {
                 "ok": True,
                 "story": manifest.to_dict(),
@@ -626,8 +771,12 @@ class StoryService:
         except Exception as exc:
             raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "Story initialization failed") from exc
         finally:
-            if not published and temporary is not None:
-                _remove_owned_temp(temporary)
+            if parent_binding is not None:
+                try:
+                    if parent_binding.temp_name is not None:
+                        parent_binding.cleanup_temp()
+                finally:
+                    parent_binding.close_safely()
 
     def _bound_history(self, campaign_dir: str | Path) -> tuple[StoryView, CampaignManifest, CampaignSnapshot, CampaignHistory]:
         view, _campaign_manifest, snapshot = _load_story_and_bound(self.story_dir, campaign_dir)
@@ -685,11 +834,19 @@ class StoryService:
         # Unlike commit, prepare cannot tolerate a later Campaign append: the
         # request is derived from one complete, stable Campaign boundary.
         _require_complete_snapshot_unchanged(campaign_dir, snapshot)
+        root_binding, requests_binding = _open_story_publication_bindings(view, "requests")
         try:
             _publish_request(
                 view.root / "requests" / f"turn-{next_number:06d}.json",
                 payload,
-                boundary_check=_prepare_publication_guard(view, campaign_dir, snapshot),
+                parent_binding=requests_binding,
+                boundary_check=_prepare_publication_guard(
+                    view,
+                    campaign_dir,
+                    snapshot,
+                    root_binding=root_binding,
+                    directory_binding=requests_binding,
+                ),
             )
         except StoryError as exc:
             if exc.code != "STORY_INTEGRITY_MISMATCH":
@@ -700,6 +857,9 @@ class StoryService:
             if existing is not None and existing.to_dict() == expected.to_dict():
                 return {"ok": True, "request": existing.to_dict(), "committed": False, "status": _derived_status(refreshed, history)}
             raise
+        finally:
+            requests_binding.close_safely()
+            root_binding.close_safely()
         refreshed = load_story_view(view.root)
         return {"ok": True, "request": expected.to_dict(), "committed": False, "status": _derived_status(refreshed, history)}
 
@@ -751,11 +911,29 @@ class StoryService:
             raise _story_integrity("pending request changed during commit") from exc
         if current_value.to_dict() != request.to_dict():
             raise _story_integrity("pending request changed during commit")
-        result = _published_turn(
-            target,
-            artifact_payload,
-            boundary_check=_story_publication_guard(view, "turns"),
-        )
+        root_binding, requests_binding = _open_story_publication_bindings(view, "requests")
+        turns_binding: BoundPublicationDirectory | None = None
+        try:
+            turns_binding = BoundPublicationDirectory.bind(view.root / "turns")
+            result = _published_turn(
+                target,
+                artifact_payload,
+                parent_binding=turns_binding,
+                boundary_check=_commit_publication_guard(
+                    view,
+                    campaign_dir,
+                    snapshot,
+                    request,
+                    root_binding,
+                    requests_binding,
+                    turns_binding,
+                ),
+            )
+        finally:
+            if turns_binding is not None:
+                turns_binding.close_safely()
+            requests_binding.close_safely()
+            root_binding.close_safely()
         if result == "conflict":
             raise StoryError("TURN_CONFLICT", "turn already has a different committed artifact")
         refreshed = load_story_view(view.root)

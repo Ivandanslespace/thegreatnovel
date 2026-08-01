@@ -268,3 +268,256 @@ def test_commit_rechecks_pending_request_at_publication_boundary(story_factory, 
         commit_story(story, campaign_dir=campaign, response=response_for(request))
     assert error.value.code == "STORY_INTEGRITY_MISMATCH"
     assert not list((story / "turns").iterdir())
+
+
+def test_publication_boundary_error_mapping_and_binding_guards(story_factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from tgn.story.publication import PublicationBoundaryChanged
+
+    campaign, story, request, view, _snapshot, _history = _pending(story_factory)
+    target = tmp_path / "artifact.json"
+    boundary_messages = {
+        "Campaign snapshot changed": "CAMPAIGN_SNAPSHOT_CHANGED",
+        "story-error:CAMPAIGN_SNAPSHOT_CHANGED": "CAMPAIGN_SNAPSHOT_CHANGED",
+        "story-error:CAMPAIGN_INTEGRITY_MISMATCH": "CAMPAIGN_INTEGRITY_MISMATCH",
+        "story-error:STORY_INTEGRITY_MISMATCH": "STORY_INTEGRITY_MISMATCH",
+        "unclassified boundary": "STORY_PUBLICATION_UNAVAILABLE",
+    }
+    for message, expected_code in boundary_messages.items():
+        monkeypatch.setattr(
+            service_module,
+            "publish_bytes_no_replace",
+            lambda *_args, _message=message, **_kwargs: (_ for _ in ()).throw(PublicationBoundaryChanged(_message)),
+        )
+        with pytest.raises(StoryError) as error:
+            service_module._publish_request(target, b"x")
+        assert error.value.code == expected_code
+
+        monkeypatch.setattr(
+            service_module,
+            "publish_bytes_no_replace",
+            lambda *_args, _message=message, **_kwargs: (_ for _ in ()).throw(PublicationBoundaryChanged(_message)),
+        )
+        with pytest.raises(StoryError) as error:
+            service_module._published_turn(target, b"x")
+        assert error.value.code == expected_code
+
+    with pytest.raises(ValueError):
+        service_module._story_publication_guard(view, "invalid")
+    with pytest.raises(ValueError):
+        service_module._open_story_publication_bindings(view, "invalid")
+
+    # A real parent-binding mismatch is a publication error rather than a
+    # path-based fallback to another Story directory.
+    binding = service_module.BoundPublicationDirectory.bind(tmp_path)
+    try:
+        with pytest.raises(service_module.PublicationRuntime):
+            service_module.publish_bytes_no_replace(
+                story / "requests" / "outside.json",
+                b"x",
+                parent_binding=binding,
+            )
+    finally:
+        binding.close_safely()
+
+
+def test_prepare_competing_identical_request_and_explicit_boundaries(story_factory, monkeypatch: pytest.MonkeyPatch) -> None:
+    campaign, story, config = story_factory()
+    init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+
+    with pytest.raises(StoryError) as error:
+        prepare_story(story, campaign_dir=campaign, turn_id="turn-000001")
+    assert error.value.code == "NARRATION_REQUEST_NOT_FOUND"
+
+    _choose(campaign, "DROP")
+    expected = service_module.reconstruct_campaign(
+        load_story_view(story).manifest,
+        service_module._load_bound(load_story_view(story), campaign)[1],
+    ).action_turns[0].request.to_dict()
+
+    original_publish = service_module._publish_request
+
+    def competing_publish(path, payload, **kwargs):
+        path.write_bytes(payload)
+        raise StoryError("STORY_INTEGRITY_MISMATCH", "competing prepare won")
+
+    monkeypatch.setattr(service_module, "_publish_request", competing_publish)
+    prepared = prepare_story(story, campaign_dir=campaign)
+    assert prepared["request"] == expected
+    assert prepared["committed"] is False
+    monkeypatch.setattr(service_module, "_publish_request", original_publish)
+
+    with pytest.raises(StoryError) as error:
+        prepare_story(story, campaign_dir=campaign, turn_id="turn-000002")
+    assert error.value.code == "NARRATION_REQUEST_NOT_FOUND"
+
+
+def test_service_write_and_commit_exception_boundaries(story_factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    existing = tmp_path / "existing.json"
+    existing.write_bytes(b"x")
+    with pytest.raises(StoryError) as error:
+        service_module._write_owned_file(existing, b"new")
+    assert error.value.code == "STORY_INTEGRITY_MISMATCH"
+
+    target = tmp_path / "new.json"
+    monkeypatch.setattr(service_module, "write_fd_all", lambda *_args: (_ for _ in ()).throw(OSError("write")))
+    with pytest.raises(StoryError) as error:
+        service_module._write_owned_file(target, b"payload")
+    assert error.value.code == "STORY_INTEGRITY_MISMATCH"
+    assert target.exists()
+    target.unlink()
+    monkeypatch.undo()
+
+    campaign, story, request, _view, _snapshot, _history = _pending(story_factory)
+    monkeypatch.setattr(service_module, "reconstruct_campaign", lambda *_args: (_ for _ in ()).throw(StoryError("CAMPAIGN_INTEGRITY_MISMATCH", "replay")))
+    with pytest.raises(StoryError) as error:
+        service_module.commit_story(story, campaign_dir=campaign, response=response_for(request))
+    assert error.value.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+
+    monkeypatch.undo()
+    committed = service_module.commit_story(story, campaign_dir=campaign, response=response_for(request))
+    assert committed["result"] == "committed"
+    monkeypatch.setattr(service_module, "read_regular_file", lambda *_args: (_ for _ in ()).throw(OSError("late read")))
+    with pytest.raises(StoryError) as error:
+        service_module.commit_story(story, campaign_dir=campaign, response=response_for(request, prose="another consequence."))
+    assert error.value.code == "TURN_CONFLICT"
+
+
+def test_commit_publication_conflict_result_is_bounded(story_factory, monkeypatch: pytest.MonkeyPatch) -> None:
+    campaign, story, request, _view, _snapshot, _history = _pending(story_factory)
+    monkeypatch.setattr(service_module, "_published_turn", lambda *_args, **_kwargs: "conflict")
+    with pytest.raises(StoryError) as error:
+        service_module.commit_story(story, campaign_dir=campaign, response=response_for(request))
+    assert error.value.code == "TURN_CONFLICT"
+    assert not list((story / "turns").iterdir())
+
+
+def test_service_guard_and_binding_failure_boundaries(story_factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    campaign, story, request, view, snapshot, history = _pending(story_factory)
+
+    with monkeypatch.context() as context:
+        context.setattr(service_module, "story_directory_identity_matches", lambda *_args: False)
+        with pytest.raises(service_module.PublicationRuntime):
+            service_module._story_publication_guard(view, "requests")()
+    with monkeypatch.context() as context:
+        calls = iter([True, False])
+        context.setattr(service_module, "story_directory_identity_matches", lambda *_args: next(calls))
+        with pytest.raises(service_module.PublicationRuntime):
+            service_module._story_publication_guard(view, "requests")()
+
+    with monkeypatch.context() as context:
+        context.setattr(
+            service_module,
+            "_require_complete_snapshot_unchanged",
+            lambda *_args: (_ for _ in ()).throw(StoryError("STORY_INTEGRITY_MISMATCH", "story changed")),
+        )
+        with pytest.raises(StoryError) as error:
+            service_module._prepare_publication_guard(view, campaign, snapshot)()
+        assert error.value.code == "STORY_INTEGRITY_MISMATCH"
+
+    request_model = service_module.NarrationRequest.from_dict(request)
+    with monkeypatch.context() as context:
+        context.setattr(service_module, "read_regular_file", lambda *_args: (_ for _ in ()).throw(OSError("read")))
+        with pytest.raises(service_module.PublicationBoundaryChanged) as error:
+            service_module._pending_request_unchanged(view, request_model)
+        assert str(error.value) == "story-error:STORY_INTEGRITY_MISMATCH"
+
+    original_bind = service_module.BoundPublicationDirectory.bind
+    calls = {"count": 0}
+
+    def bind_root_then_fail(path):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return original_bind(path)
+        raise service_module.PublicationRuntime("child bind")
+
+    monkeypatch.setattr(service_module.BoundPublicationDirectory, "bind", classmethod(lambda cls, path: bind_root_then_fail(path)))
+    with pytest.raises(StoryError) as error:
+        service_module._open_story_publication_bindings(view, "requests")
+    assert error.value.code == "STORY_PUBLICATION_UNAVAILABLE"
+
+    monkeypatch.undo()
+    source = tmp_path / "source-directory"
+    source.mkdir()
+    parent_binding = service_module.BoundPublicationDirectory.bind(tmp_path)
+    try:
+        service_module._publish_directory(source, tmp_path / "published-directory", parent_binding=parent_binding)
+        assert (tmp_path / "published-directory").is_dir()
+    finally:
+        parent_binding.close_safely()
+
+    missing = tmp_path / "missing-owned"
+    with monkeypatch.context() as context:
+        context.setattr(service_module.os.path, "lexists", lambda *_args: True)
+        context.setattr(service_module.BoundPublicationDirectory, "bind", classmethod(lambda cls, *_args: (_ for _ in ()).throw(FileNotFoundError())))
+        service_module._remove_owned_temp(missing)
+
+    with monkeypatch.context() as context:
+        context.setattr(service_module, "load_story_view", lambda *_args: (_ for _ in ()).throw(StoryError("STORY_INTEGRITY_MISMATCH", "already mapped")))
+        with pytest.raises(StoryError) as error:
+            service_module._assert_story_read_only(view)
+        assert error.value.code == "STORY_INTEGRITY_MISMATCH"
+
+    # Verify the two artifact validation exits that protect against a Story
+    # request or committed turn exceeding the reconstructed Campaign history.
+    with pytest.raises(StoryError):
+        service_module._validate_existing_artifacts(
+            dataclasses.replace(view, requests=((2, view.requests[0][1], view.requests[0][2]),)),
+            history,
+        )
+    with pytest.raises(StoryError):
+        service_module._validate_existing_artifacts(
+            dataclasses.replace(view, requests=(), turns=((1, request_model, canonical_bytes(request)),)),
+            history,
+        )
+
+
+def test_service_init_and_commit_failure_mapping(story_factory, monkeypatch: pytest.MonkeyPatch) -> None:
+    campaign, story, config = story_factory(name="init-failures")
+    manifest, snapshot = service_module.verify_and_capture_campaign(campaign)
+    monkeypatch.setattr(service_module, "verify_and_capture_campaign", lambda *_args: (_ for _ in ()).throw(CampaignError("CAMPAIGN_INTEGRITY_MISMATCH", "bad")))
+    with pytest.raises(StoryError) as error:
+        init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    assert error.value.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+
+    monkeypatch.setattr(service_module, "verify_and_capture_campaign", lambda *_args: (_ for _ in ()).throw(RuntimeError("bad")))
+    with pytest.raises(StoryError) as error:
+        init_story(story_factory(name="init-failures-generic")[1], campaign_dir=story_factory(name="init-failures-generic-campaign")[0], story_id="story-002", initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    assert error.value.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+
+    monkeypatch.undo()
+    campaign, story, config = story_factory(name="capture-failure")
+    real_manifest, real_snapshot = service_module.verify_and_capture_campaign(campaign)
+    monkeypatch.setattr(service_module, "verify_and_capture_campaign", lambda *_args: (real_manifest, real_snapshot))
+    monkeypatch.setattr(service_module, "capture_campaign_snapshot", lambda *_args: (_ for _ in ()).throw(OSError("changed")))
+    with pytest.raises(StoryError) as error:
+        init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    assert error.value.code == "CAMPAIGN_SNAPSHOT_CHANGED"
+
+    monkeypatch.undo()
+    campaign, story, config = story_factory(name="generic-init-failure")
+    real_manifest, real_snapshot = service_module.verify_and_capture_campaign(campaign)
+    monkeypatch.setattr(service_module, "verify_and_capture_campaign", lambda *_args: (real_manifest, real_snapshot))
+    changed = dataclasses.replace(real_snapshot, campaign_manifest_hash="f" * 64)
+    monkeypatch.setattr(service_module, "capture_campaign_snapshot", lambda *_args: changed)
+    with pytest.raises(StoryError) as error:
+        init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    assert error.value.code == "CAMPAIGN_SNAPSHOT_CHANGED"
+
+    monkeypatch.undo()
+    campaign, story, request, _view, _snapshot, _history = _pending(story_factory)
+    monkeypatch.setattr(service_module, "reconstruct_campaign", lambda *_args: (_ for _ in ()).throw(RuntimeError("replay")))
+    with pytest.raises(StoryError) as error:
+        service_module.commit_story(story, campaign_dir=campaign, response=response_for(request))
+    assert error.value.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+
+    monkeypatch.undo()
+    bad_prefix = response_for(request)
+    bad_prefix["narration_request_id"] = "other-story:turn-000001"
+    with pytest.raises(StoryError) as error:
+        service_module.commit_story(story, campaign_dir=campaign, response=bad_prefix)
+    assert error.value.code == "NARRATION_RESPONSE_INVALID"
+
+    monkeypatch.setattr(service_module, "read_regular_file", lambda *_args: (_ for _ in ()).throw(OSError("pending read")))
+    with pytest.raises(StoryError) as error:
+        service_module.commit_story(story, campaign_dir=campaign, response=response_for(request))
+    assert error.value.code == "STORY_INTEGRITY_MISMATCH"

@@ -50,6 +50,16 @@ def _assert_no_story_temp(path: Path) -> None:
     assert not [item for item in path.rglob("*") if ".tmp" in item.name or item.name.startswith(".")]
 
 
+def _replace_or_report_blocked(path: Path, backup: Path, *, kind: str) -> bool:
+    """Return True when a Windows parent HANDLE correctly blocks replacement."""
+
+    try:
+        _replace_directory(path, backup, kind=kind)
+    except PermissionError:
+        return True
+    return False
+
+
 def test_prepare_requires_complete_snapshot_at_publication_boundary(story_factory, monkeypatch: pytest.MonkeyPatch) -> None:
     campaign, story, config = story_factory()
     init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
@@ -149,6 +159,7 @@ def test_request_directory_replacement_fails_closed_without_publication(story_fa
     _choose(campaign, "DROP")
     original_factory = service_module._story_publication_guard
     replaced = False
+    blocked = False
     backup = tmp_path / "requests-original"
 
     def replacement_guard(view, directory_name):
@@ -156,9 +167,12 @@ def test_request_directory_replacement_fails_closed_without_publication(story_fa
 
         def check():
             nonlocal replaced
+            nonlocal blocked
             if not replaced:
-                _replace_directory(story / "requests", backup, kind="directory")
+                blocked = _replace_or_report_blocked(story / "requests", backup, kind="directory")
                 replaced = True
+                if blocked:
+                    raise service_module.PublicationBoundaryChanged("parent replacement blocked")
             original_check()
 
         return check
@@ -169,7 +183,8 @@ def test_request_directory_replacement_fails_closed_without_publication(story_fa
     assert error.value.code == "STORY_PUBLICATION_UNAVAILABLE"
     assert replaced is True
     assert not list((story / "requests").iterdir())
-    assert not list(backup.iterdir())
+    if backup.exists():
+        assert not list(backup.iterdir())
     _assert_no_story_temp(story)
 
 
@@ -180,6 +195,7 @@ def test_turn_directory_replacement_fails_closed_and_keeps_pending_request(story
     request = prepare_story(story, campaign_dir=campaign)["request"]
     original_factory = service_module._story_publication_guard
     replaced = False
+    blocked = False
     backup = tmp_path / "turns-original"
 
     def replacement_guard(view, directory_name):
@@ -187,9 +203,12 @@ def test_turn_directory_replacement_fails_closed_and_keeps_pending_request(story
 
         def check():
             nonlocal replaced
+            nonlocal blocked
             if not replaced:
-                _replace_directory(story / "turns", backup, kind="directory")
+                blocked = _replace_or_report_blocked(story / "turns", backup, kind="directory")
                 replaced = True
+                if blocked:
+                    raise service_module.PublicationBoundaryChanged("parent replacement blocked")
             original_check()
 
         return check
@@ -200,7 +219,8 @@ def test_turn_directory_replacement_fails_closed_and_keeps_pending_request(story
     assert error.value.code == "STORY_PUBLICATION_UNAVAILABLE"
     assert replaced is True
     assert not list((story / "turns").iterdir())
-    assert not list(backup.iterdir())
+    if backup.exists():
+        assert not list(backup.iterdir())
     assert status_story(story, campaign_dir=campaign)["pending_turn_id"] == "turn-000001"
 
 
@@ -219,8 +239,10 @@ def test_request_directory_type_replacement_fails_closed(story_factory, tmp_path
         def check():
             nonlocal replaced
             if not replaced:
-                _replace_directory(story / "requests", backup, kind=kind)
+                blocked = _replace_or_report_blocked(story / "requests", backup, kind=kind)
                 replaced = True
+                if blocked:
+                    raise service_module.PublicationBoundaryChanged("parent replacement blocked")
             original_check()
 
         return check
@@ -230,6 +252,312 @@ def test_request_directory_type_replacement_fails_closed(story_factory, tmp_path
         prepare_story(story, campaign_dir=campaign)
     assert error.value.code == "STORY_PUBLICATION_UNAVAILABLE"
     assert replaced is True
+
+
+def _assert_publication_tree_clean(path: Path, artifact_name: str) -> None:
+    if path.is_symlink() or not path.exists():
+        return
+    if path.is_dir():
+        assert not (path / artifact_name).exists()
+        assert not [item for item in path.iterdir() if ".tmp" in item.name or item.name.startswith(".")]
+
+
+@pytest.mark.parametrize("checkpoint", [1, 2, 3])
+@pytest.mark.parametrize("kind", ["directory", "file", "symlink", "junction"])
+def test_prepare_request_parent_is_anchored_at_every_checkpoint(
+    story_factory,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    checkpoint: int,
+    kind: str,
+) -> None:
+    campaign, story, config = story_factory(name=f"prepare-anchor-{checkpoint}-{kind}")
+    init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    _choose(campaign, "DROP")
+    original_factory = service_module._story_publication_guard
+    state = {"calls": 0, "attempted": False, "blocked": False}
+    backup = tmp_path / f"requests-anchor-{checkpoint}-{kind}-original"
+
+    def replacement_guard(view, directory_name):
+        original_check = original_factory(view, directory_name)
+
+        def check():
+            state["calls"] += 1
+            if state["calls"] == checkpoint:
+                state["attempted"] = True
+                try:
+                    _replace_directory(story / "requests", backup, kind=kind)
+                except PermissionError:
+                    state["blocked"] = True
+                    raise service_module.PublicationBoundaryChanged("parent replacement blocked")
+            original_check()
+
+        return check
+
+    monkeypatch.setattr(service_module, "_story_publication_guard", replacement_guard)
+    with pytest.raises(StoryError) as error:
+        prepare_story(story, campaign_dir=campaign)
+    assert error.value.code == "STORY_PUBLICATION_UNAVAILABLE"
+    assert state["attempted"] is True
+    assert state["calls"] >= checkpoint
+    _assert_publication_tree_clean(story / "requests", "turn-000001.json")
+    _assert_publication_tree_clean(backup, "turn-000001.json")
+    assert not (story / "turns" / "turn-000001.json").exists()
+
+
+@pytest.mark.parametrize("checkpoint", [1, 2, 3])
+def test_commit_turn_parent_is_anchored_at_every_checkpoint(
+    story_factory,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    checkpoint: int,
+) -> None:
+    campaign, story, config = story_factory(name=f"commit-anchor-{checkpoint}")
+    init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    _choose(campaign, "DROP")
+    request = prepare_story(story, campaign_dir=campaign)["request"]
+    original_factory = service_module._story_publication_guard
+    state = {"calls": 0, "attempted": False, "blocked": False}
+    backup = tmp_path / f"turns-anchor-{checkpoint}-original"
+
+    def replacement_guard(view, directory_name):
+        original_check = original_factory(view, directory_name)
+
+        def check():
+            state["calls"] += 1
+            if state["calls"] == checkpoint:
+                state["attempted"] = True
+                try:
+                    _replace_directory(story / "turns", backup, kind="directory")
+                except PermissionError:
+                    state["blocked"] = True
+                    raise service_module.PublicationBoundaryChanged("parent replacement blocked")
+            original_check()
+
+        return check
+
+    monkeypatch.setattr(service_module, "_story_publication_guard", replacement_guard)
+    with pytest.raises(StoryError) as error:
+        commit_story(story, campaign_dir=campaign, response=response_for(request))
+    assert error.value.code == "STORY_PUBLICATION_UNAVAILABLE"
+    assert state["attempted"] is True
+    assert state["calls"] >= checkpoint
+    assert (story / "requests" / "turn-000001.json").exists()
+    _assert_publication_tree_clean(story / "turns", "turn-000001.json")
+    _assert_publication_tree_clean(backup, "turn-000001.json")
+
+
+def test_init_story_parent_binding_fails_closed_at_final_atomic_window(
+    story_factory,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign, _unused_story, config = story_factory(name="init-parent-anchor")
+    story_parent = tmp_path / "story-parent"
+    story_parent.mkdir()
+    story = story_parent / "story"
+    backup = tmp_path / "story-parent-original"
+    original_publish = service_module._publish_directory
+    attempted = False
+
+    def replace_before_atomic():
+        nonlocal attempted
+        attempted = True
+        try:
+            story_parent.rename(backup)
+            story_parent.mkdir()
+        except PermissionError:
+            raise service_module.PublicationBoundaryChanged("parent replacement blocked")
+
+    def publish_with_race(source, target, **kwargs):
+        kwargs["before_atomic"] = replace_before_atomic
+        return original_publish(source, target, **kwargs)
+
+    monkeypatch.setattr(service_module, "_publish_directory", publish_with_race)
+    with pytest.raises(StoryError) as error:
+        init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    assert error.value.code == "STORY_PUBLICATION_UNAVAILABLE"
+    assert attempted is True
+    assert not story.exists()
+    _assert_publication_tree_clean(story_parent, "story")
+    _assert_publication_tree_clean(backup, "story")
+
+
+@pytest.mark.parametrize("operation", ["prepare", "commit"])
+def test_final_check_to_atomic_parent_replacement_never_publishes(
+    story_factory,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+) -> None:
+    campaign, story, config = story_factory(name=f"final-parent-race-{operation}")
+    init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    _choose(campaign, "DROP")
+    request = None
+    if operation == "prepare":
+        original_publish = service_module._publish_request
+        directory_name = "requests"
+    else:
+        request = prepare_story(story, campaign_dir=campaign)["request"]
+        original_publish = service_module._published_turn
+        directory_name = "turns"
+    backup = tmp_path / f"{directory_name}-final-original"
+    attempted = False
+
+    def replace_before_atomic():
+        nonlocal attempted
+        attempted = True
+        try:
+            _replace_directory(story / directory_name, backup, kind="directory")
+        except PermissionError:
+            raise service_module.PublicationBoundaryChanged("parent replacement blocked")
+
+    if operation == "prepare":
+        def publish_with_race(path, payload, **kwargs):
+            kwargs["before_atomic"] = replace_before_atomic
+            return original_publish(path, payload, **kwargs)
+
+        monkeypatch.setattr(service_module, "_publish_request", publish_with_race)
+        call = lambda: prepare_story(story, campaign_dir=campaign)
+    else:
+        def publish_with_race(path, payload, **kwargs):
+            kwargs["before_atomic"] = replace_before_atomic
+            return original_publish(path, payload, **kwargs)
+
+        monkeypatch.setattr(service_module, "_published_turn", publish_with_race)
+        call = lambda: commit_story(story, campaign_dir=campaign, response=response_for(request))
+
+    with pytest.raises(StoryError) as error:
+        call()
+    assert error.value.code == "STORY_PUBLICATION_UNAVAILABLE"
+    assert attempted is True
+    assert not (story / directory_name / f"turn-000001.json").exists()
+    _assert_publication_tree_clean(story / directory_name, "turn-000001.json")
+    _assert_publication_tree_clean(backup, "turn-000001.json")
+    if operation == "commit":
+        assert (story / "requests" / "turn-000001.json").exists()
+
+
+def _tamper_historical_event(campaign: Path) -> None:
+    database = campaign / "session" / "campaign.sqlite3"
+    connection = sqlite3.connect(database)
+    try:
+        row = connection.execute("SELECT campaign_id FROM events ORDER BY event_seq LIMIT 1").fetchone()
+        assert row is not None
+        connection.execute(
+            "UPDATE events SET payload_json = ? WHERE campaign_id = ? AND event_seq = 1",
+            (json.dumps({"publication_race": True}, separators=(",", ":")), row[0]),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+@pytest.mark.parametrize("guard_call", [3, 4])
+def test_commit_revalidates_historical_prefix_after_temp_and_before_atomic(
+    story_factory,
+    monkeypatch: pytest.MonkeyPatch,
+    guard_call: int,
+) -> None:
+    campaign, story, config = story_factory(name=f"commit-prefix-race-{guard_call}")
+    init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    _choose(campaign, "DROP")
+    request = prepare_story(story, campaign_dir=campaign)["request"]
+    original = service_module._commit_prefix_check
+    calls = 0
+
+    def check_with_race(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == guard_call:
+            _tamper_historical_event(campaign)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(service_module, "_commit_prefix_check", check_with_race)
+    with pytest.raises(StoryError) as error:
+        commit_story(story, campaign_dir=campaign, response=response_for(request))
+    assert error.value.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    assert not (story / "turns" / "turn-000001.json").exists()
+    _assert_no_story_temp(story)
+
+
+def test_commit_allows_later_campaign_append_after_last_guard(story_factory, monkeypatch: pytest.MonkeyPatch) -> None:
+    campaign, story, config = story_factory(name="commit-later-append-race")
+    init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    _choose(campaign, "DROP")
+    request = prepare_story(story, campaign_dir=campaign)["request"]
+    original = service_module._published_turn
+    appended = False
+
+    def append_before_atomic(path, payload, **kwargs):
+        nonlocal appended
+
+        def append():
+            nonlocal appended
+            if not appended:
+                _choose(campaign, "EXTRACT")
+                appended = True
+
+        kwargs["before_atomic"] = append
+        return original(path, payload, **kwargs)
+
+    monkeypatch.setattr(service_module, "_published_turn", append_before_atomic)
+    result = commit_story(story, campaign_dir=campaign, response=response_for(request))
+    assert result["ok"] is True
+    assert appended is True
+    assert (story / "turns" / "turn-000001.json").exists()
+
+
+@pytest.mark.parametrize("guard_call", [3, 4])
+def test_commit_revalidates_pending_request_after_temp_and_before_atomic(
+    story_factory,
+    monkeypatch: pytest.MonkeyPatch,
+    guard_call: int,
+) -> None:
+    campaign, story, config = story_factory(name=f"commit-request-race-{guard_call}")
+    init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    _choose(campaign, "DROP")
+    request = prepare_story(story, campaign_dir=campaign)["request"]
+    original = service_module._commit_prefix_check
+    calls = 0
+
+    def check_with_request_replacement(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == guard_call:
+            changed = dict(request)
+            changed["choice_id"] = "tampered-choice"
+            (story / "requests" / "turn-000001.json").write_bytes(service_module.canonical_bytes(changed))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(service_module, "_commit_prefix_check", check_with_request_replacement)
+    with pytest.raises(StoryError) as error:
+        commit_story(story, campaign_dir=campaign, response=response_for(request))
+    assert error.value.code == "STORY_INTEGRITY_MISMATCH"
+    assert not (story / "turns" / "turn-000001.json").exists()
+
+
+def test_commit_revalidates_pending_request_after_final_hook(story_factory, monkeypatch: pytest.MonkeyPatch) -> None:
+    campaign, story, config = story_factory(name="commit-request-final-hook")
+    init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    _choose(campaign, "DROP")
+    request = prepare_story(story, campaign_dir=campaign)["request"]
+    original = service_module._published_turn
+
+    def replace_request():
+        changed = dict(request)
+        changed["choice_id"] = "tampered-choice"
+        (story / "requests" / "turn-000001.json").write_bytes(service_module.canonical_bytes(changed))
+
+    def publish_with_race(path, payload, **kwargs):
+        kwargs["before_atomic"] = replace_request
+        return original(path, payload, **kwargs)
+
+    monkeypatch.setattr(service_module, "_published_turn", publish_with_race)
+    with pytest.raises(StoryError) as error:
+        commit_story(story, campaign_dir=campaign, response=response_for(request))
+    assert error.value.code == "STORY_INTEGRITY_MISMATCH"
+    assert not (story / "turns" / "turn-000001.json").exists()
 
 
 def test_campaign_backed_story_path_and_terminal_max_decisions(story_factory, monkeypatch: pytest.MonkeyPatch) -> None:
