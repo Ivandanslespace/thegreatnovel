@@ -13,6 +13,7 @@ import os
 import shutil
 import tempfile
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +48,17 @@ _STATE_FIELDS = frozenset(
     {"schema_version", "event_seq", "decision_seq", "game_minute", "seed", "data"}
 )
 _STATE_INT_FIELDS = ("schema_version", "event_seq", "decision_seq", "game_minute")
+_RECORDED_EVENT_FIELDS = (
+    "event_seq",
+    "decision_seq",
+    "game_minute",
+    "event_type",
+    "actor_id",
+    "action_id",
+    "causation_id",
+    "correlation_id",
+    "payload",
+)
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -234,6 +246,128 @@ def _require_integrity(condition: bool, message: str) -> None:
         raise _integrity(message)
 
 
+def _verify_recorded_raw_response(record: RecordedDecision) -> None:
+    if record.outcome == "ACTION":
+        expected = canonical_json({"choice_id": record.choice_id})
+    else:
+        expected = canonical_json({"stop": True})
+    _require_integrity(
+        record.raw_response == expected,
+        "RecordedDecision raw_response is not the canonical Phase 9A response",
+    )
+
+
+def _verify_persisted_event_metadata(event_record: dict[str, Any]) -> None:
+    event_id = event_record.get("event_id")
+    _require_integrity(
+        isinstance(event_id, str) and bool(event_id),
+        "persisted event_id must be a non-empty string",
+    )
+    created_at = event_record.get("created_at")
+    _require_integrity(
+        isinstance(created_at, str) and bool(created_at),
+        "persisted event created_at must be a non-empty string",
+    )
+    try:
+        datetime.fromisoformat(created_at)
+    except (TypeError, ValueError) as exc:
+        raise _integrity("persisted event created_at is not a valid ISO timestamp", cause=exc) from exc
+
+
+def _verify_recorded_transition_trace(
+    manifest: SessionManifest,
+    records: tuple[RecordedDecision, ...],
+    initial_state: GameState,
+    current_state: GameState,
+    event_records: list[dict[str, Any]],
+) -> None:
+    """Bind each external ACTION decision to its persisted deterministic event."""
+
+    recorded_policy = RecordedDecisionPolicy(records)
+    replay_state = copy.deepcopy(initial_state)
+    event_index = 0
+
+    for record in records:
+        _verify_recorded_raw_response(record)
+        policy_intent = recorded_policy(
+            build_observation(replay_state),
+            record.decision_number,
+            manifest.actor_id,
+        )
+        if record.outcome == "STOP":
+            _require_integrity(policy_intent is None, "STOP record produced an action intent")
+            _require_integrity(
+                event_index == len(event_records),
+                "STOP record does not follow all persisted ACTION events",
+            )
+            continue
+
+        _require_integrity(policy_intent is not None, "ACTION record did not produce an action intent")
+        expected_action_id = (
+            f"{manifest.actor_id}-external-{manifest.session_id}-"
+            f"{record.decision_number}"
+        )
+        expected_intent = ActionIntent(
+            action_id=expected_action_id,
+            actor_id=manifest.actor_id,
+            action_type=policy_intent.action_type,
+            params=copy.deepcopy(policy_intent.params),
+        )
+        state_before_hash = state_hash(replay_state.__dict__)
+        try:
+            execution = execute_action(replay_state, expected_intent)
+        except Exception as exc:
+            raise _integrity("recorded ACTION could not be regenerated", cause=exc) from exc
+        _require_integrity(
+            execution.accepted
+            and len(execution.events) == 1
+            and execution.final_state is not None,
+            "regenerated RecordedDecision ACTION was rejected",
+        )
+        _require_integrity(
+            event_index < len(event_records),
+            "persisted EventStore is missing a RecordedDecision ACTION event",
+        )
+        persisted_event = event_records[event_index]
+        event_index += 1
+        _verify_persisted_event_metadata(persisted_event)
+        expected_event = execution.events[0].to_dict()
+        _require_integrity(
+            persisted_event.get("actor_id") == manifest.actor_id,
+            "persisted event actor_id differs from session actor",
+        )
+        _require_integrity(
+            persisted_event.get("action_id") == expected_action_id,
+            "persisted event action_id differs from external action identity",
+        )
+        for field_name in _RECORDED_EVENT_FIELDS:
+            _require_integrity(
+                persisted_event.get(field_name) == expected_event[field_name],
+                f"persisted event {field_name} differs from regenerated ACTION",
+            )
+        _require_integrity(
+            persisted_event.get("state_hash_before") == state_before_hash,
+            "persisted event state_hash_before differs from regenerated state",
+        )
+        state_after = execution.final_state
+        state_after_hash = state_hash(state_after.__dict__)
+        _require_integrity(
+            persisted_event.get("state_hash_after") == state_after_hash,
+            "persisted event state_hash_after differs from regenerated state",
+        )
+        replay_state = state_after
+
+    recorded_policy.assert_consumed()
+    _require_integrity(
+        event_index == len(event_records),
+        "persisted EventStore contains an unbound event",
+    )
+    _require_integrity(
+        state_hash(replay_state.__dict__) == state_hash(current_state.__dict__),
+        "regenerated RecordedDecision transition trace hash mismatch",
+    )
+
+
 def _load_context(session_dir: str | Path) -> _SessionContext:
     paths = _SessionPaths(Path(session_dir))
     if not paths.root.is_dir():
@@ -337,8 +471,8 @@ def _load_context(session_dir: str | Path) -> _SessionContext:
         )
     else:
         _require_integrity(
-            manifest.accepted_decisions <= manifest.max_decisions,
-            "accepted decisions exceed configured limit",
+            manifest.accepted_decisions < manifest.max_decisions,
+            "non-MAX session status requires decisions below configured limit",
         )
 
     try:
@@ -351,6 +485,19 @@ def _load_context(session_dir: str | Path) -> _SessionContext:
         event_replay.actual_hash == state_hash(current_state.__dict__),
         "domain event replay hash mismatch",
     )
+
+    try:
+        _verify_recorded_transition_trace(
+            manifest,
+            records,
+            initial_state,
+            current_state,
+            event_records,
+        )
+    except (RecordedDecisionMismatch, Exception) as exc:
+        if isinstance(exc, SessionError):
+            raise
+        raise _integrity("RecordedDecision transition trace failed", cause=exc) from exc
 
     try:
         recorded_policy = RecordedDecisionPolicy(records)

@@ -32,6 +32,24 @@ def _tamper_json(path, mutate):
     path.write_text(canonical_json(payload), encoding="utf-8")
 
 
+def _tamper_event_column(session_dir, column: str, value) -> None:
+    assert column in {
+        "actor_id",
+        "action_id",
+        "causation_id",
+        "correlation_id",
+        "payload_json",
+    }
+    connection = sqlite3.connect(session_dir / "campaign.sqlite3")
+    try:
+        connection.execute(
+            f"UPDATE events SET {column} = ? WHERE event_seq = 1", (value,)
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
 def test_start_rejects_invalid_initial_without_formal_session_directory(tmp_path):
     initial = tmp_path / "invalid.json"
     initial.write_text(canonical_json({"schema_version": 1}), encoding="utf-8")
@@ -500,6 +518,75 @@ def test_recorded_choice_tampering_fails_recorded_replay(session_factory):
     assert exc_info.value.code == "SESSION_INTEGRITY_MISMATCH"
 
 
+@pytest.mark.parametrize(
+    ("column", "value"),
+    [
+        ("actor_id", "forged-actor"),
+        ("action_id", "forged-action"),
+        ("causation_id", "forged-causation"),
+        ("correlation_id", "forged-correlation"),
+    ],
+)
+def test_persisted_event_provenance_tampering_fails_transition_trace(
+    session_factory, column, value
+):
+    session_dir, _ = session_factory(name=f"tampered-{column}")
+    _action(session_dir, "DROP")
+    _tamper_event_column(session_dir, column, value)
+    with pytest.raises(SessionError) as exc_info:
+        SessionService(session_dir).verify()
+    assert exc_info.value.code == "SESSION_INTEGRITY_MISMATCH"
+
+
+def test_persisted_event_payload_extra_field_fails_transition_trace(session_factory):
+    session_dir, _ = session_factory(name="tampered-payload")
+    _action(session_dir, "DROP")
+    connection = sqlite3.connect(session_dir / "campaign.sqlite3")
+    try:
+        payload_json = connection.execute(
+            "SELECT payload_json FROM events WHERE event_seq = 1"
+        ).fetchone()[0]
+        payload = json.loads(payload_json)
+        payload["forged_reward"] = 99
+        connection.execute(
+            "UPDATE events SET payload_json = ? WHERE event_seq = 1",
+            (json.dumps(payload, ensure_ascii=False),),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    with pytest.raises(SessionError) as exc_info:
+        SessionService(session_dir).verify()
+    assert exc_info.value.code == "SESSION_INTEGRITY_MISMATCH"
+
+
+@pytest.mark.parametrize("outcome", ["ACTION", "STOP"])
+def test_phase9a_raw_response_must_be_exact_canonical_edge_response(
+    session_factory, outcome
+):
+    session_dir, _ = session_factory(name=f"tampered-raw-{outcome.lower()}")
+    request = SessionService(session_dir).next()["request"]
+    if outcome == "ACTION":
+        choice = choice_for(request, "DROP")
+        SessionService(session_dir).choose(
+            request_fingerprint=request["request_fingerprint"],
+            choice_id=choice["choice_id"],
+        )
+        tampered_response = '{ "choice_id": "choice-000" }'
+    else:
+        SessionService(session_dir).stop(
+            request_fingerprint=request["request_fingerprint"]
+        )
+        tampered_response = '{"stop":true,"ignored":false}'
+    _tamper_json(
+        session_dir / "recorded_decisions.json",
+        lambda p: p["decisions"][0].__setitem__("raw_response", tampered_response),
+    )
+    with pytest.raises(SessionError) as exc_info:
+        SessionService(session_dir).verify()
+    assert exc_info.value.code == "SESSION_INTEGRITY_MISMATCH"
+
+
 def test_sqlite_snapshot_tampering_fails_persistence_integrity(session_factory):
     session_dir, _ = session_factory()
     _action(session_dir, "DROP")
@@ -528,6 +615,69 @@ def test_max_decisions_is_action_only_and_does_not_invent_stop(session_factory):
         SessionService(session_dir).choose(request_fingerprint="", choice_id="choice-000")
     assert exc_info.value.code == "SESSION_TERMINAL"
     assert SessionService(session_dir).verify()["verification"]["event_count"] == 2
+
+
+def test_stopped_at_max_decisions_is_an_impossible_lifecycle_state(session_factory):
+    session_dir, _ = session_factory(name="stopped-at-max", max_decisions=1)
+    _action(session_dir, "DROP")
+    _tamper_json(
+        session_dir / "recorded_decisions.json",
+        lambda p: p["decisions"].append(
+            {
+                "decision_number": 2,
+                "request_fingerprint": "0" * 64,
+                "outcome": "STOP",
+                "choice_id": None,
+                "action_type": None,
+                "params": {},
+                "raw_response": canonical_json({"stop": True}),
+            }
+        ),
+    )
+    _tamper_json(
+        session_dir / "session.json",
+        lambda p: (
+            p.__setitem__("status", "STOPPED"),
+            p.__setitem__("stop_reason", "EXPLICIT_STOP"),
+            p.__setitem__("recorded_decision_count", 2),
+        ),
+    )
+    with pytest.raises(SessionError) as exc_info:
+        SessionService(session_dir).verify()
+    assert exc_info.value.code == "SESSION_INTEGRITY_MISMATCH"
+
+
+def test_no_legal_actions_at_max_decisions_is_an_impossible_lifecycle_state(tmp_path):
+    state = execute(make_phase75_state(), "DROP", "drop-for-no-legal-max")
+    state.data["expedition"]["encounter"] = {
+        "active": True,
+        "enemy_id": "fatal-signal",
+        "enemy_hp": 10,
+        "enemy_max_hp": 10,
+        "enemy_attack": 100,
+    }
+    initial = tmp_path / "fatal-max-initial.json"
+    initial.write_text(canonical_json(state.__dict__), encoding="utf-8")
+    session_dir = tmp_path / "no-legal-at-max"
+    SessionService.start(
+        session_dir,
+        session_id="no-legal-at-max",
+        actor_id="player",
+        max_decisions=1,
+        initial_state_path=initial,
+    )
+    _action(session_dir, "FIGHT")
+    assert SessionService(session_dir).status()["session"]["status"] == "MAX_DECISIONS"
+    _tamper_json(
+        session_dir / "session.json",
+        lambda p: (
+            p.__setitem__("status", "NO_LEGAL_ACTIONS"),
+            p.__setitem__("stop_reason", "NO_LEGAL_ACTIONS"),
+        ),
+    )
+    with pytest.raises(SessionError) as exc_info:
+        SessionService(session_dir).verify()
+    assert exc_info.value.code == "SESSION_INTEGRITY_MISMATCH"
 
 
 def test_close_reopen_resume_matches_same_policy_path(session_factory):
