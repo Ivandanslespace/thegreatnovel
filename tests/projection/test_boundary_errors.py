@@ -155,6 +155,15 @@ def test_dual_invalid_source_wins_before_draft_or_projection_errors(source_bundl
         bundle_module.verify_projection_bundle(invalid_source, tmp_path / "missing-projection")
     assert verify_error.value.code == "SOURCE_BUNDLE_INVALID"
 
+    corrupt_projection = tmp_path / "corrupt-projection"
+    compile_projection_bundle(source_bundle, valid_projection_draft, corrupt_projection)
+    corrupt_map = json.loads((corrupt_projection / "player_projection.json").read_text(encoding="utf-8"))
+    corrupt_map["world"]["title"] = "corrupt projection"
+    _rewrite(corrupt_projection / "player_projection.json", corrupt_map)
+    with pytest.raises(WorldGenError) as corrupt_error:
+        bundle_module.verify_projection_bundle(invalid_source, corrupt_projection)
+    assert corrupt_error.value.code == "SOURCE_BUNDLE_INVALID"
+
     with pytest.raises(WorldGenError) as preview_error:
         preview_projection(invalid_source, tmp_path / "missing-projection")
     assert preview_error.value.code == "SOURCE_BUNDLE_INVALID"
