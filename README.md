@@ -12,19 +12,29 @@ A **deterministic, event-sourced, replayable game simulation core** designed to 
 
 **Phase 9A — frozen at `phase-9a-frozen`**
 
-**Phase 9B1 — implementation candidate**
+**Phase 9B1 — frozen at `phase-9b1-frozen`**
+
+**Phase 9B2A — implementation candidate**
+
+**Phase 9B2B — not started**
 
 This branch contains the first WorldPack's local Phase 7 permanent build-choice
 slice and the frozen Phase 7.5 named actor, relationship, and knowledge slice.
 slice. Phase 9A is frozen at `phase-9a-frozen` and covers only the minimal
 external-client session protocol using a supplied canonical initial GameState.
-Phase 9B1 is the bounded World Draft compilation candidate: it validates strict
+Phase 9B1 is the frozen bounded World Draft compilation slice at
+`phase-9b1-frozen`: it validates strict
 JSON, binds one reviewed mechanics profile to a deterministic Compiled WorldPack,
 materializes an initial GameState, runs a scripted bootstrap smoke test, and
 publishes a verified compiled bundle. It does not create formal Campaigns,
 SQLite sessions, or narration. The Phase 7 build effects remain the explicit
 `window_runner`, `field_rest`, and `quick_rest` candidates only; none of these
-phases introduces a general framework.
+phases introduces a general framework. Phase 9B2A is the current Player-Visible
+Projection Map implementation candidate: it adds a supplemental display-label
+draft, a detached deterministic presentation sidecar, a separate presentation
+hash, and a verified four-file projection bundle without changing the canonical
+Engine request or creating a Campaign, Session, SQLite database, or Narration
+layer. Phase 9B2B has not started.
 
 ## Legacy Implementation
 
@@ -47,7 +57,8 @@ The previous implementation is preserved for reference:
 Phases 1–6 establish the deterministic core, action validation, replay and
 the first gameplay slices. Phase 7 is frozen at `phase-7-frozen`; Phase 7.5 is
 frozen at `phase-7.5-frozen`; Phase 8 is frozen at `phase-8-frozen`; Phase 9A is
-frozen at `phase-9a-frozen`; Phase 9B1 is the current implementation candidate.
+frozen at `phase-9a-frozen`; Phase 9B1 is frozen at `phase-9b1-frozen`; Phase
+9B2A is the current implementation candidate; Phase 9B2B has not started.
 
 ## Getting Started
 

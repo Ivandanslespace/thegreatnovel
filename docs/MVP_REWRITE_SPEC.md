@@ -4,7 +4,7 @@
 > 目标：从当前"大而全、持续修 Bug"的架构退回一个可验证、可重放、可自动测试的最小核心，然后通过确定性验证与 scripted autoplay 一层一层增加功能（LLM autoplay 在 LLM Player 层建立后引入）。  
 > 原始 Legacy 审查基线：2026-07-31 `main`，最初审查时约为 `4141e905...`。  
 > 当前开发线：`mvp-rewrite`。  
-> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9A frozen；Phase 9B1 implementation candidate。
+> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9A frozen；Phase 9B1 frozen；Phase 9B2A implementation candidate；Phase 9B2B not started。
 > 参考作品：用户上传的《全民纜車求生，我一級一個三選一》。
 
 > **V2 修订说明 (2026-07-31)：** 本文档经过增量架构修订。第一 WorldPack 仍可以是缆车求生 Demo，但它的 Base / Expedition / Day-Night / Three-choice 属于第一批 vertical slice 局部实现，不是整个 Engine 的宇宙规则。V2 新增反主题/结构性硬编码原则、反过度抽象原则、Knowledge boundary、Habitat 可选抽象、ProgressionTrack/Gate、Feature Module 责任边界、Compatibility Pressure Test，并更新 Phase 5+ 路线图。原有工程架构内容（EventStore、Replay、Test Pyramid、Autoplay、ExploitAgent 等）完整保留。
@@ -2940,7 +2940,9 @@ Phase 7 — frozen (`phase-7-frozen`): Permanent Build Choice / Build Acquisitio
 Phase 7.5 — frozen (`phase-7.5-frozen`): Named Actor + Relationship + Knowledge Vertical Slice
 Phase 8 — frozen (`phase-8-frozen`): Provider-neutral LLM Player + RecordedDecision Replay
 Phase 9A — frozen (`phase-9a-frozen`): External Client Session Protocol
-Phase 9B1 — implementation candidate: Bounded World Draft Compilation
+Phase 9B1 — frozen (`phase-9b1-frozen`): Bounded World Draft Compilation
+Phase 9B2A — implementation candidate: Player-Visible Projection Map
+Phase 9B2B — not started
 ```
 
 The implementation deliberately split the original "Phase 2 — Minimal Action Engine" into smaller, independently verifiable stages.
@@ -3936,6 +3938,164 @@ creation, nested Phase 9A Session integration, narration, locale switching, LLM 
 provider APIs, HTTP/MCP, YAML authoring, dynamic feature selection, arbitrary rule
 generation, universal schemas, repair agents, and generated Python remain outside
 this slice and belong to later contracts.
+
+##### Phase 9B2A — Player-Visible Projection Map
+
+**Status:** implementation candidate; Phase 9B1 remains frozen at
+`phase-9b1-frozen`, and Phase 9B2B has not started.
+
+**Accepted source baseline:** `a4c79a47dfac88c3f9b39aa8ca50cc6255d48902`.
+
+**Product question:** Can a verified Phase 9B1 compiled bundle plus a strict
+supplemental Projection Draft produce a deterministic, detached player-facing
+presentation without changing the canonical Engine request or exposing hidden
+world state?
+
+The bounded slice is:
+
+```text
+verified Phase 9B1 compiled bundle
+→ strict supplemental Projection Draft
+→ deterministic Player Projection Map
+→ canonical identity-to-display-label bindings
+→ detached player presentation
+→ separate projection and presentation hashes
+→ atomic projection-bundle publication and verification
+```
+
+Phase 9B2A keeps two contracts separate:
+
+```text
+Canonical Engine Request
+    build_observation() → build_llm_decision_request()
+
+Player Presentation
+    detached request + public projection map → presentation
+```
+
+The canonical request remains authoritative. Its `request_fingerprint`, choice
+IDs, action types, params, duration, stamina cost, GameState, DomainEvent,
+RecordedDecision, replay behavior, and legal choices must not depend on display
+labels. A projection map is a non-authoritative sidecar: it may explain public
+canonical IDs, but it may not read GameState, EventStore, World Truth, Named Actor
+private knowledge, or a reducer, and it may not change an action or its legality.
+
+The supplemental Projection Draft does not modify the Phase 9B1 World Draft
+schema. Its exact top-level fields are:
+
+```text
+schema_version
+source_worldpack_hash
+labels
+```
+
+`labels` contains only these display fields:
+
+```text
+secondary_resource
+phase_day
+phase_night
+player_track
+base_track
+site_condition_subject
+site_condition_unstable
+site_condition_safe
+actor_report_goal
+actor_reported_goal
+build_window_runner
+build_field_rest
+build_quick_rest
+```
+
+Projection Draft labels are trimmed, bounded text with strict UTF-8, no NUL,
+invalid controls, or surrogate code points. `source_worldpack_hash` is a
+lowercase SHA-256 value. The draft may not provide canonical IDs, Action or Event
+types, choice IDs, state fields, rules, costs, rewards, build effects, legal
+conditions, relationship outcomes, fact values, runtime bindings, or locale/theme
+branches. It supplies labels only.
+
+The projection compiler must first call `verify_bundle()` on the Phase 9B1 source
+bundle. It then verifies that the draft source hash matches the verified WorldPack
+hash and binds the current explicit `phase75_expedition_v1` profile. The compiled
+Player Projection Map covers all current player-visible identities:
+
+```text
+locations: base-1, site-1
+resources: salvage, parts
+actor: mara
+actor goals: inspect_signal, report_finding, reported
+fact: site-1-condition with unstable and safe values
+progression tracks: player, base
+builds: window_runner, field_rest, quick_rest
+world phases: DAY, NIGHT
+```
+
+These bindings are an explicit local profile contract, not a future dynamic
+registry. The projection artifact contains world display content, identity maps,
+public actor fields, public facts already present in the request, progression
+labels, build display names, phase labels, and display parameters for choices. It
+does not contain hidden facts or private actor knowledge. An unmapped identity
+must fail closed with `UNMAPPED_PLAYER_IDENTITY` and a machine-readable path; it
+must never fall back to displaying a canonical ID or invent a label.
+
+The pure presentation builder has the conceptual contract:
+
+```python
+build_player_presentation(
+    request: LLMDecisionRequest,
+    projection: PlayerProjectionMap,
+) -> PlayerPresentation
+```
+
+Both inputs are detached public models. The builder maps locations, sorted
+inventory and carried loot, phases, progression tracks and costs, public actor
+fields, already-public facts, build display names, and choice display parameters.
+It copies authoritative build effect summaries, limitations, permanence,
+opportunity cost, and selection rules; the Projection Draft cannot create or
+replace those gameplay rules. The output preserves the original
+`request_fingerprint` and calculates a separate `presentation_hash` from the
+canonical presentation JSON. A separate `projection_hash` is calculated from the
+canonical Player Projection Map, which does not contain its own hash.
+
+Changing only labels may change the projection, presentation, `projection_hash`,
+and `presentation_hash`. It must not change the canonical initial state hash,
+legal choices, choice IDs, canonical params, request fingerprint,
+RecordedDecision-compatible request, DomainEvent, or replay result. Repeating the
+same verified bundle, draft, and request must reproduce every map and hash.
+
+The projection bundle contains exactly four files:
+
+```text
+projection_manifest.json
+projection_draft.json
+player_projection.json
+projection_report.json
+```
+
+The manifest binds the source WorldPack hash, source initial-state hash, draft
+hash, projection hash, and report hash. The report contains only deterministic
+fields, including mapped identity count, zero unmapped identities, the initial
+request fingerprint, and initial presentation hash. Publication uses a temporary
+sibling, temporary verification, an exclusive `.publish.lock`, target recheck,
+and atomic rename. Existing targets or locks return `PROJECTION_ALREADY_EXISTS`
+without deleting pre-existing content. Verification rechecks the Phase 9B1
+source bundle, source hashes, projection recompilation, map equality, initial
+canonical request, initial presentation, report, and all hashes. The Phase 9B1
+six-file source bundle is never modified.
+
+The Phase 9B2A CLI exposes only `validate`, `compile`, `verify`, and `preview`.
+`validate` creates no files; `preview` creates no Session, executes no action, and
+modifies no files. There is no formal Campaign, `campaign.sqlite3`, Phase 9A
+Session integration, 50-decision gate, Narration, `novel.md`, narration locale,
+translation service, RTL UI, LLM API, Provider SDK, HTTP, MCP, daemon, or general
+localization framework in this slice. Phase 9B2B is not started.
+
+Knowledge Boundary remains authoritative: labels for all allowed fact values may
+exist in the projection map, but the presentation may map a fact value only when
+that value is already present in the canonical public request. TALK before the
+fact is public must not reveal it; private actor knowledge, private goals,
+`last_autonomous_action`, hidden loot, and World Truth never enter the
+presentation.
 
 #### Phase 9C — External Client Narration, Resume and Novel Export
 
