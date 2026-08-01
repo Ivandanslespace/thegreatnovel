@@ -14,11 +14,13 @@ A **deterministic, event-sourced, replayable game simulation core** designed to 
 
 **Phase 9B1 — frozen at `phase-9b1-frozen`**
 
-**Phase 9B2A — frozen (`phase-9b2a-frozen`)**
+**Phase 9B2A — frozen at `phase-9b2a-frozen`**
 
 Frozen implementation SHA: `60ebf493ba90114c4f03048558e316ac07118ee2`
 
-**Phase 9B2B — implementation candidate / not frozen**
+**Phase 9B2B — frozen at `phase-9b2b-frozen`**
+
+Frozen implementation SHA: `218a246add4481088872487e80ac83ad1099171b`
 
 **Phase 9C — not started**
 
@@ -38,8 +40,14 @@ Projection Map at `phase-9b2a-frozen`: it adds a supplemental display-label
 draft, a detached deterministic presentation sidecar, a separate presentation
 hash, and a verified four-file projection bundle without changing the canonical
 Engine request or creating a Campaign, Session, SQLite database, or Narration
-layer. Phase 9B2B is an implementation candidate and has not been frozen.
-Phase 9C has not started.
+layer. Phase 9B2B is frozen at `phase-9b2b-frozen` and covers Atomic Campaign
+Bootstrap and Projected Session Integration. A Campaign uses copied and locked
+WorldPack, Projection, and Phase 9A Session artifacts. Phase 9B2B does not
+include Narration, novel export, an LLM provider, translation, or any Phase 9C
+functionality. Its frozen implementation SHA is
+`218a246add4481088872487e80ac83ad1099171b`. Frozen implementation must not be
+modified directly; any fix requires an explicit reopen or superseding-phase
+process. Phase 9C has not started.
 
 ## Legacy Implementation
 
@@ -63,8 +71,9 @@ Phases 1–6 establish the deterministic core, action validation, replay and
 the first gameplay slices. Phase 7 is frozen at `phase-7-frozen`; Phase 7.5 is
 frozen at `phase-7.5-frozen`; Phase 8 is frozen at `phase-8-frozen`; Phase 9A is
 frozen at `phase-9a-frozen`; Phase 9B1 is frozen at `phase-9b1-frozen`; Phase
-9B2A is frozen at `phase-9b2a-frozen`; Phase 9B2B is an implementation
-candidate and has not been frozen. Phase 9C has not started.
+9B2A is frozen at `phase-9b2a-frozen`; Phase 9B2B is frozen at
+`phase-9b2b-frozen` with implementation SHA
+`218a246add4481088872487e80ac83ad1099171b`. Phase 9C has not started.
 
 ## Getting Started
 
