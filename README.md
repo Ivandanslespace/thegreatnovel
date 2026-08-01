@@ -8,14 +8,18 @@ A **deterministic, event-sourced, replayable game simulation core** designed to 
 
 **Phase 7.5 — frozen at `phase-7.5-frozen`**
 
-**Phase 8 — implementation candidate / awaiting external review**
+**Phase 8 — frozen at `phase-8-frozen`**
+
+**Phase 9A — implementation candidate**
 
 This branch contains the first WorldPack's local Phase 7 permanent build-choice
 slice and the frozen Phase 7.5 named actor, relationship, and knowledge slice.
-Phase 8 currently covers only the provider-neutral LLM Player and
-RecordedDecision Replay candidate. The Phase 7 build effects remain the
-explicit `window_runner`, `field_rest`, and `quick_rest` candidates only; none
-of these phases introduces a general framework.
+Phase 8 covers the frozen provider-neutral LLM Player and RecordedDecision Replay
+slice. Phase 9A currently covers only the minimal external-client session protocol
+candidate using a supplied canonical initial GameState; it does not yet generate
+WorldPacks or produce narration. The Phase 7 build effects remain the explicit
+`window_runner`, `field_rest`, and `quick_rest` candidates only; none of these
+phases introduces a general framework.
 
 ## Legacy Implementation
 
@@ -37,8 +41,8 @@ The previous implementation is preserved for reference:
 
 Phases 1–6 establish the deterministic core, action validation, replay and
 the first gameplay slices. Phase 7 is frozen at `phase-7-frozen`; Phase 7.5 is
-frozen at `phase-7.5-frozen`; Phase 8 is the current implementation candidate
-and awaits external review.
+frozen at `phase-7.5-frozen`; Phase 8 is frozen at `phase-8-frozen`; Phase 9A
+is the current implementation candidate.
 
 ## Getting Started
 

@@ -3763,6 +3763,44 @@ ActionIntent；client 不能指定 `actor_id`、`action_id`、`action_type`、pa
 daemon。CLI、文件 artifact 或 stdin/stdout 都可以成为 transport，但具体 transport
 要由 Phase 9A Feature Contract 决定。必须支持断点恢复。
 
+##### Phase 9A first vertical slice contract
+
+本次只证明一个由调用方提供合法初始状态的本地 session：
+
+```text
+supplied canonical initial GameState
+→ one local session directory
+→ one SQLite EventStore
+→ one external-client request at a time
+→ choice_id or explicit STOP
+→ deterministic Engine execution
+→ persistent session boundary
+→ close process
+→ reopen and continue from the same authoritative state
+```
+
+第一 slice 使用调用方提供的 canonical initial GameState；Phase 9B 才负责从
+Compiled WorldPack 产生 initial state。它实现 one-shot CLI command、Observation
+与 legal choices、`choice_id` / `STOP`、RecordedDecision audit、Event Replay、
+RecordedDecision Replay 和 session integrity verification。
+
+它明确不实现：
+
+```text
+World Genesis Request / World Draft / WorldPack compiler / WorldPack validator
+atomic generated Campaign publication
+narration brief / structured narration claims / novel.md
+locale switching / Arabic / LLM API / Provider SDK
+HTTP / MCP / web UI / background daemon / automatic repair
+multi-model matrix
+```
+
+本阶段的 resume 保证是 command-boundary resume：一个 CLI 命令已经成功完成并返回
+后，外部 client 或进程可以完全退出；下一次命令重新打开 session，从同一 SQLite
+权威状态继续。它不承诺 SQLite commit 与边缘 artifact 写入之间的 crash recovery、
+多个 writer 并发或分布式事务。发现 artifact 与 SQLite 不一致时必须 fail closed，
+不得猜测或自动修复。
+
 #### Phase 9B — Generated WorldPack Compilation and Atomic Campaign Creation
 
 **Product question:** Can an external client generate a new themed world without having
