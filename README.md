@@ -22,7 +22,7 @@ Frozen implementation SHA: `60ebf493ba90114c4f03048558e316ac07118ee2`
 
 Frozen implementation SHA: `218a246add4481088872487e80ac83ad1099171b`
 
-**Phase 9C — implementation candidate: Phase 9C1 implemented; Phase 9C2 not started**
+**Phase 9C — implementation candidate: Phase 9C1 complete but not frozen; Phase 9C2 not started**
 
 Phase 9C 的合同范围是 Persistent External Narration, Resume and Novel Export：
 使用与 Campaign 分离的 immutable Story sidecar 保存 deterministic Narration Request、
@@ -35,12 +35,17 @@ Campaign-bound Story persistence、deterministic Narration Request、pending/res
 structured claims、committed turn artifacts、status、verify 和 local CLI；Phase 9C
 尚未冻结。
 
-Phase 9C1 external-review correction commit：`86ae3480c94006b844d4ec69d6af243a08af7d50`。
-本次修复严格 prepare snapshot、Story directory identity publication binding，以及
-Campaign-backed TALK_TO_ACTOR / terminal / interruption-resume proof；Phase 9C1
-仍是 implementation candidate，未冻结。当前验证：Story `87 passed`、Story coverage
-`95%`；全仓 `1482 passed, 2 skipped`，Campaign `96%`、Projection `100%`、全仓
-`97%`。
+Phase 9C1 publication correction commit：`d7fcab80a4419272f5f38cce4803248f7454c103`。
+本次修复将 Story root、requests/ 和 turns/ 的 publication parent 锚定到已验证的
+POSIX directory fd 或 Windows directory HANDLE，拥有临时 artifact 并在 atomic
+commit 前重新验证 Story/Campaign 边界；Phase 9C1 仍是 implementation candidate，
+未冻结。当前验证：Story `129 passed`、Story coverage `95%`；Campaign `173 passed,
+2 skipped`、Campaign coverage `98%`；Projection `112 passed`、Projection coverage
+`100%`；全仓 `1524 passed, 2 skipped`、全仓 coverage `97%`。
+两个 skipped 是 Windows 上
+`tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和
+`tests/campaign/test_no_follow.py::test_copy_fifo_source_is_rejected_on_posix`，原因是
+当前平台无法创建 POSIX FIFO；不是 Phase 9C1 测试失败。
 
 This branch contains the first WorldPack's local Phase 7 permanent build-choice
 slice and the frozen Phase 7.5 named actor, relationship, and knowledge slice.
