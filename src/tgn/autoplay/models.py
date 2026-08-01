@@ -96,9 +96,18 @@ class AutoplayRunResult:
     frames: tuple[WatchFrame, ...]
     
     final_state: Any  # GameState
-    
+
     rejection: RejectedActionRecord | None = None
-    
+
+    # Phase 7.5 scripted integrity telemetry. Defaults preserve older callers.
+    illegal_actions: int = 0
+    knowledge_boundary_violations: int = 0
+    actor_autonomous_actions: int = 0
+    knowledge_transfers: int = 0
+    relationship_changes: int = 0
+    replay_verified: bool = False
+    sqlite_reopen_verified: bool = False
+
     def summary(self) -> dict[str, Any]:
         """Structured run summary."""
         result = {
@@ -106,6 +115,13 @@ class AutoplayRunResult:
             "stop_reason": self.stop_reason,
             "decisions": self.decisions,
             "events": self.events,
+            "illegal_actions": self.illegal_actions,
+            "knowledge_boundary_violations": self.knowledge_boundary_violations,
+            "actor_autonomous_actions": self.actor_autonomous_actions,
+            "knowledge_transfers": self.knowledge_transfers,
+            "relationship_changes": self.relationship_changes,
+            "replay_verified": self.replay_verified,
+            "sqlite_reopen_verified": self.sqlite_reopen_verified,
             "start_game_minute": self.frames[0].game_minute_before if self.frames else 0,
             "end_game_minute": self.frames[-1].game_minute_after if self.frames else 0,
             "final_state_hash": self.final_state_hash,

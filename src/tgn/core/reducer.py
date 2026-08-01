@@ -60,6 +60,8 @@ def reduce_event(state: GameState, event: DomainEvent) -> GameState:
     if event.game_minute < new_state.game_minute:
         raise ReducerError(f"Game minute retrogression: {event.game_minute} < {new_state.game_minute}")
     
+    previous_game_minute = new_state.game_minute
+
     # Only TIME_ADVANCED is valid in Phase 1
     if event.event_type == "TIME_ADVANCED":
         _apply_time_advanced(new_state, event)
@@ -94,10 +96,29 @@ def reduce_event(state: GameState, event: DomainEvent) -> GameState:
     # Phase 7 build event
     elif event.event_type == "BUILD_SELECTED":
         _apply_build_selected(new_state, event)
+
+    # Optional feature event; the feature module owns its local validation.
+    elif event.event_type == "ACTOR_CONVERSATION_RESOLVED":
+        from ..gameplay.named_actor import apply_actor_conversation_resolved
+
+        try:
+            apply_actor_conversation_resolved(new_state, event)
+        except Exception as exc:
+            raise ReducerError(f"Actor conversation rejected: {exc}") from exc
     
     else:
         raise ReducerError(f"Unknown event type '{event.event_type}'.")
     
+    # A time-advancing player event may cause one deterministic off-screen
+    # consequence.  It does not emit a second event or change the clock.
+    # Phase 7.5 treats the autonomous actor step as a deterministic
+    # consequence of the triggering time-advancing event. Separate actor
+    # events and atomic multi-event decisions remain deferred.
+    if new_state.game_minute > previous_game_minute:
+        from ..gameplay.named_actor import apply_named_actor_autonomous_consequence
+
+        apply_named_actor_autonomous_consequence(new_state)
+
     # Update sequence number
     new_state.event_seq = event.event_seq
     

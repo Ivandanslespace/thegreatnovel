@@ -70,6 +70,16 @@ def check_invariants(state: "GameState") -> None:
     if has_build_choice or has_build:
         _check_build_invariants(state, has_build_choice, has_build)
 
+    # Phase 7.5 optional named-actor feature invariants.  The feature module
+    # owns its local WorldPack contract; Core only invokes the boundary check.
+    if any(key in state.data for key in ("named_actor", "world_facts", "player_knowledge")):
+        from ..gameplay.named_actor import validate_named_actor_state
+
+        try:
+            validate_named_actor_state(state)
+        except Exception as exc:
+            raise InvariantError(f"Named actor feature invariant: {exc}") from exc
+
 
 def _check_expedition_invariants(state: "GameState") -> None:
     """Verify Phase 3 expedition-specific invariants."""

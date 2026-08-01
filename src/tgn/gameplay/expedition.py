@@ -22,6 +22,14 @@ from .build_choice import (
     get_player_visible_build_choices,
     BUILD_CHOICE_TIME,
 )
+from .named_actor import (
+    ACTOR_CONVERSATION_RESOLVED,
+    MARA_ACTOR_ID,
+    MARA_FACT_ID,
+    TALK_TO_ACTOR,
+    TALK_TO_ACTOR_TIME,
+    can_talk_to_actor,
+)
 
 
 # Fixed costs per spec
@@ -172,6 +180,17 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
                     duration_minutes=DROP_COST["time"],
                     stamina_cost=DROP_COST["stamina"]
                 ))
+
+    # Phase 7.5: the only local named-actor interaction is canonicalized here.
+    # It is intentionally added before the phase filter and is suppressed by
+    # the active-encounter early return above.
+    if can_talk_to_actor(state, MARA_ACTOR_ID):
+        legal.append(LegalAction(
+            action_type=TALK_TO_ACTOR,
+            duration_minutes=TALK_TO_ACTOR_TIME,
+            stamina_cost=0,
+            params={"actor_id": MARA_ACTOR_ID},
+        ))
     
     # Phase 5: filter actions blocked by current world phase (opportunity layer only)
     # Phase 6: base stage >= 1 overrides the DROP phase-window block
@@ -202,7 +221,8 @@ def validate_action(
     
     # Check action type is supported
     if intent.action_type not in ["WAIT", "DROP", "SEARCH", "EXTRACT", "FIGHT", "FLEE",
-                                   "UPGRADE_PLAYER", "UPGRADE_BASE", "REST", "CHOOSE_BUILD"]:
+                                   "UPGRADE_PLAYER", "UPGRADE_BASE", "REST", "CHOOSE_BUILD",
+                                   TALK_TO_ACTOR]:
         errors.append(ActionValidationError(
             code="UNKNOWN_ACTION",
             message=f"Unknown action type: {intent.action_type}",
@@ -213,24 +233,24 @@ def validate_action(
     # ALL actions derive state legality from get_legal_actions (single source)
     legal_actions = get_legal_actions(state)
     
-    # For CHOOSE_BUILD: match action_type AND params exactly
-    if intent.action_type == "CHOOSE_BUILD":
+    # Parameterized actions match action_type AND params exactly.
+    if intent.action_type in ("CHOOSE_BUILD", TALK_TO_ACTOR):
         matched_la = None
         for la in legal_actions:
-            if la.action_type == "CHOOSE_BUILD" and la.params == intent.params:
+            if la.action_type == intent.action_type and la.params == intent.params:
                 matched_la = la
                 break
         if matched_la is None:
             errors.append(ActionValidationError(
                 code="ACTION_NOT_LEGAL_IN_STATE",
-                message=f"CHOOSE_BUILD with params {intent.params} not legal in current state",
+                message=f"{intent.action_type} with params {intent.params} not legal in current state",
             ))
             return ActionValidationResult(valid=False, action=None, errors=tuple(errors))
         # Use engine-authoritative params (detached copy)
         validated = ValidatedAction(
             action_id=intent.action_id,
             actor_id=intent.actor_id,
-            action_type="CHOOSE_BUILD",
+            action_type=intent.action_type,
             params=dict(matched_la.params),
             duration_minutes=matched_la.duration_minutes,
             stamina_cost=matched_la.stamina_cost,
@@ -328,7 +348,8 @@ def execute_action(
     
     # Handle Phase 3/4/6/7 actions directly
     if intent.action_type in ["DROP", "SEARCH", "EXTRACT", "FIGHT", "FLEE",
-                               "UPGRADE_PLAYER", "UPGRADE_BASE", "REST", "CHOOSE_BUILD"]:
+                               "UPGRADE_PLAYER", "UPGRADE_BASE", "REST", "CHOOSE_BUILD",
+                               TALK_TO_ACTOR]:
         return _execute_phase3_action(state, intent)
     
     # WAIT: validate via canonical source, then produce TIME_ADVANCED
@@ -583,6 +604,24 @@ def _execute_phase3_action(
                 "time": BUILD_CHOICE_TIME,
             },
         )
+
+    elif intent.action_type == TALK_TO_ACTOR:
+        actor = state.data["named_actor"]
+        event = DomainEvent(
+            event_seq=state.event_seq + 1,
+            event_type=ACTOR_CONVERSATION_RESOLVED,
+            game_minute=state.game_minute + TALK_TO_ACTOR_TIME,
+            decision_seq=state.decision_seq + 1,
+            action_id=validated.action_id,
+            actor_id=validated.actor_id,
+            payload={
+                "actor_id": validated.params["actor_id"],
+                "time": TALK_TO_ACTOR_TIME,
+                "trust_before": actor["relationship"]["trust"],
+                "trust_after": actor["relationship"]["trust"] + 1,
+                "shared_fact_ids": [MARA_FACT_ID],
+            },
+        )
     
     # Apply via reducer
     from ..core.reducer import reduce_event
@@ -675,6 +714,12 @@ def build_observation(state: GameState) -> dict[str, Any]:
                 "next_cost": cost,
             }
         observation["progression"] = {"tracks": prog_tracks}
+
+    # Phase 7.5: this is a detached player projection, never raw actor state.
+    from .named_actor import build_actor_observation, named_actor_feature_enabled
+
+    if named_actor_feature_enabled(state):
+        observation["actor"] = build_actor_observation(state)
     
     # Phase 7: build visible only when build feature enabled
     if build_choice_enabled(state):

@@ -4,13 +4,14 @@ A **deterministic, event-sourced, replayable game simulation core** designed to 
 
 ## Current Status
 
-**Phase 7 implementation candidate — awaiting external review**
+**Phase 7 — frozen at `phase-7-frozen`**
+
+**Phase 7.5 — implementation candidate / awaiting external review**
 
 This branch contains the first WorldPack's local Phase 7 permanent build-choice
-slice. It supports the explicit `window_runner`, `field_rest`, and `quick_rest`
-candidate effects only; it is not a general build-effect framework.
-
-This candidate remains under external review; Phase 7.5 has not started.
+slice and the Phase 7.5 named actor, relationship, and knowledge slice. The
+Phase 7 build effects remain the explicit `window_runner`, `field_rest`, and
+`quick_rest` candidates only; neither phase introduces a general framework.
 
 ## Legacy Implementation
 
@@ -31,8 +32,8 @@ The previous implementation is preserved for reference:
 ## Development Phases
 
 Phases 1–6 establish the deterministic core, action validation, replay and
-the first gameplay slices. The current branch is the Phase 7 implementation
-candidate described above and is awaiting external review.
+the first gameplay slices. Phase 7 is frozen at `phase-7-frozen`; Phase 7.5 is
+the current implementation candidate and awaits external review.
 
 ## Getting Started
 
