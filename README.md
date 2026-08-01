@@ -35,13 +35,15 @@ Campaign-bound Story persistence、deterministic Narration Request、pending/res
 structured claims、committed turn artifacts、status、verify 和 local CLI；Phase 9C
 尚未冻结。
 
-Phase 9C1 publication correction commit：`d7fcab80a4419272f5f38cce4803248f7454c103`。
+Phase 9C1 publication source-identity correction commit：`739a656fc8e7b50a12484049bb0f4598aa0cb1b2`。
 本次修复将 Story root、requests/ 和 turns/ 的 publication parent 锚定到已验证的
-POSIX directory fd 或 Windows directory HANDLE，拥有临时 artifact 并在 atomic
-commit 前重新验证 Story/Campaign 边界；Phase 9C1 仍是 implementation candidate，
-未冻结。当前验证：Story `129 passed`、Story coverage `95%`；Campaign `173 passed,
-2 skipped`、Campaign coverage `98%`；Projection `112 passed`、Projection coverage
-`100%`；全仓 `1524 passed, 2 skipped`、全仓 coverage `97%`。
+POSIX directory fd 或 Windows directory HANDLE；临时 artifact 的 retained
+descriptor/HANDLE、当前 source-name identity 和发布 target identity 必须一致，
+pending request 也通过已锚定的 requests/ binding 重新验证；Phase 9C1 仍是
+implementation candidate，未冻结。当前验证：Story `145 passed`、Story coverage
+`96%`；Campaign `173 passed, 2 skipped`、Campaign coverage `98%`；Projection
+`112 passed`、Projection coverage `100%`；全仓 `1540 passed, 2 skipped`、全仓
+coverage `97%`。
 两个 skipped 是 Windows 上
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和
 `tests/campaign/test_no_follow.py::test_copy_fifo_source_is_rejected_on_posix`，原因是

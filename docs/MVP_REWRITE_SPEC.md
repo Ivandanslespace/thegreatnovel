@@ -5052,15 +5052,17 @@ authorize Phase 9C work.
 
 **Status:** Phase 9C1 implementation candidate (not frozen); Phase 9C2 not started
 
-**Phase 9C1 publication correction commit:** `d7fcab80a4419272f5f38cce4803248f7454c103`
+**Phase 9C1 publication source-identity correction commit:** `739a656fc8e7b50a12484049bb0f4598aa0cb1b2`
 
 本次 correction 将 Story root、`requests/` 和 `turns/` 的 publication parent 锚定到
 已验证的 POSIX directory fd 或 Windows directory HANDLE，跟踪 owned temporary，
-并在 atomic commit 前重新验证 Story identity、pending request 和 Campaign-bound
-historical prefix；原子 move 成功后的 descriptor close 不会反转已发布结果。当前验证
-结果：Story `129 passed`、Story coverage `95%`；Campaign `173 passed, 2 skipped`、
+并要求 retained descriptor/HANDLE identity、当前 source-name identity、published
+target identity 与原始 temporary identity 一致；pending request 通过已锚定的
+requests/ binding 比较 file identity、canonical bytes、size、hash 和 schema。原子
+move 成功后的 descriptor/HANDLE close 不会反转已发布结果。当前验证结果：Story
+`145 passed`、Story coverage `96%`；Campaign `173 passed, 2 skipped`、
 Campaign coverage `98%`；Projection `112 passed`、Projection coverage `100%`；全仓
-`1524 passed, 2 skipped`、全仓 coverage `97%`。两个 skipped 是 Windows 上冻结的
+`1540 passed, 2 skipped`、全仓 coverage `97%`。两个 skipped 是 Windows 上冻结的
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和
 `tests/campaign/test_no_follow.py::test_copy_fifo_source_is_rejected_on_posix`，原因是
 当前平台无法创建 POSIX FIFO；不是 Phase 9C1 测试失败。
@@ -6386,7 +6388,7 @@ guard 是 Phase 9C 的新边界，不能假装现有 regex guard 已经满足。
 Phase 9B2A — frozen at phase-9b2a-frozen
 Phase 9B2B — frozen at phase-9b2b-frozen
 Phase 9C1 — implementation candidate (not frozen)
-Phase 9C1 publication correction — d7fcab80a4419272f5f38cce4803248f7454c103
+Phase 9C1 publication source-identity correction — 739a656fc8e7b50a12484049bb0f4598aa0cb1b2
 Phase 9C2 — not started
 Phase 9D  — deferred
 ~~~
