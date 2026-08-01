@@ -564,6 +564,46 @@ def validate_documents(
     return normalized_request, normalized_draft, ()
 
 
+def load_and_validate_documents(
+    request_path: str,
+    draft_path: str,
+) -> tuple[WorldGenesisRequest, WorldDraft]:
+    """Load and validate both documents with combined source provenance."""
+
+    values: dict[str, Any] = {}
+    loaded: dict[str, bool] = {}
+    issues: list[ValidationIssue] = []
+    for source, path in (("request", request_path), ("draft", draft_path)):
+        try:
+            values[source] = load_document(path)
+            loaded[source] = True
+        except WorldGenError as exc:
+            values[source] = None
+            loaded[source] = False
+            issues.extend(prefix_validation_issues(exc.issues, f"/{source}"))
+
+    normalized_request: WorldGenesisRequest | None = None
+    normalized_draft: WorldDraft | None = None
+    if loaded.get("request"):
+        normalized_request, request_issues = validate_request(values["request"])
+        issues.extend(prefix_validation_issues(request_issues, "/request"))
+    if loaded.get("draft"):
+        normalized_draft, draft_issues = validate_draft(values["draft"])
+        issues.extend(prefix_validation_issues(draft_issues, "/draft"))
+
+    ordered = sort_validation_issues(issues)
+    if ordered:
+        parse_codes = {"INVALID_JSON", "NON_CANONICAL_JSON_VALUE"}
+        code = ordered[0].code if all(issue.code in parse_codes for issue in ordered) else "INVALID_SCHEMA"
+        raise WorldGenError(
+            code,
+            "input validation failed",
+            issues=ordered,
+        )
+    assert normalized_request is not None and normalized_draft is not None
+    return normalized_request, normalized_draft
+
+
 def load_document(path: str) -> Any:
     """Read one strict UTF-8 JSON document at the worldgen boundary."""
 

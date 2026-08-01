@@ -225,6 +225,107 @@ def test_compile_and_verify_cli_round_trip(tmp_path, input_files):
     assert payload["verification"]["valid"] is True
 
 
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "world_request.json",
+        "world_draft.json",
+        "bundle.json",
+        "initial_state.json",
+        "compiled_worldpack.json",
+        "compile_report.json",
+    ],
+)
+def test_verify_cli_rejects_escaped_surrogate_artifact_without_traceback(
+    tmp_path, input_files, filename
+):
+    request_path, draft_path = input_files
+    output = tmp_path / "compiled" / "surrogate"
+    compiled = _run(
+        "compile",
+        "--request",
+        str(request_path),
+        "--draft",
+        str(draft_path),
+        "--seed",
+        "cli-seed",
+        "--output-dir",
+        str(output),
+    )
+    assert compiled.returncode == 0
+
+    (output / filename).write_text(
+        '{"schema_version":1,"prompt":"\\ud800"}',
+        encoding="utf-8",
+    )
+    verified = _run("verify", "--bundle-dir", str(output))
+
+    assert verified.returncode != 0
+    assert "Traceback" not in verified.stdout
+    assert "Traceback" not in verified.stderr
+    verified.stdout.encode("utf-8")
+    payload = json.loads(verified.stdout)
+    assert payload["error"]["code"] == "BUNDLE_INTEGRITY_MISMATCH"
+
+
+def test_compile_cli_returns_both_prefixed_parse_issues(tmp_path, input_files):
+    request_path, draft_path = input_files
+    request_path.write_text("{not json", encoding="utf-8")
+    draft_path.write_text("[not json", encoding="utf-8")
+    output = tmp_path / "compiled" / "invalid-inputs"
+
+    result = _run(
+        "compile",
+        "--request",
+        str(request_path),
+        "--draft",
+        str(draft_path),
+        "--seed",
+        "seed",
+        "--output-dir",
+        str(output),
+    )
+
+    assert result.returncode == 2
+    assert result.stderr == ""
+    payload = json.loads(result.stdout)
+    assert [(item["code"], item["path"]) for item in payload["errors"]] == [
+        ("INVALID_JSON", "/draft"),
+        ("INVALID_JSON", "/request"),
+    ]
+    assert not output.parent.exists()
+
+
+def test_compile_cli_returns_both_prefixed_schema_issues(
+    tmp_path, sample_request, sample_draft
+):
+    sample_request["schema_version"] = 2
+    del sample_draft["labels"]["target"]
+    request_path = write_json(tmp_path / "request.json", sample_request)
+    draft_path = write_json(tmp_path / "draft.json", sample_draft)
+    output = tmp_path / "compiled" / "schema-errors"
+
+    result = _run(
+        "compile",
+        "--request",
+        str(request_path),
+        "--draft",
+        str(draft_path),
+        "--seed",
+        "seed",
+        "--output-dir",
+        str(output),
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert [(item["code"], item["path"]) for item in payload["errors"]] == [
+        ("MISSING_FIELD", "/draft/labels/target"),
+        ("UNSUPPORTED_SCHEMA_VERSION", "/request/schema_version"),
+    ]
+    assert not output.parent.exists()
+
+
 def test_compile_cli_rejects_existing_target(tmp_path, input_files):
     request_path, draft_path = input_files
     output = tmp_path / "compiled" / "existing"
@@ -408,3 +509,24 @@ def test_direct_main_reports_unexpected_verify_failure(capsys, monkeypatch, tmp_
     payload = json.loads(capsys.readouterr().out)
     assert payload["error"]["code"] == "BUNDLE_INTEGRITY_MISMATCH"
     assert payload["errors"] == []
+
+
+def test_direct_main_uses_safe_message_for_unexpected_surrogate_failure(
+    capsys, monkeypatch, tmp_path
+):
+    def fail_verify(*args, **kwargs):
+        raise RuntimeError(chr(0xD800))
+
+    monkeypatch.setattr(cli_module, "verify_bundle", fail_verify)
+    assert main(["verify", "--bundle-dir", str(tmp_path / "bundle")]) == 2
+    output = capsys.readouterr().out
+    output.encode("utf-8")
+    payload = json.loads(output)
+    assert payload == {
+        "error": {
+            "code": "BUNDLE_INTEGRITY_MISMATCH",
+            "message": "unexpected worldgen boundary failure",
+        },
+        "errors": [],
+        "ok": False,
+    }

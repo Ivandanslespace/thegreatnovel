@@ -97,6 +97,82 @@ def test_verify_rejects_non_strict_or_noncanonical_artifacts(bundle_dir, filenam
     assert error.value.code == "BUNDLE_INTEGRITY_MISMATCH"
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        '{"value":NaN}',
+        '{"value":Infinity}',
+        '{"value":-Infinity}',
+        '{"value":1,"value":2}',
+    ],
+)
+def test_verify_rejects_noncanonical_numeric_and_duplicate_artifacts(
+    bundle_dir, payload
+):
+    (bundle_dir / "bundle.json").write_text(payload, encoding="utf-8")
+
+    with pytest.raises(WorldGenError) as error:
+        verify_bundle(bundle_dir)
+
+    assert error.value.code == "BUNDLE_INTEGRITY_MISMATCH"
+    canonical_json(error.value.error_dict()).encode("utf-8")
+    canonical_json(error.value.issues_dict()).encode("utf-8")
+
+
+def test_verify_rejects_invalid_utf8_artifact_with_safe_error(bundle_dir):
+    (bundle_dir / "bundle.json").write_bytes(b"\xff")
+
+    with pytest.raises(WorldGenError) as error:
+        verify_bundle(bundle_dir)
+
+    assert error.value.code == "BUNDLE_INTEGRITY_MISMATCH"
+    canonical_json(error.value.error_dict()).encode("utf-8")
+    canonical_json(error.value.issues_dict()).encode("utf-8")
+
+
+def test_verify_converts_canonical_serialization_failure(
+    bundle_dir, monkeypatch
+):
+    def fail_serialization(_value):
+        raise TypeError("forced canonical serialization failure")
+
+    monkeypatch.setattr(bundle_module, "_canonical_utf8_json", fail_serialization)
+
+    with pytest.raises(WorldGenError) as error:
+        verify_bundle(bundle_dir)
+
+    assert error.value.code == "BUNDLE_INTEGRITY_MISMATCH"
+    canonical_json(error.value.error_dict()).encode("utf-8")
+    canonical_json(error.value.issues_dict()).encode("utf-8")
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "world_request.json",
+        "world_draft.json",
+        "bundle.json",
+        "initial_state.json",
+        "compiled_worldpack.json",
+        "compile_report.json",
+    ],
+)
+def test_verify_rejects_escaped_surrogate_artifacts_with_safe_errors(
+    bundle_dir, filename
+):
+    (bundle_dir / filename).write_text(
+        '{"schema_version":1,"prompt":"\\ud800"}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(WorldGenError) as error:
+        verify_bundle(bundle_dir)
+
+    assert error.value.code == "BUNDLE_INTEGRITY_MISMATCH"
+    canonical_json(error.value.error_dict()).encode("utf-8")
+    canonical_json(error.value.issues_dict()).encode("utf-8")
+
+
 def test_verify_reports_unreadable_bundle_directory(bundle_dir, monkeypatch):
     def fail_iterdir(_path):
         raise OSError("forced directory read failure")
@@ -225,6 +301,55 @@ def test_existing_output_directory_is_never_overwritten(tmp_path, input_files):
         compile_bundle(request_path, draft_path, "seed", output)
     assert error.value.code == "BUNDLE_ALREADY_EXISTS"
     assert marker.read_text(encoding="utf-8") == "keep"
+
+
+def test_bundle_publication_error_issue_is_canonicalizable():
+    error = bundle_module._already_exists_error(
+        f"invalid-{chr(0xD800)}",
+        chr(0xDFFF),
+    )
+
+    canonical_json(error.error_dict()).encode("utf-8")
+    canonical_json(error.issues_dict()).encode("utf-8")
+
+
+def test_compile_bundle_returns_both_prefixed_parse_issues(tmp_path, input_files):
+    request_path, draft_path = input_files
+    request_path.write_text("{not json", encoding="utf-8")
+    draft_path.write_text("[not json", encoding="utf-8")
+    output = tmp_path / "compiled" / "invalid-inputs"
+
+    with pytest.raises(WorldGenError) as error:
+        compile_bundle(request_path, draft_path, "seed", output)
+
+    assert error.value.code == "INVALID_JSON"
+    assert [(issue.code, issue.path) for issue in error.value.issues] == [
+        ("INVALID_JSON", "/draft"),
+        ("INVALID_JSON", "/request"),
+    ]
+    assert not output.parent.exists()
+
+
+def test_compile_bundle_returns_both_prefixed_schema_issues(tmp_path, input_files):
+    request_path, draft_path = input_files
+    request_path.write_text(
+        canonical_json({"schema_version": 2, "prompt": "prompt"}),
+        encoding="utf-8",
+    )
+    draft = json.loads(draft_path.read_text(encoding="utf-8"))
+    del draft["labels"]["target"]
+    draft_path.write_text(canonical_json(draft), encoding="utf-8")
+    output = tmp_path / "compiled" / "schema-errors"
+
+    with pytest.raises(WorldGenError) as error:
+        compile_bundle(request_path, draft_path, "seed", output)
+
+    assert error.value.code == "INVALID_SCHEMA"
+    assert [(issue.code, issue.path) for issue in error.value.issues] == [
+        ("MISSING_FIELD", "/draft/labels/target"),
+        ("UNSUPPORTED_SCHEMA_VERSION", "/request/schema_version"),
+    ]
+    assert not output.parent.exists()
 
 
 def test_competing_target_is_preserved_before_locked_recheck(
@@ -396,3 +521,14 @@ def test_missing_bundle_directory_is_machine_readable(tmp_path):
     with pytest.raises(WorldGenError) as error:
         verify_bundle(tmp_path / "missing")
     assert error.value.code == "BUNDLE_NOT_FOUND"
+
+
+def test_bundle_path_diagnostic_with_surrogate_is_canonicalizable(tmp_path):
+    missing = tmp_path / f"missing-{chr(0xD800)}"
+
+    with pytest.raises(WorldGenError) as error:
+        verify_bundle(missing)
+
+    assert error.value.code == "BUNDLE_NOT_FOUND"
+    canonical_json(error.value.error_dict()).encode("utf-8")
+    canonical_json(error.value.issues_dict()).encode("utf-8")

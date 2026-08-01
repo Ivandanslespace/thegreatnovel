@@ -9,11 +9,11 @@ from typing import Any
 from ..core.hashing import canonical_json
 from .bundle import compile_bundle, verify_bundle
 from .compiler import (
+    _assert_canonical_utf8,
+    _safe_issue_value,
+    _safe_issue_text,
     compile_world,
-    load_document,
-    prefix_validation_issues,
-    sort_validation_issues,
-    validate_documents,
+    load_and_validate_documents,
 )
 from .models import WorldGenError
 
@@ -39,55 +39,43 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _failure(error: WorldGenError) -> dict[str, Any]:
-    return {
+    payload = {
         "ok": False,
-        "error": error.error_dict(),
-        "errors": error.issues_dict(),
+        "error": {
+            "code": _safe_issue_text(error.code),
+            "message": _safe_issue_text(error.message),
+        },
+        "errors": [
+            {
+                "code": _safe_issue_text(issue.code),
+                "path": _safe_issue_text(issue.path),
+                "message": _safe_issue_text(issue.message),
+                "expected": _safe_issue_value(issue.expected),
+                "actual": _safe_issue_value(issue.actual),
+                "allowed_values": _safe_issue_value(issue.allowed_values),
+            }
+            for issue in error.issues
+        ],
     }
-
-
-def _load_validation_inputs(
-    request_path: Path, draft_path: Path
-) -> tuple[Any, Any, list[Any]]:
-    values: list[Any] = []
-    issues: list[Any] = []
-    for source, path in (("request", request_path), ("draft", draft_path)):
-        try:
-            values.append(load_document(str(path)))
-        except WorldGenError as exc:
-            values.append(None)
-            issues.extend(prefix_validation_issues(exc.issues, f"/{source}"))
-    return values[0], values[1], list(sort_validation_issues(issues))
+    _assert_canonical_utf8(payload)
+    return payload
 
 
 def _validate_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
-    request_value, draft_value, parse_issues = _load_validation_inputs(
-        args.request, args.draft
-    )
-    if parse_issues:
-        return {
-            "ok": False,
-            "valid": False,
-            "errors": [issue.to_dict() for issue in parse_issues],
-            "error": {"code": parse_issues[0].code, "message": "input validation failed"},
-        }, 2
-    request, draft, issues = validate_documents(request_value, draft_value)
-    if issues or request is None or draft is None:
-        return {
-            "ok": False,
-            "valid": False,
-            "errors": [issue.to_dict() for issue in issues],
-            "error": {"code": "INVALID_SCHEMA", "message": "input validation failed"},
-        }, 2
+    try:
+        request, draft = load_and_validate_documents(
+            str(args.request), str(args.draft)
+        )
+    except WorldGenError as exc:
+        failure = _failure(exc)
+        failure["valid"] = False
+        return failure, 2
     try:
         compilation = compile_world(request, draft, args.seed)
     except WorldGenError as exc:
-        return {
-            "ok": False,
-            "valid": False,
-            "error": exc.error_dict(),
-            "errors": exc.issues_dict(),
-        }, 2
+        failure = _failure(exc)
+        failure["valid"] = False
+        return failure, 2
     return {
         "ok": True,
         "valid": True,
@@ -121,15 +109,25 @@ def main(argv: list[str] | None = None) -> int:
     except WorldGenError as exc:
         payload = _failure(exc)
         exit_code = 2
-    except Exception as exc:
+    except Exception:
         payload = {
             "ok": False,
-            "error": {"code": "BUNDLE_INTEGRITY_MISMATCH", "message": str(exc)},
+            "error": {
+                "code": "BUNDLE_INTEGRITY_MISMATCH",
+                "message": "unexpected worldgen boundary failure",
+            },
             "errors": [],
         }
         exit_code = 2
-    output = canonical_json(payload)
-    output.encode("utf-8")
+    try:
+        output = canonical_json(payload)
+        output.encode("utf-8")
+    except Exception:
+        output = (
+            '{"error":{"code":"BUNDLE_INTEGRITY_MISMATCH",'
+            '"message":"unexpected worldgen boundary failure"},'
+            '"errors":[],"ok":false}'
+        )
     print(output)
     return exit_code
 

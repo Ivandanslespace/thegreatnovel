@@ -15,9 +15,10 @@ from ..core.invariants import check_invariants
 from ..core.models import GameState
 from .compiler import (
     COMPILER_ID,
+    _issue,
+    _safe_issue_text,
     compile_world,
-    load_draft,
-    load_request,
+    load_and_validate_documents,
     parse_strict_json,
     prefix_validation_issues,
     sort_validation_issues,
@@ -41,20 +42,20 @@ _SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _integrity_issue(message: str, actual: Any = None) -> ValidationIssue:
-    return ValidationIssue(
-        code="BUNDLE_INTEGRITY_MISMATCH",
-        path="/",
-        message=message,
-        expected="verified canonical compiled bundle",
-        actual=actual,
-        allowed_values=None,
+    return _issue(
+        "BUNDLE_INTEGRITY_MISMATCH",
+        "/",
+        _safe_issue_text(message),
+        "verified canonical compiled bundle",
+        actual,
+        None,
     )
 
 
 def _bundle_error(message: str, *, actual: Any = None) -> WorldGenError:
     return WorldGenError(
         "BUNDLE_INTEGRITY_MISMATCH",
-        message,
+        _safe_issue_text(message),
         issues=(_integrity_issue(message, actual),),
     )
 
@@ -70,17 +71,18 @@ def _publication_lock_path(target: Path) -> Path:
 
 
 def _already_exists_error(message: str, actual: Any) -> WorldGenError:
+    safe_message = _safe_issue_text(message)
     return WorldGenError(
         "BUNDLE_ALREADY_EXISTS",
-        message,
+        safe_message,
         issues=(
-            ValidationIssue(
-                code="BUNDLE_ALREADY_EXISTS",
-                path="/output-dir",
-                message=message,
-                expected="absent output and publication lock",
-                actual=actual,
-                allowed_values=None,
+            _issue(
+                "BUNDLE_ALREADY_EXISTS",
+                "/output-dir",
+                safe_message,
+                "absent output and publication lock",
+                actual,
+                None,
             ),
         ),
     )
@@ -90,10 +92,11 @@ def _read_canonical_json(path: Path) -> Any:
     try:
         payload = path.read_text(encoding="utf-8")
         parsed = parse_strict_json(payload)
+        canonical_payload = _canonical_utf8_json(parsed)
+        if canonical_payload != payload:
+            raise ValueError("artifact is not canonical JSON")
     except Exception as exc:
         raise _bundle_error(f"cannot read strict JSON artifact {path.name}") from exc
-    if _canonical_utf8_json(parsed) != payload:
-        raise _bundle_error(f"artifact {path.name} is not canonical JSON")
     return parsed
 
 
@@ -155,34 +158,36 @@ def _read_initial_state(value: Any) -> GameState:
 
 
 def _read_bundle_artifacts(bundle_dir: Path) -> dict[str, Any]:
-    if not bundle_dir.is_dir():
-        raise WorldGenError(
-            "BUNDLE_NOT_FOUND",
-            "compiled bundle directory does not exist",
-            issues=(
-                ValidationIssue(
-                    code="BUNDLE_NOT_FOUND",
-                    path="/bundle",
-                    message="compiled bundle directory does not exist",
-                    expected="directory",
-                    actual=str(bundle_dir),
-                    allowed_values=None,
-                ),
-            ),
-        )
     try:
+        if not bundle_dir.is_dir():
+            raise WorldGenError(
+                "BUNDLE_NOT_FOUND",
+                "compiled bundle directory does not exist",
+                issues=(
+                    _issue(
+                        "BUNDLE_NOT_FOUND",
+                        "/bundle",
+                        "compiled bundle directory does not exist",
+                        "directory",
+                        str(bundle_dir),
+                        None,
+                    ),
+                ),
+            )
         actual_files = {path.name for path in bundle_dir.iterdir()}
-    except OSError as exc:
+        if actual_files != BUNDLE_FILES:
+            raise _bundle_error(
+                "compiled bundle has an unsupported or missing file",
+                actual=sorted(actual_files ^ BUNDLE_FILES),
+            )
+        return {
+            name: _read_canonical_json(bundle_dir / name)
+            for name in sorted(BUNDLE_FILES)
+        }
+    except WorldGenError:
+        raise
+    except Exception as exc:
         raise _bundle_error("cannot inspect compiled bundle directory") from exc
-    if actual_files != BUNDLE_FILES:
-        raise _bundle_error(
-            "compiled bundle has an unsupported or missing file",
-            actual=sorted(actual_files ^ BUNDLE_FILES),
-        )
-    return {
-        name: _read_canonical_json(bundle_dir / name)
-        for name in sorted(BUNDLE_FILES)
-    }
 
 
 def _validate_bundle_manifest(manifest: Any) -> None:
@@ -217,9 +222,18 @@ def _validate_bundle_manifest(manifest: Any) -> None:
 
 
 def verify_bundle(bundle_dir: str | Path) -> dict[str, Any]:
+    try:
+        root = Path(bundle_dir)
+        return _verify_bundle(root)
+    except WorldGenError:
+        raise
+    except Exception as exc:
+        raise _bundle_error("bundle verification failed") from exc
+
+
+def _verify_bundle(root: Path) -> dict[str, Any]:
     """Fail closed after re-reading and rebuilding every deterministic artifact."""
 
-    root = Path(bundle_dir)
     artifacts = _read_bundle_artifacts(root)
     manifest = artifacts["bundle.json"]
     _validate_bundle_manifest(manifest)
@@ -290,8 +304,9 @@ def compile_bundle(
             str(target),
         )
 
-    request = load_request(str(request_path))
-    draft = load_draft(str(draft_path))
+    request, draft = load_and_validate_documents(
+        str(request_path), str(draft_path)
+    )
     compilation = compile_world(request, draft, seed)
     artifacts = _artifact_payloads(compilation, seed)
 
