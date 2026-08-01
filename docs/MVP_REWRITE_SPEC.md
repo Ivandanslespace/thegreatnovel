@@ -5198,6 +5198,30 @@ Story identity 不使用绝对 Campaign 路径、Story 绝对路径、用户名�
 closed，不能自动改绑到另一个 Campaign。任何重新绑定都必须是新的 Story 初始化，
 不是修复旧 Story。
 
+必须严格区分两个概念：
+
+~~~text
+Campaign identity
+    = story.json 中的 campaign_id、campaign_manifest_hash、worldpack_hash、
+      source_initial_state_hash、player_projection_hash、session_id bindings
+
+Campaign operational locator
+    = caller 在每一次 Campaign-dependent 操作中显式提供的 campaign_dir
+~~~
+
+`campaign_dir` 只是本次操作的输入，不是 Story identity。它不得写入
+`story.json`、Narration Request、committed turn、novel.md，也不得进入任何
+artifact hash、Story ID 或其他持久化 provenance。Story 关闭后重新打开时，caller
+必须再次提供 `campaign_dir`；系统不得保存 last Campaign path 或从其他状态推断它。
+任何需要读取、验证、重建或比较 Campaign 的 public API/CLI 都必须显式接收这个
+locator，即使该操作主要读取 Story。
+
+Phase 9C 禁止 scan parent directories、假设 Story 与 Campaign 是 sibling、按
+campaign_id/hash 搜索 filesystem、使用 global Story registry、environment variable
+Campaign path 或 current-working-directory convention。不得通过两个路径字符串
+相等来证明 Campaign identity；identity 只能由验证后的 manifest/hash bindings
+证明。
+
 产品命名采用：
 
 ~~~text
@@ -5723,16 +5747,78 @@ artifacts 构造或验证结果。以下是只读的概念 observable，不是�
 
 - `campaign_files`：Campaign exact file tree 中每个文件的
   `{relative_path, sha256, size, mtime_ns}`，按 relative_path 排序；
-- `sqlite_authoritative_rows`：Campaign SQLite authoritative rows 的 canonical、
-  sorted snapshot，至少覆盖 Session metadata、RecordedDecision rows、Event rows
-  和 frozen replay 所需的 authoritative state rows；不能把 SQLite exception 直接
-  暴露给 Story caller；
-- `session_json_canonical_bytes` 及其 SHA-256；
-- `recorded_decisions_json_canonical_bytes` 及其 SHA-256；
+- `sqlite_authoritative_rows`：只读取 frozen `campaign.sqlite3` 的三张
+  authoritative user tables：`campaigns`、`events`、`snapshots` 的全部 rows。
+  每张表必须使用 frozen schema 的 exact column order：
+
+  ~~~text
+  campaigns:
+    campaign_id, engine_version, state_schema_version, seed,
+    initial_state_json, initial_state_hash, created_at
+  events:
+    event_id, campaign_id, event_seq, decision_seq, game_minute, event_type,
+    actor_id, action_id, causation_id, correlation_id, payload_json,
+    state_hash_before, state_hash_after, created_at
+  snapshots:
+    id, campaign_id, event_seq, state_json, state_hash, created_at
+  ~~~
+
+  deterministic ordering 严格为 `campaigns ORDER BY campaign_id`、`events ORDER BY
+  campaign_id, event_seq`、`snapshots ORDER BY campaign_id, event_seq, id`。这里的
+  SQLite rows 不包括 Session metadata、RecordedDecision 或任何不存在的
+  Session/RecordedDecision table；它们必须作为独立 file observables 捕获：
+
+  ~~~text
+  session_json_canonical_bytes
+  session_json_hash
+  recorded_decisions_json_canonical_bytes
+  recorded_decisions_json_hash
+  ~~~
+
 - `campaign_manifest_hash`。
 
+这些 observable 的语义与 frozen Campaign verifier 一致：候选 SQLite 必须通过
+三表 exact schema/index/user-object 检查，不能通过查询一个并不存在的 Session 或
+RecordedDecision table 来补充信息。snapshot observable 只存在于单次操作的内存中，
+用于 before/after consistency comparison；不得写入 Story、Campaign SQLite、
+`story.sqlite3` 或任何新的持久化 artifact。
+
+因此 Phase 9C1 明确不得：
+
+- 修改 `campaign.sqlite3` schema；
+- 新增 narration、story、session metadata 或 RecordedDecision table；
+- 将 `recorded_decisions.json` 复制进 SQLite；
+- 将 Story progress 写入 Campaign SQLite；
+- 建立 `story.sqlite3`、第二套 EventStore 或 snapshot-observable 持久化文件。
+
+snapshot observable 在单次操作结束后即丢弃，不成为新的权威来源。
+
+**Explicit Campaign locator and binding gate。** 每次 public API/CLI 收到 caller
+提供的 `campaign_dir` 后，必须执行同一条顺序：
+
+~~~text
+validate campaign_dir path boundary
+→ read-only verify candidate Campaign
+→ compute/obtain candidate campaign_manifest_hash
+→ compare campaign_id
+→ compare session_id
+→ compare worldpack_hash
+→ compare source_initial_state_hash
+→ compare player_projection_hash
+→ compare campaign_manifest_hash
+→ only then perform the requested Story operation
+~~~
+
+`campaign_dir` 必须是 caller 指定的候选 Campaign root；不存在、非目录、被拒绝的
+symlink/junction/reparse point、无法作为合法 Campaign root 读取，或使 Story 位于
+Campaign tree 内的基本路径问题，返回 `INVALID_STORY_INPUT`。候选 Campaign 本身
+通过 frozen verifier 失败，返回 `CAMPAIGN_INTEGRITY_MISMATCH`；候选 Campaign 有效
+但任一 binding 不同，返回 `CAMPAIGN_BINDING_MISMATCH`；捕获期间 observables
+变化，返回 `CAMPAIGN_SNAPSHOT_CHANGED`。上述判断不依赖路径字符串相等。
+
 对 `init`、`prepare`、`status`、`verify` 以及任何需要重建 historical turn 的操作，
-固定顺序是：
+固定顺序如下。`commit` 也必须先通过上面的 locator/binding gate，并按下文的
+request-bound historical prefix 规则完成发布前检查：
 
 ~~~text
 verify Campaign
@@ -5870,7 +5956,9 @@ committed truth。
 
 ##### 9C.12 Read-only Story verification
 
-verify story 是只读、可重复、fail-closed 的 boundary operation，至少验证：
+verify story 的 public signature 是 `verify(story_dir, campaign_dir)`；它是只读、可
+重复、fail-closed 的 boundary operation。`campaign_dir` 必须由 caller 在每次调用
+时提供，不从 Story 或 filesystem 推断。它至少验证：
 
 1. Story root 是真实目录，不是 symlink、junction 或 reparse point；
 2. story.json exact schema、canonical UTF-8、hash 格式和全部 Campaign bindings；
@@ -5937,9 +6025,10 @@ prompt 内容、secret、raw traceback 或 private World Truth。
 
 **init**
 
-- 输入：Story directory、已存在的 Campaign directory、story_id、
-  initial_narration_locale、initial_voice_id；
-- 行为：按 9C.9 先 read-only verify Campaign 并稳定捕获 binding observables，再写
+- 输入：`story_dir`、`campaign_dir`、`story_id`、`initial_narration_locale`、
+  `initial_voice_id`；
+- 行为：把 caller 提供的 `campaign_dir` 作为本次唯一 Campaign locator，按 9C.9
+  先 read-only verify candidate Campaign 并稳定捕获 binding observables，再写
   immutable story.json、requests/ 和 turns/；捕获期间 Campaign 变化则不发布 Story；
 - 写文件：只创建一个由 caller 指定且尚不存在的 Story root，使用 temporary
   sibling + atomic no-replace；
@@ -5949,10 +6038,10 @@ prompt 内容、secret、raw traceback 或 private World Truth。
 
 **prepare**
 
-- 输入：Story directory，可选 turn_id，可选新 locale；
-- 行为：验证 Campaign binding，寻找最早尚未拥有 request 的 accepted ACTION，或
-  返回已有 pending request；重建 request 必须从同一稳定 Campaign snapshot
-  deterministic；
+- 输入：`story_dir`、`campaign_dir`、可选 `turn_id`、可选 `narration_locale`；
+- 行为：先用 caller 提供的 `campaign_dir` 通过 locator/binding gate，再寻找最早
+  尚未拥有 request 的 accepted ACTION，或返回已有 pending request；重建 request
+  必须从同一稳定 Campaign snapshot deterministic；
 - 写文件：只在 request 缺失时 atomic no-replace 创建 requests/turn-XXXXXX.json；
 - 不调用 LLM，不执行 Engine action，不提交 choice_id/STOP；
 - request 已存在时不得用新 locale 覆盖；已有 pending request 返回其原 locale；
@@ -5962,8 +6051,9 @@ prompt 内容、secret、raw traceback 或 private World Truth。
 
 **commit**
 
-- 输入：Story directory 和严格的 external response JSON；
-- 行为：匹配 pending request，验证 response exact schema、request identity、
+- 输入：`story_dir`、`campaign_dir` 和严格的 external response JSON；
+- 行为：先用 caller 提供的 `campaign_dir` 通过 locator/binding gate，再匹配 pending
+  request，验证 response exact schema、request identity、
   claims、prose 和 supplemental prose guard；在发布 turn 前重新确认该 request
   绑定的 historical decision/Event/state prefix 未改变，然后 atomic no-replace
   发布 turn；
@@ -5978,8 +6068,9 @@ prompt 内容、secret、raw traceback 或 private World Truth。
 
 **status**
 
-- 输入：Story directory；
-- 行为：只读验证并从 immutable artifacts 派生 request/turn counts、pending turn、
+- 输入：`story_dir`、`campaign_dir`；
+- 行为：只读验证 caller 提供的 Campaign binding，并从 immutable artifacts 派生
+  request/turn counts、pending turn、
   committed prefix、Campaign status、export readiness 和
   `novel_status`（ABSENT、CURRENT_SNAPSHOT、HISTORICAL_SNAPSHOT、CURRENT_FINAL）；
 - 不写文件、不调用 LLM、不执行 action；
@@ -5988,8 +6079,8 @@ prompt 内容、secret、raw traceback 或 private World Truth。
 
 **verify**
 
-- 输入：Story directory；
-- 行为：执行 9C.12 的完整只读 verification；
+- 输入：`story_dir`、`campaign_dir`；
+- 行为：使用 caller 提供的 Campaign locator，执行 9C.12 的完整只读 verification；
 - 不写文件、不创建/修复 artifact、不调用 LLM、Engine action、Event append 或
   provider；
 - 对合法 lagging Story 返回 valid/pending；对 binding、Campaign、request、turn
@@ -5998,10 +6089,12 @@ prompt 内容、secret、raw traceback 或 private World Truth。
 
 **export**
 
-- 输入：Story directory 和 mode。`snapshot` 必须另外提供整数
+- 输入：`story_dir`、`campaign_dir` 和 mode。`snapshot` 必须另外提供整数
   `accepted_decisions=N`；`final` 不接受 caller 自定义 N；
-- 行为：先验证，再只用 declared prefix 的 committed turns，或 final 所需的当前
-  全部 committed turns + terminal metadata，确定性生成 novel.md；
+- 行为：即使主要读取 Story，也必须用 caller 提供的 `campaign_dir` 检查 binding、
+  terminal metadata、current/historical snapshot classification 和完整性；再只
+  用 declared prefix 的 committed turns，或 final 所需的当前全部 committed turns
+  + terminal metadata，确定性生成 novel.md；
 - 写文件：只允许 novel.md temporary + atomic replace；replace 失败不改 truth；
 - 不调用 LLM、不调用 Engine、不读取外部 source bundle、不修改 Campaign 或
   committed artifacts；
@@ -6029,12 +6122,12 @@ prompt optimization、background retry worker 或 generic agent orchestration。
 
 | Code | 语义 |
 |---|---|
-| INVALID_STORY_INPUT | 参数、schema、locale、voice、路径边界或 response 基本输入无效 |
+| INVALID_STORY_INPUT | 参数、schema、locale、voice、`story_dir`/`campaign_dir` 路径边界或 response 基本输入无效；包括 Story 位于 Campaign tree 内 |
 | STORY_ALREADY_EXISTS | init target 或 no-replace target 已存在 |
 | STORY_NOT_FOUND | Story root 或必须的 Story artifact 不存在 |
 | STORY_INTEGRITY_MISMATCH | Story 文件、hash、目录、request、turn 或 novel 损坏/不一致 |
-| CAMPAIGN_BINDING_MISMATCH | Story manifest 与 Campaign ID/hash/session binding 不匹配，不能改绑 |
-| CAMPAIGN_INTEGRITY_MISMATCH | 绑定 Campaign verify 失败；不暴露 SQLite 细节 |
+| CAMPAIGN_BINDING_MISMATCH | caller 提供的有效 Campaign 与 Story 的 campaign_id、session_id 或任一 manifest/source hash binding 不匹配，不能改绑 |
+| CAMPAIGN_INTEGRITY_MISMATCH | caller 提供的 Campaign 本身未通过 frozen verification；不暴露 SQLite 细节 |
 | CAMPAIGN_SNAPSHOT_CHANGED | 本次 Story 操作的只读捕获期间 Campaign 合法变化；没有 Story artifact 被提交，caller 可重新执行 |
 | NARRATION_REQUEST_NOT_FOUND | 指定 request 不存在且当前 boundary 不能提供它 |
 | NARRATION_REQUEST_PENDING | request 存在但 turn 尚未 committed；正常可恢复状态 |
@@ -6067,6 +6160,27 @@ Phase 9C implementation 必须直接测试下列行为，不得只测试行覆�
 - story.json exact field set、canonical UTF-8、hash and no progress counter；
 - no absolute path/user/host/provider secret in Story；
 - Story deletion/corruption does not change Campaign。
+
+**Explicit Campaign locator and frozen SQLite observable**
+
+- `init` 后关闭进程并重新打开；`prepare`、`commit`、`status`、`verify` 和
+  `export` 都只能依赖 caller 再次显式传入的 `campaign_dir`；
+- Story artifacts、artifact hash 和 Story identity 不包含 Campaign path；
+- 相同 Story 传入错误但有效的 Campaign directory 返回
+  `CAMPAIGN_BINDING_MISMATCH`；同一 `campaign_id` 但 manifest/source hash 不同的
+  Campaign 仍然拒绝；
+- 移动 Campaign directory 后，只要内容和所有 binding 完全相同，传入新路径仍可
+  完成操作；
+- 不扫描 parent/sibling filesystem，不按 campaign_id/hash 搜索，不使用 global
+  Story registry、environment variable 或 current working directory；
+- snapshot observable 只读取 `campaigns`、`events`、`snapshots` 三张 frozen
+  SQLite user tables 的全部 rows，使用 exact column order 和规定 ordering；
+- 不查询不存在的 Session/RecordedDecision table；`session.json` 与
+  `recorded_decisions.json` 分别独立捕获 canonical bytes/hash；
+- capture 不创建 SQLite file、WAL、SHM、journal 或其他 sidecar；
+- read-only capture 前后 Campaign files、三表 rows 和两份 JSON observables 不变；
+  Campaign append 期间返回 `CAMPAIGN_SNAPSHOT_CHANGED`；
+- 不修改 frozen Campaign schema，不建立 Story SQLite 或第二套 EventStore。
 
 **Request, turn and truth mapping**
 
