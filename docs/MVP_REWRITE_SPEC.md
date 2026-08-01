@@ -4,7 +4,7 @@
 > 目标：从当前"大而全、持续修 Bug"的架构退回一个可验证、可重放、可自动测试的最小核心，然后通过确定性验证与 scripted autoplay 一层一层增加功能（LLM autoplay 在 LLM Player 层建立后引入）。  
 > 原始 Legacy 审查基线：2026-07-31 `main`，最初审查时约为 `4141e905...`。  
 > 当前开发线：`mvp-rewrite`。  
-> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9A frozen；Phase 9B1 frozen；Phase 9B2A frozen (`phase-9b2a-frozen`)；Phase 9B2B not started。
+> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9A frozen；Phase 9B1 frozen；Phase 9B2A frozen (`phase-9b2a-frozen`)；Phase 9B2B design contract candidate / implementation not started；Phase 9C not started。
 > 参考作品：用户上传的《全民纜車求生，我一級一個三選一》。
 
 > **V2 修订说明 (2026-07-31)：** 本文档经过增量架构修订。第一 WorldPack 仍可以是缆车求生 Demo，但它的 Base / Expedition / Day-Night / Three-choice 属于第一批 vertical slice 局部实现，不是整个 Engine 的宇宙规则。V2 新增反主题/结构性硬编码原则、反过度抽象原则、Knowledge boundary、Habitat 可选抽象、ProgressionTrack/Gate、Feature Module 责任边界、Compatibility Pressure Test，并更新 Phase 5+ 路线图。原有工程架构内容（EventStore、Replay、Test Pyramid、Autoplay、ExploitAgent 等）完整保留。
@@ -2942,7 +2942,8 @@ Phase 8 — frozen (`phase-8-frozen`): Provider-neutral LLM Player + RecordedDec
 Phase 9A — frozen (`phase-9a-frozen`): External Client Session Protocol
 Phase 9B1 — frozen (`phase-9b1-frozen`): Bounded World Draft Compilation
 Phase 9B2A — frozen (`phase-9b2a-frozen`): Player-Visible Projection Map
-Phase 9B2B — not started
+Phase 9B2B — design contract candidate / implementation not started: Atomic Campaign Bootstrap and Projected Session Integration
+Phase 9C — not started
 ```
 
 The implementation deliberately split the original "Phase 2 — Minimal Action Engine" into smaller, independently verifiable stages.
@@ -3942,7 +3943,8 @@ this slice and belong to later contracts.
 ##### Phase 9B2A — Player-Visible Projection Map
 
 **Status:** frozen (`phase-9b2a-frozen`); Phase 9B1 remains frozen at
-`phase-9b1-frozen`, and Phase 9B2B has not started.
+`phase-9b1-frozen`, and Phase 9B2B is a design contract candidate; implementation
+has not started.
 
 **Accepted source baseline:** `a4c79a47dfac88c3f9b39aa8ca50cc6255d48902`.
 
@@ -4090,7 +4092,8 @@ The Phase 9B2A CLI exposes only `validate`, `compile`, `verify`, and `preview`.
 modifies no files. There is no formal Campaign, `campaign.sqlite3`, Phase 9A
 Session integration, 50-decision gate, Narration, `novel.md`, narration locale,
 translation service, RTL UI, LLM API, Provider SDK, HTTP, MCP, daemon, or general
-localization framework in this slice. Phase 9B2B is not started.
+localization framework in this slice. Phase 9B2B is a design contract
+candidate; implementation has not started.
 
 Knowledge Boundary remains authoritative: labels for all allowed fact values may
 exist in the projection map, but the presentation may map a fact value only when
@@ -4098,6 +4101,665 @@ that value is already present in the canonical public request. TALK before the
 fact is public must not reveal it; private actor knowledge, private goals,
 `last_autonomous_action`, hidden loot, and World Truth never enter the
 presentation.
+
+##### Phase 9B2B — Atomic Campaign Bootstrap and Projected Session Integration
+
+**Status:** design contract candidate / implementation not started.
+
+**Accepted frozen baselines:**
+
+- Phase 9A — frozen at `phase-9a-frozen`.
+- Phase 9B1 — frozen at `phase-9b1-frozen`.
+- Phase 9B2A — frozen at `phase-9b2a-frozen`.
+- Phase 9B2A accepted source baseline —
+  `a4c79a47dfac88c3f9b39aa8ca50cc6255d48902`.
+- Phase 9B2A frozen implementation —
+  `60ebf493ba90114c4f03048558e316ac07118ee2`.
+
+This section is a documentation-only contract. It does not authorize a
+`src/tgn/campaign` implementation, a test/configuration change, a new freeze
+tag, or a change to any frozen Phase 9A, 9B1, or 9B2A behavior.
+
+**Product question:** Can a verified Phase 9B1 compiled bundle and its matching
+verified Phase 9B2A projection bundle be locked into one formal, atomically
+published Campaign that starts and resumes the frozen Phase 9A Session while
+exposing a matching detached Player Presentation?
+
+This is a Campaign assembly and integration boundary. It is not Narration, an
+LLM autoplay system, a translation framework, or a new gameplay-mechanics
+slice.
+
+###### 9B2B.1 Bounded lifecycle
+
+The complete first-slice lifecycle is deliberately finite and ordered:
+
+```text
+verified Phase 9B1 compiled bundle
+→ matching verified Phase 9B2A projection bundle
+→ temporary Campaign assembly
+→ copy immutable world and projection artifacts
+→ reverify copied artifacts
+→ initialize one Phase 9A Session from copied initial_state.json
+→ verify SQLite, Event Replay, and RecordedDecision Replay
+→ build canonical initial request
+→ build matching detached Player Presentation
+→ bind all source/session/projection hashes in Campaign manifest
+→ verify complete temporary Campaign
+→ acquire publication lock
+→ target recheck
+→ atomic no-replace Campaign publication
+→ close process
+→ reopen Campaign
+→ same authoritative state, request, and presentation
+```
+
+The external WorldPack and Projection bundle are verified before a formal
+Campaign exists. The first verification is not a license to trust those paths
+afterward: the assembler copies the exact six WorldPack files and four
+Projection files into a temporary sibling, rereads them, and verifies the
+copies. The copied Projection bundle is verified against the copied WorldPack,
+not against an external source path. Only after those copied artifacts pass is
+the copied `initial_state.json` handed to Phase 9A Session bootstrap.
+
+Except for read-only target/lock existence checks, no formal Campaign directory,
+SQLite database, Session, or publication lock owned by this attempt may be
+created before source and projection verification succeeds. A source failure
+must win over a projection/draft failure at this boundary. A cross-world
+projection mismatch must fail before Session creation and before any target can
+be published.
+
+After publication, no WorldPack or Projection artifact is read from the
+external source location. A published Campaign is self-contained and does not
+depend on a mutable source directory, temporary directory, host path, process,
+LLM, or provider.
+
+###### 9B2B.2 Authority boundary
+
+The layers have one-way responsibilities:
+
+```text
+GameState + DomainEvent
+    = authoritative Engine truth
+
+campaign.sqlite3
+    = authoritative mutable Campaign history for one Session
+
+recorded_decisions.json
+    = edge audit of client choices, replayed but never authoritative
+
+copied compiled_worldpack.json and the rest of world/
+    = immutable compiled mechanics/content binding
+
+copied player_projection.json and the rest of projection/
+    = immutable non-authoritative display binding
+
+Player Presentation
+    = detached, non-authoritative view of one canonical request
+
+campaign.json
+    = integrity/provenance binding only
+```
+
+The Campaign adapter must not:
+
+- mutate `GameState` directly;
+- construct a `DomainEvent` or bypass the Engine's Action validation;
+- change legality, action params, duration, stamina cost, event payload, or
+  state mutation;
+- treat a Player Presentation, projection label, locale, or theme as
+  authoritative;
+- regenerate a World Draft or repair a WorldPack automatically;
+- call an LLM, provider SDK, narrator, translator, or web service;
+- infer hidden knowledge from a display label or from a source artifact that is
+  outside the copied Campaign.
+
+The external client submits only one of these edge intents:
+
+```text
+{"request_fingerprint": "<sha256>", "choice_id": "<canonical choice_id>"}
+{"request_fingerprint": "<sha256>", "stop": true}
+```
+
+`STOP` is an explicit terminal command, not an action choice. The client may
+not submit `actor_id`, `action_id`, `action_type`, `params`, duration, stamina
+cost, event payload, or a state mutation. The adapter derives the Engine
+ActionIntent from the verified canonical request and lets the frozen Phase 9A
+Session service execute and record it.
+
+###### 9B2B.3 Exact Campaign directory
+
+The first slice contains exactly fourteen files: one Campaign manifest, six
+copied WorldPack files, four copied Projection files, and three Phase 9A
+Session files. There are no presentation cache files, request cache files,
+provider files, trace files, hidden files, or extra metadata inside the
+published directory.
+
+```text
+campaign/
+├── campaign.json
+├── world/
+│   ├── bundle.json
+│   ├── world_request.json
+│   ├── world_draft.json
+│   ├── compiled_worldpack.json
+│   ├── initial_state.json
+│   └── compile_report.json
+├── projection/
+│   ├── projection_manifest.json
+│   ├── projection_draft.json
+│   ├── player_projection.json
+│   └── projection_report.json
+└── session/
+    ├── campaign.sqlite3
+    ├── session.json
+    └── recorded_decisions.json
+```
+
+The publication lock is a temporary sibling of `campaign/`, never a file in
+the published tree. Temporary assembly directories are also siblings and must
+be removed on every failed attempt.
+
+###### 9B2B.4 Exact `campaign.json` contract
+
+`campaign.json` is canonical UTF-8 JSON with exactly this top-level field set;
+unknown fields and missing fields are integrity failures:
+
+```json
+{
+  "schema_version": 1,
+  "campaign_format_id": "phase9b2b-campaign-v1",
+  "campaign_id": "campaign-001",
+  "worldpack_hash": "<sha256 of copied world/compiled_worldpack.json>",
+  "source_initial_state_hash": "<sha256 of copied world/initial_state.json>",
+  "world_bundle_manifest_hash": "<sha256 of copied world/bundle.json>",
+  "player_projection_hash": "<sha256 of copied projection/player_projection.json>",
+  "projection_bundle_manifest_hash": "<sha256 of copied projection/projection_manifest.json>",
+  "initial_request_fingerprint": "<sha256 of canonical initial request>",
+  "initial_presentation_hash": "<sha256 of canonical initial presentation>",
+  "session_id": "campaign-001",
+  "actor_id": "player",
+  "max_decisions": 50,
+  "initial_session_state_hash": "<sha256 of SQLite initial GameState>"
+}
+```
+
+The exact field names are:
+
+```text
+schema_version
+campaign_format_id
+campaign_id
+worldpack_hash
+source_initial_state_hash
+world_bundle_manifest_hash
+player_projection_hash
+projection_bundle_manifest_hash
+initial_request_fingerprint
+initial_presentation_hash
+session_id
+actor_id
+max_decisions
+initial_session_state_hash
+```
+
+The values have these fixed meanings and types:
+
+- `schema_version` is the strict integer `1`.
+- `campaign_format_id` is exactly `phase9b2b-campaign-v1`; another format is
+  rejected as `UNSUPPORTED_CAMPAIGN_FORMAT`.
+- `campaign_id`, `session_id`, and `actor_id` are bounded stable machine IDs
+  matching the Phase 9A form `[a-z0-9][a-z0-9_-]{0,63}`. For this first slice,
+  `session_id == campaign_id`, because the frozen Phase 9A Session manifest
+  requires its `campaign_id` to equal its `session_id`.
+- `max_decisions` is a strict positive integer. It is the Phase 9A session
+  limit, not a 50-decision autoplay gate.
+- Every hash is lowercase SHA-256 over canonical JSON encoded as UTF-8. No raw
+  absolute path, wall-clock time, host/user identity, random compilation UUID,
+  provider/LLM identity, narration, or future result prediction is allowed.
+
+The nested frozen manifests remain authoritative for their own artifact sets:
+
+```text
+campaign.world.bundle.json.worldpack_hash
+    == campaign.json.worldpack_hash
+campaign.world.bundle.json.initial_state_hash
+    == campaign.json.source_initial_state_hash
+sha256(campaign.world.bundle.json)
+    == campaign.json.world_bundle_manifest_hash
+campaign.projection.projection_manifest.json.player_projection_hash
+    == campaign.json.player_projection_hash
+sha256(campaign.projection.projection_manifest.json)
+    == campaign.json.projection_bundle_manifest_hash
+```
+
+`player_projection_hash` is the hash of the copied Player Projection Map, not
+the hash of the presentation. `initial_request_fingerprint` is the request
+fingerprint produced at decision number 1 from the copied initial state by the
+frozen Phase 8/9A request builder. `initial_presentation_hash` is the hash of
+the detached presentation built from that request and the copied locked
+Projection Map. The initial presentation is rebuilt when needed; it is not a
+fifteenth file.
+
+`initial_session_state_hash` is the hash of the initial GameState persisted in
+the copied SQLite Campaign record. The assembler must prove:
+
+```text
+world/bundle.json.initial_state_hash
+== sha256(world/initial_state.json)
+== campaign.json.source_initial_state_hash
+== campaign.json.initial_session_state_hash
+== SQLite initial GameState hash
+```
+
+The Campaign manifest model is a frozen, detached edge model. It rejects
+unknown fields and authority-shaped fields such as `current_state`, events,
+event payloads, Action data, or presentation text; exporting a nested value
+must not expose a mutable reference that can change the manifest or its hash.
+Any attempt to construct or mutate such a model as if it were the authoritative
+Engine state is a `CAMPAIGN_INTEGRITY_MISMATCH`, not an implicit update.
+
+The manifest is immutable after publication. Accepted choices and an explicit
+STOP update only the frozen Phase 9A mutable edge/session artifacts:
+`session/campaign.sqlite3`, `session/session.json`, and
+`session/recorded_decisions.json`. The Campaign manifest is not rewritten with
+current mutable GameState, current event sequence, current request, or current
+presentation data. A mismatch between the immutable manifest and the mutable
+Session fails closed instead of triggering a repair or manifest rewrite.
+
+###### 9B2B.5 Source/projection binding and copy race
+
+The matching rule is exact:
+
+```text
+projection.projection_manifest.json.source_worldpack_hash
+    == world.bundle.json.worldpack_hash
+projection.projection_manifest.json.source_initial_state_hash
+    == world.bundle.json.initial_state_hash
+```
+
+The Campaign assembler performs these checks in two passes:
+
+1. Verify the supplied Phase 9B1 bundle, then verify the supplied Phase 9B2A
+   bundle against that verified source. A source failure maps to
+   `SOURCE_BUNDLE_INVALID`; a projection artifact failure maps to
+   `PROJECTION_BUNDLE_INVALID`; a source hash mismatch maps to
+   `PROJECTION_SOURCE_MISMATCH`.
+2. Copy all ten source/projection files byte-for-byte into the temporary
+   Campaign. Re-read the temporary `world/`, run the Phase 9B1 full verifier on
+   that copy, then run the Phase 9B2A verifier using the temporary `world/` as
+   its only source. Recompute the two cross-bindings from the copied manifests.
+   The post-verification hash binding is a separate required step: the hashes
+   used in `campaign.json` must be recomputed from the verified copied bytes
+   after this recheck, not copied from the earlier external verification result.
+
+If the external source changes after pass 1, the copied bytes must either still
+form one self-consistent verified pair or the attempt fails. The implementation
+must never retain a hash returned by an earlier verification while consuming a
+different artifact later. The projection mismatch is rejected before Session
+creation, before SQLite initialization, and before Campaign publication.
+
+###### 9B2B.6 Thin Phase 9A Session integration
+
+The Campaign layer is a thin local adapter over the frozen Phase 9A one-shot
+protocol. Its conceptual commands are:
+
+```text
+create
+next
+choose
+stop
+status
+verify
+```
+
+The transport remains local CLI/file/stdin-stdout. `create` performs the full
+atomic lifecycle in this section. `next`, `choose`, `stop`, `status`, and
+`verify` reopen the published Campaign and close SQLite at the command
+boundary.
+
+At `create`, the adapter calls the frozen Session bootstrap with exactly the
+copied `world/initial_state.json`, the manifest `campaign_id`/`session_id`, the
+manifest `actor_id`, and `max_decisions`. It then verifies the new
+`campaign.sqlite3`, `session.json`, and `recorded_decisions.json` before
+publication. The Session must be initialized from the copied initial state,
+never from the external source path.
+
+For an active Session, both `next` and every successful `choose` response have
+two distinct fields:
+
+```text
+canonical_request
+player_presentation
+```
+
+They are both `null` together at a terminal boundary. `canonical_request` is
+the detached frozen Phase 9A/Phase 8 request and remains authoritative for:
+
+```text
+request_fingerprint
+choice_id
+action_type
+params
+duration_minutes
+stamina_cost
+```
+
+`player_presentation` is built from that detached canonical request and the
+locked copied Player Projection Map. It preserves the same request fingerprint
+and canonical choice IDs, action types, params, durations, and stamina costs,
+then adds only approved display labels and display parameters. It contains no
+private knowledge, hidden World Truth, client-supplied action fields, or
+alternative legality. It must not be enriched by reading GameState or SQLite
+directly; the adapter passes the current detached Phase 9A request to the pure
+presentation builder.
+
+The adapter may preserve the frozen Phase 9A `session` and `result` summaries,
+but it may not rename a presentation field into a canonical field or make the
+presentation the input to `choose`. The client sends the canonical
+`request_fingerprint` and `choice_id`, not a displayed label or a displayed
+parameter.
+
+###### 9B2B.7 Atomic Campaign creation and failure cleanup
+
+Creation uses a temporary sibling and an exclusive lock with this order:
+
+```text
+read-only source/target prechecks
+→ source-first WorldPack verification
+→ Projection verification and cross-binding
+→ create temporary sibling
+→ copy exact world/projection artifacts
+→ reverify temporary copies
+→ initialize temporary Phase 9A Session
+→ verify SQLite/Event Replay/RecordedDecision Replay
+→ build and bind initial request/presentation
+→ write campaign.json canonically
+→ verify the complete temporary fourteen-file tree
+→ acquire exclusive sibling publication lock
+→ recheck target absence
+→ atomic no-replace directory publication
+→ remove owned lock
+```
+
+The final publication primitive must be an operating-system atomic
+no-replace directory operation. An ordinary replace-capable `os.rename` is not
+a portability guarantee for this contract. The implementation may use the
+reviewed platform-specific no-replace primitives (or an equally strong
+primitive) and must fail closed with `UNSUPPORTED_CAMPAIGN_FORMAT` when the
+platform cannot provide the required guarantee.
+
+The target and lock rules are strict:
+
+- An existing target or pre-existing sibling lock returns
+  `CAMPAIGN_ALREADY_EXISTS` and preserves the existing bytes.
+- After acquiring its own lock, the writer rechecks the target. A late target
+  is preserved and publication is not attempted.
+- A no-replace publication conflict returns `CAMPAIGN_ALREADY_EXISTS`; it
+  cannot replace, merge, delete, or clobber the competing target.
+- Only a lock created by the current attempt may be removed. A pre-existing
+  lock is never removed.
+- Every failed attempt removes its temporary sibling and owned lock, leaves no
+  formal Campaign, and does not create SQLite outside the temporary sibling.
+- A source tamper, projection tamper, bootstrap failure, verification failure,
+  unsupported platform, or publication race must not leave a partial formal
+  Campaign or debris that a later attempt could mistake for one.
+
+No ordinary post-publication verification is part of the success transition:
+the complete temporary tree is verified before the atomic move, and the
+published tree has the same bytes. A later explicit `verify` command performs
+the full read-only verification.
+
+###### 9B2B.8 Read-only `verify campaign`
+
+`verify` is a proof operation, not a repair operation. It must be read-only at
+the filesystem and SQLite levels: it creates no files, does not rewrite JSON,
+does not run an Engine action, does not append an Event, does not alter a
+RecordedDecision, does not repair SQLite, and never regenerates a World Draft.
+Any inconsistency fails closed.
+
+It verifies, in order:
+
+1. The Campaign directory contains exactly the fourteen files above, with
+   canonical UTF-8 JSON for every JSON file and no unsafe/unknown format.
+2. `campaign.json` has exactly the frozen field set, strict types, stable IDs,
+   supported format ID, and lowercase SHA-256 values.
+3. Every nested WorldPack and Projection manifest hash is recomputed from the
+   copied bytes. The copied Phase 9B1 bundle is fully reverified, including
+   deterministic recompilation, materialization, and its existing smoke proof.
+4. The copied Phase 9B2A bundle is fully reverified against the copied WorldPack
+   and its source WorldPack/initial-state bindings are equal. It must not call
+   or trust an external source directory.
+5. The initial-state binding, `worldpack_hash`, nested manifest hashes,
+   projection hash, and both initial edge hashes equal the values recorded in
+   `campaign.json`.
+6. The frozen Phase 9A Session verifier succeeds after SQLite close/reopen,
+   including SQLite persistence integrity, Event Replay, RecordedDecision
+   Replay with zero completion calls, contiguous event/decision sequences,
+   current state hash, current request fingerprint, and terminal status rules.
+7. The current canonical request is rebuilt from the verified frozen Session
+   boundary. If the Session is active, its request fingerprint and canonical
+   choices must equal the Session metadata and the frozen Engine output. A
+   terminal Session has no fabricated request or choice.
+8. The current detached Player Presentation is rebuilt from that canonical
+   request and the copied locked Projection Map. Its fingerprint and canonical
+   choice fields must match; only approved display fields may differ.
+9. The initial canonical request/presentation are rebuilt from the copied
+   initial state and map and must reproduce
+   `initial_request_fingerprint` and `initial_presentation_hash`.
+10. The Knowledge Boundary is checked at the rebuilt presentation boundary:
+    facts not public before `TALK_TO_ACTOR` stay absent, and the approved fact
+    is visible only after the deterministic TALK transition.
+
+Verification must not guess whether a stale external bundle, a mutable source
+path, a missing edge artifact, or a damaged SQLite row was intended. It returns
+a stable machine-readable failure instead.
+
+###### 9B2B.9 Bootstrap, close/reopen, and resume proof
+
+The required deterministic proof sequence is:
+
+```text
+create
+→ close/reopen
+→ next
+→ choose DROP
+→ close/reopen
+→ next
+→ choose SEARCH
+→ close/reopen
+→ next
+→ choose EXTRACT
+→ close/reopen
+→ next
+→ choose TALK_TO_ACTOR
+→ close/reopen
+→ next
+→ verify Knowledge Boundary after TALK
+→ choose STOP
+→ close/reopen
+→ final verify
+```
+
+The acceptance proof must show all of the following:
+
+- zero illegal actions and no fabricated WAIT/STOP action;
+- the canonical choice list at each boundary is byte/equivalence-identical to
+  the frozen Engine/Phase 9A request for the same state;
+- the Player Presentation never changes legality or the submitted canonical
+  choice;
+- request fingerprints match the canonical request at every active boundary;
+- action params, duration, stamina cost, accepted action IDs, event payloads,
+  and before/after state hashes remain the frozen Phase 9A values;
+- the hidden `site-1-condition` fact is absent before TALK and is visible only
+  after the deterministic TALK transition, with the expected actor/relationship
+  result;
+- SQLite closes and reopens between commands, Event Replay succeeds, and
+  RecordedDecision Replay succeeds with zero completion calls;
+- the final explicit STOP is terminal and does not create a DomainEvent;
+- the world and projection files have unchanged bytes/hashes from create
+  through final verify.
+
+This proves command-boundary Campaign resume. It does not add narration resume
+or novel export; those remain Phase 9C contracts.
+
+###### 9B2B.10 Knowledge Boundary and display independence
+
+The Projection Map may contain labels for allowed fact values, but labels do
+not grant knowledge. The presentation builder may map a fact only when the
+canonical request already contains that fact. Private actor knowledge, private
+goals, `last_autonomous_action`, hidden loot, raw `world_facts`, and other
+World Truth stay outside the player presentation.
+
+The display-independence test uses the same supported profile, seed, initial
+state, canonical request, and choice path with two Projection Drafts that
+change only labels/theme/locale. It must prove:
+
+```text
+same initial/current state hashes
+same legal choices
+same choice IDs, action types, params, durations, and stamina costs
+same request fingerprints
+same accepted actions and DomainEvents
+same Event Replay and RecordedDecision Replay results
+different projection hashes
+different presentation hashes and display text
+```
+
+Campaign behavior must never branch on locale, theme, display labels, or
+presentation text. The two Campaign manifests may differ in their bound
+projection/presentation hashes, but their Engine/session behavior must remain
+equal.
+
+###### 9B2B.11 Campaign error namespace
+
+The Campaign boundary exposes this small stable namespace; nested WorldPack,
+Projection, Session, SQLite, and Engine errors are mapped at the boundary
+instead of copied into a second large error taxonomy:
+
+```text
+CAMPAIGN_ALREADY_EXISTS
+CAMPAIGN_NOT_FOUND
+CAMPAIGN_INTEGRITY_MISMATCH
+SOURCE_BUNDLE_INVALID
+PROJECTION_BUNDLE_INVALID
+PROJECTION_SOURCE_MISMATCH
+SESSION_BOOTSTRAP_FAILED
+UNSUPPORTED_CAMPAIGN_FORMAT
+```
+
+The intended mapping is:
+
+```text
+existing target / existing lock / late no-replace conflict
+    → CAMPAIGN_ALREADY_EXISTS
+missing published Campaign directory
+    → CAMPAIGN_NOT_FOUND
+tree, manifest, copied-artifact, hash, presentation, SQLite, or replay failure
+    → CAMPAIGN_INTEGRITY_MISMATCH
+invalid/revoked Phase 9B1 source verification
+    → SOURCE_BUNDLE_INVALID
+invalid/revoked Phase 9B2A artifact verification
+    → PROJECTION_BUNDLE_INVALID
+source-world/projection source hash disagreement
+    → PROJECTION_SOURCE_MISMATCH
+failure while initializing the copied Phase 9A Session
+    → SESSION_BOOTSTRAP_FAILED
+unsupported format version or unavailable atomic no-replace platform primitive
+    → UNSUPPORTED_CAMPAIGN_FORMAT
+```
+
+Every error response is canonical UTF-8 JSON, machine-readable, deterministic,
+and safe for a client. It contains no traceback, absolute/temporary path,
+host/user detail, raw exception text, or unsafe Unicode. Error mapping stays at
+this small Campaign boundary; it does not duplicate every frozen nested error
+code.
+
+###### 9B2B.12 Explicit non-goals
+
+The first Campaign slice does not implement:
+
+```text
+Narration
+narration brief or structured narration claims
+novel.md
+translation service
+runtime locale switching
+RTL behavior/UI
+LLM API or provider SDK
+HTTP, MCP, web UI, or background daemon
+automatic World Draft repair
+multiple Sessions per Campaign
+multiple players
+multiple ongoing writers
+distributed transactions
+cloud persistence
+save migration
+dynamic mechanics or arbitrary rule generation
+general localization
+general Campaign plugin/framework
+50-decision autoplay gate
+```
+
+The bounded Session close/reopen proof is required here, but narration
+resume, narration artifacts, long-running external-client resume semantics,
+and novel export belong to Phase 9C. Phase 9B2B does not add gameplay
+mechanics, a general Campaign system, a World Draft generator, an LLM call, or
+an automatic repair path.
+
+###### 9B2B.13 Future acceptance-test matrix
+
+Implementation must add direct regression tests for each row, with no test
+that merely executes an uncovered line:
+
+| 场景 | 必须证明 |
+| --- | --- |
+| 成功创建 | 完整十四文件树、canonical JSON、manifest bindings、copied WorldPack/Projection verification、Session bootstrap、initial request/presentation hashes，且目标只在最后一次 no-replace publication 后出现。 |
+| Cross-binding rejection | Projection source WorldPack 或 initial-state hash 不匹配时，在 Session/SQLite 创建前返回 `PROJECTION_SOURCE_MISMATCH`，无正式目标、无临时残留。 |
+| Source tamper / source-first | source bundle 无效或在预验证后被修改时，source verification 先于 projection/draft consumption；返回 `SOURCE_BUNDLE_INVALID`，不消费外部不一致副本。 |
+| Projection tamper | copied projection manifest/draft/map/report 任一篡改或重编译差异均返回 `PROJECTION_BUNDLE_INVALID` 或 `CAMPAIGN_INTEGRITY_MISMATCH`，不修复原文件。 |
+| Session bootstrap failure | SQLite 初始化、初始状态、Session 验证失败时返回 `SESSION_BOOTSTRAP_FAILED`，无正式 Campaign、无 SQLite 脱离临时目录、无临时 debris。 |
+| Existing target/lock | 已有目标或已有 sibling lock 返回 `CAMPAIGN_ALREADY_EXISTS`，原目标/lock 内容不变，预存 lock 不被删除。 |
+| Late target | lock 后目标出现或 no-replace primitive 遇到目标时不调用可替换发布，竞争目标完整保留，owned lock/temp sibling 清理。 |
+| Resume proof | 按 DROP → SEARCH → EXTRACT → TALK_TO_ACTOR → STOP 的 close/reopen 序列继续，状态、request、presentation、SQLite close/reopen 和终态完全一致。 |
+| Choice integrity | 客户端只能提交 fingerprint + choice_id/STOP；canonical choices、params、duration、stamina、events 与冻结 Phase 9A 完全一致，presentation 不能改变 legality。 |
+| Knowledge Boundary | TALK 前事实不在 canonical request/presentation，TALK 后且仅后事实出现；私有目标、私有知识、hidden loot、World Truth 不泄漏。 |
+| Display independence | 只改 Projection labels/theme/locale 时 state/legal choices/IDs/params/costs/fingerprints/actions/events/replays 相同，projection/presentation hashes/text 不同。 |
+| Verify read-only | `verify campaign` 前后所有文件 bytes、SQLite bytes/行与修改时间均不变；不创建文件、不执行 action、不追加 event、不写 SQLite、不修复。 |
+| Failure cleanup | source/projection/session/verification/platform failure 均无正式目标、无 sibling temp、无 owned lock；原有 target/lock 始终保留。 |
+| Concurrency | 两个 cooperating create 同时运行时恰好一个成功，另一个返回 `CAMPAIGN_ALREADY_EXISTS`，最终只有一个有效 Campaign 且无 debris。 |
+
+###### 9B2B.14 Future coverage gate
+
+Coverage is a contract proxy, not a line-execution exercise. When the
+Campaign implementation starts, the new `src/tgn/campaign` package must remain
+at or above 95%. The reviewed existing gates also remain hard requirements:
+
+```text
+src/tgn/projection package >= 95%
+full src/tgn coverage must not regress below the reviewed baseline of 96%
+```
+
+The Phase 9B2B promotion target is a full `src/tgn` gate of at least 97%, while
+the 96% reviewed baseline is the non-regression floor. Direct regression tests
+are mandatory for every new branch covering:
+
+```text
+source-first validation
+post-verification hash binding
+immutable model rejection
+unsupported action/params schema
+legacy display leakage removal
+atomic no-clobber publication
+```
+
+The test matrix must also directly exercise copied-artifact tamper, cross-world
+rejection, cleanup, existing/late targets and locks, unsupported platforms,
+publication races, read-only verification, Session bootstrap failure,
+Knowledge Boundary, display independence, Event Replay, and RecordedDecision
+Replay. No pragma exclusion, coverage omission configuration,
+unreachable-code marker, deleted assertion, or other percentage-only bypass is
+allowed. This design task changes no test, coverage, or implementation
+configuration; it defines the gate for the future implementation.
 
 #### Phase 9C — External Client Narration, Resume and Novel Export
 
