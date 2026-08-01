@@ -4,7 +4,7 @@
 > 目标：从当前"大而全、持续修 Bug"的架构退回一个可验证、可重放、可自动测试的最小核心，然后通过确定性验证与 scripted autoplay 一层一层增加功能（LLM autoplay 在 LLM Player 层建立后引入）。  
 > 原始 Legacy 审查基线：2026-07-31 `main`，最初审查时约为 `4141e905...`。  
 > 当前开发线：`mvp-rewrite`。  
-> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9 design contract active / implementation not started。
+> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9A frozen；Phase 9B1 implementation candidate。
 > 参考作品：用户上传的《全民纜車求生，我一級一個三選一》。
 
 > **V2 修订说明 (2026-07-31)：** 本文档经过增量架构修订。第一 WorldPack 仍可以是缆车求生 Demo，但它的 Base / Expedition / Day-Night / Three-choice 属于第一批 vertical slice 局部实现，不是整个 Engine 的宇宙规则。V2 新增反主题/结构性硬编码原则、反过度抽象原则、Knowledge boundary、Habitat 可选抽象、ProgressionTrack/Gate、Feature Module 责任边界、Compatibility Pressure Test，并更新 Phase 5+ 路线图。原有工程架构内容（EventStore、Replay、Test Pyramid、Autoplay、ExploitAgent 等）完整保留。
@@ -2939,7 +2939,8 @@ Phase 6 — frozen (phase-6-frozen): ProgressionTrack + ProgressionGate
 Phase 7 — frozen (`phase-7-frozen`): Permanent Build Choice / Build Acquisition
 Phase 7.5 — frozen (`phase-7.5-frozen`): Named Actor + Relationship + Knowledge Vertical Slice
 Phase 8 — frozen (`phase-8-frozen`): Provider-neutral LLM Player + RecordedDecision Replay
-Next active phase — Phase 9 design contract active / implementation not started
+Phase 9A — frozen (`phase-9a-frozen`): External Client Session Protocol
+Phase 9B1 — implementation candidate: Bounded World Draft Compilation
 ```
 
 The implementation deliberately split the original "Phase 2 — Minimal Action Engine" into smaller, independently verifiable stages.
@@ -3828,6 +3829,101 @@ Python、Reducer、Event schema 或 database schema；Core 不添加 `if punk`�
 
 允许不同生成世界共用现有机制组合。“不是换皮”的长期证明仍依赖后续新的
 Capability 和结构不同的 WorldPack，不要求 Phase 9B 立刻解决所有世界结构差异。
+
+##### Phase 9B1 — Bounded World Draft Compilation
+
+**Status:** implementation candidate; this is not a Phase 9B freeze and does not
+create a formal Campaign.
+
+**Product question:** Can a strict external World Genesis Request and a repairable
+World Draft become a deterministic, verified compiled artifact without allowing the
+external client to invent runtime mechanics?
+
+The first bounded slice is:
+
+```text
+strict UTF-8 JSON World Genesis Request
+→ strict UTF-8 JSON World Draft
+→ explicit local validation with machine-readable issues
+→ deterministic normalization
+→ compiler-bound runtime IDs for phase75_expedition_v1
+→ canonical Compiled WorldPack
+→ deterministic initial GameState materialization
+→ scripted DROP → SEARCH → EXTRACT → TALK_TO_ACTOR bootstrap smoke
+→ canonical hashes
+→ atomic compiled-bundle publication and verification
+```
+
+The only supported mechanics profile is:
+
+```text
+phase75_expedition_v1
+```
+
+It reuses the reviewed expedition, world phase, combat-compatible state,
+progression, build choice, named actor, relationship, and knowledge-transfer
+contracts. A World Draft may provide display content and locale metadata only:
+world title, premise, base/target/resource/hazard labels, named actor public name,
+role, public goal, and `content_locale`. It may not provide Action or Event types,
+Reducer logic, state or database fields, Python expressions, reward formulas,
+runtime IDs, hidden facts, private Actor Knowledge, or relationship outcomes.
+
+The authority boundary is:
+
+```text
+The external client generates content.
+The compiler binds mechanics.
+The Engine remains authoritative for state, actions, events, and replay.
+```
+
+The transport is strict JSON for this slice. Input files need not already be
+canonical, but duplicate keys, non-standard numeric values, non-finite numbers,
+invalid UTF-8, unknown fields, missing fields, invalid stable IDs, invalid locale
+tags, invalid text, and unsupported profiles must produce deterministic issue
+objects. Successful artifacts are canonical UTF-8 JSON. A small frozen issue shape
+uses exactly `code`, `path`, `message`, `expected`, `actual`, and
+`allowed_values`; issue ordering is deterministic by path and code so an external
+client can repair only the reported fields.
+
+The compiler binds the current first-slice runtime IDs. It does not copy display
+title, premise, labels, locale, or world ID into mutable GameState. Therefore two
+drafts with different themes or languages but the same supported profile and seed
+must have identical initial GameState, initial state hash, legal choices, and Phase
+8 request fingerprint, while their public content and WorldPack hashes differ.
+Locale is metadata only: no translation database, locale lookup, RTL behavior, or
+locale-specific runtime branch is part of this slice.
+
+Before publication, the compiler runs the existing deterministic autoplay/replay
+path and requires non-empty initial legal choices, four accepted actions, zero
+illegal actions, zero Knowledge Boundary violations, successful Event Replay,
+the expected Mara autonomous inspection, one knowledge transfer, and one trust
+change. The smoke result is a proof artifact, not a formal Campaign state. It does
+not create SQLite, a Session, a DomainEvent history, an LLM call, narration, or a
+novel export.
+
+The compiled bundle contains exactly:
+
+```text
+bundle.json
+world_request.json
+world_draft.json
+compiled_worldpack.json
+initial_state.json
+compile_report.json
+```
+
+All hashes are SHA-256 over the corresponding canonical JSON artifact. Bundle
+publication writes a temporary sibling, verifies it by re-reading, recompiling,
+rematerializing, and rerunning the smoke proof, then atomically renames it to a
+previously absent output directory. Existing targets are rejected; failed writes,
+validation errors, smoke failures, verification failures, and publish races leave
+no partial bundle and never create SQLite.
+
+The Phase 9B1 CLI exposes only `validate`, `compile`, and `verify`. Formal Campaign
+creation, nested Phase 9A Session integration, narration, locale switching, LLM or
+provider APIs, HTTP/MCP, YAML authoring, dynamic feature selection, arbitrary rule
+generation, universal schemas, repair agents, and generated Python remain outside
+this slice and belong to later contracts.
 
 #### Phase 9C — External Client Narration, Resume and Novel Export
 
