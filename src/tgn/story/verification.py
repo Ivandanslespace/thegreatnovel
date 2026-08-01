@@ -30,12 +30,26 @@ _TURN_FILE_RE = re.compile(r"turn-([0-9]{6,})\.json\Z")
 _STORY_CHILDREN = {"story.json", "requests", "turns"}
 
 
+def _file_identity(file_stat: os.stat_result) -> tuple[object, ...]:
+    device = getattr(file_stat, "st_dev", None)
+    inode = getattr(file_stat, "st_ino", None)
+    if device is not None and inode is not None and not (device == 0 and inode == 0):
+        return ("posix", int(device), int(inode))
+    return (
+        "fallback",
+        int(getattr(file_stat, "st_file_attributes", 0)),
+        int(getattr(file_stat, "st_ctime_ns", 0)),
+        int(file_stat.st_mode),
+    )
+
+
 @dataclass(frozen=True)
 class StoryFileObservable:
     relative_path: str
     sha256: str
     size: int
     mtime_ns: int
+    identity: tuple[object, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -186,7 +200,13 @@ def load_story_view(story_dir: str | Path) -> StoryView:
     request_values: list[tuple[int, NarrationRequest, bytes]] = []
     turn_values: list[tuple[int, TurnNarrationArtifact, bytes]] = []
     file_values: list[StoryFileObservable] = [
-        StoryFileObservable("story.json", sha256_bytes(manifest_payload), len(manifest_payload), manifest_stat.st_mtime_ns)
+        StoryFileObservable(
+            "story.json",
+            sha256_bytes(manifest_payload),
+            len(manifest_payload),
+            manifest_stat.st_mtime_ns,
+            _file_identity(manifest_stat),
+        )
     ]
     seen_request: set[int] = set()
     seen_turn: set[int] = set()
@@ -225,6 +245,7 @@ def load_story_view(story_dir: str | Path) -> StoryView:
                     sha256_bytes(payload),
                     len(payload),
                     file_stat.st_mtime_ns,
+                    _file_identity(file_stat),
                 )
             )
     request_values.sort(key=lambda item: item[0])

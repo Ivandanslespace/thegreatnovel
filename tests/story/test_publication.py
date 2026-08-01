@@ -3,6 +3,7 @@ from __future__ import annotations
 import ctypes
 import errno
 import os
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -201,14 +202,14 @@ def test_publication_platform_dispatch_and_missing_cleanup(tmp_path: Path, monke
     source = tmp_path / "source"
     target = tmp_path / "target"
     source.write_bytes(b"payload")
-    monkeypatch.setattr(publication, "_linux_no_replace", lambda *_args: None)
+    monkeypatch.setattr(publication, "_linux_no_replace", lambda *_args: os.replace(source, target))
     monkeypatch.setattr(publication.sys, "platform", "linux")
     publication.atomic_no_replace_move(source, target, directory=False)
 
     source2 = tmp_path / "source2"
     target2 = tmp_path / "target2"
     source2.write_bytes(b"payload")
-    monkeypatch.setattr(publication, "_macos_no_replace", lambda *_args: None)
+    monkeypatch.setattr(publication, "_macos_no_replace", lambda *_args: os.replace(source2, target2))
     monkeypatch.setattr(publication.sys, "platform", "darwin")
     publication.atomic_no_replace_move(source2, target2, directory=False)
 
@@ -309,6 +310,38 @@ def _fake_posix_dirfd_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     return fd_paths
 
 
+def test_anchored_posix_adopted_file_and_bound_child_read(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    source = tmp_path / "adopted-source"
+    source.write_bytes(b"payload")
+    try:
+        assert binding.read_child_bytes(source.name)[0] == b"payload"
+        with pytest.raises(FileNotFoundError):
+            binding.read_child_bytes("missing-child")
+        directory = tmp_path / "not-file"
+        directory.mkdir()
+        with pytest.raises(PublicationRuntime):
+            binding.read_child_bytes(directory.name)
+
+        real_open = publication.os.open
+        monkeypatch.setattr(publication.os, "open", lambda *_args, **_kwargs: (_ for _ in ()).throw(PermissionError("open")))
+        with pytest.raises(PublicationRuntime):
+            binding.read_child_bytes(source.name)
+        monkeypatch.setattr(publication.os, "open", real_open)
+
+        def move_file(source_name, target_name, source_fd, target_fd):
+            binding._close_temp_fd()
+            os.replace(fd_paths[source_fd] / source_name, fd_paths[target_fd] / target_name)
+
+        monkeypatch.setattr(publication, "_linux_no_replace", move_file)
+        binding.adopt_existing(source, directory=False, owned=True)
+        binding.publish_adopted("adopted-target")
+        assert (tmp_path / "adopted-target").read_bytes() == b"payload"
+    finally:
+        binding.close_safely()
+
+
 def test_anchored_posix_file_publication_and_detached_cleanup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
     binding = publication.BoundPublicationDirectory.bind(tmp_path)
@@ -347,6 +380,30 @@ def test_anchored_posix_directory_cleanup_and_final_window(tmp_path: Path, monke
     assert not any(detached.iterdir())
     assert tmp_path.exists()
     binding.close()
+
+
+def test_anchored_posix_post_move_parent_change_removes_only_published_target(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    detached = tmp_path.with_name(f"{tmp_path.name}-post-move-detached")
+
+    def move_and_replace_parent(source, target, source_fd, target_fd):
+        binding._close_temp_fd()
+        os.replace(fd_paths[source_fd] / source, fd_paths[target_fd] / target)
+        tmp_path.rename(detached)
+        tmp_path.mkdir()
+        fd_paths[17] = detached
+
+    monkeypatch.setattr(publication, "_linux_no_replace", move_and_replace_parent)
+    try:
+        with pytest.raises(PublicationBoundaryChanged):
+            binding.publish_bytes("post-move.json", b"payload")
+        assert not (detached / "post-move.json").exists()
+        assert not (tmp_path / "post-move.json").exists()
+    finally:
+        binding.close_safely()
+        if detached.exists():
+            shutil.rmtree(detached)
 
     fd_paths[17] = tmp_path
     binding = publication.BoundPublicationDirectory.bind(tmp_path)
@@ -601,6 +658,87 @@ def test_publication_anchor_identity_and_owned_type_boundaries(tmp_path: Path, m
     with pytest.raises(PublicationRuntime):
         binding._windows_info()
     binding.close_safely()
+
+
+def test_publication_additional_identity_and_cleanup_error_matrix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    real_lstat = publication.os.lstat
+    with monkeypatch.context() as context:
+        context.setattr(publication.os, "lstat", lambda *_args: (_ for _ in ()).throw(OSError("path")))
+        with pytest.raises(PublicationBoundaryChanged):
+            binding._capture_path_identity()
+    with monkeypatch.context() as context:
+        context.setattr(publication.ctypes, "WinDLL", lambda *_args, **_kwargs: (_ for _ in ()).throw(PublicationRuntime("info")))
+        with pytest.raises(PublicationRuntime):
+            binding._windows_info_for_handle(123)
+    binding._temp_name = "temporary"
+    binding._temp_kind = None
+    with pytest.raises(PublicationRuntime):
+        binding._open_windows_temp_handle()
+    binding._temp_name = None
+    binding._temp_kind = None
+    binding.close_safely()
+    monkeypatch.setattr(publication.os, "lstat", real_lstat)
+
+    fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    posix_binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    other = tmp_path.with_name(f"{tmp_path.name}-other-for-matrix")
+    other.mkdir()
+    with monkeypatch.context() as context:
+        context.setattr(publication.os, "fstat", lambda fd: os.stat(other) if fd == 17 else os.fstat(fd))
+        with pytest.raises(PublicationBoundaryChanged):
+            posix_binding._check_handle()
+
+    with monkeypatch.context() as context:
+        context.setattr(publication.os, "mkdir", lambda *_args, **_kwargs: (_ for _ in ()).throw(FileExistsError()))
+        with pytest.raises(PublicationRuntime):
+            posix_binding.create_temp_directory("collision")
+
+    source = tmp_path / "matrix-source"
+    source.write_bytes(b"x")
+    with monkeypatch.context() as context:
+        context.setattr(publication.os, "open", lambda *_args, **_kwargs: (_ for _ in ()).throw(PermissionError("anchor")))
+        with pytest.raises(PublicationRuntime):
+            posix_binding.adopt_existing(source, directory=False)
+    with monkeypatch.context() as context:
+        context.setattr(posix_binding, "_stat_at", lambda *_args: (_ for _ in ()).throw(PublicationRuntime("inspect")))
+        with pytest.raises(PublicationRuntime):
+            posix_binding.adopt_existing(source, directory=False)
+
+    source_directory = tmp_path / "matrix-directory"
+    source_directory.mkdir()
+    posix_binding.adopt_existing(source_directory, directory=True, owned=True)
+    posix_binding.cleanup_temp()
+    posix_binding.create_temp_file("verify")
+    posix_binding._close_temp_fd()
+    with pytest.raises(PublicationRuntime):
+        posix_binding._verify_temp()
+    posix_binding.cleanup_temp()
+    posix_binding.close_safely()
+    fd_paths[17] = tmp_path
+    shutil.rmtree(other)
+
+
+def test_publication_target_observation_and_parent_cleanup_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    target = tmp_path / "target-observation.json"
+    original_identity = binding._identity_at
+    for exception in (PublicationRuntime("inspect"), OSError("inspect")):
+        with monkeypatch.context() as context:
+            context.setattr(binding, "_identity_at", lambda *_args, _exception=exception: (_ for _ in ()).throw(_exception))
+            with pytest.raises(PublicationRuntime):
+                publication.publish_bytes_no_replace(target, b"payload", parent_binding=binding)
+        if target.exists():
+            target.unlink()
+    monkeypatch.setattr(binding, "_identity_at", original_identity)
+    binding.close_safely()
+
+    dummy = publication.BoundPublicationDirectory(tmp_path)
+    dummy.directory_handle = 123
+    with monkeypatch.context() as context:
+        context.setattr(publication.ctypes, "WinDLL", lambda *_args, **_kwargs: _ChildFakeKernel(ctypes.c_void_p(123), 1, close_result=0))
+        with pytest.raises(PublicationRuntime):
+            dummy.close()
 
     binding = publication.BoundPublicationDirectory.bind(tmp_path)
     real_lstat = os.lstat

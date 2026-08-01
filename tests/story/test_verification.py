@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -9,6 +10,21 @@ from tgn.story import StoryError, init_story
 from tgn.story.common import canonical_bytes
 from tgn.story.verification import load_story_view, story_files_unchanged
 import tgn.story.verification as verification_module
+
+
+def test_file_and_directory_observable_fallback_identity() -> None:
+    fallback_stat = SimpleNamespace(st_dev=0, st_ino=0, st_file_attributes=7, st_ctime_ns=9, st_mode=10)
+    assert verification_module._file_identity(fallback_stat) == ("fallback", 7, 9, 10)
+    directory = verification_module.StoryDirectoryObservable(
+        relative_path=".",
+        mode=10,
+        device=0,
+        inode=0,
+        file_attributes=7,
+        ctime_ns=9,
+        mtime_ns=11,
+    )
+    assert directory.identity == (10, 7, 9)
 
 
 def test_story_view_not_found_root_type_and_extra_tree(story_factory, tmp_path: Path) -> None:

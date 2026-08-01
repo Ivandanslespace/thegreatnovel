@@ -372,11 +372,47 @@ def _prepare_publication_guard(
     return check
 
 
-def _pending_request_unchanged(view: StoryView, request: NarrationRequest) -> None:
+def _pending_request_unchanged(
+    view: StoryView,
+    request: NarrationRequest,
+    request_binding: BoundPublicationDirectory,
+) -> None:
+    expected_file = next(
+        (item for item in view.files if item.relative_path == f"requests/{request.turn_id}.json"),
+        None,
+    )
+    expected_payload = next(
+        (payload for number, value, payload in view.requests if value.turn_id == request.turn_id),
+        None,
+    )
+    if expected_file is None or expected_payload is None:
+        raise PublicationBoundaryChanged("story-error:STORY_INTEGRITY_MISMATCH")
     try:
-        current_payload, _ = read_regular_file(view.root / "requests" / f"{request.turn_id}.json")
+        current_payload, current_stat = request_binding.read_child_bytes(f"{request.turn_id}.json")
+        current_identity = (
+            ("posix", int(current_stat.st_dev), int(current_stat.st_ino))
+            if getattr(current_stat, "st_dev", None) is not None
+            and getattr(current_stat, "st_ino", None) is not None
+            and not (current_stat.st_dev == 0 and current_stat.st_ino == 0)
+            else (
+                "fallback",
+                int(getattr(current_stat, "st_file_attributes", 0)),
+                int(getattr(current_stat, "st_ctime_ns", 0)),
+                int(current_stat.st_mode),
+            )
+        )
+        if (
+            current_identity != expected_file.identity
+            or current_payload != expected_payload
+            or sha256_bytes(current_payload) != expected_file.sha256
+            or len(current_payload) != expected_file.size
+            or current_stat.st_mtime_ns != expected_file.mtime_ns
+        ):
+            raise PublicationBoundaryChanged("story-error:STORY_INTEGRITY_MISMATCH")
         current_value = NarrationRequest.from_dict(parse_json_bytes(current_payload, require_canonical=True))
     except Exception as exc:
+        if isinstance(exc, PublicationBoundaryChanged):
+            raise
         raise PublicationBoundaryChanged("story-error:STORY_INTEGRITY_MISMATCH") from exc
     if current_value.to_dict() != request.to_dict():
         raise PublicationBoundaryChanged("story-error:STORY_INTEGRITY_MISMATCH")
@@ -400,7 +436,7 @@ def _commit_publication_guard(
             _commit_prefix_check(campaign_dir, before_snapshot, request)
         except StoryError as exc:
             raise PublicationBoundaryChanged(f"story-error:{exc.code}") from exc
-        _pending_request_unchanged(view, request)
+        _pending_request_unchanged(view, request, request_binding)
 
     return check
 
@@ -772,11 +808,19 @@ class StoryService:
             raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "Story initialization failed") from exc
         finally:
             if parent_binding is not None:
+                cleanup_error: PublicationRuntime | None = None
                 try:
                     if parent_binding.temp_name is not None:
                         parent_binding.cleanup_temp()
+                except PublicationRuntime as exc:
+                    cleanup_error = exc
                 finally:
                     parent_binding.close_safely()
+                if cleanup_error is not None:
+                    raise StoryError(
+                        "STORY_PUBLICATION_UNAVAILABLE",
+                        "Story temporary cleanup is unavailable",
+                    ) from cleanup_error
 
     def _bound_history(self, campaign_dir: str | Path) -> tuple[StoryView, CampaignManifest, CampaignSnapshot, CampaignHistory]:
         view, _campaign_manifest, snapshot = _load_story_and_bound(self.story_dir, campaign_dir)
@@ -899,21 +943,17 @@ class StoryService:
                 pass
             raise StoryError("TURN_CONFLICT", "turn already has a different committed artifact")
         _commit_prefix_check(campaign_dir, snapshot, request)
-        # Re-read the pending request at the publication boundary.  A caller
-        # may take time to generate a response; a replacement of the request
-        # during that interval must never be paired with the old response.
-        try:
-            current_payload, _ = read_regular_file(view.root / "requests" / f"turn-{number:06d}.json")
-            current_value = NarrationRequest.from_dict(
-                parse_json_bytes(current_payload, require_canonical=True)
-            )
-        except Exception as exc:
-            raise _story_integrity("pending request changed during commit") from exc
-        if current_value.to_dict() != request.to_dict():
-            raise _story_integrity("pending request changed during commit")
         root_binding, requests_binding = _open_story_publication_bindings(view, "requests")
         turns_binding: BoundPublicationDirectory | None = None
         try:
+            # Re-read the pending request through the already anchored request
+            # parent.  A caller may take time to generate a response; a
+            # replacement of the request during that interval must never be
+            # paired with the old response.
+            try:
+                _pending_request_unchanged(view, request, requests_binding)
+            except PublicationBoundaryChanged as exc:
+                raise _story_integrity("pending request changed during commit") from exc
             turns_binding = BoundPublicationDirectory.bind(view.root / "turns")
             result = _published_turn(
                 target,

@@ -416,10 +416,33 @@ def test_service_guard_and_binding_failure_boundaries(story_factory, tmp_path: P
 
     request_model = service_module.NarrationRequest.from_dict(request)
     with monkeypatch.context() as context:
-        context.setattr(service_module, "read_regular_file", lambda *_args: (_ for _ in ()).throw(OSError("read")))
-        with pytest.raises(service_module.PublicationBoundaryChanged) as error:
-            service_module._pending_request_unchanged(view, request_model)
-        assert str(error.value) == "story-error:STORY_INTEGRITY_MISMATCH"
+        context.setattr(
+            service_module.BoundPublicationDirectory,
+            "read_child_bytes",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("read")),
+        )
+        request_binding = service_module.BoundPublicationDirectory.bind(story / "requests")
+        try:
+            with pytest.raises(service_module.PublicationBoundaryChanged) as error:
+                service_module._pending_request_unchanged(view, request_model, request_binding)
+            assert str(error.value) == "story-error:STORY_INTEGRITY_MISMATCH"
+        finally:
+            request_binding.close_safely()
+
+    missing_request_view = dataclasses.replace(
+        view,
+        requests=(),
+        files=tuple(item for item in view.files if not item.relative_path.startswith("requests/")),
+    )
+    request_binding = service_module.BoundPublicationDirectory.bind(story / "requests")
+    try:
+        with pytest.raises(service_module.PublicationBoundaryChanged):
+            service_module._pending_request_unchanged(missing_request_view, request_model, request_binding)
+        different_request = dataclasses.replace(request_model, choice_id="different-choice")
+        with pytest.raises(service_module.PublicationBoundaryChanged):
+            service_module._pending_request_unchanged(view, different_request, request_binding)
+    finally:
+        request_binding.close_safely()
 
     original_bind = service_module.BoundPublicationDirectory.bind
     calls = {"count": 0}
@@ -517,7 +540,11 @@ def test_service_init_and_commit_failure_mapping(story_factory, monkeypatch: pyt
         service_module.commit_story(story, campaign_dir=campaign, response=bad_prefix)
     assert error.value.code == "NARRATION_RESPONSE_INVALID"
 
-    monkeypatch.setattr(service_module, "read_regular_file", lambda *_args: (_ for _ in ()).throw(OSError("pending read")))
+    monkeypatch.setattr(
+        service_module.BoundPublicationDirectory,
+        "read_child_bytes",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("pending read")),
+    )
     with pytest.raises(StoryError) as error:
         service_module.commit_story(story, campaign_dir=campaign, response=response_for(request))
     assert error.value.code == "STORY_INTEGRITY_MISMATCH"

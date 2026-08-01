@@ -210,6 +210,7 @@ class BoundPublicationDirectory:
     _FILE_LIST_DIRECTORY = 0x00000001
     _FILE_SHARE_READ = 0x00000001
     _FILE_SHARE_WRITE = 0x00000002
+    _FILE_SHARE_DELETE = 0x00000004
     _OPEN_EXISTING = 3
 
     def __init__(self, path: Path) -> None:
@@ -222,6 +223,7 @@ class BoundPublicationDirectory:
         self._temp_path: Path | None = None
         self._temp_kind: str | None = None
         self._temp_fd: int | None = None
+        self._temp_handle: int | None = None
         self._temp_identity: tuple[Any, ...] | None = None
         self._temp_owned = False
 
@@ -294,13 +296,16 @@ class BoundPublicationDirectory:
     def _windows_info(self) -> tuple[int, tuple[Any, ...]]:
         if self.directory_handle is None:
             raise PublicationRuntime("publication parent HANDLE is closed")
+        return self._windows_info_for_handle(self.directory_handle)
+
+    def _windows_info_for_handle(self, handle: int) -> tuple[int, tuple[Any, ...]]:
         try:
             kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
             get_info = kernel32.GetFileInformationByHandle
             get_info.argtypes = [ctypes.wintypes.HANDLE, ctypes.POINTER(_BY_HANDLE_FILE_INFORMATION)]
             get_info.restype = ctypes.wintypes.BOOL
             info = _BY_HANDLE_FILE_INFORMATION()
-            if not get_info(ctypes.wintypes.HANDLE(self.directory_handle), ctypes.byref(info)):
+            if not get_info(ctypes.wintypes.HANDLE(handle), ctypes.byref(info)):
                 raise OSError(ctypes.get_last_error(), "GetFileInformationByHandle failed")
             identity = (
                 "windows",
@@ -312,7 +317,101 @@ class BoundPublicationDirectory:
         except PublicationRuntime:
             raise
         except Exception as exc:
-            raise PublicationRuntime("publication parent HANDLE cannot be inspected") from exc
+            raise PublicationRuntime("publication HANDLE cannot be inspected") from exc
+
+    def _open_windows_temp_handle(self) -> None:
+        if os.name != "nt":
+            return
+        if self._temp_name is None or self._temp_kind is None:
+            raise PublicationRuntime("owned temporary is not active")
+        try:
+            handle, attributes, handle_identity = self._open_windows_child_handle(
+                self._temp_name,
+                self._temp_kind,
+            )
+            self._temp_handle = handle
+            if self._temp_identity is None:
+                self._temp_identity = handle_identity
+            elif handle_identity != self._temp_identity:
+                raise OSError("owned temporary identity changed while opening HANDLE")
+            _attributes, name_identity = self._windows_identity_at(self._temp_name, self._temp_kind)
+            if name_identity != self._temp_identity:
+                raise OSError("owned temporary name identity changed while opening HANDLE")
+        except PublicationRuntime:
+            self._close_temp_handle_safely()
+            raise
+        except Exception as exc:
+            self._close_temp_handle_safely()
+            raise PublicationRuntime("owned temporary HANDLE cannot be opened") from exc
+
+    def _open_windows_child_handle(self, name: str, kind: str) -> tuple[int, int, tuple[Any, ...]]:
+        """Open one non-reparse child and return its stable Windows identity."""
+
+        name = _ensure_name(name)
+        handle_value: int | None = None
+        try:
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            create_file = kernel32.CreateFileW
+            create_file.argtypes = [
+                ctypes.c_wchar_p,
+                ctypes.wintypes.DWORD,
+                ctypes.wintypes.DWORD,
+                ctypes.c_void_p,
+                ctypes.wintypes.DWORD,
+                ctypes.wintypes.DWORD,
+                ctypes.wintypes.HANDLE,
+            ]
+            create_file.restype = ctypes.wintypes.HANDLE
+            access = self._FILE_READ_ATTRIBUTES
+            flags = self._FILE_FLAG_OPEN_REPARSE_POINT
+            if kind == "directory":
+                access |= self._FILE_LIST_DIRECTORY
+                flags |= self._FILE_FLAG_BACKUP_SEMANTICS
+            handle = create_file(
+                os.fspath(self.path / name),
+                access,
+                self._FILE_SHARE_READ | self._FILE_SHARE_WRITE | self._FILE_SHARE_DELETE,
+                None,
+                self._OPEN_EXISTING,
+                flags,
+                None,
+            )
+            value = ctypes.cast(handle, ctypes.c_void_p).value
+            invalid_handle = ctypes.c_void_p(-1).value
+            if value in {None, -1, invalid_handle}:
+                raise OSError(ctypes.get_last_error(), "CreateFileW child failed")
+            handle_value = int(value)
+            attributes, identity = self._windows_info_for_handle(handle_value)
+            valid = bool(attributes & self._FILE_ATTRIBUTE_DIRECTORY) if kind == "directory" else not bool(attributes & self._FILE_ATTRIBUTE_DIRECTORY)
+            if attributes & self._FILE_ATTRIBUTE_REPARSE_POINT or not valid:
+                self._close_windows_handle_value(handle_value)
+                handle_value = None
+                raise OSError("Windows child has an invalid type")
+            return handle_value, attributes, identity
+        except Exception as exc:
+            if handle_value is not None:
+                try:
+                    self._close_windows_handle_value(handle_value)
+                except Exception:
+                    pass
+            if isinstance(exc, PublicationRuntime):
+                raise
+            raise PublicationRuntime("Windows child HANDLE cannot be opened") from exc
+
+    def _close_windows_handle_value(self, handle: int) -> None:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        close_handle = kernel32.CloseHandle
+        close_handle.argtypes = [ctypes.wintypes.HANDLE]
+        close_handle.restype = ctypes.wintypes.BOOL
+        if not close_handle(ctypes.wintypes.HANDLE(handle)):
+            raise OSError(ctypes.get_last_error(), "CloseHandle child failed")
+
+    def _windows_identity_at(self, name: str, kind: str) -> tuple[int, tuple[Any, ...]]:
+        handle, attributes, identity = self._open_windows_child_handle(name, kind)
+        try:
+            return attributes, identity
+        finally:
+            self._close_windows_handle_value(handle)
 
     def _capture_path_identity(self) -> tuple[Any, ...]:
         try:
@@ -379,6 +478,45 @@ class BoundPublicationDirectory:
         except OSError as exc:
             raise PublicationRuntime("publication child cannot be inspected") from exc
 
+    def read_child_bytes(self, name: str) -> tuple[bytes, os.stat_result]:
+        """Read one regular child through this operation's bound parent."""
+
+        name = _ensure_name(name)
+        self.check()
+        try:
+            initial = self._stat_at(name)
+            if not is_actual_regular_file(initial):
+                raise PublicationRuntime("publication child is not a regular file")
+            flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+            if self.directory_fd is not None:
+                fd = os.open(name, flags, dir_fd=self.directory_fd)
+            else:
+                fd = os.open(os.fspath(self.path / name), flags)
+            try:
+                opened = os.fstat(fd)
+                if not is_actual_regular_file(opened) or _stat_identity(opened) != _stat_identity(initial):
+                    raise PublicationRuntime("publication child identity changed while opening")
+                chunks: list[bytes] = []
+                while True:
+                    chunk = os.read(fd, 1024 * 1024)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                final = self._stat_at(name)
+                if not is_actual_regular_file(final) or _stat_identity(final) != _stat_identity(opened):
+                    raise PublicationRuntime("publication child identity changed while reading")
+                return b"".join(chunks), final
+            finally:
+                os.close(fd)
+        except PublicationRuntime:
+            raise
+        except FileNotFoundError:
+            raise
+        except OSError as exc:
+            raise PublicationRuntime("publication child cannot be read") from exc
+        finally:
+            self.check()
+
     def _exists_at(self, name: str) -> bool:
         try:
             self._stat_at(name)
@@ -389,6 +527,12 @@ class BoundPublicationDirectory:
             raise
         except OSError as exc:
             raise PublicationRuntime("publication target cannot be inspected") from exc
+
+    def _identity_at(self, name: str, kind: str) -> tuple[Any, ...]:
+        if os.name == "nt":
+            _attributes, identity = self._windows_identity_at(name, kind)
+            return identity
+        return _stat_identity(self._stat_at(name))
 
     def _register_temp(self, name: str, *, kind: str, fd: int | None) -> Path:
         self._temp_name = _ensure_name(name)
@@ -403,7 +547,9 @@ class BoundPublicationDirectory:
         valid = is_actual_directory(item_stat) if kind == "directory" else is_actual_regular_file(item_stat)
         if not valid:
             raise PublicationRuntime("owned temporary has an invalid file type")
-        self._temp_identity = _stat_identity(item_stat)
+        self._temp_identity = None if os.name == "nt" else _stat_identity(item_stat)
+        if os.name == "nt":
+            self._open_windows_temp_handle()
         return self._temp_path
 
     def create_temp_file(self, target_name: str) -> Path:
@@ -477,9 +623,7 @@ class BoundPublicationDirectory:
                 actual = b"".join(chunks)
             if actual != payload:
                 raise OSError("owned temporary verification differs from payload")
-            item_stat = self._stat_at(self._temp_name) if os.name == "nt" else os.fstat(fd)
-            if not is_actual_regular_file(item_stat) or _stat_identity(item_stat) != self._temp_identity:
-                raise OSError("owned temporary identity changed")
+            self._verify_temp()
         except PublicationRuntime:
             raise
         except Exception as exc:
@@ -500,30 +644,59 @@ class BoundPublicationDirectory:
         if not valid:
             raise PublicationRuntime("publication source has an invalid file type")
         fd: int | None = None
-        if os.name != "nt" and directory:
-            flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        if os.name != "nt":
+            flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+            if directory:
+                flags |= getattr(os, "O_DIRECTORY", 0)
             try:
                 fd = os.open(name, flags, dir_fd=self.directory_fd)
             except OSError as exc:
-                raise PublicationRuntime("publication source directory cannot be anchored") from exc
+                raise PublicationRuntime("publication source cannot be anchored") from exc
         self._temp_name = name
         self._temp_path = source_path
         self._temp_kind = "directory" if directory else "file"
         self._temp_fd = fd
-        self._temp_identity = _stat_identity(item_stat)
+        self._temp_handle = None
+        self._temp_identity = None if os.name == "nt" else _stat_identity(item_stat)
         self._temp_owned = owned
+        if os.name == "nt":
+            self._open_windows_temp_handle()
+        self._verify_temp()
 
     def _verify_temp(self) -> os.stat_result:
-        if self._temp_name is None or self._temp_kind is None:
+        if self._temp_name is None or self._temp_kind is None or self._temp_identity is None:
             raise PublicationRuntime("owned temporary is not active")
         try:
-            item_stat = os.fstat(self._temp_fd) if self._temp_fd is not None and os.name != "nt" else self._stat_at(self._temp_name)
+            if os.name == "nt":
+                if self._temp_handle is None:
+                    raise PublicationRuntime("owned temporary HANDLE is not active")
+                attributes, retained_identity = self._windows_info_for_handle(self._temp_handle)
+                retained_valid = (
+                    bool(attributes & self._FILE_ATTRIBUTE_DIRECTORY)
+                    if self._temp_kind == "directory"
+                    else not bool(attributes & self._FILE_ATTRIBUTE_DIRECTORY)
+                )
+                if attributes & self._FILE_ATTRIBUTE_REPARSE_POINT or not retained_valid:
+                    raise PublicationRuntime("owned temporary HANDLE has an invalid type")
+                _current_attributes, current_identity = self._windows_identity_at(self._temp_name, self._temp_kind)
+                current = self._stat_at(self._temp_name)
+            else:
+                if self._temp_fd is None:
+                    raise PublicationRuntime("owned temporary descriptor is not active")
+                retained_stat = os.fstat(self._temp_fd)
+                retained_identity = _stat_identity(retained_stat)
+                retained_valid = is_actual_directory(retained_stat) if self._temp_kind == "directory" else is_actual_regular_file(retained_stat)
+                if not retained_valid:
+                    raise PublicationRuntime("owned temporary descriptor has an invalid type")
+                current = self._stat_at(self._temp_name)
         except OSError as exc:
             raise PublicationRuntime("owned temporary cannot be inspected") from exc
-        valid = is_actual_directory(item_stat) if self._temp_kind == "directory" else is_actual_regular_file(item_stat)
-        if not valid or _stat_identity(item_stat) != self._temp_identity:
+        current_valid = is_actual_directory(current) if self._temp_kind == "directory" else is_actual_regular_file(current)
+        if os.name != "nt":
+            current_identity = _stat_identity(current)
+        if not current_valid or retained_identity != self._temp_identity or current_identity != self._temp_identity:
             raise PublicationRuntime("owned temporary identity changed")
-        return item_stat
+        return current
 
     def _remove_tree_at(self, parent_fd: int, name: str, expected: tuple[Any, ...]) -> None:
         flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
@@ -551,18 +724,22 @@ class BoundPublicationDirectory:
         _ensure_name(name)
         try:
             current = self._stat_at(name)
-            if _stat_identity(current) != expected:
+            if directory:
+                if not is_actual_directory(current):
+                    raise OSError("owned target is not a directory")
+                current_identity = self._identity_at(name, "directory")
+            else:
+                if not is_actual_regular_file(current):
+                    raise OSError("owned target is not a regular file")
+                current_identity = self._identity_at(name, "file")
+            if current_identity != expected:
                 raise OSError("owned target identity changed")
             if directory:
                 if self.directory_fd is not None:
                     self._remove_tree_at(self.directory_fd, name, expected)
                 else:
-                    if not is_actual_directory(current):
-                        raise OSError("owned target is not a directory")
                     shutil.rmtree(self.path / name)
             else:
-                if not is_actual_regular_file(current):
-                    raise OSError("owned target is not a regular file")
                 if self.directory_fd is not None:
                     os.unlink(name, dir_fd=self.directory_fd)
                 else:
@@ -582,13 +759,14 @@ class BoundPublicationDirectory:
         directory = self._temp_kind == "directory"
         if expected is None:
             raise PublicationRuntime("owned temporary identity is missing")
-        self._close_temp_fd()
+        self._close_temp_resources()
         if self._temp_owned:
             self._remove_owned_name(name, expected, directory=directory)
         self._temp_name = None
         self._temp_path = None
         self._temp_kind = None
         self._temp_fd = None
+        self._temp_handle = None
         self._temp_identity = None
         self._temp_owned = False
 
@@ -602,6 +780,61 @@ class BoundPublicationDirectory:
         except OSError as exc:
             raise PublicationRuntime("owned temporary descriptor could not be closed") from exc
 
+    def _close_temp_handle(self) -> None:
+        if self._temp_handle is None:
+            return
+        handle = self._temp_handle
+        self._temp_handle = None
+        try:
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            close_handle = kernel32.CloseHandle
+            close_handle.argtypes = [ctypes.wintypes.HANDLE]
+            close_handle.restype = ctypes.wintypes.BOOL
+            if not close_handle(ctypes.wintypes.HANDLE(handle)):
+                raise OSError(ctypes.get_last_error(), "CloseHandle temporary failed")
+        except OSError as exc:
+            raise PublicationRuntime("owned temporary HANDLE could not be closed") from exc
+        except Exception as exc:
+            raise PublicationRuntime("owned temporary HANDLE could not be closed") from exc
+
+    def _close_temp_handle_safely(self) -> None:
+        try:
+            self._close_temp_handle()
+        except PublicationRuntime:
+            pass
+
+    def _close_temp_resources(self) -> None:
+        errors: list[BaseException] = []
+        for close in (self._close_temp_fd, self._close_temp_handle):
+            try:
+                close()
+            except BaseException as exc:
+                errors.append(exc)
+        if errors:
+            raise PublicationRuntime("owned temporary descriptor cleanup failed") from errors[0]
+
+    def _handle_target_identity_mismatch(
+        self,
+        target_name: str,
+        target_identity: tuple[Any, ...],
+        source_name: str,
+        source_kind: str,
+    ) -> None:
+        """Fail closed without deleting a target that may be a competitor."""
+
+        try:
+            source_stat = self._stat_at(source_name)
+        except FileNotFoundError:
+            self._remove_owned_name(target_name, target_identity, directory=source_kind == "directory")
+            raise PublicationBoundaryChanged("published target identity changed")
+        except PublicationRuntime:
+            raise
+        except OSError as exc:
+            raise PublicationRuntime("publication source cannot be rechecked") from exc
+        if self._identity_at(source_name, source_kind) == self._temp_identity:
+            raise PublicationBoundaryChanged("published target identity changed")
+        raise PublicationBoundaryChanged("publication source identity changed after atomic move")
+
     def _move_temp(self, target_name: str) -> None:
         target_name = _ensure_name(target_name)
         self._verify_temp()
@@ -610,7 +843,6 @@ class BoundPublicationDirectory:
         source_name = self._temp_name
         source_path = self._temp_path
         source_kind = self._temp_kind
-        owned_temp = self._temp_owned
         if source_name is None or source_path is None or source_kind is None:
             raise PublicationRuntime("owned temporary is not active")
         try:
@@ -629,36 +861,37 @@ class BoundPublicationDirectory:
         target_identity: tuple[Any, ...] | None = None
         try:
             target_stat = self._stat_at(target_name)
-            if (source_kind == "directory" and not is_actual_directory(target_stat)) or (
-                source_kind == "file" and not is_actual_regular_file(target_stat)
-            ):
-                raise OSError("published target has an invalid type")
-            target_identity = _stat_identity(target_stat)
+            target_identity = self._identity_at(target_name, source_kind)
         except FileNotFoundError:
-            # Story-owned temporaries remain strict.  The compatibility
-            # atomic_no_replace_move wrapper also supports tests that replace
-            # a low-level primitive with a no-op, so an adopted source does
-            # not require a second observable check here.
-            if owned_temp:
-                raise PublicationRuntime("published target cannot be verified")
+            raise PublicationRuntime("published target cannot be verified")
         except PublicationRuntime:
             raise
         except Exception as exc:
             raise PublicationRuntime("published target cannot be verified") from exc
+        if target_identity != self._temp_identity:
+            self._handle_target_identity_mismatch(target_name, target_identity, source_name, source_kind)
+        if (source_kind == "directory" and not is_actual_directory(target_stat)) or (
+            source_kind == "file" and not is_actual_regular_file(target_stat)
+        ):
+            raise PublicationRuntime("published target has an invalid type")
         # The no-replace move above is the publication commit point.  A
-        # descriptor-close failure after that point must not turn an already
-        # published Story artifact into a reported failure or trigger cleanup
-        # against a competing target.  _close_temp_fd clears the owned fd
-        # slot before attempting the close, so the later state reset remains
-        # bounded even when the OS close itself fails.
+        # descriptor/handle-close failure after that point must not turn an
+        # already published Story artifact into a reported failure or trigger
+        # cleanup against a competing target.  Both close helpers clear their
+        # slots before attempting the OS close.
         try:
             self._close_temp_fd()
+        except PublicationRuntime:
+            pass
+        try:
+            self._close_temp_handle()
         except PublicationRuntime:
             pass
         self._temp_name = None
         self._temp_path = None
         self._temp_kind = None
         self._temp_fd = None
+        self._temp_handle = None
         self._temp_identity = None
         self._temp_owned = False
         try:
@@ -684,8 +917,8 @@ class BoundPublicationDirectory:
         before_atomic: Callable[[], None] | None = None,
     ) -> None:
         self.checkpoint(boundary_check)
-        self.create_temp_file(target_name)
         try:
+            self.create_temp_file(target_name)
             self.checkpoint(boundary_check)
             self.write_temp_bytes(payload)
             self.checkpoint(boundary_check)
@@ -737,9 +970,9 @@ class BoundPublicationDirectory:
 
     def close(self) -> None:
         errors: list[BaseException] = []
-        if self._temp_fd is not None:
+        if self._temp_fd is not None or self._temp_handle is not None:
             try:
-                self._close_temp_fd()
+                self._close_temp_resources()
             except BaseException as exc:
                 errors.append(exc)
         if self.directory_handle is not None:
