@@ -14,7 +14,9 @@ A **deterministic, event-sourced, replayable game simulation core** designed to 
 
 **Phase 9B1 — frozen at `phase-9b1-frozen`**
 
-**Phase 9B2A — implementation candidate**
+**Phase 9B2A — frozen (`phase-9b2a-frozen`)**
+
+Frozen implementation SHA: `60ebf493ba90114c4f03048558e316ac07118ee2`
 
 **Phase 9B2B — not started**
 
@@ -29,8 +31,8 @@ materializes an initial GameState, runs a scripted bootstrap smoke test, and
 publishes a verified compiled bundle. It does not create formal Campaigns,
 SQLite sessions, or narration. The Phase 7 build effects remain the explicit
 `window_runner`, `field_rest`, and `quick_rest` candidates only; none of these
-phases introduces a general framework. Phase 9B2A is the current Player-Visible
-Projection Map implementation candidate: it adds a supplemental display-label
+phases introduces a general framework. Phase 9B2A is the frozen Player-Visible
+Projection Map at `phase-9b2a-frozen`: it adds a supplemental display-label
 draft, a detached deterministic presentation sidecar, a separate presentation
 hash, and a verified four-file projection bundle without changing the canonical
 Engine request or creating a Campaign, Session, SQLite database, or Narration
@@ -58,7 +60,7 @@ Phases 1–6 establish the deterministic core, action validation, replay and
 the first gameplay slices. Phase 7 is frozen at `phase-7-frozen`; Phase 7.5 is
 frozen at `phase-7.5-frozen`; Phase 8 is frozen at `phase-8-frozen`; Phase 9A is
 frozen at `phase-9a-frozen`; Phase 9B1 is frozen at `phase-9b1-frozen`; Phase
-9B2A is the current implementation candidate; Phase 9B2B has not started.
+9B2A is frozen at `phase-9b2a-frozen`; Phase 9B2B has not started.
 
 ## Getting Started
 

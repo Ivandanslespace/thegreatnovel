@@ -4,7 +4,7 @@
 > 目标：从当前"大而全、持续修 Bug"的架构退回一个可验证、可重放、可自动测试的最小核心，然后通过确定性验证与 scripted autoplay 一层一层增加功能（LLM autoplay 在 LLM Player 层建立后引入）。  
 > 原始 Legacy 审查基线：2026-07-31 `main`，最初审查时约为 `4141e905...`。  
 > 当前开发线：`mvp-rewrite`。  
-> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9A frozen；Phase 9B1 frozen；Phase 9B2A implementation candidate；Phase 9B2B not started。
+> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9A frozen；Phase 9B1 frozen；Phase 9B2A frozen (`phase-9b2a-frozen`)；Phase 9B2B not started。
 > 参考作品：用户上传的《全民纜車求生，我一級一個三選一》。
 
 > **V2 修订说明 (2026-07-31)：** 本文档经过增量架构修订。第一 WorldPack 仍可以是缆车求生 Demo，但它的 Base / Expedition / Day-Night / Three-choice 属于第一批 vertical slice 局部实现，不是整个 Engine 的宇宙规则。V2 新增反主题/结构性硬编码原则、反过度抽象原则、Knowledge boundary、Habitat 可选抽象、ProgressionTrack/Gate、Feature Module 责任边界、Compatibility Pressure Test，并更新 Phase 5+ 路线图。原有工程架构内容（EventStore、Replay、Test Pyramid、Autoplay、ExploitAgent 等）完整保留。
@@ -2941,7 +2941,7 @@ Phase 7.5 — frozen (`phase-7.5-frozen`): Named Actor + Relationship + Knowledg
 Phase 8 — frozen (`phase-8-frozen`): Provider-neutral LLM Player + RecordedDecision Replay
 Phase 9A — frozen (`phase-9a-frozen`): External Client Session Protocol
 Phase 9B1 — frozen (`phase-9b1-frozen`): Bounded World Draft Compilation
-Phase 9B2A — implementation candidate: Player-Visible Projection Map
+Phase 9B2A — frozen (`phase-9b2a-frozen`): Player-Visible Projection Map
 Phase 9B2B — not started
 ```
 
@@ -3941,10 +3941,12 @@ this slice and belong to later contracts.
 
 ##### Phase 9B2A — Player-Visible Projection Map
 
-**Status:** implementation candidate; Phase 9B1 remains frozen at
+**Status:** frozen (`phase-9b2a-frozen`); Phase 9B1 remains frozen at
 `phase-9b1-frozen`, and Phase 9B2B has not started.
 
 **Accepted source baseline:** `a4c79a47dfac88c3f9b39aa8ca50cc6255d48902`.
+
+**Frozen implementation SHA:** `60ebf493ba90114c4f03048558e316ac07118ee2`.
 
 **Product question:** Can a verified Phase 9B1 compiled bundle plus a strict
 supplemental Projection Draft produce a deterministic, detached player-facing
