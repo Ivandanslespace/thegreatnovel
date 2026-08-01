@@ -5052,6 +5052,15 @@ authorize Phase 9C work.
 
 **Status:** Phase 9C1 implementation candidate (not frozen); Phase 9C2 not started
 
+**Phase 9C1 correction commit:** `86ae3480c94006b844d4ec69d6af243a08af7d50`
+
+本次 correction 关闭 external review 的 strict prepare snapshot、Story directory
+identity publication binding 和 Campaign-backed product proof 缺口。当前验证结果：
+Story `87 passed`、Story coverage `95%`；全仓 `1482 passed, 2 skipped`，Campaign
+`96%`、Projection `100%`、全仓 `97%`。两个 skipped 是 Windows 上冻结
+`tests/campaign/test_no_follow.py:75` 和 `:251` 的 POSIX FIFO 场景不可用，不是
+Phase 9C1 测试失败。
+
 **Contract type:** authoritative design contract with a Phase 9C1 implementation
 candidate. 当前实现只覆盖 9C1；不实现 Phase 9C2 的 locale switching、novel export、
 terminal completion report 或 full interruption/export proof。不得创建、移动、删除或
@@ -6373,6 +6382,7 @@ guard 是 Phase 9C 的新边界，不能假装现有 regex guard 已经满足。
 Phase 9B2A — frozen at phase-9b2a-frozen
 Phase 9B2B — frozen at phase-9b2b-frozen
 Phase 9C1 — implementation candidate (not frozen)
+Phase 9C1 correction — 86ae3480c94006b844d4ec69d6af243a08af7d50
 Phase 9C2 — not started
 Phase 9D  — deferred
 ~~~

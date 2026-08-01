@@ -35,6 +35,13 @@ Campaign-bound Story persistence、deterministic Narration Request、pending/res
 structured claims、committed turn artifacts、status、verify 和 local CLI；Phase 9C
 尚未冻结。
 
+Phase 9C1 external-review correction commit：`86ae3480c94006b844d4ec69d6af243a08af7d50`。
+本次修复严格 prepare snapshot、Story directory identity publication binding，以及
+Campaign-backed TALK_TO_ACTOR / terminal / interruption-resume proof；Phase 9C1
+仍是 implementation candidate，未冻结。当前验证：Story `87 passed`、Story coverage
+`95%`；全仓 `1482 passed, 2 skipped`，Campaign `96%`、Projection `100%`、全仓
+`97%`。
+
 This branch contains the first WorldPack's local Phase 7 permanent build-choice
 slice and the frozen Phase 7.5 named actor, relationship, and knowledge slice.
 slice. Phase 9A is frozen at `phase-9a-frozen` and covers only the minimal
