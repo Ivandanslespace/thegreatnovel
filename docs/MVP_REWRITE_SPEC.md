@@ -4274,7 +4274,7 @@ unknown fields and missing fields are integrity failures:
   "world_bundle_manifest_hash": "<sha256 of copied world/bundle.json>",
   "player_projection_hash": "<sha256 of copied projection/player_projection.json>",
   "projection_bundle_manifest_hash": "<sha256 of copied projection/projection_manifest.json>",
-  "initial_request_fingerprint": "<sha256 of canonical initial request>",
+  "initial_request_fingerprint": "<frozen Phase 8 decision-1 request fingerprint>",
   "initial_presentation_hash": "<sha256 of canonical initial presentation>",
   "session_id": "campaign-001",
   "actor_id": "player",
@@ -4313,9 +4313,28 @@ The values have these fixed meanings and types:
   requires its `campaign_id` to equal its `session_id`.
 - `max_decisions` is a strict positive integer. It is the Phase 9A session
   limit, not a 50-decision autoplay gate.
-- Every hash is lowercase SHA-256 over canonical JSON encoded as UTF-8. No raw
+- Artifact content hashes are lowercase SHA-256 over the exact artifact's
+  canonical JSON encoded as UTF-8:
+  `sha256(canonical_json(artifact).encode("utf-8")).hexdigest()`. No raw
   absolute path, wall-clock time, host/user identity, random compilation UUID,
   provider/LLM identity, narration, or future result prediction is allowed.
+- `initial_request_fingerprint` is the frozen Phase 8 request identity, not a
+  hash of `request.to_dict()`. It is exactly the value returned by frozen
+  `build_llm_decision_request()` for decision number `1`, using this algorithm
+  with `request_fingerprint` excluded from the payload:
+
+  ```text
+  sha256(canonical_json({
+      "decision_number": decision_number,
+      "observation": detached_visible_observation,
+      "choices": serialized_canonical_choices,
+  }).encode("utf-8")).hexdigest()
+  ```
+
+- `initial_presentation_hash` is exactly the frozen Phase 9B2A
+  `presentation_hash` algorithm over the canonical JSON of the detached
+  `PlayerPresentation`; it is not a client-supplied or independently defined
+  presentation hash.
 
 The nested frozen manifests remain authoritative for their own artifact sets:
 
@@ -4333,12 +4352,16 @@ sha256(campaign.projection.projection_manifest.json)
 ```
 
 `player_projection_hash` is the hash of the copied Player Projection Map, not
-the hash of the presentation. `initial_request_fingerprint` is the request
-fingerprint produced at decision number 1 from the copied initial state by the
-frozen Phase 8/9A request builder. `initial_presentation_hash` is the hash of
-the detached presentation built from that request and the copied locked
-Projection Map. The initial presentation is rebuilt when needed; it is not a
-fifteenth file.
+the hash of the presentation. During both Campaign create and Campaign verify,
+the assembler/verifier must rebuild the copied initial state into the frozen
+Phase 8 observation, call `build_llm_decision_request()` for decision number
+`1`, read `.request_fingerprint`, and compare that value with the Campaign
+manifest. It must not hash `request.to_dict()`, include `request_fingerprint` in
+the fingerprint payload, trust a client-provided fingerprint, or rely only on
+`session.json`. `initial_presentation_hash` is the frozen Phase 9B2A
+`presentation_hash` of the detached presentation built from that request and
+the copied locked Projection Map. The initial presentation is rebuilt when
+needed; it is not a fifteenth file.
 
 `initial_session_state_hash` is the hash of the initial GameState persisted in
 the copied SQLite Campaign record. The assembler must prove:
@@ -4464,7 +4487,7 @@ parameter.
 Creation uses a temporary sibling and an exclusive lock with this order:
 
 ```text
-read-only source/target prechecks
+read-only source/target/publication-capability prechecks
 → source-first WorldPack verification
 → Projection verification and cross-binding
 → create temporary sibling
@@ -4485,8 +4508,9 @@ The final publication primitive must be an operating-system atomic
 no-replace directory operation. An ordinary replace-capable `os.rename` is not
 a portability guarantee for this contract. The implementation may use the
 reviewed platform-specific no-replace primitives (or an equally strong
-primitive) and must fail closed with `UNSUPPORTED_CAMPAIGN_FORMAT` when the
-platform cannot provide the required guarantee.
+primitive) and must fail closed with
+`CAMPAIGN_PUBLICATION_UNAVAILABLE` when the platform cannot provide the
+required guarantee.
 
 The target and lock rules are strict:
 
@@ -4498,10 +4522,15 @@ The target and lock rules are strict:
   cannot replace, merge, delete, or clobber the competing target.
 - Only a lock created by the current attempt may be removed. A pre-existing
   lock is never removed.
+- If the platform has no atomic no-replace primitive, the OS capability is
+  unavailable, or no safe no-clobber guarantee can be established, the attempt
+  returns `CAMPAIGN_PUBLICATION_UNAVAILABLE` before creating a target, acquiring
+  an owned lock, or creating a temporary sibling. It leaves no target, owned
+  lock, or temporary sibling.
 - Every failed attempt removes its temporary sibling and owned lock, leaves no
   formal Campaign, and does not create SQLite outside the temporary sibling.
 - A source tamper, projection tamper, bootstrap failure, verification failure,
-  unsupported platform, or publication race must not leave a partial formal
+  unavailable publication capability, or publication race must not leave a partial formal
   Campaign or debris that a later attempt could mistake for one.
 
 No ordinary post-publication verification is part of the success transition:
@@ -4516,6 +4545,56 @@ the filesystem and SQLite levels: it creates no files, does not rewrite JSON,
 does not run an Engine action, does not append an Event, does not alter a
 RecordedDecision, does not repair SQLite, and never regenerates a World Draft.
 Any inconsistency fails closed.
+
+Before calling the frozen Phase 9A Session verifier, the Campaign verifier must
+perform a small Campaign-local, read-only SQLite preflight. This is a guard for
+the frozen `EventStore` first-connection `CREATE TABLE IF NOT EXISTS` behavior,
+not a second EventStore or general SQLite framework:
+
+1. Confirm the exact fourteen-file Campaign tree and reject every SQLite
+   `-journal`, `-wal`, or `-shm` side artifact and every unsupported extra.
+2. Capture a pre-verification snapshot for all fourteen published files:
+   byte hash, byte size, and `mtime_ns`; the `campaign.sqlite3` entry therefore
+   explicitly captures its own byte hash, size, and `mtime_ns` before any DB
+   open.
+3. Open `campaign.sqlite3` through SQLite read-only URI mode (`mode=ro`,
+   `uri=True`), never through a constructor that can initialize schema.
+4. Run only read-only integrity and schema inspection.
+5. Require the exact frozen EventStore user schema: tables `campaigns`,
+   `events`, and `snapshots`; indexes `idx_events_campaign_seq` and
+   `idx_snapshots_campaign_seq`; and these exact columns:
+
+   ```text
+   campaigns:
+     campaign_id, engine_version, state_schema_version, seed,
+     initial_state_json, initial_state_hash, created_at
+   events:
+     event_id, campaign_id, event_seq, decision_seq, game_minute, event_type,
+     actor_id, action_id, causation_id, correlation_id, payload_json,
+     state_hash_before, state_hash_after, created_at
+   snapshots:
+     id, campaign_id, event_seq, state_json, state_hash, created_at
+   ```
+
+   The named indexes must retain their frozen `(campaign_id, event_seq)`
+   definitions. No additional user table, index, view, or trigger is allowed;
+   SQLite's own internal bookkeeping objects are not Campaign schema objects.
+
+6. Require the Campaign row for the manifest `campaign_id` and validate that
+   row as part of the preflight.
+7. Missing or malformed schema, an unexpected schema object, an invalid
+   Campaign row, a hot journal/unsupported side artifact, or a read-only
+   connection failure must fail as `CAMPAIGN_INTEGRITY_MISMATCH` before the
+   frozen Session verifier is called.
+8. Call the frozen Phase 9A verifier only after this preflight proves that its
+   first-connection `CREATE TABLE IF NOT EXISTS` path cannot repair a missing or
+   malformed schema. Close every preflight and verifier SQLite connection.
+9. After verification, compare the pre-verification snapshot with the same
+   fourteen file byte hashes, sizes, and `mtime_ns`; compare authoritative
+   `campaigns`, `events`, and `snapshots` rows with their pre-verification
+   snapshots; and confirm that no new file exists. `atime` equality is not
+   required. Any changed observable, including a change made by the frozen
+   verifier, fails as `CAMPAIGN_INTEGRITY_MISMATCH`.
 
 It verifies, in order:
 
@@ -4532,7 +4611,8 @@ It verifies, in order:
 5. The initial-state binding, `worldpack_hash`, nested manifest hashes,
    projection hash, and both initial edge hashes equal the values recorded in
    `campaign.json`.
-6. The frozen Phase 9A Session verifier succeeds after SQLite close/reopen,
+6. After the Campaign-local SQLite preflight above, the frozen Phase 9A Session
+   verifier succeeds after SQLite close/reopen,
    including SQLite persistence integrity, Event Replay, RecordedDecision
    Replay with zero completion calls, contiguous event/decision sequences,
    current state hash, current request fingerprint, and terminal status rules.
@@ -4610,25 +4690,47 @@ canonical request already contains that fact. Private actor knowledge, private
 goals, `last_autonomous_action`, hidden loot, raw `world_facts`, and other
 World Truth stay outside the player presentation.
 
-The display-independence test uses the same supported profile, seed, initial
-state, canonical request, and choice path with two Projection Drafts that
-change only labels/theme/locale. It must prove:
+The display-independence proof has two independent parts. A Projection Draft
+contains labels only; it does not contain `theme`, `content_locale`, `title`,
+`premise`, or other public content.
+
+**A. Label-independence proof**
+
+Use the same verified Phase 9B1 WorldPack, the same copied initial state and
+seed, and two valid Projection Drafts that match that WorldPack and differ only
+in the allowed projection labels. It must prove:
 
 ```text
-same initial/current state hashes
-same legal choices
-same choice IDs, action types, params, durations, and stamina costs
-same request fingerprints
+same worldpack_hash and initial_state_hash
+same canonical requests and request fingerprints
+same legal choices, choice IDs, action types, params, durations, and stamina costs
 same accepted actions and DomainEvents
 same Event Replay and RecordedDecision Replay results
-different projection hashes
-different presentation hashes and display text
+different projection_hash and presentation_hash values
+different projection display labels and presentation text
 ```
 
-Campaign behavior must never branch on locale, theme, display labels, or
-presentation text. The two Campaign manifests may differ in their bound
-projection/presentation hashes, but their Engine/session behavior must remain
-equal.
+**B. Theme/locale-independence proof**
+
+Use two separately verified Phase 9B1 WorldPacks with the same supported
+mechanics profile and seed, but different permitted theme/public content and/or
+`content_locale`; compile one valid matching Projection per WorldPack. It must
+prove:
+
+```text
+same materialized initial state and initial_state_hash
+same canonical requests and request fingerprints
+same legal choices and canonical choice path
+same accepted actions, DomainEvents, Event Replay, and RecordedDecision Replay
+different worldpack_hash, public content, and content_locale
+different projection_hash where source bindings/content differ
+different presentation_hash values and presentation text
+```
+
+Projection A must never be paired with WorldPack B. Every Campaign's Projection
+must verify against that Campaign's own copied WorldPack. Campaign behavior must
+never branch on locale, theme, display labels, or presentation text; only the
+bound source/projection/presentation artifacts may differ.
 
 ###### 9B2B.11 Campaign error namespace
 
@@ -4645,6 +4747,7 @@ PROJECTION_BUNDLE_INVALID
 PROJECTION_SOURCE_MISMATCH
 SESSION_BOOTSTRAP_FAILED
 UNSUPPORTED_CAMPAIGN_FORMAT
+CAMPAIGN_PUBLICATION_UNAVAILABLE
 ```
 
 The intended mapping is:
@@ -4664,9 +4767,17 @@ source-world/projection source hash disagreement
     → PROJECTION_SOURCE_MISMATCH
 failure while initializing the copied Phase 9A Session
     → SESSION_BOOTSTRAP_FAILED
-unsupported format version or unavailable atomic no-replace platform primitive
+unsupported `schema_version`, `campaign_format_id`, or Campaign manifest format
     → UNSUPPORTED_CAMPAIGN_FORMAT
+host lacks the required atomic no-replace primitive, OS capability is unavailable,
+or no safe no-clobber guarantee can be established
+    → CAMPAIGN_PUBLICATION_UNAVAILABLE
 ```
+
+`CAMPAIGN_PUBLICATION_UNAVAILABLE` is a publication-capability failure, not a
+format failure. It must not be mapped to `UNSUPPORTED_CAMPAIGN_FORMAT`,
+`CAMPAIGN_ALREADY_EXISTS`, or `CAMPAIGN_INTEGRITY_MISMATCH`; it also leaves no
+target, owned lock, or temporary sibling.
 
 Every error response is canonical UTF-8 JSON, machine-readable, deterministic,
 and safe for a client. It contains no traceback, absolute/temporary path,
@@ -4723,24 +4834,26 @@ that merely executes an uncovered line:
 | Resume proof | 按 DROP → SEARCH → EXTRACT → TALK_TO_ACTOR → STOP 的 close/reopen 序列继续，状态、request、presentation、SQLite close/reopen 和终态完全一致。 |
 | Choice integrity | 客户端只能提交 fingerprint + choice_id/STOP；canonical choices、params、duration、stamina、events 与冻结 Phase 9A 完全一致，presentation 不能改变 legality。 |
 | Knowledge Boundary | TALK 前事实不在 canonical request/presentation，TALK 后且仅后事实出现；私有目标、私有知识、hidden loot、World Truth 不泄漏。 |
-| Display independence | 只改 Projection labels/theme/locale 时 state/legal choices/IDs/params/costs/fingerprints/actions/events/replays 相同，projection/presentation hashes/text 不同。 |
-| Verify read-only | `verify campaign` 前后所有文件 bytes、SQLite bytes/行与修改时间均不变；不创建文件、不执行 action、不追加 event、不写 SQLite、不修复。 |
-| Failure cleanup | source/projection/session/verification/platform failure 均无正式目标、无 sibling temp、无 owned lock；原有 target/lock 始终保留。 |
+| Label independence | 同一个 verified WorldPack、同一个 initial state/seed、两个只改变允许 labels 的 matching Projection Draft；worldpack/initial-state hash、canonical request/fingerprint、legal choices、IDs、action types/params、durations/costs、actions/events/replays 相同，projection/presentation hash 与 display labels/text 不同。 |
+| Theme/locale independence | 两个分别 verified、同 mechanics profile/seed 但 theme/public content 和/或 locale 不同的 WorldPack，各自只配自己的 matching Projection；materialized initial state/hash、canonical request/fingerprint、legal choices、action path/events/replays 相同，worldpack/public content/locale 及相应 projection/presentation hash/text 不同，禁止跨 WorldPack 配 Projection。 |
+| Verify read-only | `verify campaign` 前后全部十四个 published files 的 byte hash、size、`mtime_ns`、SQLite authoritative rows 均不变，不出现新文件；不比较 atime，不创建文件、不执行 action、不追加 event、不写 SQLite、不修复。 |
+| Publication capability failure | 不支持 atomic no-replace、OS capability unavailable 或无法建立安全 no-clobber 保证时返回 `CAMPAIGN_PUBLICATION_UNAVAILABLE`，无 target、无 owned lock、无 sibling temp；不映射为 format、already-exists 或 integrity failure。 |
+| Failure cleanup | source/projection/session/verification failure 以及 publication capability failure 均无正式目标、无 sibling temp、无 owned lock；原有 target/lock 始终保留。 |
 | Concurrency | 两个 cooperating create 同时运行时恰好一个成功，另一个返回 `CAMPAIGN_ALREADY_EXISTS`，最终只有一个有效 Campaign 且无 debris。 |
 
 ###### 9B2B.14 Future coverage gate
 
-Coverage is a contract proxy, not a line-execution exercise. When the
-Campaign implementation starts, the new `src/tgn/campaign` package must remain
-at or above 95%. The reviewed existing gates also remain hard requirements:
+Coverage is a contract proxy, not a line-execution exercise. For the accepted
+Phase 9B2B candidate, these are the exact hard gates:
 
 ```text
-src/tgn/projection package >= 95%
-full src/tgn coverage must not regress below the reviewed baseline of 96%
+src/tgn/campaign >= 95%
+src/tgn/projection == 100%
+full src/tgn >= 97%
 ```
 
-The Phase 9B2B promotion target is a full `src/tgn` gate of at least 97%, while
-the 96% reviewed baseline is the non-regression floor. Direct regression tests
+The full `src/tgn >= 97%` threshold is the acceptance gate, not a soft
+promotion target or a historical-baseline exception. Direct regression tests
 are mandatory for every new branch covering:
 
 ```text
