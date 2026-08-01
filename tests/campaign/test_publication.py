@@ -30,6 +30,14 @@ class RaisingFunction:
         raise OSError("raw runtime failure")
 
 
+class ErrnoFunction:
+    def __init__(self, error_number: int) -> None:
+        self.error_number = error_number
+
+    def __call__(self, *_args):
+        raise OSError(self.error_number, "raw capability failure")
+
+
 def test_windows_no_replace_success_conflict_and_unavailable(monkeypatch, tmp_path) -> None:
     calls: list[tuple[object, ...]] = []
     move = FakeFunction(1, calls)
@@ -48,6 +56,9 @@ def test_windows_no_replace_success_conflict_and_unavailable(monkeypatch, tmp_pa
         publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
     monkeypatch.setattr(publication.ctypes, "get_last_error", lambda: 5, raising=False)
     with pytest.raises(publication._PublicationRuntimeError):
+        publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
+    monkeypatch.setattr(publication.ctypes, "get_last_error", lambda: 50, raising=False)
+    with pytest.raises(publication._NoReplaceUnavailable):
         publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
     monkeypatch.setattr(
         publication.ctypes,
@@ -78,6 +89,9 @@ def test_linux_no_replace_success_conflict_and_unavailable(monkeypatch, tmp_path
     monkeypatch.setattr(publication.ctypes, "get_errno", lambda: errno.EIO)
     with pytest.raises(publication._PublicationRuntimeError):
         publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
+    monkeypatch.setattr(publication.ctypes, "get_errno", lambda: errno.ENOSYS)
+    with pytest.raises(publication._NoReplaceUnavailable):
+        publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
     monkeypatch.setattr(
         publication.ctypes,
         "CDLL",
@@ -106,6 +120,40 @@ def test_macos_and_unsupported_platforms(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(publication.ctypes, "get_errno", lambda: errno.EIO)
     with pytest.raises(publication._PublicationRuntimeError):
         publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
+    monkeypatch.setattr(publication.ctypes, "get_errno", lambda: errno.EOPNOTSUPP)
+    with pytest.raises(publication._NoReplaceUnavailable):
+        publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "target")
+
+
+def test_primitive_call_capability_errors_are_unavailable(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(publication.os, "name", "nt")
+    monkeypatch.setattr(
+        publication.ctypes,
+        "WinDLL",
+        lambda *_args, **_kwargs: FakeLibrary("MoveFileExW", ErrnoFunction(50)),
+        raising=False,
+    )
+    with pytest.raises(publication._NoReplaceUnavailable):
+        publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "windows")
+
+    monkeypatch.setattr(publication.os, "name", "posix")
+    monkeypatch.setattr(publication.sys, "platform", "linux")
+    monkeypatch.setattr(
+        publication.ctypes,
+        "CDLL",
+        lambda *_args, **_kwargs: FakeLibrary("renameat2", ErrnoFunction(errno.ENOSYS)),
+    )
+    with pytest.raises(publication._NoReplaceUnavailable):
+        publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "linux")
+
+    monkeypatch.setattr(publication.sys, "platform", "darwin")
+    monkeypatch.setattr(
+        publication.ctypes,
+        "CDLL",
+        lambda *_args, **_kwargs: FakeLibrary("renameatx_np", ErrnoFunction(errno.EOPNOTSUPP)),
+    )
+    with pytest.raises(publication._NoReplaceUnavailable):
+        publication._publish_directory_no_replace(tmp_path / "temporary", tmp_path / "macos")
     monkeypatch.setattr(
         publication.ctypes,
         "CDLL",
@@ -184,12 +232,13 @@ def test_lock_cleanup_error_is_not_silently_swallowed(monkeypatch, bundle_pair, 
     target = tmp_path / "lock-cleanup-error"
     lock = publication.publication_lock_path(target)
     original_unlink = service.Path.unlink
+    calls = {"primitive": 0}
 
-    monkeypatch.setattr(
-        publication,
-        "_publish_directory_no_replace",
-        lambda *_args: (_ for _ in ()).throw(publication._PublicationRuntimeError("runtime")),
-    )
+    def publish(*_args):
+        calls["primitive"] += 1
+        raise publication._PublicationRuntimeError("runtime")
+
+    monkeypatch.setattr(publication, "_publish_directory_no_replace", publish)
 
     def fail_owned_lock_unlink(self, missing_ok=False):
         if self == lock:
@@ -210,6 +259,7 @@ def test_lock_cleanup_error_is_not_silently_swallowed(monkeypatch, bundle_pair, 
     assert raised.value.message == "Campaign publication cleanup failed"
     assert lock.exists()
     assert list(tmp_path.glob(".lock-cleanup-error.*")) == [lock]
+    assert calls["primitive"] == 0
 
 
 def test_temporary_cleanup_error_is_not_silently_swallowed(monkeypatch, bundle_pair, tmp_path) -> None:
@@ -293,3 +343,30 @@ def test_cooperating_lock_race_is_preserved(monkeypatch, bundle_pair, tmp_path) 
 def test_publication_lock_path_is_a_target_sibling(tmp_path) -> None:
     target = tmp_path / "campaign"
     assert publication.publication_lock_path(target) == tmp_path / ".campaign.publish.lock"
+
+
+def test_successful_publication_does_not_run_failing_post_commit_cleanup(
+    monkeypatch,
+    bundle_pair,
+    tmp_path,
+) -> None:
+    cleanup_calls = 0
+
+    def fail_cleanup(*_args, **_kwargs):
+        nonlocal cleanup_calls
+        cleanup_calls += 1
+        raise AssertionError("post-commit cleanup must not run")
+
+    monkeypatch.setattr(service, "_cleanup_create_artifacts", fail_cleanup)
+    target = tmp_path / "post-commit"
+    result = create_campaign(
+        target,
+        world_bundle_dir=bundle_pair[0],
+        projection_bundle_dir=bundle_pair[1],
+        campaign_id="campaign-001",
+        actor_id="player",
+        max_decisions=10,
+    )
+    assert result["ok"] is True
+    assert target.exists()
+    assert cleanup_calls == 0

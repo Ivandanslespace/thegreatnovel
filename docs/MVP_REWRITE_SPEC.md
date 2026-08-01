@@ -4146,7 +4146,9 @@ verified Phase 9B1 compiled bundle
 → bind all source/session/projection hashes in Campaign manifest
 → verify complete temporary Campaign
 → acquire publication lock
+→ close lock fd
 → target recheck
+→ remove owned lock and confirm it is absent
 → atomic no-replace Campaign publication
 → close process
 → reopen Campaign
@@ -4256,8 +4258,12 @@ campaign/
 ```
 
 The publication lock is a temporary sibling of `campaign/`, never a file in
-the published tree. Temporary assembly directories are also siblings and must
-be removed on every failed attempt.
+the published tree. Temporary assembly directories are also siblings and are
+removed on every normally failed attempt. If the operating system refuses an
+unlink or recursive removal, the command returns a bounded cleanup error; that
+primitive failure may leave hidden non-formal sibling debris, but never a
+formal Campaign target, and the implementation must not claim that the debris
+was cleaned.
 
 ###### 9B2B.4 Exact `campaign.json` contract
 
@@ -4540,9 +4546,11 @@ read-only source/target/publication-capability prechecks
 → write campaign.json canonically
 → verify the complete temporary fourteen-file tree
 → acquire exclusive sibling publication lock
+→ close the owned lock descriptor
 → recheck target absence
-→ atomic no-replace directory publication
-→ remove owned lock
+→ remove the owned lock and confirm it is absent
+→ atomic no-replace directory publication as the final commit point
+→ return success
 ```
 
 The final publication primitive must be an operating-system atomic
@@ -4563,13 +4571,20 @@ The target and lock rules are strict:
   cannot replace, merge, delete, or clobber the competing target.
 - Only a lock created by the current attempt may be removed. A pre-existing
   lock is never removed.
+- The owned lock is released before the final publication primitive. The
+  no-replace primitive is the final concurrency arbiter; once it succeeds, no
+  potentially failing lock or temporary-artifact cleanup is performed.
 - If the platform has no atomic no-replace primitive, the OS capability is
   unavailable, or no safe no-clobber guarantee can be established, the attempt
   returns `CAMPAIGN_PUBLICATION_UNAVAILABLE` before creating a target, acquiring
-  an owned lock, or creating a temporary sibling. It leaves no target, owned
-  lock, or temporary sibling.
-- Every failed attempt removes its temporary sibling and owned lock, leaves no
-  formal Campaign, and does not create SQLite outside the temporary sibling.
+  an owned lock, or creating a temporary sibling. A capability rejection
+  discovered only by the final primitive returns the same error, leaves no
+  formal target, and normally removes the owned temporary sibling.
+- Every normally failed attempt removes its temporary sibling and owned lock,
+  leaves no formal Campaign, and does not create SQLite outside the temporary
+  sibling. If an OS unlink or recursive removal fails, the command returns a
+  bounded `CAMPAIGN_INTEGRITY_MISMATCH` cleanup error; hidden non-formal sibling
+  debris may remain and must not be reported as successfully removed.
 - A source tamper, projection tamper, bootstrap failure, verification failure,
   unavailable publication capability, or publication race must not leave a partial formal
   Campaign or debris that a later attempt could mistake for one.

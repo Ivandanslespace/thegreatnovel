@@ -385,6 +385,46 @@ def test_unexpected_observable_comparison_exception_is_bounded(monkeypatch, camp
     assert "raw" not in error.message
 
 
+def test_final_observable_campaign_error_is_preserved(monkeypatch, campaign_factory) -> None:
+    target, _ = campaign_factory(name="final-observable-error")
+
+    def raise_bounded(*_args, **_kwargs):
+        raise CampaignError("CAMPAIGN_INTEGRITY_MISMATCH", "already bounded")
+
+    monkeypatch.setattr(verification, "assert_observables_unchanged", raise_bounded)
+    error = expect_error(verify_campaign, target)
+    assert error.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    assert error.message == "already bounded"
+
+
+@pytest.mark.parametrize("failure_point", ["tree", "manifest", "preflight", "schema", "rows"])
+def test_verification_entry_bounds_unexpected_preflight_exceptions(
+    monkeypatch,
+    campaign_factory,
+    failure_point: str,
+) -> None:
+    target, _ = campaign_factory(name=f"unexpected-entry-{failure_point}")
+
+    def raise_raw(*_args, **_kwargs):
+        raise RuntimeError(f"raw {failure_point}")
+
+    if failure_point == "tree":
+        monkeypatch.setattr(verification, "_assert_exact_tree", raise_raw)
+    elif failure_point == "manifest":
+        monkeypatch.setattr(verification.CampaignManifest, "from_dict", classmethod(raise_raw))
+    elif failure_point == "preflight":
+        monkeypatch.setattr(verification, "preflight_sqlite", raise_raw)
+    elif failure_point == "schema":
+        monkeypatch.setattr(verification, "_check_schema", raise_raw)
+    else:
+        monkeypatch.setattr(verification, "_authoritative_rows", raise_raw)
+
+    error = expect_error(verify_campaign, target)
+    assert error.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    assert error.message == "Campaign verification failed"
+    assert "raw" not in error.message
+
+
 def test_missing_campaign_is_distinct(tmp_path: Path) -> None:
     error = expect_error(verify_campaign, tmp_path / "missing")
     assert error.code == "CAMPAIGN_NOT_FOUND"

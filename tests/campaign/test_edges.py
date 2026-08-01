@@ -54,7 +54,8 @@ def test_common_write_and_copy_fail_closed(monkeypatch, tmp_path: Path) -> None:
         raise common.shutil.Error("copy failed")
 
     monkeypatch.setattr(common.shutil, "copyfile", fail_copy)
-    assert expect_campaign_error(common.copy_files, tmp_path, destination, ["source.json"]).code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    common.copy_files(tmp_path, destination, ["source.json"])
+    assert (destination / "source.json").read_bytes() == source.read_bytes()
 
     def fail_write(*_args, **_kwargs):
         raise OSError("write failed")

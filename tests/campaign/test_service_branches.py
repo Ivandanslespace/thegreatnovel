@@ -32,6 +32,48 @@ def test_path_validation_rejects_non_path_objects(bundle_pair, tmp_path: Path) -
     assert expect_error(create_campaign, **values).code == "INVALID_CAMPAIGN_INPUT"
 
 
+def test_create_does_not_resolve_sqlite_path(monkeypatch, bundle_pair, tmp_path: Path) -> None:
+    monkeypatch.setattr(service.Path, "resolve", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("raw resolve")))
+    result = create_campaign(**create_kwargs(tmp_path / "no-resolve", bundle_pair))
+    assert result["ok"] is True
+
+
+def test_sqlite_initial_hash_rejects_non_regular_database(tmp_path: Path) -> None:
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    (session_dir / "campaign.sqlite3").mkdir()
+    error = expect_error(service._sqlite_initial_hash, session_dir, "campaign")
+    assert error.code == "SESSION_BOOTSTRAP_FAILED"
+
+
+def test_sqlite_initial_hash_bounds_close_failure(monkeypatch, tmp_path: Path) -> None:
+    class CloseFailure:
+        def execute(self, _sql, _params):
+            return type("Result", (), {"fetchone": lambda self: ("a" * 64,)})()
+
+        def close(self):
+            raise RuntimeError("raw close")
+
+    monkeypatch.setattr(service.sqlite3, "connect", lambda *_args, **_kwargs: CloseFailure())
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    (session_dir / "campaign.sqlite3").write_bytes(b"database")
+    error = expect_error(service._sqlite_initial_hash, session_dir, "campaign")
+    assert error.code == "SESSION_BOOTSTRAP_FAILED"
+    assert "raw" not in error.message
+
+
+def test_cleanup_accepts_already_missing_owned_artifacts(tmp_path: Path) -> None:
+    service._cleanup_create_artifacts(tmp_path / "missing.lock", True, tmp_path / "missing-temp")
+
+
+def test_cleanup_observation_failure_is_bounded(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(service.os.path, "lexists", lambda *_args: (_ for _ in ()).throw(RuntimeError("raw lexists")))
+    error = expect_error(service._cleanup_create_artifacts, tmp_path / "missing.lock", True, None)
+    assert error.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    assert "raw" not in error.message
+
+
 def test_copied_source_result_becomes_authoritative(monkeypatch, bundle_pair, tmp_path: Path) -> None:
     original = service.verify_external_pair
     call_count = 0

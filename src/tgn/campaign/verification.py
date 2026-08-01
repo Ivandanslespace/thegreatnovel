@@ -340,12 +340,25 @@ def _sqlite_uri(path: Path) -> str:
 
 def _open_read_only(path: Path) -> sqlite3.Connection:
     _require_regular_file(path)
+    connection: sqlite3.Connection | None = None
     try:
         connection = sqlite3.connect(_sqlite_uri(path), uri=True)
         connection.row_factory = sqlite3.Row
         return connection
-    except Exception as exc:
+    except sqlite3.Error as exc:
+        if connection is not None:
+            try:
+                connection.close()
+            except Exception as close_exc:
+                raise _integrity("Campaign verification failed") from close_exc
         raise _integrity("campaign SQLite cannot be opened read-only") from exc
+    except Exception as exc:
+        if connection is not None:
+            try:
+                connection.close()
+            except Exception as close_exc:
+                raise _integrity("Campaign verification failed") from close_exc
+        raise _integrity("Campaign verification failed") from exc
 
 
 def _row_tuple(row: sqlite3.Row, columns: tuple[str, ...]) -> tuple[Any, ...]:
@@ -457,8 +470,10 @@ def _check_schema(connection: sqlite3.Connection) -> None:
                 raise _integrity("SQLite named index definitions do not match the frozen schema")
     except CampaignError:
         raise
-    except Exception as exc:
+    except sqlite3.Error as exc:
         raise _integrity("SQLite schema inspection failed") from exc
+    except Exception as exc:
+        raise _integrity("Campaign verification failed") from exc
 
 
 def _validate_campaign_row(row: tuple[Any, ...], manifest: CampaignManifest) -> None:
@@ -512,11 +527,15 @@ def preflight_sqlite(root: Path, manifest: CampaignManifest) -> SQLitePreflight:
         raise
     except sqlite3.Error as exc:
         raise _integrity("SQLite read-only preflight failed") from exc
+    except Exception as exc:
+        raise _integrity("Campaign verification failed") from exc
     finally:
         try:
             connection.close()
         except sqlite3.Error as exc:
             raise _integrity("SQLite read-only connection could not close") from exc
+        except Exception as exc:
+            raise _integrity("Campaign verification failed") from exc
     return SQLitePreflight(before_files, sqlite_snapshot)
 
 
@@ -747,11 +766,12 @@ def _raise_after_observable_check(
 def verify_published_campaign(root: Path, *, bootstrap: bool = False) -> VerifiedCampaign:
     """Verify one Campaign while proving all observables remain read-only."""
 
-    _assert_exact_tree(root, missing_is_not_found=not bootstrap)
-    manifest_value = read_canonical_json(root / CAMPAIGN_FILE)
-    manifest = CampaignManifest.from_dict(manifest_value)
-    preflight = preflight_sqlite(root, manifest)
+    preflight: SQLitePreflight | None = None
     try:
+        _assert_exact_tree(root, missing_is_not_found=not bootstrap)
+        manifest_value = read_canonical_json(root / CAMPAIGN_FILE)
+        manifest = CampaignManifest.from_dict(manifest_value)
+        preflight = preflight_sqlite(root, manifest)
         world_manifest = read_canonical_json(root / "world" / "bundle.json")
         worldpack = read_canonical_json(root / "world" / "compiled_worldpack.json")
         initial_state = read_canonical_json(root / "world" / "initial_state.json")
@@ -848,9 +868,14 @@ def verify_published_campaign(root: Path, *, bootstrap: bool = False) -> Verifie
             current_presentation=current_presentation,
         )
     except CampaignError as exc:
+        if preflight is None:
+            raise
         _raise_after_observable_check(root, preflight, exc)
     except Exception as exc:
-        _raise_after_observable_check(root, preflight, _integrity("Campaign verification failed"))
+        error = _integrity("Campaign verification failed")
+        if preflight is None:
+            raise error from exc
+        _raise_after_observable_check(root, preflight, error)
     try:
         assert_observables_unchanged(root, preflight)
     except CampaignError:

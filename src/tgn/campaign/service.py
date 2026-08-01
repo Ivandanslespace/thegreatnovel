@@ -6,6 +6,7 @@ import copy
 import os
 import shutil
 import sqlite3
+import stat
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,9 @@ from ..worldgen import BUNDLE_FILES
 from ..llm_player import build_llm_decision_request
 from ..gameplay.expedition import build_observation
 from ..core.models import GameState
+
+
+_REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400)
 
 
 def _input_error(message: str) -> CampaignError:
@@ -90,17 +94,29 @@ def _map_session_error(error: SessionError, *, bootstrap: bool = False) -> Campa
 
 
 def _sqlite_initial_hash(session_dir: Path, campaign_id: str) -> str:
+    database = session_dir / "campaign.sqlite3"
+    connection: sqlite3.Connection | None = None
     try:
-        connection = sqlite3.connect(session_dir.joinpath("campaign.sqlite3").resolve().as_uri() + "?mode=ro", uri=True)
-        try:
-            row = connection.execute(
-                "SELECT initial_state_hash FROM campaigns WHERE campaign_id = ?",
-                (campaign_id,),
-            ).fetchone()
-        finally:
-            connection.close()
-    except (OSError, sqlite3.Error) as exc:
+        database_stat = os.lstat(database)
+        if (
+            not stat.S_ISREG(database_stat.st_mode)
+            or stat.S_ISLNK(database_stat.st_mode)
+            or bool(getattr(database_stat, "st_file_attributes", 0) & _REPARSE_POINT)
+        ):
+            raise OSError("session database is not a regular file")
+        connection = sqlite3.connect(database.absolute().as_uri() + "?mode=ro", uri=True)
+        row = connection.execute(
+            "SELECT initial_state_hash FROM campaigns WHERE campaign_id = ?",
+            (campaign_id,),
+        ).fetchone()
+    except Exception as exc:
         raise CampaignError("SESSION_BOOTSTRAP_FAILED", "Phase 9A Session SQLite bootstrap failed") from exc
+    finally:
+        if connection is not None:
+            try:
+                connection.close()
+            except Exception as exc:
+                raise CampaignError("SESSION_BOOTSTRAP_FAILED", "Phase 9A Session SQLite bootstrap failed") from exc
     if row is None or not isinstance(row[0], str):
         raise CampaignError("SESSION_BOOTSTRAP_FAILED", "Phase 9A Session Campaign row is missing")
     return row[0]
@@ -161,6 +177,18 @@ def _cleanup_create_artifacts(
         raise CampaignError("CAMPAIGN_INTEGRITY_MISMATCH", "Campaign publication cleanup failed")
 
 
+def _remove_owned_lock(lock_path: Path) -> None:
+    try:
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
+        if os.path.lexists(str(lock_path)):
+            raise OSError("publication lock remains")
+    except Exception as exc:
+        raise CampaignError("CAMPAIGN_INTEGRITY_MISMATCH", "Campaign publication cleanup failed") from exc
+
+
 class CampaignService:
     """One-shot Campaign facade; every public operation reopens the tree."""
 
@@ -205,6 +233,8 @@ class CampaignService:
         temporary: Path | None = None
         lock_fd: int | None = None
         lock_owned = False
+        lock_removal_attempted = False
+        published = False
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             temporary = Path(tempfile.mkdtemp(prefix=f".{target.name}.", dir=target.parent))
@@ -286,13 +316,14 @@ class CampaignService:
                 raise CampaignError("PROJECTION_SOURCE_MISMATCH", "Projection source binding is invalid")
             write_canonical_json(temporary / CAMPAIGN_FILE, manifest.to_dict())
             verified = verify_published_campaign(temporary, bootstrap=True)
+            response = _response(verified)
 
             try:
                 lock_fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
                 lock_owned = True
                 try:
                     os.close(lock_fd)
-                except OSError as exc:
+                except Exception as exc:
                     raise CampaignError(
                         "CAMPAIGN_INTEGRITY_MISMATCH",
                         "Campaign publication lock could not be closed",
@@ -303,6 +334,8 @@ class CampaignService:
                 raise CampaignError("CAMPAIGN_ALREADY_EXISTS", "Campaign publication lock already exists") from exc
             if target.exists():
                 raise CampaignError("CAMPAIGN_ALREADY_EXISTS", "Campaign target appeared before publication")
+            lock_removal_attempted = True
+            _remove_owned_lock(lock_path)
             try:
                 publication._publish_directory_no_replace(temporary, target)
             except FileExistsError as exc:
@@ -312,13 +345,19 @@ class CampaignService:
             except publication._PublicationRuntimeError as exc:
                 raise CampaignError("CAMPAIGN_INTEGRITY_MISMATCH", "Campaign publication failed") from exc
             temporary = None
-            return _response(verified)
+            published = True
+            return response
         except CampaignError:
             raise
         except Exception as exc:
             raise CampaignError("CAMPAIGN_INTEGRITY_MISMATCH", "Campaign creation failed") from exc
         finally:
-            _cleanup_create_artifacts(lock_path, lock_owned, temporary)
+            if not published:
+                _cleanup_create_artifacts(
+                    lock_path,
+                    lock_owned and not lock_removal_attempted,
+                    temporary,
+                )
 
     def _verified(self):
         try:

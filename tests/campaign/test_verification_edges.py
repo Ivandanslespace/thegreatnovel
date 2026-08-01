@@ -73,6 +73,71 @@ def test_snapshot_and_read_only_open_fail_closed(monkeypatch, campaign_factory) 
     assert expect_error(verification._open_read_only, target / "session" / "campaign.sqlite3").code == "CAMPAIGN_INTEGRITY_MISMATCH"
 
 
+def test_regular_file_reader_bounds_descriptor_failures(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "artifact.json"
+    path.write_bytes(b"{}")
+    monkeypatch.setattr(verification.os, "open", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("raw open")))
+    assert expect_error(verification._read_regular_file, path).code == "CAMPAIGN_INTEGRITY_MISMATCH"
+
+    monkeypatch.undo()
+    original_close = verification.os.close
+
+    def fail_fdopen(*_args, **_kwargs):
+        raise OSError("raw fdopen")
+
+    def close_then_fail(fd):
+        original_close(fd)
+        raise OSError("raw close")
+
+    monkeypatch.setattr(verification.os, "fdopen", fail_fdopen)
+    monkeypatch.setattr(verification.os, "close", close_then_fail)
+    assert expect_error(verification._read_regular_file, path).code == "CAMPAIGN_INTEGRITY_MISMATCH"
+
+
+def test_read_only_open_bounds_unexpected_connection_setup(monkeypatch, campaign_factory) -> None:
+    target, _ = campaign_factory(name="unexpected-connection-setup")
+
+    class BrokenConnection:
+        @property
+        def row_factory(self):
+            return None
+
+        @row_factory.setter
+        def row_factory(self, _value):
+            raise RuntimeError("raw row factory")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(verification.sqlite3, "connect", lambda *_args, **_kwargs: BrokenConnection())
+    error = expect_error(verification._open_read_only, target / "session" / "campaign.sqlite3")
+    assert error.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    assert error.message == "Campaign verification failed"
+    assert "raw" not in error.message
+
+
+def test_read_only_open_bounds_connection_close_failure(monkeypatch, campaign_factory) -> None:
+    target, _ = campaign_factory(name="unexpected-connection-close")
+
+    class BrokenConnection:
+        @property
+        def row_factory(self):
+            return None
+
+        @row_factory.setter
+        def row_factory(self, _value):
+            raise RuntimeError("raw row factory")
+
+        def close(self):
+            raise RuntimeError("raw close")
+
+    monkeypatch.setattr(verification.sqlite3, "connect", lambda *_args, **_kwargs: BrokenConnection())
+    error = expect_error(verification._open_read_only, target / "session" / "campaign.sqlite3")
+    assert error.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    assert error.message == "Campaign verification failed"
+    assert "raw" not in error.message
+
+
 def test_sqlite_schema_and_rows_reject_bad_integrity_and_zero_rows(campaign_factory) -> None:
     class BadIntegrity:
         def execute(self, _sql):
@@ -172,6 +237,16 @@ def test_preflight_and_observable_comparison_wrap_sqlite_failures(monkeypatch, c
     monkeypatch.setattr(verification, "_authoritative_rows", lambda _connection: preflight.sqlite)
     monkeypatch.setattr(verification, "_validate_campaign_row", lambda *_args: None)
     assert expect_error(verification.preflight_sqlite, target, manifest).code == "CAMPAIGN_INTEGRITY_MISMATCH"
+
+    class UnexpectedClose:
+        def close(self):
+            raise RuntimeError("raw unexpected close")
+
+    monkeypatch.setattr(verification, "_open_read_only", lambda _path: UnexpectedClose())
+    error = expect_error(verification.preflight_sqlite, target, manifest)
+    assert error.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    assert error.message == "Campaign verification failed"
+    assert "raw" not in error.message
 
     monkeypatch.setattr(verification, "_authoritative_rows", lambda _connection: preflight.sqlite)
     class CloseError:
