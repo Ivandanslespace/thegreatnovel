@@ -44,9 +44,11 @@ slice:
 
 - Complete Romantic Relationship / Mutual Bond System;
 - Relationship-produced Joint Capability / Dual Cultivation;
-- marriage, pregnancy, reproduction, children, jealousy, love triangles,
-  multiple simultaneous partners, polyamory rules, multi-person cultivation,
-  dating simulation, romance economy, and relationship graph structures.
+- richer relationship and family structures;
+- multi-character bonds and relationship conflicts;
+- reproduction or lineage mechanics;
+- WorldPack-specific romance, partnership, or joint-growth systems;
+- generalized relationship graphs or social simulation.
 
 Current status:
 
@@ -57,19 +59,36 @@ not part of Phase 7.5
 must not be added to the minimal Named Actor slice
 ```
 
-Implementation requires all of the following prerequisites:
+Under the current roadmap, the following are useful readiness signals rather than
+permanent mandatory prerequisites:
 
-- Phase 7.5 Named Actor + Knowledge Boundary has been externally verified;
-- Phase 8 LLM Player permission boundaries have been externally verified;
-- at least one ordinary Capability vertical slice has been externally verified;
-- a real WorldPack has a demonstrated need for relationship-produced joint growth
-  or another persistent relationship consequence.
+- Phase 7.5 Named Actor and Knowledge Boundary experience;
+- LLM Player permission-boundary experience where an LLM Player is involved;
+- ordinary Capability experience where a Joint Capability is involved;
+- a concrete WorldPack need;
+- an independently reviewed Feature Contract.
 
-These are not permanent prohibitions. Each future feature requires its own
-product reason, ethical boundary, Knowledge Boundary, authority model, and
-Feature Contract. In particular, future designs must preserve Actor agency,
-formation history, and long-term consequences rather than letting Narrator or
-LLM text invent or erase relationship facts.
+A future external review may reorder these optional steps when a concrete
+WorldPack creates an earlier, bounded, and testable product need. For example, a
+pure scripted WorldPack may need to test relationship formation history before an
+LLM Player exists; the absence of Phase 8 must not permanently prohibit that
+bounded work.
+
+The non-optional quality gates for any future relationship feature are:
+
+- a concrete product need;
+- a bounded Feature Contract;
+- an explicit authority boundary;
+- a Knowledge Boundary where relevant;
+- deterministic verification;
+- external review.
+
+These categories are deferred, not prohibited. Their exact forms must be defined
+only when a real WorldPack requires them. Each future feature must preserve Actor
+agency, formation history, and long-term consequences rather than letting
+Narrator or LLM text invent or erase relationship facts. Action executability is
+not the same as willingness or consent, and the Engine does not make moral
+choices for the player.
 
 ## Important notice
 
