@@ -4,7 +4,7 @@
 > 目标：从当前"大而全、持续修 Bug"的架构退回一个可验证、可重放、可自动测试的最小核心，然后通过确定性验证与 scripted autoplay 一层一层增加功能（LLM autoplay 在 LLM Player 层建立后引入）。  
 > 原始 Legacy 审查基线：2026-07-31 `main`，最初审查时约为 `4141e905...`。  
 > 当前开发线：`mvp-rewrite`。  
-> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 为 implementation candidate，下一 active implementation phase 由 Section 52 V2 Active Roadmap 定义。
+> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9 design contract active / implementation not started。
 > 参考作品：用户上传的《全民纜車求生，我一級一個三選一》。
 
 > **V2 修订说明 (2026-07-31)：** 本文档经过增量架构修订。第一 WorldPack 仍可以是缆车求生 Demo，但它的 Base / Expedition / Day-Night / Three-choice 属于第一批 vertical slice 局部实现，不是整个 Engine 的宇宙规则。V2 新增反主题/结构性硬编码原则、反过度抽象原则、Knowledge boundary、Habitat 可选抽象、ProgressionTrack/Gate、Feature Module 责任边界、Compatibility Pressure Test，并更新 Phase 5+ 路线图。原有工程架构内容（EventStore、Replay、Test Pyramid、Autoplay、ExploitAgent 等）完整保留。
@@ -255,16 +255,21 @@ migration 改
 
 新版本应该：
 
-### MVP
-固定 WorldPack。
+### Earlier bounded generation
 
-### 后期
-当 3~5 个手工 WorldPack 都能通过同一个 Runtime 运作以后，再抽象 World Schema。
+外部客户端可以较早生成 campaign-specific World Draft，但只能使用当前已经支持
+并经过审查的 Feature Contract。Draft 必须经过严格编译、语义验证、最小可玩
+bootstrap、scripted smoke test 和 canonical hash；它不能发明新的 Action、Event、
+Reducer、数据库字段或运行时语义。
 
-### 更后期
-才允许 LLM 自动生成 WorldPack。
+### Later general generation
 
-这样 LLM 世界生成器面对的是一个**已经被多个真实世界包验证过的稳定协议**，而不是边生成边发明协议。
+能够发明新机制或 universal World Schema 的通用生成器仍然延期，直到多个结构不同的
+WorldPack 对共享抽象形成真实的 Compatibility Pressure Test。第二或第三个结构不同
+的 WorldPack 仍然是架构泛化的重要证明，但不再是“任何 LLM 生成内容之前”的永久
+硬门槛。
+
+保留原始警告：不要让 LLM 边创建世界边发明规则。
 
 ---
 
@@ -736,7 +741,9 @@ WorldPack Schema v1
 
 ---
 
-# 3.7 MVP 6：LLM World Generator
+# 3.7 MVP 6 — LLM World Generator
+
+> **Historical / superseded.** The active generation contract is Phase 9B below.
 
 最后才恢复：
 
@@ -747,9 +754,9 @@ WorldPack Schema v1
 → WorldPack
 ```
 
-这时候 validator 不再依靠想象设计，而是来自 3 个已经跑通的真实实现。
-
-具体 future bootstrap / lazy-materialization contract 见 Section 62。
+这段原始路线不再是当前实现顺序。当前路线允许 bounded campaign-specific generation，
+但通用生成器和新运行时语义仍然延期。具体 future bootstrap / lazy-materialization
+contract 见 Section 62 与 V2 Active Roadmap 的 Phase 9B。
 
 ---
 
@@ -2283,7 +2290,9 @@ fix
 >
 > Phase 8+: LLM agents are added to Nightly when the LLM Player contract exists.
 >
-> Phase 9+: Multi-model/persona coverage becomes part of the active matrix.
+> Deferred Phase 9D: Multi-model/persona coverage becomes part of the later evaluation
+> matrix after the external-client session contracts exist; it is not a Phase 9A–9C
+> prerequisite.
 >
 > A pre-Phase-8 release/freeze does not require nonexistent LLM infrastructure. A pre-Phase-12 release/freeze does not require multiple WorldPacks. Release gates are always scoped to features/phases that currently exist + their explicit Feature Contracts.
 
@@ -2928,7 +2937,9 @@ Phase 4 — deterministic risk slice frozen (phase-4-frozen)
 Phase 5 — frozen (phase-5-frozen): World Clock + World Phase / Hazard Window
 Phase 6 — frozen (phase-6-frozen): ProgressionTrack + ProgressionGate
 Phase 7 — frozen (`phase-7-frozen`): Permanent Build Choice / Build Acquisition
-Next active phase — Phase 7.5: Named Actor + Relationship + Knowledge Vertical Slice
+Phase 7.5 — frozen (`phase-7.5-frozen`): Named Actor + Relationship + Knowledge Vertical Slice
+Phase 8 — frozen (`phase-8-frozen`): Provider-neutral LLM Player + RecordedDecision Replay
+Next active phase — Phase 9 design contract active / implementation not started
 ```
 
 The implementation deliberately split the original "Phase 2 — Minimal Action Engine" into smaller, independently verifiable stages.
@@ -3005,7 +3016,9 @@ These were **deferred**, not removed. The remaining gameplay-oriented parts of t
 >
 > Phase 3 is no longer the next phase. Phase 3 has been implemented and its accepted behavior is now regression history.
 >
-> The current next implementation phase is defined only by the V2 Active Roadmap below: Phase 7.5 — Named Actor + Relationship + Knowledge Vertical Slice.
+> Historical status note. The current active phase is defined only by the V2 Active Roadmap
+> below; after the accepted Phase 8 freeze it is Phase 9 design contract active /
+> implementation not started.
 
 Phase 3 was the first real gameplay vertical slice proving CableCar loop.
 
@@ -3358,6 +3371,9 @@ build diversity
 
 # Phase 8 — LLM Player
 
+> **Historical / superseded.** The accepted Phase 8 contract is frozen above; the active
+> post-freeze route is Phase 9A–9D below.
+
 此前所有 deterministic 测试通过以后，接入第一个 LLM。
 
 目标不是写小说。
@@ -3372,6 +3388,9 @@ build diversity
 
 # Phase 9 — Multi-model Matrix
 
+> **Historical / superseded; Deferred Phase 9D.** This original roadmap entry is retained
+> as history. It is no longer the sole Phase 9 product goal.
+
 增加多个 LLM adapter。
 
 开始建立：
@@ -3383,6 +3402,9 @@ model failure fingerprints
 ---
 
 # Phase 10 — Narrator
+
+> **Historical / superseded.** Narration infrastructure was introduced earlier; the active
+> external-client narration contract is Phase 9C.
 
 等规则运行稳定以后再生成故事文本。
 
@@ -3547,7 +3569,9 @@ vertical slice. Named Actor and Public World peer remain separate subsystems.
 
 ### Phase 8 — LLM Player
 
-**Status:** implementation candidate / awaiting external review.
+**Status:** frozen (`phase-8-frozen`)
+
+Accepted freeze commit: `1dbf380b7a0639c941fe114c6ffccf72eddfbaa3`.
 
 **Product question:**
 
@@ -3683,9 +3707,231 @@ relationship runtime, vector memory, and Phase 9 experiments
 
 ---
 
-### Phase 9 — Multi-model Matrix
+### Phase 9 — External-Client Generated-World Playable Loop
 
-Preserved from original. Focus: model × persona × scenario × seed × prompt. Analyze: failure fingerprints, illegal output rates, over-caution, risk-seeking, loop patterns, knowledge misuse.
+**Status:** design contract active / implementation not started.
+
+**Product goal:**
+
+在没有 LLM API 的情况下，用户能在一个新的、具有项目工具权限的 Codex 或 Qoder
+对话中，用一句自然语言启动一次 campaign-specific 世界生成、自动游玩、逐轮小说
+输出、完整记录、断点恢复和小说导出流程。Codex/Qoder 是第一批实践客户端，但
+Phase 9 合同不得绑定具体品牌。
+
+Phase 9 的完整方向是：
+
+```text
+external client
+→ World Draft
+→ deterministic compilation and validation
+→ atomic Campaign creation
+→ choice_id-based play
+→ traceable multilingual narration
+→ resumable autoplay
+→ novel.md export
+```
+
+这是一项 Product Gate，不代表 Phase 9 的第一 commit 一次实现全部内容。
+
+#### Phase 9A — External Client Session Protocol
+
+**Product question:** Can an external client drive the deterministic Engine without an
+API and without direct access to authoritative mutable state?
+
+最小协议方向：
+
+```text
+start generation/session
+inspect generation status
+submit or revise World Draft
+compile and validate
+start accepted Campaign
+request next Observation + legal choices
+submit choice_id or STOP
+inspect deterministic result
+submit narration artifact
+resume interrupted session
+finish or honestly stop
+```
+
+必须继续使用 Phase 8 的权限边界：client 只选择 `choice_id`；Engine 生成
+ActionIntent；client 不能指定 `actor_id`、`action_id`、`action_type`、params，不能
+产生 DomainEvent，不能修改 GameState。RecordedDecision 继续记录选择，EventStore
+继续记录权威世界历史。
+
+第一 slice 不要求 LLM API、Provider SDK、HTTP/MCP server、web UI 或 background
+daemon。CLI、文件 artifact 或 stdin/stdout 都可以成为 transport，但具体 transport
+要由 Phase 9A Feature Contract 决定。必须支持断点恢复。
+
+#### Phase 9B — Generated WorldPack Compilation and Atomic Campaign Creation
+
+**Product question:** Can an external client generate a new themed world without having
+to produce a perfect final save in one response?
+
+第一 slice 只允许 World Draft 使用当前已支持并经过审查的 Feature Contract：
+
+```text
+World Genesis Request
+→ external-client World Draft
+→ strict compiler
+→ machine-readable validation report
+→ bounded repair
+→ Compiled WorldPack
+→ canonical hash
+→ bootstrap smoke test
+→ atomic Campaign creation
+```
+
+必须证明初次 Draft 可以失败，失败返回稳定错误，client 可以只修具体错误，失败
+attempt 不产生正式 Campaign；成功 Campaign 绑定完整 Compiled WorldPack 和 hash。
+Replay 读取锁定的 WorldPack，不重新调用 client 生成世界。World Draft 不得提供
+Python、Reducer、Event schema 或 database schema；Core 不添加 `if punk`、`if arabic`
+等题材分支。
+
+允许不同生成世界共用现有机制组合。“不是换皮”的长期证明仍依赖后续新的
+Capability 和结构不同的 WorldPack，不要求 Phase 9B 立刻解决所有世界结构差异。
+
+#### Phase 9C — External Client Narration, Resume and Novel Export
+
+**Product question:** Can the same external client turn deterministic play into traceable
+prose, preserve every completed turn, resume after interruption, and export a novel?
+
+每轮顺序必须是：
+
+```text
+Engine persists Event and State
+→ Engine emits player-visible narration brief
+→ external client generates structured claims + prose
+→ narration guard validates claims
+→ narration artifact is appended
+→ prose is streamed or printed to the client conversation
+```
+
+不能先输出小说，再补写权威状态。每段 narration 至少应能追溯到 decision number、
+action ID、relevant event sequence、state hash before/after、narration locale 和
+narration artifact identity；具体 schema 留给 Phase 9C Feature Contract。
+
+必须支持每轮增量保存、从最后一个已提交回合恢复、保留已保存 Event、在 Narrator
+失败时将 narration 标为 pending 而不回滚世界事实，并最终导出 `novel.md` 或等价
+Markdown。原始逐轮 narration artifact 继续保留；novel export 不是权威世界状态。
+
+#### Phase 9D — Evaluation Matrix（Deferred Phase 9D）
+
+原有 `model × persona × scenario × seed × prompt` 矩阵保留为后续评估路线，但不再
+是 Phase 9 的唯一主目标，也不是 Phase 9A–9C 的前置条件。没有 API 时可以先由人工
+使用 Codex 与 Qoder 跑相同 session contract；自动 multi-model matrix 等真实 Provider
+或可重复 client adapter 出现后再实现。Phase 9A–9C 不得为了未来 matrix 提前建立
+model router、fallback framework 或 provider registry。
+
+#### Phase 9 product goal example
+
+用户可以提出类似请求：
+
+```text
+随机生成一个朋克求生世界，自动游玩 50 轮。
+每轮像小说一样输出结果，记录全部操作，
+并在结束后将完整小说保存到存档目录。
+小说语言使用阿拉伯语。
+```
+
+未来 client 应能生成并局部修复 World Draft、编译并锁定 WorldPack、原子创建
+Campaign，连续读取 Observation 和 legal choices，只提交 `choice_id`，让 Engine
+确定性结算和持久化，根据 narration brief 生成阿拉伯语小说，保存选择、Event、
+状态 hash 和 narration，处理中断并最终导出完整小说。
+
+#### Phase 9 round semantics
+
+```text
+50 rounds = at most 50 Engine-accepted player decisions
+```
+
+它不等于 50 completion calls、50 Domain Events、50 game days 或 50 novel chapters。
+玩家死亡、terminal state、没有合法行动、显式 STOP、invariant failure 或不可恢复
+的 session error 都允许提前结束。最终报告必须诚实记录：
+
+```text
+requested_decisions
+accepted_decisions
+stop_reason
+```
+
+不得为了凑够 50 轮让 Narrator 虚构剧情。
+
+#### Phase 9 campaign audit target
+
+未来 Campaign 应能够保存或导出等价信息：
+
+```text
+authoritative SQLite EventStore
+Compiled WorldPack artifact
+WorldPack hash
+World Genesis Request
+generation validation/repair report
+RecordedDecision sequence
+session operation log
+per-turn narration artifacts
+run/session manifest
+final novel Markdown
+```
+
+目录和文件名由各 Phase 9 Feature Contract 决定；本节不提前固定复杂数据库 schema。
+
+#### Phase 9 World Creation Gate
+
+至少用多个主题生成请求，例如朋克移动城市、永夜冰川列车和巨兽背部营地，验证：
+
+```text
+World Draft 可以首次失败
+错误报告可定位
+局部修复可以成功
+Compiled WorldPack 通过 schema / semantic validation
+只验证 enabled features
+所有必需 ID 引用有效
+initial Observation 可建立
+至少存在一个 legal action
+bootstrap smoke test 通过
+Event Replay 通过
+失败 generation attempt 不产生正式 Campaign
+成功 WorldPack 被保存并绑定 hash
+Core 没有新增主题名或主题判断
+```
+
+这不是要求现在实现三个完整的新机制系统。
+
+#### Phase 9 Language Independence Gate
+
+同一个冻结 Compiled WorldPack、同一个初始状态和同一份 RecordedDecision，在中文、
+英文和阿拉伯语 narration 之间必须得到相同的 Action sequence、Event sequence、
+final GameState 和 final state hash。验证一次中途由 `zh-CN` 切换到 `ar`：
+
+```text
+GameState 不迁移
+WorldPack 不重编译
+EventStore 不改变既有事件
+RecordedDecision 不改变
+Replay 不受影响
+中文和阿拉伯语 narration artifact 分别保留
+所有文本以 UTF-8 保存
+```
+
+不得通过解析阿拉伯语散文恢复游戏事实；RTL 网页呈现继续延期到 web product layer。
+
+#### Phase 9A–9C non-goals
+
+```text
+OpenAI SDK, Anthropic SDK, Qwen API SDK
+HTTP Provider client, API key management, model routing, fallback models
+automatic multi-model matrix, automatic prompt optimization
+general JSON repair framework, free-text authoritative actions
+dynamic plugin framework, LLM-generated Python / Reducer / Event / database schema
+universal arbitrary-mechanics World Generator
+full web UI, RTL web layout, background autonomous service
+```
+
+External client 可以根据机器可读错误主动修正 World Draft，但 Engine 不建立无限
+自动 repair agent。每个 Phase 9 子阶段都是独立 Feature Contract；不得把本路线解释
+为立即建立 PluginManager、DynamicModuleLoader、UniversalWorldSchema、ProviderRouter、
+LocaleFramework、TranslationDatabase、AgentOrchestratorFramework 或 GenericWorkflowEngine。
 
 ---
 
@@ -4256,6 +4502,10 @@ Narrator C
 
 # 62. World Generation 的测试也应单独存在
 
+> **Historical guidance updated by the Phase 9 design contract below.** Generator tests
+> remain separate from player and narration tests, but bounded campaign-specific
+> generation is no longer prohibited until a fixed count of manual WorldPacks exists.
+
 以后恢复 LLM world generation：
 
 ```text
@@ -4313,7 +4563,20 @@ Validate new material before it becomes canonical truth
 
 Legacy full-world compiler pattern remains intentionally rejected。
 
-原则保留：manual WorldPacks first → 3-5 proven worlds → stable protocol → LLM generator last。
+Current two-layer route:
+
+```text
+Earlier bounded generation:
+external client generates a campaign-specific World Draft using only
+currently supported and reviewed Feature Contracts.
+
+Later general generation:
+a generator that invents new mechanics or a universal World Schema remains
+deferred until multiple structurally different WorldPacks validate the abstraction.
+```
+
+The compatibility pressure test of a second or third structurally different WorldPack
+remains important, but it is not a permanent gate against all earlier bounded generation.
 
 ---
 

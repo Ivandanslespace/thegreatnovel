@@ -2675,3 +2675,212 @@ Narrative
 
 删除浪漫叙事以后，关系、意愿、联合行动、成本、Agency 和长期后果仍应能从
 结构化状态与事件成立；否则它只是文本效果，不是可验证的世界机制。
+
+---
+
+# 50. Phase 8 之后：External Client、Compiled World 与语言无关叙事
+
+Phase 8 冻结以后，TheGreatNovel 的下一个产品方向不是让 Engine 直接连接某个
+LLM Provider，而是让外部客户端能够编排一个仍由确定性 Engine 守护的完整会话：
+
+```text
+Codex / Qoder external client
+→ campaign-specific generated world
+→ deterministic compilation and validation
+→ atomic campaign creation
+→ choice_id-based play
+→ traceable multilingual narration
+→ resumable autoplay
+→ novel.md export
+```
+
+这是一条未来产品路线，不代表 Phase 9 已实现。每个子阶段仍必须拥有独立的
+Feature Contract、State/Event/Replay 证明和外部审查。
+
+## 50.1 External client 是合法的 LLM Edge
+
+Codex、Qoder、未来 IDE Agent、CLI Agent 和 API Provider 都只是不同的 LLM Edge
+transport。当前开发和游玩不要求 LLM API。外部客户端可以：
+
+- 编排会话；
+- 生成 World Draft；
+- 扮演 LLM Player；
+- 根据确定性结果生成小说文本；
+- 提交可追溯的叙事 artifact。
+
+外部客户端不是世界权威。它不得直接写入权威 GameState、EventStore 或 snapshot，
+也不得自行制造 DomainEvent、ActionIntent 的隐藏字段或世界结果。它只能通过
+Engine 暴露的边界提交选择或边缘 artifact；Engine 负责验证、结算、持久化和重放。
+
+第一种实践路径可以是：
+
+```text
+external client
+→ read structured request
+→ choose choice_id
+→ call a restricted session command
+→ read deterministic result
+→ generate narration
+→ submit narration artifact
+```
+
+文件、stdin/stdout、CLI、MCP、HTTP 和未来 Provider SDK 都只是 transport 选择。
+
+> **Transport may change. Authority does not.**
+
+Codex 或 Qoder 可以出现在产品与文档边界，不应进入 Core runtime 的世界规则分支。
+
+## 50.2 生成可以不确定，编译后的游玩必须确定
+
+必须区分四层对象：
+
+```text
+World Genesis Request  — 用户的自由描述，不是权威状态
+World Draft            — 外部客户端生成的候选内容，可以失败和修复
+Compiled WorldPack     — 通过严格验证、绑定稳定 ID 的可执行世界包
+Campaign               — 绑定完整 Compiled WorldPack 的正式游戏实例
+```
+
+生成请求可以是“随机朋克求生世界、移动机械城市、酸雨、机械寄生虫、黑暗成长
+风格”。它不需要直接满足 Engine schema。World Draft 可以不完整、每次不同或
+校验失败；失败的 Draft 不是坏存档，只是未被接受的 generation attempt。
+
+Compiled WorldPack 的概念管线是：
+
+```text
+Parse
+→ schema validation
+→ semantic validation
+→ enabled-feature validation
+→ reference validation
+→ normalization
+→ stable ID binding
+→ minimal playable bootstrap
+→ scripted smoke test
+→ canonical serialization
+→ hash
+```
+
+World generation may be nondeterministic. Playing a compiled world must be deterministic。
+Campaign 接受后必须完整保存 Compiled WorldPack 和 hash；Replay 读取保存的包，
+不得再次调用 LLM 生成世界，Narrator 也不得静默改写包内容。
+
+Campaign 创建必须是原子的：
+
+```text
+compile and validate in a temporary attempt area
+→ all required gates pass
+→ create EventStore and initial state
+→ atomically publish Campaign
+```
+
+失败不得留下可被存档列表识别的半成品 Campaign、部分初始化的 SQLite 或误报成功
+的加载入口。独立的 draft、generation attempt 和 error report 可以保留供修复。
+
+## 50.3 Bounded generation 与通用生成必须分开
+
+较早允许的是 **Bounded campaign-specific generation**：它只能使用当前已经实现并
+审查过的 Action、Event 和 Feature Contract，生成题材内容、名称、描述、初始实体、
+参数与现有机制组合，并在验证失败后修复一个有边界的问题。它不能创造新的运行时
+语义。
+
+仍然延期的是 **General-purpose LLM World Generator**。如果生成器要发明新的
+Action、Event、Reducer、数据库字段、Python 代码、动态 Feature 或让自然语言
+直接成为权威规则，必须等多个结构不同的真实 WorldPack 证明稳定的共享合同以后
+再讨论。
+
+> **LLM may generate content within an existing rule language. LLM may not invent the
+> rule language during campaign creation.**
+
+Feature-scoped validation 是边界：不存在的功能不产生配置义务。WorldPack 只需满足
+已启用 Feature、当前最小可玩循环、initial Observation、legal actions、Replay 和
+invariant 所需的合同。启用 Feature 后，`Optional Feature != Soft Fiction`，它仍
+必须进入 State、Event、Rule、Replay 和外部审查。
+
+## 50.4 生成错误必须可被机器局部修复
+
+世界生成失败不能只返回一段自然语言。Compiler / validator 应返回稳定、语言中立
+的错误结构，至少能表达：
+
+```text
+code
+path
+actual value
+expected contract
+allowed values / referenced IDs where relevant
+```
+
+例如 `UNKNOWN_LOCATION_REFERENCE` 必须能指出 `actors.mara.location_id` 和允许的
+ID。错误 code 与 path 是 authority；localized message 只是 presentation。目标是：
+
+```text
+generate
+→ validate
+→ repair one bounded problem
+→ validate again
+```
+
+这不意味着现在建立万能 schema repair framework 或无限自动 repair agent。
+
+## 50.5 语言属于表达层，不属于规则身份
+
+Engine 使用稳定、语言无关的 ID 和 enum，例如 `SEARCH`、`TALK_TO_ACTOR`、`ALIVE`、
+`DAWN`、`actor_id`、`resource_id`、`choice_id` 和 `event_type`。显示词如“探索”、
+`Search` 或 `بحث`，以及“清晨”、`Dawn` 或 `الفجر`，不得成为逻辑身份。提交给
+Engine 的仍是稳定 ID 或 `choice_id`。
+
+未来设计应区分三个 locale；它们是责任边界，不是要求现在立即建立通用 schema：
+
+```text
+input_locale      — 用户与外部客户端交互的语言，属于客户端边缘
+content_locale    — WorldPack 中世界名称、人物显示名和题材内容的主要语言
+narration_locale  — 当前小说输出语言，可以在 Campaign 中途改变
+```
+
+`narration_locale` 不得改变 GameState、Event、RecordedDecision、legal actions 或
+state hash；不要把三者压成一个同时控制规则和叙事的 `language` 字段。
+
+所有文本 artifact 使用 UTF-8。阿拉伯语字符可以出现在显示文本和小说中，但阿拉伯
+语名称不能替代稳定 ID；Campaign 目录、数据库引用和 canonical identity 不依赖
+阿拉伯语显示标题。RTL 是未来 UI / web presentation concern，不进入 Engine 或
+Replay；本项目当前只定义边界，不实现网页 RTL。
+
+同一冻结 WorldPack、初始状态和 RecordedDecision sequence，在中文、英文和阿拉伯语
+叙事之间必须保持相同的 Action sequence、Event sequence、final GameState 和 state
+hash。只允许 prose、localized labels、Voice Pack、narration metadata 和 exported
+novel text 改变。中途切换语言不得重编译 WorldPack、迁移 GameState、改变既有
+EventStore 事件或 RecordedDecision；不同语言 artifact 都应保留。
+
+## 50.6 Narration Guard 不解析自然语言关键词
+
+禁止用类似 `if "获得" in prose` 的关键词检查来验证小说事实。叙事顺序必须是：
+
+```text
+authoritative Event
+→ player-visible narration brief
+→ structured claims
+→ prose
+```
+
+资源获得、伤害、死亡、地点变化、关系变化和知识获得等关键声明，应能通过结构化
+claim 与公开 Event 对照。Narrator 或外部客户端只能根据公开事实生成文本；小说错误
+可以被拒绝、标记或重写，但不得修改 GameState。Narration locale 不进入世界状态
+hash，也不应通过解析中文、英文或阿拉伯语散文恢复游戏事实。
+
+本原则不在本阶段定义完整 Narration Claim schema。它只固定责任边界：
+
+```text
+Simulation / State
+        ↓
+Consequence
+        ↓
+Narrative
+```
+
+## 50.7 Phase 9 的设计纪律
+
+Phase 9A–9C 每次只实现一个最小 vertical slice。不得因为外部客户端路线提前建立
+`PluginManager`、`ProviderRouter`、`LocaleFramework`、`TranslationDatabase`、
+`AgentOrchestratorFramework`、`GenericWorkflowEngine`、通用 World Schema 或动态
+插件框架。Phase 9D 的 multi-model matrix 是后续评估路线，不是 Phase 9A–9C 的
+前置条件。真实 WorldPack 和实际会话压力决定下一步抽象。
