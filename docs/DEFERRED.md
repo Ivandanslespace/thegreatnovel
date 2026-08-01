@@ -10,10 +10,11 @@ The repository already contains local slices for Phases 1–7, including combat,
 expedition, extraction, progression, build choice, event sourcing, replay,
 persistence, and scripted autoplay. Phase 7 is frozen at `phase-7-frozen`.
 
-Phase 7.5 is an implementation candidate for one persistent Named Actor,
+Phase 7.5 is frozen at `phase-7.5-frozen` with one persistent Named Actor,
 minimal relationship fact, one autonomous consequence, and a Knowledge Boundary.
-It does not implement a general relationship system or any of the deferred
-relationship features below.
+Phase 8 is an implementation candidate for a provider-neutral minimal LLM
+Player adapter and RecordedDecision Replay. Neither phase implements a general
+relationship system or any of the deferred relationship features below.
 
 The fact that a local slice exists does not mean that its generalized framework,
 multi-actor version, or alternate WorldPack variants are implemented.
@@ -31,11 +32,28 @@ multi-actor version, or alternate WorldPack variants are implemented.
 ### World and AI expansion
 
 - Public World peer simulation beyond the existing local boundary;
-- LLM Player integration and broader LLM-driven world generation;
 - LLM NPC autonomy, free-form romance, agent planners, vector memory, and
   emotion inference;
 - broader external narration integration beyond the existing narration
   infrastructure contract.
+
+### Phase 8 active candidate
+
+- provider-neutral minimal LLM Player adapter;
+- strict selection from engine-provided legal choices;
+- immutable RecordedDecision export/import and zero-network replay.
+
+The Phase 8 candidate does not include a real provider, network client, API
+credential handling, model routing, or broader generative behavior.
+
+### Still deferred after the Phase 8 local slice
+
+- real provider integrations and API credential handling;
+- multi-model, persona, and scenario experiment matrices;
+- retry, recovery, and prompt-optimization policies;
+- free-form action interpretation and agent planning;
+- LLM NPC and LLM World Generator systems;
+- broader generative systems and model-driven world simulation.
 
 ### Relationship and joint growth
 
