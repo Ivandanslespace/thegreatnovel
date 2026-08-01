@@ -11,6 +11,8 @@ from .bundle import compile_bundle, verify_bundle
 from .compiler import (
     compile_world,
     load_document,
+    prefix_validation_issues,
+    sort_validation_issues,
     validate_documents,
 )
 from .models import WorldGenError
@@ -49,13 +51,13 @@ def _load_validation_inputs(
 ) -> tuple[Any, Any, list[Any]]:
     values: list[Any] = []
     issues: list[Any] = []
-    for path in (request_path, draft_path):
+    for source, path in (("request", request_path), ("draft", draft_path)):
         try:
             values.append(load_document(str(path)))
         except WorldGenError as exc:
             values.append(None)
-            issues.extend(exc.issues)
-    return values[0], values[1], issues
+            issues.extend(prefix_validation_issues(exc.issues, f"/{source}"))
+    return values[0], values[1], list(sort_validation_issues(issues))
 
 
 def _validate_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
@@ -126,7 +128,9 @@ def main(argv: list[str] | None = None) -> int:
             "errors": [],
         }
         exit_code = 2
-    print(canonical_json(payload))
+    output = canonical_json(payload)
+    output.encode("utf-8")
+    print(output)
     return exit_code
 
 

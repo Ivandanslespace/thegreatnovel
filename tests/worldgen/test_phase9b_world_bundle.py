@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 
@@ -224,6 +225,98 @@ def test_existing_output_directory_is_never_overwritten(tmp_path, input_files):
         compile_bundle(request_path, draft_path, "seed", output)
     assert error.value.code == "BUNDLE_ALREADY_EXISTS"
     assert marker.read_text(encoding="utf-8") == "keep"
+
+
+def test_competing_target_is_preserved_before_locked_recheck(
+    tmp_path, input_files, monkeypatch
+):
+    request_path, draft_path = input_files
+    output = tmp_path / "compiled" / "race-target"
+    original_verify = bundle_module.verify_bundle
+    rename_called = False
+
+    def create_competing_target(path):
+        result = original_verify(path)
+        if Path(path).name.startswith(f".{output.name}.") and not output.exists():
+            output.mkdir(parents=True)
+            (output / "marker.txt").write_text("keep", encoding="utf-8")
+        return result
+
+    def forbidden_rename(*args, **kwargs):
+        nonlocal rename_called
+        rename_called = True
+        raise AssertionError("rename must not run after the locked target recheck")
+
+    monkeypatch.setattr(bundle_module, "verify_bundle", create_competing_target)
+    monkeypatch.setattr(bundle_module.os, "rename", forbidden_rename)
+
+    with pytest.raises(WorldGenError) as error:
+        compile_bundle(request_path, draft_path, "seed", output)
+
+    assert error.value.code == "BUNDLE_ALREADY_EXISTS"
+    assert rename_called is False
+    assert (output / "marker.txt").read_text(encoding="utf-8") == "keep"
+    assert not (output.parent / ".race-target.publish.lock").exists()
+    assert not list(output.parent.glob(".race-target.*"))
+
+
+def test_existing_publication_lock_is_preserved_and_fails_closed(
+    tmp_path, input_files
+):
+    request_path, draft_path = input_files
+    output = tmp_path / "compiled" / "locked"
+    output.parent.mkdir(parents=True)
+    lock_path = output.parent / ".locked.publish.lock"
+    lock_path.write_text("owned by another writer", encoding="utf-8")
+
+    with pytest.raises(WorldGenError) as error:
+        compile_bundle(request_path, draft_path, "seed", output)
+
+    assert error.value.code == "BUNDLE_ALREADY_EXISTS"
+    assert lock_path.read_text(encoding="utf-8") == "owned by another writer"
+    assert not output.exists()
+    assert [path.name for path in output.parent.glob(".locked.*")] == [lock_path.name]
+
+
+def test_compile_verifies_temporary_bundle_exactly_once(
+    tmp_path, input_files, monkeypatch
+):
+    request_path, draft_path = input_files
+    output = tmp_path / "compiled" / "once"
+    original_verify = bundle_module.verify_bundle
+    calls = []
+
+    def count_verify(path):
+        calls.append(Path(path))
+        return original_verify(path)
+
+    monkeypatch.setattr(bundle_module, "verify_bundle", count_verify)
+    result = compile_bundle(request_path, draft_path, "seed", output)
+
+    assert result["ok"] is True
+    assert len(calls) == 1
+    assert calls[0].name.startswith(".once.")
+    assert output.is_dir()
+
+
+def test_two_cooperating_compilers_have_one_winner(tmp_path, input_files):
+    request_path, draft_path = input_files
+    output = tmp_path / "compiled" / "two-writers"
+
+    def compile_once():
+        try:
+            compile_bundle(request_path, draft_path, "seed", output)
+            return "success"
+        except WorldGenError as error:
+            return error.code
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _index: compile_once(), (1, 2)))
+
+    assert results.count("success") == 1
+    assert results.count("BUNDLE_ALREADY_EXISTS") == 1
+    assert verify_bundle(output)["valid"] is True
+    assert not list(output.parent.glob(".two-writers.*"))
 
 
 def test_invalid_input_does_not_create_output_or_sqlite(tmp_path, input_files):

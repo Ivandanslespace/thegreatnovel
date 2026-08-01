@@ -3885,6 +3885,12 @@ uses exactly `code`, `path`, `message`, `expected`, `actual`, and
 `allowed_values`; issue ordering is deterministic by path and code so an external
 client can repair only the reported fields.
 
+Single-document validators use document-local JSON Pointer paths. Combined CLI
+validation prefixes request issues with `/request` and draft issues with `/draft`,
+then re-sorts the complete issue list by path and code. All accepted text and
+machine-readable issue payloads must remain canonical UTF-8 encodable; isolated
+Unicode surrogate code points are rejected as invalid text.
+
 The compiler binds the current first-slice runtime IDs. It does not copy display
 title, premise, labels, locale, or world ID into mutable GameState. Therefore two
 drafts with different themes or languages but the same supported profile and seed
@@ -3914,10 +3920,16 @@ compile_report.json
 
 All hashes are SHA-256 over the corresponding canonical JSON artifact. Bundle
 publication writes a temporary sibling, verifies it by re-reading, recompiling,
-rematerializing, and rerunning the smoke proof, then atomically renames it to a
-previously absent output directory. Existing targets are rejected; failed writes,
-validation errors, smoke failures, verification failures, and publish races leave
-no partial bundle and never create SQLite.
+rematerializing, and rerunning the smoke proof, then acquires the deterministic
+`.{target-name}.publish.lock`, rechecks that the target is absent, and atomically
+renames the verified sibling. The lock serializes cooperating compiler writers for
+the same target; concurrent or adversarial filesystem writers that bypass this
+local lock are outside this slice. Existing targets or locks are rejected without
+deleting the pre-existing lock; failed writes, validation errors, smoke failures,
+verification failures, and cooperative publish races leave no partial bundle and
+never create SQLite. The compile command returns the temporary verification result
+after a successful rename; later `verify` commands perform the full verification
+again.
 
 The Phase 9B1 CLI exposes only `validate`, `compile`, and `verify`. Formal Campaign
 creation, nested Phase 9A Session integration, narration, locale switching, LLM or

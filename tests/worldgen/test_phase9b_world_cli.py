@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import copy
 import json
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 from tgn.core.hashing import canonical_json
 from tgn.worldgen import WorldGenError
@@ -75,10 +78,127 @@ def test_validate_failure_returns_all_machine_issues_without_traceback(
     assert payload["ok"] is False
     assert payload["valid"] is False
     assert [(item["code"], item["path"]) for item in payload["errors"]] == [
-        ("MISSING_FIELD", "/labels/target"),
-        ("UNKNOWN_FIELD", "/rules"),
+        ("MISSING_FIELD", "/draft/labels/target"),
+        ("UNKNOWN_FIELD", "/draft/rules"),
     ]
     assert "Traceback" not in result.stdout
+
+
+def test_validate_cli_rejects_escaped_request_surrogate_as_utf8_json(
+    tmp_path, sample_draft
+):
+    request_path = tmp_path / "request.json"
+    request_path.write_text(
+        '{"schema_version":1,"prompt":"\\ud800"}',
+        encoding="utf-8",
+    )
+    draft_path = write_json(tmp_path / "draft.json", sample_draft)
+    result = _run(
+        "validate",
+        "--request",
+        str(request_path),
+        "--draft",
+        str(draft_path),
+        "--seed",
+        "seed",
+    )
+
+    assert result.returncode == 2
+    assert result.stderr == ""
+    result.stdout.encode("utf-8")
+    payload = json.loads(result.stdout)
+    assert [(item["code"], item["path"]) for item in payload["errors"]] == [
+        ("INVALID_TEXT", "/request/prompt")
+    ]
+    assert not list(tmp_path.glob("compiled/**"))
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["title", "premise", "labels.target"],
+)
+def test_validate_cli_rejects_escaped_draft_surrogates(field, tmp_path, sample_request, sample_draft):
+    candidate = copy.deepcopy(sample_draft)
+    if field.startswith("labels."):
+        candidate["labels"][field.split(".", 1)[1]] = chr(0xD800)
+    else:
+        candidate[field] = chr(0xDFFF)
+    request_path = write_json(tmp_path / "request.json", sample_request)
+    draft_path = tmp_path / "draft.json"
+    draft_path.write_text(
+        json.dumps(candidate, ensure_ascii=True, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    result = _run(
+        "validate",
+        "--request",
+        str(request_path),
+        "--draft",
+        str(draft_path),
+        "--seed",
+        "seed",
+    )
+
+    assert result.returncode == 2
+    assert result.stderr == ""
+    result.stdout.encode("utf-8")
+    payload = json.loads(result.stdout)
+    expected_path = f"/draft/{field.replace('.', '/')}"
+    assert any(
+        item["code"] == "INVALID_TEXT" and item["path"] == expected_path
+        for item in payload["errors"]
+    )
+
+
+def test_validate_cli_prefixes_and_sorts_combined_schema_issues(
+    tmp_path, sample_request, sample_draft
+):
+    sample_request["schema_version"] = 2
+    del sample_draft["labels"]["target"]
+    request_path = write_json(tmp_path / "request.json", sample_request)
+    draft_path = write_json(tmp_path / "draft.json", sample_draft)
+
+    result = _run(
+        "validate",
+        "--request",
+        str(request_path),
+        "--draft",
+        str(draft_path),
+        "--seed",
+        "seed",
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert [(item["code"], item["path"]) for item in payload["errors"]] == [
+        ("MISSING_FIELD", "/draft/labels/target"),
+        ("UNSUPPORTED_SCHEMA_VERSION", "/request/schema_version"),
+    ]
+
+
+def test_validate_cli_distinguishes_two_malformed_json_sources(tmp_path, sample_draft):
+    request_path = tmp_path / "request.json"
+    draft_path = tmp_path / "draft.json"
+    request_path.write_text("{not json", encoding="utf-8")
+    draft_path.write_text("[not json", encoding="utf-8")
+
+    result = _run(
+        "validate",
+        "--request",
+        str(request_path),
+        "--draft",
+        str(draft_path),
+        "--seed",
+        "seed",
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert [(item["code"], item["path"]) for item in payload["errors"]] == [
+        ("INVALID_JSON", "/draft"),
+        ("INVALID_JSON", "/request"),
+    ]
 
 
 def test_compile_and_verify_cli_round_trip(tmp_path, input_files):

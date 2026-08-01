@@ -19,6 +19,8 @@ from .compiler import (
     load_draft,
     load_request,
     parse_strict_json,
+    prefix_validation_issues,
+    sort_validation_issues,
     validate_draft,
     validate_request,
 )
@@ -57,19 +59,46 @@ def _bundle_error(message: str, *, actual: Any = None) -> WorldGenError:
     )
 
 
+def _canonical_utf8_json(value: Any) -> str:
+    payload = canonical_json(value)
+    payload.encode("utf-8")
+    return payload
+
+
+def _publication_lock_path(target: Path) -> Path:
+    return target.parent / f".{target.name}.publish.lock"
+
+
+def _already_exists_error(message: str, actual: Any) -> WorldGenError:
+    return WorldGenError(
+        "BUNDLE_ALREADY_EXISTS",
+        message,
+        issues=(
+            ValidationIssue(
+                code="BUNDLE_ALREADY_EXISTS",
+                path="/output-dir",
+                message=message,
+                expected="absent output and publication lock",
+                actual=actual,
+                allowed_values=None,
+            ),
+        ),
+    )
+
+
 def _read_canonical_json(path: Path) -> Any:
     try:
         payload = path.read_text(encoding="utf-8")
         parsed = parse_strict_json(payload)
     except Exception as exc:
         raise _bundle_error(f"cannot read strict JSON artifact {path.name}") from exc
-    if canonical_json(parsed) != payload:
+    if _canonical_utf8_json(parsed) != payload:
         raise _bundle_error(f"artifact {path.name} is not canonical JSON")
     return parsed
 
 
 def _write_json(path: Path, value: Any) -> None:
-    path.write_text(canonical_json(value), encoding="utf-8")
+    path.write_text(_canonical_utf8_json(value), encoding="utf-8")
 
 
 def _artifact_payloads(compilation: CompilationResult, seed: str) -> dict[str, Any]:
@@ -198,7 +227,10 @@ def verify_bundle(bundle_dir: str | Path) -> dict[str, Any]:
     request, request_issues = validate_request(artifacts["world_request.json"])
     draft, draft_issues = validate_draft(artifacts["world_draft.json"])
     if request_issues or draft_issues or request is None or draft is None:
-        issues = tuple(request_issues) + tuple(draft_issues)
+        issues = sort_validation_issues(
+            list(prefix_validation_issues(request_issues, "/request"))
+            + list(prefix_validation_issues(draft_issues, "/draft"))
+        )
         raise WorldGenError(
             "BUNDLE_INTEGRITY_MISMATCH",
             "saved request or draft no longer satisfies its contract",
@@ -253,19 +285,9 @@ def compile_bundle(
 
     target = Path(output_dir)
     if target.exists():
-        raise WorldGenError(
-            "BUNDLE_ALREADY_EXISTS",
+        raise _already_exists_error(
             "output directory already exists",
-            issues=(
-                ValidationIssue(
-                    code="BUNDLE_ALREADY_EXISTS",
-                    path="/output-dir",
-                    message="output directory already exists",
-                    expected="absent directory",
-                    actual=str(target),
-                    allowed_values=None,
-                ),
-            ),
+            str(target),
         )
 
     request = load_request(str(request_path))
@@ -274,6 +296,10 @@ def compile_bundle(
     artifacts = _artifact_payloads(compilation, seed)
 
     temporary_dir: Path | None = None
+    temporary_verification: dict[str, Any] | None = None
+    lock_path = _publication_lock_path(target)
+    lock_created = False
+    lock_fd: int | None = None
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
         temporary_dir = Path(
@@ -281,13 +307,32 @@ def compile_bundle(
         )
         for name, value in artifacts.items():
             _write_json(temporary_dir / name, value)
-        verify_bundle(temporary_dir)
+        temporary_verification = verify_bundle(temporary_dir)
+        try:
+            lock_fd = os.open(
+                str(lock_path),
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                0o600,
+            )
+            lock_created = True
+            os.close(lock_fd)
+            lock_fd = None
+        except FileExistsError as exc:
+            raise _already_exists_error(
+                "publication lock already exists; another cooperating compiler may be publishing",
+                str(lock_path),
+            ) from exc
+        if target.exists():
+            raise _already_exists_error(
+                "output directory appeared before locked publication; target was preserved",
+                str(target),
+            )
         try:
             os.rename(temporary_dir, target)
         except FileExistsError as exc:
-            raise WorldGenError(
-                "BUNDLE_ALREADY_EXISTS",
+            raise _already_exists_error(
                 "output directory appeared during atomic publication",
+                str(target),
             ) from exc
         temporary_dir = None
     except WorldGenError:
@@ -295,18 +340,25 @@ def compile_bundle(
     except Exception as exc:
         raise _bundle_error("compiled bundle publication failed") from exc
     finally:
+        if lock_fd is not None:
+            os.close(lock_fd)
+        if lock_created:
+            try:
+                lock_path.unlink()
+            except FileNotFoundError:
+                pass
         if temporary_dir is not None:
             shutil.rmtree(temporary_dir, ignore_errors=True)
 
-    verification = verify_bundle(target)
+    assert temporary_verification is not None
     return {
         "ok": True,
         "valid": True,
         "bundle_dir": str(target),
         "preview": {
-            "compiler_id": verification["compiler_id"],
-            "world_id": verification["world_id"],
-            "worldpack_hash": verification["worldpack_hash"],
-            "initial_state_hash": verification["initial_state_hash"],
+            "compiler_id": temporary_verification["compiler_id"],
+            "world_id": temporary_verification["world_id"],
+            "worldpack_hash": temporary_verification["worldpack_hash"],
+            "initial_state_hash": temporary_verification["initial_state_hash"],
         },
     }

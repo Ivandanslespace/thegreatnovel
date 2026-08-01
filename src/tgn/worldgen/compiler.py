@@ -7,12 +7,12 @@ import json
 import math
 import re
 import unicodedata
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 from ..actions.models import ActionIntent
 from ..autoplay.models import AutoplayConfig
 from ..autoplay.runner import run_autoplay
-from ..core.hashing import state_hash
+from ..core.hashing import canonical_json, state_hash
 from ..core.invariants import check_invariants
 from ..core.models import GameState
 from ..gameplay.expedition import build_observation, get_legal_actions
@@ -88,6 +88,46 @@ def _find_nonfinite(value: Any) -> bool:
     return False
 
 
+def _contains_surrogate(value: str) -> bool:
+    return any(0xD800 <= ord(character) <= 0xDFFF for character in value)
+
+
+def _surrogate_code_points(value: str) -> list[str]:
+    return sorted({f"U+{ord(character):04X}" for character in value if 0xD800 <= ord(character) <= 0xDFFF})
+
+
+def _safe_issue_text(value: str) -> str:
+    if _contains_surrogate(value):
+        return "contains invalid Unicode surrogate " + ", ".join(_surrogate_code_points(value))
+    return value
+
+
+def _safe_issue_value(value: Any) -> Any:
+    if isinstance(value, str):
+        if _contains_surrogate(value):
+            return {"invalid_code_points": _surrogate_code_points(value)}
+        return value
+    if value is None or isinstance(value, bool) or isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if math.isfinite(value):
+            return value
+        return {"invalid_number": repr(value)}
+    if isinstance(value, Mapping):
+        safe_mapping: dict[str, Any] = {}
+        for key, item in value.items():
+            safe_key = _safe_issue_text(key if isinstance(key, str) else str(key))
+            safe_mapping[safe_key] = _safe_issue_value(item)
+        return safe_mapping
+    if isinstance(value, (list, tuple)):
+        return [_safe_issue_value(item) for item in value]
+    return {"invalid_value_type": type(value).__name__}
+
+
+def _assert_canonical_utf8(value: Any) -> None:
+    canonical_json(value).encode("utf-8")
+
+
 def parse_strict_json(payload: str) -> Any:
     """Parse JSON while rejecting duplicate keys and non-finite numbers."""
 
@@ -119,18 +159,51 @@ def _issue(
     actual: Any = None,
     allowed_values: Any = None,
 ) -> ValidationIssue:
-    return ValidationIssue(
-        code=code,
-        path=path,
-        message=message,
-        expected=expected,
-        actual=actual,
-        allowed_values=allowed_values,
+    issue = ValidationIssue(
+        code=_safe_issue_text(code),
+        path=_safe_issue_text(path),
+        message=_safe_issue_text(message),
+        expected=_safe_issue_value(expected),
+        actual=_safe_issue_value(actual),
+        allowed_values=_safe_issue_value(allowed_values),
     )
+    _assert_canonical_utf8(issue.to_dict())
+    return issue
 
 
 def _sort_issues(issues: list[ValidationIssue]) -> tuple[ValidationIssue, ...]:
     return tuple(sorted(issues, key=lambda issue: (issue.path, issue.code)))
+
+
+def sort_validation_issues(
+    issues: Iterable[ValidationIssue],
+) -> tuple[ValidationIssue, ...]:
+    return _sort_issues(list(issues))
+
+
+def prefix_validation_issues(
+    issues: Iterable[ValidationIssue], prefix: str
+) -> tuple[ValidationIssue, ...]:
+    prefixed: list[ValidationIssue] = []
+    for issue in issues:
+        path = issue.path
+        if path in ("", "/"):
+            combined_path = prefix
+        elif path.startswith("/"):
+            combined_path = f"{prefix}{path}"
+        else:
+            combined_path = f"{prefix}/{path}"
+        prefixed.append(
+            _issue(
+                issue.code,
+                combined_path,
+                issue.message,
+                issue.expected,
+                issue.actual,
+                issue.allowed_values,
+            )
+        )
+    return sort_validation_issues(prefixed)
 
 
 def _normalise_text(value: str) -> str:
@@ -166,7 +239,7 @@ def _validate_text(
         ]
     normalized = _normalise_text(value)
     issues: list[ValidationIssue] = []
-    if not normalized or len(normalized) > maximum or (
+    if _contains_surrogate(normalized) or not normalized or len(normalized) > maximum or (
         reject_controls and _has_invalid_control(normalized, allow_newline=allow_newline)
     ):
         issues.append(
@@ -277,7 +350,9 @@ def validate_request(
     if ordered:
         return None, ordered
     assert prompt is not None
-    return WorldGenesisRequest(schema_version=1, prompt=prompt), ()
+    normalized = WorldGenesisRequest(schema_version=1, prompt=prompt)
+    _assert_canonical_utf8(normalized.to_dict())
+    return normalized, ()
 
 
 def _validate_stable_id(value: Any, path: str) -> tuple[str | None, list[ValidationIssue]]:
@@ -289,6 +364,16 @@ def _validate_stable_id(value: Any, path: str) -> tuple[str | None, list[Validat
                 "stable ID must be a string",
                 "[a-z0-9][a-z0-9_-]{0,63}",
                 type(value).__name__,
+            )
+        ]
+    if _contains_surrogate(value):
+        return None, [
+            _issue(
+                "INVALID_TEXT",
+                path,
+                "stable ID contains an invalid Unicode surrogate",
+                "ASCII stable ID without surrogate code points",
+                value,
             )
         ]
     if _STABLE_ID.fullmatch(value) is None:
@@ -314,6 +399,16 @@ def _validate_locale(value: Any) -> tuple[str | None, list[ValidationIssue]]:
                 "content_locale must be a string",
                 "ASCII language tag",
                 type(value).__name__,
+            )
+        ]
+    if _contains_surrogate(value):
+        return None, [
+            _issue(
+                "INVALID_TEXT",
+                path,
+                "content_locale contains an invalid Unicode surrogate",
+                "ASCII language tag without surrogate code points",
+                value,
             )
         ]
     if len(value) > 35 or _LOCALE_TAG.fullmatch(value) is None:
@@ -437,8 +532,7 @@ def validate_draft(
         and premise is not None
         and normalized_labels is not None
     )
-    return (
-        WorldDraft(
+    normalized = WorldDraft(
             schema_version=1,
             mechanics_profile=MECHANICS_PROFILE,
             world_id=world_id,
@@ -446,9 +540,9 @@ def validate_draft(
             title=title,
             premise=premise,
             labels={key: normalized_labels[key] for key in sorted(LABEL_FIELDS)},
-        ),
-        (),
-    )
+        )
+    _assert_canonical_utf8(normalized.to_dict())
+    return normalized, ()
 
 
 def validate_documents(
@@ -461,7 +555,10 @@ def validate_documents(
 ]:
     normalized_request, request_issues = validate_request(request)
     normalized_draft, draft_issues = validate_draft(draft)
-    issues = _sort_issues(list(request_issues) + list(draft_issues))
+    issues = sort_validation_issues(
+        list(prefix_validation_issues(request_issues, "/request"))
+        + list(prefix_validation_issues(draft_issues, "/draft"))
+    )
     if issues:
         return None, None, issues
     return normalized_request, normalized_draft, ()
@@ -491,10 +588,11 @@ def load_document(path: str) -> Any:
     try:
         return parse_strict_json(payload)
     except _StrictJSONError as exc:
+        message = _safe_issue_text(str(exc))
         raise WorldGenError(
             exc.code,
-            str(exc),
-            issues=(_issue(exc.code, "/", str(exc), "strict JSON", None),),
+            message,
+            issues=(_issue(exc.code, "/", message, "strict JSON", None),),
         ) from exc
 
 
@@ -515,7 +613,7 @@ def load_draft(path: str) -> WorldDraft:
 
 
 def _validate_seed(seed: Any) -> str:
-    if not isinstance(seed, str) or not seed or "\x00" in seed:
+    if not isinstance(seed, str) or not seed or "\x00" in seed or _contains_surrogate(seed):
         raise WorldGenError(
             "INVALID_TEXT",
             "seed must be a non-empty string without NUL",

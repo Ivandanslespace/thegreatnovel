@@ -26,10 +26,10 @@ def test_failed_first_draft_can_be_locally_repaired_without_rewriting_everything
     broken["rules"] = {"reward": 99}
     _, _, issues = validate_documents(sample_request, broken)
     assert [(issue.code, issue.path) for issue in issues] == [
-        ("MISSING_FIELD", "/labels/target"),
-        ("UNSUPPORTED_MECHANICS_PROFILE", "/mechanics_profile"),
-        ("UNKNOWN_FIELD", "/rules"),
-        ("INVALID_STABLE_ID", "/world_id"),
+        ("MISSING_FIELD", "/draft/labels/target"),
+        ("UNSUPPORTED_MECHANICS_PROFILE", "/draft/mechanics_profile"),
+        ("UNKNOWN_FIELD", "/draft/rules"),
+        ("INVALID_STABLE_ID", "/draft/world_id"),
     ]
 
     repaired = copy.deepcopy(broken)

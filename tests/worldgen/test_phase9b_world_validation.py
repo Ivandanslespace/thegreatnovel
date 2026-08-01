@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import pytest
 
+from tgn.core.hashing import canonical_json
 from tgn.worldgen import (
     MECHANICS_PROFILE,
+    WorldGenError,
+    compile_world,
     parse_strict_json,
     validate_documents,
     validate_draft,
@@ -58,6 +61,96 @@ def test_request_rejects_invalid_prompt(prompt):
     request, issues = validate_request({"schema_version": 1, "prompt": prompt})
     assert request is None
     assert any(issue.code == "INVALID_TEXT" for issue in issues)
+
+
+def test_direct_request_surrogate_is_rejected_with_canonicalizable_issue():
+    request, issues = validate_request(
+        {"schema_version": 1, "prompt": chr(0xD800)}
+    )
+
+    assert request is None
+    assert [(issue.code, issue.path) for issue in issues] == [
+        ("INVALID_TEXT", "/prompt")
+    ]
+    assert issues[0].actual == {"invalid_code_points": ["U+D800"]}
+    canonical_json(issues[0].to_dict()).encode("utf-8")
+
+
+@pytest.mark.parametrize(
+    ("field", "path", "surrogate"),
+    [
+        ("world_id", "/world_id", chr(0xD800)),
+        ("content_locale", "/content_locale", chr(0xDFFF)),
+        ("title", "/title", chr(0xD800)),
+        ("premise", "/premise", chr(0xDFFF)),
+        ("labels.target", "/labels/target", chr(0xD800)),
+    ],
+)
+def test_direct_draft_surrogates_are_rejected_with_safe_issue_actual(
+    field, path, surrogate
+):
+    draft = draft_payload()
+    if field.startswith("labels."):
+        draft["labels"][field.split(".", 1)[1]] = surrogate
+    else:
+        draft[field] = surrogate
+
+    normalized, issues = validate_draft(draft)
+
+    assert normalized is None
+    issue = next(issue for issue in issues if issue.path == path)
+    assert issue.code == "INVALID_TEXT"
+    canonical_json(issue.to_dict()).encode("utf-8")
+
+
+def test_seed_surrogate_is_rejected_before_hashing(sample_request, sample_draft):
+    with pytest.raises(WorldGenError) as error:
+        compile_world(sample_request, sample_draft, chr(0xDFFF))
+
+    assert error.value.code == "INVALID_TEXT"
+    assert error.value.issues[0].path == "/seed"
+    canonical_json(error.value.issues_dict()).encode("utf-8")
+
+
+def test_unknown_surrogate_field_is_safe_in_machine_issue_payload():
+    _, issues = validate_request(
+        {
+            "schema_version": 1,
+            "prompt": "valid",
+            chr(0xD800): chr(0xDFFF),
+        }
+    )
+
+    assert issues[0].code == "UNKNOWN_FIELD"
+    canonical_json([issue.to_dict() for issue in issues]).encode("utf-8")
+
+
+def test_combined_validation_prefixes_and_sorts_request_and_draft_paths(
+    sample_request, sample_draft
+):
+    sample_request["schema_version"] = 2
+    del sample_draft["labels"]["target"]
+
+    _, _, issues = validate_documents(sample_request, sample_draft)
+
+    assert [(issue.code, issue.path) for issue in issues] == [
+        ("MISSING_FIELD", "/draft/labels/target"),
+        ("UNSUPPORTED_SCHEMA_VERSION", "/request/schema_version"),
+    ]
+
+
+def test_valid_combining_emoji_and_rtl_formatting_text_remains_supported():
+    draft = draft_payload(
+        title="Cafe\u0301 🚀\u200f",
+        premise="中文、français، والعربية مع RTL\u200f。",
+    )
+    draft["labels"]["base"] = "基地 🚀\u030f"
+
+    normalized, issues = validate_draft(draft)
+
+    assert not issues
+    assert normalized is not None
+    canonical_json(normalized.to_dict()).encode("utf-8")
 
 
 @pytest.mark.parametrize(
