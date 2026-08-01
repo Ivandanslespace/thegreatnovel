@@ -3519,6 +3519,28 @@ Named Actor first version: deterministic `if condition: action` is sufficient.
 
 Knowledge is gameplay truth (if it affects future decisions), not rendering preference. But first version only does one secret/fact.
 
+#### Phase 7.5 compatibility boundary for future relationships
+
+Phase 7.5 intentionally remains a minimal slice:
+
+```text
+1 persistent named NPC
+minimal relationship
+minimal knowledge
+1 autonomous behavior
+```
+
+It does **not** implement a complete romantic relationship system. In particular:
+
+- Phase 7.5 must not assume that a Named Actor and the player have different genders.
+- Its local relationship field must not be named `girlfriend`, `boyfriend`, `wife`, `husband`, or another gendered relationship label.
+- Phase 7.5 `trust` is a local relationship fact for the first Named Actor slice, not a complete Relationship System.
+- Phase 7.5 does not implement romance, mutual consent, dual cultivation, dating simulation, or multiple partners.
+- The local data shape must not prevent future adult participants of different gender combinations from using the same relationship contract.
+
+The future relationship design must remain optional and must be earned by a real
+vertical slice. Named Actor and Public World peer remain separate subsystems.
+
 ---
 
 ### Phase 8 — LLM Player
@@ -3590,6 +3612,168 @@ These require WorldPack-driven demand before implementation:
 - Organization (guild/academy/sect/faction)
 - Market / Trade
 - Settlement / Civilization scale
+
+### Future Optional Vertical Slice — Mutual Bond + Relationship-produced Capability
+
+This is a future optional design direction, not the current active phase and not
+an extension of the Phase 7.5 implementation contract.
+
+Recommended development order:
+
+```text
+Phase 7.5 establishes one persistent Actor and knowledge boundary.
+Phase 8 establishes the LLM Player and its permission boundary.
+Phase 10 proves one executable Capability.
+Later optional slice proves Mutual Bond + Relationship-produced Joint Capability.
+```
+
+Do not renumber or replace the existing Phase 8–12 roadmap to add this optional
+slice. It should only start after a real WorldPack demonstrates that a mutual
+relationship creates a product problem worth solving.
+
+#### Candidate future Feature Contract
+
+The first relationship / joint-growth vertical slice should remain deliberately
+small:
+
+```text
+1 adult romance-eligible named Actor
+1 player ↔ actor mutual bond
+1 deterministic proposal / acceptance path
+explicit consent from both participants
+1 active romantic relationship state
+1 relationship-produced joint action
+1 deterministic cost
+1 deterministic strategic consequence
+Observation and Knowledge Boundary protection
+Event / Reducer / Replay / Persistence / Autoplay proof
+```
+
+`DUAL_CULTIVATE` may be the first WorldPack's candidate action name. It is not a
+universal engine action and must not make “cultivation” a required concept for
+other worlds. The cross-world architecture language is
+`Relationship-produced Joint Capability` and `Mutual Joint Action`.
+
+#### Future state direction, not an implemented schema
+
+An illustrative direction is:
+
+```python
+relationship = {
+    "relationship_id": "...",
+    "participants": ["actor-a", "actor-b"],
+    "kind": "romantic",
+    "status": "active",
+    "mutual_consent": {
+        "actor-a": True,
+        "actor-b": True,
+    },
+}
+```
+
+This is design vocabulary only. `participants` must use `actor_id`; the schema
+must not switch based on gender combination. Preferences belong to Actor-specific
+state or WorldPack configuration, subject to Knowledge Boundary. Do not design a
+complete `RelationshipGraph` or universal relationship registry before a second
+real use case requires it.
+
+#### Future joint-action legality contract
+
+A future relationship-produced joint action must require, at minimum:
+
+- every participant is explicitly an adult;
+- a valid active relationship exists between the participants;
+- every participant has explicitly consented to the current action;
+- every participant is alive and otherwise able to act;
+- every participant is in a legal shared context;
+- no forced encounter or mutually exclusive task blocks the action;
+- authoritative time, stamina, resource, and opportunity costs are available.
+
+The engine must reject self-relationships, one-sided consent, remote joint action,
+dead participants, forced combat, unknown actors, repeated settlement, Narrator
+triggers, and direct LLM writes to relationship state.
+
+#### Future events and authority boundary
+
+Possible semantic event directions are:
+
+```text
+ROMANTIC_BOND_PROPOSED
+ROMANTIC_BOND_FORMED
+ROMANTIC_BOND_ENDED
+JOINT_CULTIVATION_RESOLVED
+```
+
+These names are future directions only. A future Reducer must independently verify
+participants, adult status, relationship status, both consents, location and
+action context, time and resource cost, result, and idempotency. It must not trust
+relationship results, consent, cost, or reward values supplied by a player or LLM
+inside an event payload.
+
+#### Future Knowledge Boundary
+
+Potentially private facts include:
+
+```text
+romantic orientation
+partner preference
+private attraction
+willingness to form a bond
+current private commitments
+consent for a future action
+```
+
+Observation may expose only the part the player has legally learned. A future LLM
+Player may see Observation and choose legal actions, but it may not decide that an
+NPC loves someone, express consent for an NPC, form a relationship, determine
+joint-action rewards, or read private Actor state.
+
+#### Future product test
+
+With the same participants and relationship state:
+
+```text
+choose joint growth
+→ both invest time and resources
+→ the world continues running
+→ some other opportunities genuinely disappear
+→ both obtain a strategic result unavailable through the single-actor path
+```
+
+Choosing not to perform joint growth must preserve time for other opportunities;
+the joint result must not appear for free. The product test is not whether the
+game contains romantic prose. After removing the romantic narration, the
+relationship, consent, joint action, cost, and consequence must still be provable
+from structured state and events.
+
+#### Future relationship slice non-goals
+
+The first slice must not simultaneously implement:
+
+```text
+multiple romance candidates
+reverse-harem / harem systems
+love triangles
+jealousy simulation
+marriage law
+divorce law
+pregnancy
+reproduction
+children or inheritance
+multi-person cultivation
+open-relationship rules
+dating schedules
+gift economy
+complex dialogue trees
+relationship graph database
+social simulation
+LLM NPC free romance
+vector memory
+emotion inference model
+```
+
+Each item would need its own product reason, ethical boundary, and Feature
+Contract after a real WorldPack creates the pressure.
 
 Production first slice: 1 producer, 1 recipe, minimal input/output, 1 deterministic duration. Must pass state/event/time/replay/autoplay.
 

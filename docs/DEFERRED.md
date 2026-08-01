@@ -36,6 +36,49 @@ The following features are deferred and will **not** be implemented until they e
 ### Migration
 - Legacy save migration tools
 
+### Future Relationship and Joint Growth
+
+The following remain deferred and are not part of the Phase 7.5 Named Actor
+slice:
+
+- Complete Romantic Relationship / Mutual Bond System
+- Relationship-produced Joint Capability / Dual Cultivation
+
+Current status:
+
+```text
+design principles recorded
+implementation deferred
+not part of Phase 7.5
+must not be added to the minimal Named Actor slice
+```
+
+Before implementation, all of the following must be true:
+
+- Phase 7.5 Named Actor + Knowledge Boundary has been externally verified;
+- Phase 8 LLM Player permission boundaries have been externally verified;
+- at least one ordinary Capability vertical slice has been externally verified;
+- a real WorldPack has a demonstrated product need for couple-based joint growth.
+
+The following are also deferred:
+
+- marriage
+- pregnancy
+- reproduction
+- children
+- jealousy
+- love triangles
+- multiple simultaneous partners
+- polyamory rules
+- multi-person cultivation
+- dating simulation
+- romance economy
+- relationship graph
+
+These are not permanent prohibitions. Each future addition requires its own
+product reason, ethical boundary, and Feature Contract. The current MVP does
+not implement them and must not create preparatory framework code for them.
+
 ## Important Notice
 
 > **Deferred does not imply planned architecture.**  
