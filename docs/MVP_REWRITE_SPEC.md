@@ -4482,6 +4482,47 @@ presentation the input to `choose`. The client sends the canonical
 `request_fingerprint` and `choice_id`, not a displayed label or a displayed
 parameter.
 
+The Campaign adapter validates the basic type and shape of every create,
+choose, and stop command at its own boundary. An invalid `campaign_id`,
+`actor_id`, or `max_decisions`, a separately supplied or mismatching
+`session_id`, or a malformed command argument returns `INVALID_CAMPAIGN_INPUT`.
+This is an input rejection, not a reinterpretation of a damaged Campaign or a
+different operational decision error.
+
+The following client-control errors are zero-side-effect rejections:
+
+```text
+STALE_REQUEST
+UNKNOWN_CHOICE
+SESSION_TERMINAL
+INVALID_CAMPAIGN_INPUT
+```
+
+For each of them, the implementation must prove:
+
+```text
+no ActionIntent
+no DomainEvent
+no EventStore append
+no RecordedDecision append
+no session.json rewrite
+no campaign.json rewrite
+no state mutation
+no new request or presentation fabricated
+all fourteen published files remain unchanged
+```
+
+An invalid Campaign create input is rejected before a formal target, sibling
+temporary directory, owned publication lock, SQLite database, or any Campaign
+file is created. For a malformed `choose` or `stop` argument against an
+already published Campaign, the published fourteen-file tree remains unchanged.
+`UNKNOWN_CHOICE` continues to delegate validation to the frozen current
+canonical request: the adapter adds no display-label lookup, fuzzy matching,
+index selection, or alternative legality system. `STALE_REQUEST` never accepts
+a supplied fingerprint merely because it was valid for an earlier decision.
+After `STOPPED`, `MAX_DECISIONS`, or `NO_LEGAL_ACTIONS`, `SESSION_TERMINAL`
+rejects `choose` and `stop`; repeated STOP never appends another STOP record.
+
 ###### 9B2B.7 Atomic Campaign creation and failure cleanup
 
 Creation uses a temporary sibling and an exclusive lock with this order:
@@ -4732,13 +4773,16 @@ must verify against that Campaign's own copied WorldPack. Campaign behavior must
 never branch on locale, theme, display labels, or presentation text; only the
 bound source/projection/presentation artifacts may differ.
 
-###### 9B2B.11 Campaign error namespace
+###### 9B2B.11 Campaign assembly/integrity and operational error namespaces
 
-The Campaign boundary exposes this small stable namespace; nested WorldPack,
-Projection, Session, SQLite, and Engine errors are mapped at the boundary
-instead of copied into a second large error taxonomy:
+**A. Campaign assembly and integrity namespace**
+
+The Campaign boundary exposes this small stable assembly/integrity namespace;
+nested WorldPack, Projection, Session, SQLite, and Engine errors are mapped at
+the boundary instead of copied into a second large error taxonomy:
 
 ```text
+INVALID_CAMPAIGN_INPUT
 CAMPAIGN_ALREADY_EXISTS
 CAMPAIGN_NOT_FOUND
 CAMPAIGN_INTEGRITY_MISMATCH
@@ -4750,7 +4794,24 @@ UNSUPPORTED_CAMPAIGN_FORMAT
 CAMPAIGN_PUBLICATION_UNAVAILABLE
 ```
 
-The intended mapping is:
+`INVALID_CAMPAIGN_INPUT` is used only for a call that is malformed before a
+formal Campaign is created or for a malformed client command argument. Examples
+include:
+
+```text
+campaign_id does not match the bounded stable-ID form
+actor_id does not match the bounded stable-ID form
+session_id input is supplied separately or differs from campaign_id
+max_decisions is not a strict positive integer
+request_fingerprint or choice_id has the wrong basic type
+malformed create/choose/stop command payload
+```
+
+It is not used for invalid `campaign.json`, an unsupported Campaign format, a
+damaged Session, a stale but structurally valid request fingerprint, an unknown
+but structurally valid `choice_id`, or a terminal Session.
+
+The assembly/integrity mapping is:
 
 ```text
 existing target / existing lock / late no-replace conflict
@@ -4778,6 +4839,90 @@ or no safe no-clobber guarantee can be established
 format failure. It must not be mapped to `UNSUPPORTED_CAMPAIGN_FORMAT`,
 `CAMPAIGN_ALREADY_EXISTS`, or `CAMPAIGN_INTEGRITY_MISMATCH`; it also leaves no
 target, owned lock, or temporary sibling.
+
+The exact nested Phase 9A Session mapping is:
+
+```text
+Phase 9A STALE_REQUEST
+    → pass through as STALE_REQUEST
+
+Phase 9A UNKNOWN_CHOICE
+    → pass through as UNKNOWN_CHOICE
+
+Phase 9A SESSION_TERMINAL
+    → pass through as SESSION_TERMINAL
+
+Phase 9A invalid ID / invalid max_decisions during Campaign create
+    → INVALID_CAMPAIGN_INPUT
+
+Phase 9A SESSION_ALREADY_EXISTS during temporary internal bootstrap
+    → SESSION_BOOTSTRAP_FAILED
+
+Phase 9A INVALID_INITIAL_STATE during temporary internal bootstrap
+    → SESSION_BOOTSTRAP_FAILED
+
+Phase 9A SESSION_INTEGRITY_MISMATCH during temporary bootstrap verification
+    → SESSION_BOOTSTRAP_FAILED
+
+Phase 9A SESSION_NOT_FOUND inside an already published fourteen-file Campaign
+    → CAMPAIGN_INTEGRITY_MISMATCH
+
+Phase 9A INVALID_SESSION_MANIFEST inside a published Campaign
+    → CAMPAIGN_INTEGRITY_MISMATCH
+
+Phase 9A SESSION_INTEGRITY_MISMATCH during next/status/choose/stop/verify
+on a published Campaign
+    → CAMPAIGN_INTEGRITY_MISMATCH
+```
+
+**B. Frozen Phase 9A operational decision errors**
+
+The thin Session adapter preserves these frozen Phase 9A client-control codes
+without renaming them:
+
+```text
+STALE_REQUEST
+UNKNOWN_CHOICE
+SESSION_TERMINAL
+```
+
+Their meanings remain:
+
+```text
+STALE_REQUEST
+    supplied request_fingerprint does not equal the current verified request
+
+UNKNOWN_CHOICE
+    supplied choice_id is structurally valid but is not in the current
+    canonical legal-choice set
+
+SESSION_TERMINAL
+    choose or stop was submitted after STOPPED, MAX_DECISIONS,
+    or NO_LEGAL_ACTIONS
+```
+
+These are normal, recoverable or understandable client protocol errors, not
+integrity failures. The Campaign adapter must not introduce
+`STALE_CAMPAIGN_REQUEST`, `UNKNOWN_CAMPAIGN_CHOICE`, or
+`CAMPAIGN_SESSION_TERMINAL`.
+
+All Campaign assembly/integrity errors and preserved Phase 9A operational
+errors use one safe Phase 9B2B CLI envelope:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "STALE_REQUEST",
+    "message": "request fingerprint is stale"
+  }
+}
+```
+
+`code` is mandatory. `message` is canonical UTF-8-safe Campaign wording. The
+envelope contains no traceback, absolute path, temporary path, or raw
+SQLite/filesystem exception text. This is one boundary envelope, not a general
+error framework and not a duplicate of the Phase 9B1 issue-object system.
 
 Every error response is canonical UTF-8 JSON, machine-readable, deterministic,
 and safe for a client. It contains no traceback, absolute/temporary path,
@@ -4834,6 +4979,11 @@ that merely executes an uncovered line:
 | Resume proof | 按 DROP → SEARCH → EXTRACT → TALK_TO_ACTOR → STOP 的 close/reopen 序列继续，状态、request、presentation、SQLite close/reopen 和终态完全一致。 |
 | Choice integrity | 客户端只能提交 fingerprint + choice_id/STOP；canonical choices、params、duration、stamina、events 与冻结 Phase 9A 完全一致，presentation 不能改变 legality。 |
 | Knowledge Boundary | TALK 前事实不在 canonical request/presentation，TALK 后且仅后事实出现；私有目标、私有知识、hidden loot、World Truth 不泄漏。 |
+| Invalid Campaign input | invalid `campaign_id`/`actor_id`、non-positive 或 boolean `max_decisions`、malformed `choose`/`stop` argument types 均返回 `INVALID_CAMPAIGN_INPUT`；create 在任何文件前拒绝，published Campaign 操作无任何副作用。 |
+| Stale request | 取得 request N、执行一个合法 choice、再提交 request N fingerprint 时返回 `STALE_REQUEST`；不产生第二个 Action/Event/RecordedDecision，十四个 published files 不变。 |
+| Unknown choice | 使用当前有效 fingerprint 和 structurally valid 但未知的 `choice_id` 时返回 `UNKNOWN_CHOICE`；继续以当前 canonical legal-choice set 判定且不发生 mutation。 |
+| Terminal session | explicit STOP 后再次 choose 或 STOP 返回 `SESSION_TERMINAL`；恰好一个 STOP record，STOP 产生零 DomainEvents。 |
+| Integrity distinction | 损坏 `session.json` 或 SQLite 返回 `CAMPAIGN_INTEGRITY_MISMATCH`，而不是 `STALE_REQUEST`、`UNKNOWN_CHOICE` 或 `SESSION_TERMINAL`。 |
 | Label independence | 同一个 verified WorldPack、同一个 initial state/seed、两个只改变允许 labels 的 matching Projection Draft；worldpack/initial-state hash、canonical request/fingerprint、legal choices、IDs、action types/params、durations/costs、actions/events/replays 相同，projection/presentation hash 与 display labels/text 不同。 |
 | Theme/locale independence | 两个分别 verified、同 mechanics profile/seed 但 theme/public content 和/或 locale 不同的 WorldPack，各自只配自己的 matching Projection；materialized initial state/hash、canonical request/fingerprint、legal choices、action path/events/replays 相同，worldpack/public content/locale 及相应 projection/presentation hash/text 不同，禁止跨 WorldPack 配 Projection。 |
 | Verify read-only | `verify campaign` 前后全部十四个 published files 的 byte hash、size、`mtime_ns`、SQLite authoritative rows 均不变，不出现新文件；不比较 atime，不创建文件、不执行 action、不追加 event、不写 SQLite、不修复。 |
