@@ -8,6 +8,7 @@ import os
 import stat
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 from .common import is_actual_directory, is_actual_regular_file, read_regular_file, write_fd_all
@@ -22,6 +23,12 @@ class PublicationUnavailable(RuntimeError):
 
 
 class PublicationRuntime(RuntimeError):
+    pass
+
+
+class PublicationBoundaryChanged(PublicationRuntime):
+    """A caller-owned publication guard observed its bound directory/state change."""
+
     pass
 
 
@@ -155,12 +162,19 @@ def _cleanup_owned(path: Path | None) -> None:
         raise PublicationRuntime("publication cleanup failed") from exc
 
 
-def publish_bytes_no_replace(target: str | Path, payload: bytes) -> None:
+def publish_bytes_no_replace(
+    target: str | Path,
+    payload: bytes,
+    *,
+    boundary_check: Callable[[], None] | None = None,
+) -> None:
     """Publish one regular UTF-8 artifact; success consumes the temp source."""
 
     target_path = Path(target)
     if not isinstance(payload, bytes):
         raise PublicationRuntime("publication payload is not bytes")
+    if boundary_check is not None:
+        boundary_check()
     if _lexists(target_path):
         raise PublicationConflict("publication target already exists")
     temporary: Path | None = None
@@ -172,11 +186,15 @@ def publish_bytes_no_replace(target: str | Path, payload: bytes) -> None:
             dir=os.fspath(target_path.parent),
         )
         temporary = Path(raw_name)
+        if boundary_check is not None:
+            boundary_check()
         write_fd_all(fd, payload)
         os.fsync(fd)
         os.close(fd)
         fd = None
         read_regular_file(temporary)
+        if boundary_check is not None:
+            boundary_check()
         atomic_no_replace_move(temporary, target_path, directory=False)
         temporary = None
     except (PublicationConflict, PublicationUnavailable, PublicationRuntime):
@@ -194,6 +212,7 @@ def publish_bytes_no_replace(target: str | Path, payload: bytes) -> None:
 
 
 __all__ = [
+    "PublicationBoundaryChanged",
     "PublicationConflict",
     "PublicationRuntime",
     "PublicationUnavailable",

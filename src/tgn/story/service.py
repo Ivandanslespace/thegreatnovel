@@ -44,6 +44,7 @@ from .models import (
     turn_artifact_hash,
 )
 from .publication import (
+    PublicationBoundaryChanged,
     PublicationConflict,
     PublicationRuntime,
     PublicationUnavailable,
@@ -51,7 +52,11 @@ from .publication import (
     publish_bytes_no_replace,
 )
 from .reconstruction import CampaignHistory, ReconstructedTurn, reconstruct_campaign
-from .verification import StoryView, load_story_view
+from .verification import (
+    StoryView,
+    load_story_view,
+    story_directory_identity_matches,
+)
 
 
 def _invalid(message: str) -> StoryError:
@@ -138,17 +143,27 @@ def _stable_history(
         raise
     except Exception as exc:
         raise _campaign_integrity("Campaign history cannot be reconstructed") from exc
-    try:
-        after = capture_campaign_snapshot(campaign_dir)
-    except Exception as exc:
-        raise StoryError("CAMPAIGN_SNAPSHOT_CHANGED", "Campaign changed during Story operation") from exc
-    if snapshot.comparable() != after.comparable():
-        raise StoryError("CAMPAIGN_SNAPSHOT_CHANGED", "Campaign changed during Story operation")
+    after = _require_complete_snapshot_unchanged(campaign_dir, snapshot)
     try:
         campaign_manifest = CampaignManifest.from_dict(parse_json_bytes(after.file_bytes("campaign.json"), require_canonical=True))
     except Exception as exc:
         raise _campaign_integrity("Campaign manifest changed during Story operation") from exc
     return campaign_manifest, after, history
+
+
+def _require_complete_snapshot_unchanged(
+    campaign_dir: str | Path,
+    before: CampaignSnapshot,
+) -> CampaignSnapshot:
+    """Require a full Campaign observable equality at a publication/read boundary."""
+
+    try:
+        after = capture_campaign_snapshot(campaign_dir)
+    except Exception as exc:
+        raise StoryError("CAMPAIGN_SNAPSHOT_CHANGED", "Campaign changed during Story operation") from exc
+    if before.comparable() != after.comparable():
+        raise StoryError("CAMPAIGN_SNAPSHOT_CHANGED", "Campaign changed during Story operation")
+    return after
 
 
 def _write_owned_file(path: Path, payload: bytes) -> None:
@@ -197,18 +212,28 @@ def _publish_directory(source: Path, target: Path) -> None:
         raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "atomic Story publication is unavailable") from exc
 
 
-def _publish_request(path: Path, payload: bytes) -> None:
+def _publish_request(path: Path, payload: bytes, *, boundary_check: Any | None = None) -> None:
     try:
-        publish_bytes_no_replace(path, payload)
+        if boundary_check is None:
+            publish_bytes_no_replace(path, payload)
+        else:
+            publish_bytes_no_replace(path, payload, boundary_check=boundary_check)
+    except PublicationBoundaryChanged as exc:
+        if str(exc) == "Campaign snapshot changed":
+            raise StoryError("CAMPAIGN_SNAPSHOT_CHANGED", "Campaign changed during Story publication") from exc
+        raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "Story directory identity changed during publication") from exc
     except PublicationConflict as exc:
         raise StoryError("STORY_INTEGRITY_MISMATCH", "request target appeared during publication") from exc
     except (PublicationUnavailable, PublicationRuntime) as exc:
         raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "request publication is unavailable") from exc
 
 
-def _published_turn(path: Path, payload: bytes) -> str:
+def _published_turn(path: Path, payload: bytes, *, boundary_check: Any | None = None) -> str:
     try:
-        publish_bytes_no_replace(path, payload)
+        if boundary_check is None:
+            publish_bytes_no_replace(path, payload)
+        else:
+            publish_bytes_no_replace(path, payload, boundary_check=boundary_check)
         return "committed"
     except PublicationConflict:
         try:
@@ -220,6 +245,47 @@ def _published_turn(path: Path, payload: bytes) -> str:
         return "conflict"
     except (PublicationUnavailable, PublicationRuntime) as exc:
         raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "turn publication is unavailable") from exc
+
+
+def _story_publication_guard(view: StoryView, directory_name: str):
+    """Bind one artifact writer to the Story directories already verified by load."""
+
+    if directory_name == "requests":
+        expected = view.requests_directory
+        directory = view.root / "requests"
+    elif directory_name == "turns":
+        expected = view.turns_directory
+        directory = view.root / "turns"
+    else:
+        raise ValueError("unsupported Story publication directory")
+    root_expected = view.root_directory
+
+    def check() -> None:
+        if not story_directory_identity_matches(view.root, root_expected):
+            raise PublicationRuntime("Story root directory identity changed")
+        if not story_directory_identity_matches(directory, expected):
+            raise PublicationRuntime(f"Story {directory_name} directory identity changed")
+
+    return check
+
+
+def _prepare_publication_guard(
+    view: StoryView,
+    campaign_dir: str | Path,
+    before_snapshot: CampaignSnapshot,
+):
+    story_check = _story_publication_guard(view, "requests")
+
+    def check() -> None:
+        try:
+            _require_complete_snapshot_unchanged(campaign_dir, before_snapshot)
+        except StoryError as exc:
+            if exc.code == "CAMPAIGN_SNAPSHOT_CHANGED":
+                raise PublicationBoundaryChanged("Campaign snapshot changed") from exc
+            raise
+        story_check()
+
+    return check
 
 
 def _resource_map(value: Any) -> dict[str, int]:
@@ -339,7 +405,7 @@ def _assert_story_read_only(view: StoryView) -> None:
         raise
     except Exception as exc:
         raise _story_integrity("Story changed during read-only verification") from exc
-    if after.files != view.files:
+    if after.files != view.files or after.directories != view.directories:
         raise _story_integrity("Story observables changed during read-only verification")
 
 
@@ -582,11 +648,25 @@ class StoryService:
             raise _invalid("Phase 9C1 Story locale is fixed")
         request_map = view.request_map
         turn_map = view.turn_map
+        requested_number = _parse_turn_id(turn_id) if turn_id is not None else None
+
+        # An explicit existing request is always readable, even when a later
+        # request is pending.  Requests and committed turns are immutable.
+        if requested_number is not None and requested_number in request_map:
+            _require_complete_snapshot_unchanged(campaign_dir, snapshot)
+            return {
+                "ok": True,
+                "request": request_map[requested_number].to_dict(),
+                "committed": requested_number in turn_map,
+                "status": _derived_status(view, history),
+            }
+
         pending_numbers = [number for number in sorted(request_map) if number not in turn_map]
         if pending_numbers:
             number = pending_numbers[0]
-            if turn_id is not None and _parse_turn_id(turn_id) != number:
+            if requested_number is not None and requested_number != number:
                 raise StoryError("NARRATION_REQUEST_NOT_FOUND", "requested turn is not the current pending request")
+            _require_complete_snapshot_unchanged(campaign_dir, snapshot)
             return {
                 "ok": True,
                 "request": request_map[number].to_dict(),
@@ -594,24 +674,23 @@ class StoryService:
                 "status": _derived_status(view, history),
             }
         next_number = len(request_map) + 1
-        if turn_id is not None:
-            requested = _parse_turn_id(turn_id)
-            if requested != next_number or requested > history.accepted_decisions:
-                if requested in request_map:
-                    return {
-                        "ok": True,
-                        "request": request_map[requested].to_dict(),
-                        "committed": requested in turn_map,
-                        "status": _derived_status(view, history),
-                    }
+        if requested_number is not None:
+            if requested_number != next_number or requested_number > history.accepted_decisions:
                 raise StoryError("NARRATION_REQUEST_NOT_FOUND", "requested turn is not preparable")
         if next_number > history.accepted_decisions:
+            _require_complete_snapshot_unchanged(campaign_dir, snapshot)
             return {"ok": True, "request": None, "status": _derived_status(view, history)}
         expected = history.action_turns[next_number - 1].request
         payload = canonical_bytes(expected.to_dict())
-        _commit_prefix_check(campaign_dir, snapshot, expected)
+        # Unlike commit, prepare cannot tolerate a later Campaign append: the
+        # request is derived from one complete, stable Campaign boundary.
+        _require_complete_snapshot_unchanged(campaign_dir, snapshot)
         try:
-            _publish_request(view.root / "requests" / f"turn-{next_number:06d}.json", payload)
+            _publish_request(
+                view.root / "requests" / f"turn-{next_number:06d}.json",
+                payload,
+                boundary_check=_prepare_publication_guard(view, campaign_dir, snapshot),
+            )
         except StoryError as exc:
             if exc.code != "STORY_INTEGRITY_MISMATCH":
                 raise
@@ -672,7 +751,11 @@ class StoryService:
             raise _story_integrity("pending request changed during commit") from exc
         if current_value.to_dict() != request.to_dict():
             raise _story_integrity("pending request changed during commit")
-        result = _published_turn(target, artifact_payload)
+        result = _published_turn(
+            target,
+            artifact_payload,
+            boundary_check=_story_publication_guard(view, "turns"),
+        )
         if result == "conflict":
             raise StoryError("TURN_CONFLICT", "turn already has a different committed artifact")
         refreshed = load_story_view(view.root)

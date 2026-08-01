@@ -16,6 +16,7 @@ from .common import (
     read_canonical_json_file,
     read_regular_file,
     sha256_bytes,
+    validate_path_components,
 )
 from .models import (
     NarrationRequest,
@@ -38,12 +39,32 @@ class StoryFileObservable:
 
 
 @dataclass(frozen=True)
+class StoryDirectoryObservable:
+    """Disposable identity/metadata captured for one Story directory."""
+
+    relative_path: str
+    mode: int
+    device: int | None
+    inode: int | None
+    file_attributes: int
+    ctime_ns: int
+    mtime_ns: int
+
+    @property
+    def identity(self) -> tuple[object, ...]:
+        if self.device is not None and self.inode is not None and not (self.device == 0 and self.inode == 0):
+            return (self.mode, self.device, self.inode)
+        return (self.mode, self.file_attributes, self.ctime_ns)
+
+
+@dataclass(frozen=True)
 class StoryView:
     root: Path
     manifest: StoryManifest
     requests: tuple[tuple[int, NarrationRequest, bytes], ...]
     turns: tuple[tuple[int, TurnNarrationArtifact, bytes], ...]
     files: tuple[StoryFileObservable, ...]
+    directories: tuple[StoryDirectoryObservable, ...]
 
     @property
     def request_map(self) -> dict[int, NarrationRequest]:
@@ -52,6 +73,18 @@ class StoryView:
     @property
     def turn_map(self) -> dict[int, TurnNarrationArtifact]:
         return {number: value for number, value, _ in self.turns}
+
+    @property
+    def root_directory(self) -> StoryDirectoryObservable:
+        return self.directories[0]
+
+    @property
+    def requests_directory(self) -> StoryDirectoryObservable:
+        return self.directories[1]
+
+    @property
+    def turns_directory(self) -> StoryDirectoryObservable:
+        return self.directories[2]
 
 
 def _story_integrity(message: str) -> StoryError:
@@ -67,6 +100,33 @@ def _actual_story_root(root: Path) -> None:
         raise StoryError("INVALID_STORY_INPUT", "Story directory cannot be inspected") from exc
     if not is_actual_directory(root_stat):
         raise StoryError("INVALID_STORY_INPUT", "Story root is not an actual directory")
+
+
+def capture_story_directory(path: str | Path, *, relative_path: str) -> StoryDirectoryObservable:
+    """Capture one actual Story directory without following a path component."""
+
+    directory = lexical_absolute(path)
+    validate_path_components(directory, allow_missing_final=False)
+    directory_stat = os.lstat(directory)
+    if not is_actual_directory(directory_stat):
+        raise OSError("Story path is not an actual directory")
+    return StoryDirectoryObservable(
+        relative_path=relative_path,
+        mode=directory_stat.st_mode,
+        device=getattr(directory_stat, "st_dev", None),
+        inode=getattr(directory_stat, "st_ino", None),
+        file_attributes=int(getattr(directory_stat, "st_file_attributes", 0)),
+        ctime_ns=int(getattr(directory_stat, "st_ctime_ns", 0)),
+        mtime_ns=int(directory_stat.st_mtime_ns),
+    )
+
+
+def story_directory_identity_matches(path: str | Path, expected: StoryDirectoryObservable) -> bool:
+    try:
+        actual = capture_story_directory(path, relative_path=expected.relative_path)
+    except Exception:
+        return False
+    return actual.identity == expected.identity
 
 
 def _read_turn_file(directory: Path, entry_name: str) -> tuple[int, bytes, Any]:
@@ -90,7 +150,23 @@ def load_story_view(story_dir: str | Path) -> StoryView:
     """Read the exact Phase 9C1 tree without creating or repairing anything."""
 
     root = lexical_absolute(story_dir)
+    try:
+        validate_path_components(root, allow_missing_final=False)
+    except FileNotFoundError as exc:
+        raise StoryError("STORY_NOT_FOUND", "Story root does not exist") from exc
+    except OSError as exc:
+        raise StoryError("INVALID_STORY_INPUT", "Story path contains a symlink or reparse point") from exc
     _actual_story_root(root)
+    try:
+        directories = (
+            capture_story_directory(root, relative_path="."),
+            capture_story_directory(root / "requests", relative_path="requests"),
+            capture_story_directory(root / "turns", relative_path="turns"),
+        )
+    except FileNotFoundError as exc:
+        raise _story_integrity("Story artifact directory is missing") from exc
+    except OSError as exc:
+        raise _story_integrity("Story artifact directory is invalid") from exc
     try:
         children = {entry.name for entry in list_actual_children(root)}
     except OSError as exc:
@@ -99,13 +175,6 @@ def load_story_view(story_dir: str | Path) -> StoryView:
         raise StoryError("UNSUPPORTED_STORY_FORMAT", "novel.md belongs to a later Story format")
     if children != _STORY_CHILDREN:
         raise _story_integrity("Story root exact tree is invalid")
-    for directory_name in ("requests", "turns"):
-        try:
-            directory_stat = os.lstat(root / directory_name)
-        except OSError as exc:
-            raise _story_integrity("Story artifact directory is missing") from exc
-        if not is_actual_directory(directory_stat):
-            raise _story_integrity("Story artifact directory is invalid")
     try:
         manifest_value, manifest_payload, manifest_stat = read_canonical_json_file(root / "story.json")
         manifest = StoryManifest.from_dict(manifest_value)
@@ -161,12 +230,23 @@ def load_story_view(story_dir: str | Path) -> StoryView:
     request_values.sort(key=lambda item: item[0])
     turn_values.sort(key=lambda item: item[0])
     file_values.sort(key=lambda item: item.relative_path)
+    try:
+        final_directories = (
+            capture_story_directory(root, relative_path="."),
+            capture_story_directory(root / "requests", relative_path="requests"),
+            capture_story_directory(root / "turns", relative_path="turns"),
+        )
+    except Exception as exc:
+        raise _story_integrity("Story directories changed while reading") from exc
+    if final_directories != directories:
+        raise _story_integrity("Story directories changed while reading")
     return StoryView(
         root=root,
         manifest=manifest,
         requests=tuple(request_values),
         turns=tuple(turn_values),
         files=tuple(file_values),
+        directories=directories,
     )
 
 
@@ -179,8 +259,11 @@ def story_files_unchanged(root: str | Path, before: tuple[StoryFileObservable, .
 
 
 __all__ = [
+    "StoryDirectoryObservable",
     "StoryFileObservable",
     "StoryView",
+    "capture_story_directory",
     "load_story_view",
+    "story_directory_identity_matches",
     "story_files_unchanged",
 ]
