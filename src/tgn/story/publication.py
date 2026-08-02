@@ -359,6 +359,7 @@ class BoundPublicationDirectory:
     _FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
     _FILE_READ_ATTRIBUTES = 0x00000080
     _FILE_LIST_DIRECTORY = 0x00000001
+    _GENERIC_READ = 0x80000000
     _DELETE = 0x00010000
     _FILE_DISPOSITION_INFO_CLASS = 4
     _FILE_SHARE_READ = 0x00000001
@@ -506,6 +507,7 @@ class BoundPublicationDirectory:
         kind: str,
         *,
         delete: bool = False,
+        compatible_with_delete: bool = False,
     ) -> tuple[int, int, tuple[Any, ...]]:
         """Open one non-reparse child and return its stable Windows identity."""
 
@@ -525,6 +527,8 @@ class BoundPublicationDirectory:
             ]
             create_file.restype = ctypes.wintypes.HANDLE
             access = self._FILE_READ_ATTRIBUTES | (self._DELETE if delete else 0)
+            if delete:
+                access |= self._GENERIC_READ
             flags = self._FILE_FLAG_OPEN_REPARSE_POINT
             if kind == "directory":
                 access |= self._FILE_LIST_DIRECTORY
@@ -533,7 +537,7 @@ class BoundPublicationDirectory:
                 os.fspath(self.path / name),
                 access,
                 self._FILE_SHARE_READ
-                if delete
+                if delete or compatible_with_delete
                 else self._FILE_SHARE_READ | self._FILE_SHARE_WRITE | self._FILE_SHARE_DELETE,
                 None,
                 self._OPEN_EXISTING,
@@ -570,8 +574,18 @@ class BoundPublicationDirectory:
         if not close_handle(ctypes.wintypes.HANDLE(handle)):
             raise OSError(ctypes.get_last_error(), "CloseHandle child failed")
 
-    def _windows_identity_at(self, name: str, kind: str) -> tuple[int, tuple[Any, ...]]:
-        handle, attributes, identity = self._open_windows_child_handle(name, kind)
+    def _windows_identity_at(
+        self,
+        name: str,
+        kind: str,
+        *,
+        compatible_with_delete: bool = False,
+    ) -> tuple[int, tuple[Any, ...]]:
+        handle, attributes, identity = self._open_windows_child_handle(
+            name,
+            kind,
+            compatible_with_delete=compatible_with_delete,
+        )
         try:
             return attributes, identity
         finally:
@@ -613,6 +627,10 @@ class BoundPublicationDirectory:
                 or identity != expected.identity
             ):
                 raise PublicationBoundaryChanged("Windows cleanup target identity changed")
+            self._after_windows_delete_handle_open(name, expected, handle)
+            current_after_open = self._capture_file_observable_anchored(name, handle)
+            if current_after_open.identity != identity or current_after_open != expected:
+                raise PublicationBoundaryChanged("Windows cleanup target observable changed")
             try:
                 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
                 set_information = kernel32.SetFileInformationByHandle
@@ -759,8 +777,114 @@ class BoundPublicationDirectory:
         except OSError as exc:
             raise PublicationRuntime("publication child cannot be read") from exc
 
-    def _capture_file_observable_anchored(self, name: str) -> ExpectedPublicationFile:
+    def _read_windows_handle(self, handle: int) -> bytes:
+        """Read one regular file through its already-open Windows HANDLE."""
+
+        try:
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            read_file = kernel32.ReadFile
+            read_file.argtypes = [
+                ctypes.wintypes.HANDLE,
+                ctypes.c_void_p,
+                ctypes.wintypes.DWORD,
+                ctypes.POINTER(ctypes.wintypes.DWORD),
+                ctypes.c_void_p,
+            ]
+            read_file.restype = ctypes.wintypes.BOOL
+            chunks: list[bytes] = []
+            while True:
+                buffer = ctypes.create_string_buffer(1024 * 1024)
+                count = ctypes.wintypes.DWORD()
+                if not read_file(
+                    ctypes.wintypes.HANDLE(handle),
+                    ctypes.byref(buffer),
+                    ctypes.sizeof(buffer),
+                    ctypes.byref(count),
+                    None,
+                ):
+                    raise OSError(ctypes.get_last_error(), "ReadFile failed")
+                if count.value == 0:
+                    break
+                chunks.append(buffer.raw[: count.value])
+            return b"".join(chunks)
+        except PublicationRuntime:
+            raise
+        except Exception as exc:
+            raise PublicationRuntime("Windows cleanup observable cannot be captured") from exc
+
+    def _capture_file_observable_from_windows_handle(
+        self,
+        name: str,
+        handle: int,
+    ) -> ExpectedPublicationFile:
+        """Capture a child through a held DELETE-capable HANDLE and its name."""
+
+        try:
+            handle_attributes, handle_identity = self._windows_info_for_handle(handle)
+            if (
+                handle_attributes & self._FILE_ATTRIBUTE_DIRECTORY
+                or handle_attributes & self._FILE_ATTRIBUTE_REPARSE_POINT
+            ):
+                raise PublicationBoundaryChanged("Windows cleanup target has an invalid type")
+            path_attributes, path_identity = self._windows_identity_at(
+                name,
+                "file",
+                compatible_with_delete=True,
+            )
+            if (
+                path_attributes & self._FILE_ATTRIBUTE_DIRECTORY
+                or path_attributes & self._FILE_ATTRIBUTE_REPARSE_POINT
+                or path_identity != handle_identity
+            ):
+                raise PublicationBoundaryChanged("Windows cleanup target identity changed")
+            initial = self._stat_at(name)
+            if not is_actual_regular_file(initial):
+                raise PublicationBoundaryChanged("Windows cleanup target has an invalid type")
+            payload = self._read_windows_handle(handle)
+            final_attributes, final_identity = self._windows_info_for_handle(handle)
+            final_path_attributes, final_path_identity = self._windows_identity_at(
+                name,
+                "file",
+                compatible_with_delete=True,
+            )
+            final = self._stat_at(name)
+            if (
+                final_attributes & self._FILE_ATTRIBUTE_DIRECTORY
+                or final_attributes & self._FILE_ATTRIBUTE_REPARSE_POINT
+                or final_path_attributes & self._FILE_ATTRIBUTE_DIRECTORY
+                or final_path_attributes & self._FILE_ATTRIBUTE_REPARSE_POINT
+                or final_identity != handle_identity
+                or final_path_identity != handle_identity
+                or not is_actual_regular_file(final)
+                or _stat_identity(final) != _stat_identity(initial)
+                or int(final.st_size) != len(payload)
+            ):
+                raise PublicationBoundaryChanged("Windows cleanup target observable changed")
+            return ExpectedPublicationFile(
+                identity=handle_identity,
+                sha256=sha256_bytes(payload),
+                size=len(payload),
+                mtime_ns=int(final.st_mtime_ns),
+                payload=payload,
+            )
+        except (PublicationBoundaryChanged, PublicationRuntime):
+            raise
+        except FileNotFoundError as exc:
+            raise PublicationBoundaryChanged("Windows cleanup target disappeared") from exc
+        except OSError as exc:
+            raise PublicationRuntime("Windows cleanup observable cannot be captured") from exc
+
+    def _capture_file_observable_anchored(
+        self,
+        name: str,
+        windows_handle: int | None = None,
+    ) -> ExpectedPublicationFile:
         """Capture exact file bytes and identity relative to the bound parent."""
+
+        if windows_handle is not None:
+            if os.name != "nt":
+                raise PublicationRuntime("Windows cleanup HANDLE is unavailable")
+            return self._capture_file_observable_from_windows_handle(name, windows_handle)
 
         payload, file_stat = self._read_child_bytes_anchored(name)
         identity = self._identity_at(name, "file") if os.name == "nt" else _stat_identity(file_stat)
@@ -1152,6 +1276,16 @@ class BoundPublicationDirectory:
         """Test seam for the check-to-HANDLE-delete linearization window."""
 
         del name, expected
+
+    def _after_windows_delete_handle_open(
+        self,
+        name: str,
+        expected: ExpectedPublicationFile,
+        handle: int,
+    ) -> None:
+        """Test seam while the DELETE-capable HANDLE is held open."""
+
+        del name, expected, handle
 
     def _restore_quarantined_file(
         self,

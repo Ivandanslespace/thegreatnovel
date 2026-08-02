@@ -852,6 +852,197 @@ def test_windows_handle_cleanup_maps_errors_and_rechecks_identity(
             binding._windows_remove_file_by_handle("candidate", expected)
 
 
+def test_windows_writer_cleanup_rechecks_same_identity_different_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    try:
+        binding.create_temp_file("writer.json")
+        binding.write_temp_bytes(b"expected writer")
+        name = binding.temp_name
+        assert name is not None
+        expected = binding.capture_file_observable(name)
+
+        def mutate(_name: str, _expected: ExpectedPublicationFile) -> None:
+            (tmp_path / name).write_bytes(b"changed writer")
+
+        monkeypatch.setattr(binding, "_before_windows_delete_handle", mutate)
+        with pytest.raises(PublicationBoundaryChanged, match="observable"):
+            binding.cleanup_temp()
+        changed = binding.capture_file_observable(name)
+        assert changed.identity == expected.identity
+        assert changed.payload == b"changed writer"
+        assert (tmp_path / name).exists()
+        monkeypatch.setattr(binding, "_before_windows_delete_handle", lambda *_args: None)
+        binding.cleanup_temp()
+        assert not (tmp_path / name).exists()
+    finally:
+        binding.close_safely()
+
+
+def test_windows_backup_cleanup_rechecks_same_identity_same_size_different_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "novel.md"
+    target.write_bytes(b"canonical")
+    backup = tmp_path / ".novel.md.expected.backup"
+    backup.write_bytes(b"expected backup")
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    try:
+        expected = binding.capture_file_observable(backup.name)
+
+        def mutate(_name: str, _expected: ExpectedPublicationFile) -> None:
+            backup.write_bytes(b"changed backup!")
+
+        monkeypatch.setattr(binding, "_before_windows_delete_handle", mutate)
+        with pytest.raises(PublicationBoundaryChanged, match="observable"):
+            binding._remove_expected_file_anchored(backup.name, expected)
+        changed = binding.capture_file_observable(backup.name)
+        assert changed.identity == expected.identity
+        assert changed.size == expected.size
+        assert changed.payload == b"changed backup!"
+        assert target.read_bytes() == b"canonical"
+    finally:
+        binding.close_safely()
+
+
+def test_windows_cleanup_rechecks_mtime_only_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "mtime-target"
+    target.write_bytes(b"stable bytes")
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    try:
+        expected = binding.capture_file_observable(target.name)
+        changed_mtime = expected.mtime_ns + 60_000_000_000
+
+        def mutate(_name: str, _expected: ExpectedPublicationFile) -> None:
+            os.utime(target, ns=(changed_mtime, changed_mtime))
+
+        monkeypatch.setattr(binding, "_before_windows_delete_handle", mutate)
+        with pytest.raises(PublicationBoundaryChanged, match="observable"):
+            binding._remove_expected_file_anchored(target.name, expected)
+        changed = binding.capture_file_observable(target.name)
+        assert changed.identity == expected.identity
+        assert changed.payload == expected.payload
+        assert changed.mtime_ns != expected.mtime_ns
+        assert target.exists()
+    finally:
+        binding.close_safely()
+
+
+def test_windows_delete_handle_blocks_post_acquisition_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "locked-target"
+    target.write_bytes(b"locked")
+    competitor_source = tmp_path / "rename-source"
+    competitor_source.write_bytes(b"competitor")
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    attempts: dict[str, bool] = {}
+    try:
+        expected = binding.capture_file_observable(target.name)
+
+        def after_open(name: str, _expected: ExpectedPublicationFile, _handle: int) -> None:
+            try:
+                with (tmp_path / name).open("wb") as stream:
+                    stream.write(b"mutated")
+            except OSError:
+                attempts["write"] = False
+            else:
+                attempts["write"] = True
+            try:
+                os.replace(competitor_source, tmp_path / name)
+            except OSError:
+                attempts["rename"] = False
+            else:
+                attempts["rename"] = True
+
+        monkeypatch.setattr(binding, "_after_windows_delete_handle_open", after_open)
+        binding._remove_expected_file_anchored(target.name, expected)
+        assert attempts == {"write": False, "rename": False}
+        assert not target.exists()
+    finally:
+        if competitor_source.exists():
+            competitor_source.unlink()
+        binding.close_safely()
+
+
+def test_windows_handle_observable_failure_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = publication.BoundPublicationDirectory(tmp_path)
+    regular = tmp_path / "regular"
+    regular.write_bytes(b"payload")
+    directory = tmp_path / "directory"
+    directory.mkdir()
+    other = tmp_path / "other"
+    other.write_bytes(b"payload")
+    identity = ("windows", 1)
+    try:
+        with monkeypatch.context() as context:
+            context.setattr(binding, "_windows_info_for_handle", lambda _handle: (binding._FILE_ATTRIBUTE_DIRECTORY, identity))
+            with pytest.raises(PublicationBoundaryChanged, match="invalid type"):
+                binding._capture_file_observable_from_windows_handle(regular.name, 7)
+
+        with monkeypatch.context() as context:
+            context.setattr(binding, "_windows_info_for_handle", lambda _handle: (0, identity))
+            context.setattr(binding, "_windows_identity_at", lambda *_args, **_kwargs: (0, ("windows", 2)))
+            with pytest.raises(PublicationBoundaryChanged, match="identity"):
+                binding._capture_file_observable_from_windows_handle(regular.name, 7)
+
+        with monkeypatch.context() as context:
+            context.setattr(binding, "_windows_info_for_handle", lambda _handle: (0, identity))
+            context.setattr(binding, "_windows_identity_at", lambda *_args, **_kwargs: (0, identity))
+            context.setattr(binding, "_stat_at", lambda _name: os.stat(directory))
+            with pytest.raises(PublicationBoundaryChanged, match="invalid type"):
+                binding._capture_file_observable_from_windows_handle(regular.name, 7)
+
+        with monkeypatch.context() as context:
+            context.setattr(binding, "_windows_info_for_handle", lambda _handle: (0, identity))
+            context.setattr(binding, "_windows_identity_at", lambda *_args, **_kwargs: (0, identity))
+            context.setattr(binding, "_read_windows_handle", lambda _handle: b"payload")
+            stats = iter((os.stat(regular), os.stat(other)))
+            context.setattr(binding, "_stat_at", lambda _name: next(stats))
+            with pytest.raises(PublicationBoundaryChanged, match="observable"):
+                binding._capture_file_observable_from_windows_handle(regular.name, 7)
+
+        with monkeypatch.context() as context:
+            context.setattr(binding, "_windows_info_for_handle", lambda _handle: (_ for _ in ()).throw(FileNotFoundError()))
+            with pytest.raises(PublicationBoundaryChanged, match="disappeared"):
+                binding._capture_file_observable_from_windows_handle(regular.name, 7)
+
+        with monkeypatch.context() as context:
+            context.setattr(binding, "_windows_info_for_handle", lambda _handle: (_ for _ in ()).throw(OSError("inspect")))
+            with pytest.raises(PublicationRuntime, match="cannot be captured"):
+                binding._capture_file_observable_from_windows_handle(regular.name, 7)
+
+        with monkeypatch.context() as context:
+            context.setattr(publication.ctypes, "WinDLL", lambda *_args, **_kwargs: (_ for _ in ()).throw(PublicationRuntime("nested")))
+            with pytest.raises(PublicationRuntime, match="nested"):
+                binding._read_windows_handle(7)
+
+        class FailingReadKernel:
+            ReadFile = _FakeFunction(0)
+
+        with monkeypatch.context() as context:
+            context.setattr(publication.ctypes, "WinDLL", lambda *_args, **_kwargs: FailingReadKernel())
+            with pytest.raises(PublicationRuntime, match="cannot be captured"):
+                binding._read_windows_handle(7)
+
+        with monkeypatch.context() as context:
+            context.setattr(publication.os, "name", "posix")
+            with pytest.raises(PublicationRuntime, match="HANDLE is unavailable"):
+                binding._capture_file_observable_anchored(regular.name, 7)
+    finally:
+        binding.close_safely()
+
+
 def test_posix_quarantine_platform_and_recursive_cleanup_boundaries(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
