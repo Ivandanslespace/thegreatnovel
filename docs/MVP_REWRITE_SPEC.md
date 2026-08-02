@@ -5062,6 +5062,12 @@ authorize Phase 9C work.
 
 **Phase 9C2 Windows/recovery correction:** `5685fb645d30d85bf4942e91973409d878d97bac`
 
+**Phase 9C2 cleanup identity correction:** `0dc03156155a8914d586e6efb621c5817e0a05c7`
+
+**Phase 9C2 recovery test correction:** `d1f64153e59c3f62cd4784f0641b2cadda38f325`
+
+**Parallel pytest tooling commit:** `1dfa3fe33bf5bea35e831cf56af9678fd2e88dd4`
+
 `phase-9c1-frozen` is immutable; Phase 9C2 remains unfrozen and Phase 9D has not started.
 
 **Phase 9C1 publication source-identity correction commit:** `739a656fc8e7b50a12484049bb0f4598aa0cb1b2`; final
@@ -5090,10 +5096,12 @@ partial layout 以 no-replace 恢复 expected target；竞争者和未知对象�
 完整 observable 相等的 displaced expected target，因此可恢复失败不留下 `.tmp` 或
 `.backup` debris。上一轮的 unclosed sqlite3 connection warning 已改为显式 close；
 最终 warning-as-error 全仓回归为 `0 warnings`。
-Phase 9C2 candidate 当前验证结果：Story `225 passed`、Story coverage `95%`；Campaign
+Phase 9C2 candidate 当前验证结果：Story `235 passed`、Story coverage `97%`；Campaign
 `173 passed, 2 skipped`、Campaign coverage `98%`；Worldgen `150 passed`；Projection
 `112 passed`、Projection coverage `100%`；Session `74 passed`；LLM Player `63 passed`；
-Phase 8 autoplay `1 passed`；全仓 `1620 passed, 2 skipped`、全仓 coverage `97.00%`。两个 skipped 是 Windows 上冻结的
+Phase 8 autoplay `1 passed`；全仓 `1630 passed, 2 skipped`、全仓 coverage `97.01%`；
+warning-as-error 全仓回归为 `0 warnings`。使用 pytest-xdist `3.8.0`，12/12 worker、
+WorkStealing、`--max-worker-restart=0`，未发生 worker crash/restart。两个 skipped 是 Windows 上冻结的
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和
 `tests/campaign/test_no_follow.py::test_copy_fifo_source_is_rejected_on_posix`，原因是
 当前平台无法创建 POSIX FIFO；不是 Phase 9C1 测试失败。

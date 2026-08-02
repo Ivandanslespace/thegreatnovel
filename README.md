@@ -30,6 +30,9 @@ Phase 9C1 freeze commit / `phase-9c1-frozen` target: `9bb739fdb1bd08d4c0c036e7c3
 Initial Phase 9C2 implementation: `ad4772e6a712bfb445860b4e8daf8498a3cec363`。
 Phase 9C2 conditional-replacement correction: `b5fa586fb7e0838a95e14fb445508f4b5d8a32e6`。
 Phase 9C2 Windows/recovery correction: `5685fb645d30d85bf4942e91973409d878d97bac`。
+Phase 9C2 cleanup identity correction: `0dc03156155a8914d586e6efb621c5817e0a05c7`；
+Phase 9C2 recovery test correction: `d1f64153e59c3f62cd4784f0641b2cadda38f325`；
+parallel pytest tooling commit: `1dfa3fe33bf5bea35e831cf56af9678fd2e88dd4`。
 Phase 9C2 remains unfrozen; no `phase-9c2-frozen` tag exists。
 Phase 9D not started。
 
@@ -68,11 +71,12 @@ Story parent 内重新检查 target、replacement、backup 与 retained writer H
 只会触发 bounded failure，不会被删除。POSIX displaced expected target 也只在
 完整 observable 相等时清理，recoverable failure 不留下 `.tmp` 或 `.backup`。
 `--accepted-decisions` 只接受 canonical non-negative integer。Phase 9C2 candidate
-当前验证：Story `225 passed`、Story coverage `95%`；Campaign `173 passed, 2 skipped`、
+当前验证：Story `235 passed`、Story coverage `97%`；Campaign `173 passed, 2 skipped`、
 Campaign coverage `98%`；Worldgen `150 passed`；Projection `112 passed`、Projection
 coverage `100%`；Session `74 passed`；LLM Player `63 passed`；Phase 8 autoplay
-`1 passed`；全仓 `1620 passed, 2 skipped`、全仓 coverage `97.00%`；warning-as-error
-全仓回归为 `0 warnings`。
+`1 passed`；全仓 `1630 passed, 2 skipped`、全仓 coverage `97.01%`；warning-as-error
+全仓回归为 `0 warnings`。使用 pytest-xdist `3.8.0`，12/12 worker、WorkStealing，
+max-worker-restart=0，未发生 worker crash/restart。
 两个 skipped 是 Windows 上
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和
 `tests/campaign/test_no_follow.py::test_copy_fifo_source_is_rejected_on_posix`，原因是
