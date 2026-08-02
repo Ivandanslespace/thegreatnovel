@@ -35,14 +35,17 @@ Campaign-bound Story persistence、deterministic Narration Request、pending/res
 structured claims、committed turn artifacts、status、verify 和 local CLI；Phase 9C
 尚未冻结。
 
-Phase 9C1 publication source-identity correction commit：`739a656fc8e7b50a12484049bb0f4598aa0cb1b2`。
+Phase 9C1 publication source-identity correction commit：`739a656fc8e7b50a12484049bb0f4598aa0cb1b2`；
+final idempotent source-identity fix：`f5aeba6dd0e02a028dde8c077dd5c68dfbd98159`。
 本次修复将 Story root、requests/ 和 turns/ 的 publication parent 锚定到已验证的
 POSIX directory fd 或 Windows directory HANDLE；临时 artifact 的 retained
 descriptor/HANDLE、当前 source-name identity 和发布 target identity 必须一致，
 pending request 也通过已锚定的 requests/ binding 重新验证；Phase 9C1 仍是
-implementation candidate，未冻结。当前验证：Story `145 passed`、Story coverage
-`96%`；Campaign `173 passed, 2 skipped`、Campaign coverage `98%`；Projection
-`112 passed`、Projection coverage `100%`；全仓 `1540 passed, 2 skipped`、全仓
+implementation candidate，未冻结。final fix 使 already-committed 重交也经过
+Story root/turns identity、Campaign historical prefix 和 committed turn source
+identity 的完整校验，并在 post-move target identity 不匹配时保留竞争者 target。
+当前验证：Story `150 passed`、Story coverage `96%`；Campaign `173 passed, 2 skipped`、Campaign coverage `98%`；Projection
+`112 passed`、Projection coverage `100%`；全仓 `1545 passed, 2 skipped`、全仓
 coverage `97%`。
 两个 skipped 是 Windows 上
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和
