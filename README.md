@@ -22,7 +22,11 @@ Frozen implementation SHA: `60ebf493ba90114c4f03048558e316ac07118ee2`
 
 Frozen implementation SHA: `218a246add4481088872487e80ac83ad1099171b`
 
-**Phase 9C — implementation candidate: Phase 9C1 complete but not frozen; Phase 9C2 not started**
+**Phase 9C — Phase 9C1 frozen at `phase-9c1-frozen`; Phase 9C2 not started**
+
+Frozen Phase 9C1 implementation SHA: `04640bb2bf8e9ab27980c9be61e8f89edf44bd28`。
+`phase-9c1-frozen` is immutable and must never be moved, deleted, or recreated。
+This freeze does not authorize Phase 9C2 implementation。
 
 Phase 9C 的合同范围是 Persistent External Narration, Resume and Novel Export：
 使用与 Campaign 分离的 immutable Story sidecar 保存 deterministic Narration Request、
@@ -33,7 +37,7 @@ novel.md。当前实现仅覆盖 Phase 9C1，不包含 Narration provider、Narr
 Session 的单 Event 基线和稳定 Campaign snapshot 捕获协议。当前实现覆盖
 Campaign-bound Story persistence、deterministic Narration Request、pending/resume、
 structured claims、committed turn artifacts、status、verify 和 local CLI；Phase 9C
-尚未冻结。
+已冻结在 `phase-9c1-frozen`。
 
 Phase 9C1 publication source-identity correction commit：`739a656fc8e7b50a12484049bb0f4598aa0cb1b2`；
 final idempotent source-identity fix：`f5aeba6dd0e02a028dde8c077dd5c68dfbd98159`；
@@ -41,8 +45,8 @@ loaded Story directory identity fix：`04640bb2bf8e9ab27980c9be61e8f89edf44bd28`
 本次修复将 Story root、requests/ 和 turns/ 的 publication parent 锚定到已验证的
 POSIX directory fd 或 Windows directory HANDLE；临时 artifact 的 retained
 descriptor/HANDLE、当前 source-name identity 和发布 target identity 必须一致，
-pending request 也通过已锚定的 requests/ binding 重新验证；Phase 9C1 仍是
-implementation candidate，未冻结。final fix 使 already-committed 重交也经过
+pending request 也通过已锚定的 requests/ binding 重新验证；Phase 9C1 已冻结在
+`phase-9c1-frozen`。final fix 使 already-committed 重交也经过
 Story root/turns identity、Campaign historical prefix 和 committed turn source
 identity 的完整校验，并在 post-move target identity 不匹配时保留竞争者 target。
 本次 directory fix 还要求 recommit 的 root/turns binding 与已加载 StoryView 的目录 identity 相等。
@@ -77,8 +81,7 @@ include Narration, novel export, an LLM provider, translation, or any Phase 9C
 functionality. Its frozen implementation SHA is
 `218a246add4481088872487e80ac83ad1099171b`. Frozen implementation must not be
 modified directly; any fix requires an explicit reopen or superseding-phase
-process. Phase 9C1 is an implementation candidate and is not frozen; Phase 9C2 has not
-started.
+process. Phase 9C1 is frozen at `phase-9c1-frozen`; Phase 9C2 has not started.
 
 ## Legacy Implementation
 
@@ -104,8 +107,8 @@ frozen at `phase-7.5-frozen`; Phase 8 is frozen at `phase-8-frozen`; Phase 9A is
 frozen at `phase-9a-frozen`; Phase 9B1 is frozen at `phase-9b1-frozen`; Phase
 9B2A is frozen at `phase-9b2a-frozen`; Phase 9B2B is frozen at
 `phase-9b2b-frozen` with implementation SHA
-`218a246add4481088872487e80ac83ad1099171b`. Phase 9C1 is an implementation
-candidate and is not frozen; Phase 9C2 has not started.
+`218a246add4481088872487e80ac83ad1099171b`. Phase 9C1 is frozen at
+`phase-9c1-frozen`; Phase 9C2 has not started.
 
 ## Getting Started
 
