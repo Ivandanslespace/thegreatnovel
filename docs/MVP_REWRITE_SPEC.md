@@ -5077,7 +5077,7 @@ authorize Phase 9C work.
 `phase-9c1-frozen` and `phase-9c2-frozen` are immutable and must never be moved,
 deleted, or recreated. Any future fix requires an explicit reopen or superseding-phase
 process. The Playable Client Milestone PC1 is an implementation candidate at
-`3a56c8a09dc3b37ebcf622bc4ab7eb42a77e807e` and is not frozen. Phase 9D is deferred /
+`0510c4dc8d83f1e80f725bde693232662deba1f2` and is not frozen. Phase 9D is deferred /
 not started; Phase 10 has not started.
 
 **Phase 9C1 publication source-identity correction commit:** `739a656fc8e7b50a12484049bb0f4598aa0cb1b2`; final
@@ -6450,7 +6450,7 @@ Phase 9B2A — frozen at phase-9b2a-frozen
 Phase 9B2B — frozen at phase-9b2b-frozen
 Phase 9C1 — frozen at phase-9c1-frozen
 Phase 9C2 — frozen at phase-9c2-frozen
-Playable Client Milestone PC1 — implementation candidate at `3a56c8a09dc3b37ebcf622bc4ab7eb42a77e807e`; not frozen
+Playable Client Milestone PC1 — implementation candidate at `0510c4dc8d83f1e80f725bde693232662deba1f2`; not frozen
 Phase 9D  — deferred / not started
 Phase 10  — not started
 ~~~
@@ -6458,15 +6458,18 @@ Phase 10  — not started
 #### Playable Client Milestone PC1 — Thin Local Human and External-Narrator Play Loop
 
 **Status:** Phase 9C2 remains frozen at `phase-9c2-frozen`; PC1 is an
-implementation candidate at `3a56c8a09dc3b37ebcf622bc4ab7eb42a77e807e` and is not
+implementation candidate at `0510c4dc8d83f1e80f725bde693232662deba1f2` and is not
 frozen. Phase 9D remains deferred / not started; Phase 10 has not started.
 
 PC1 的第一枚实现提交 message 为 `feat: add thin local playable client`。当前验证结果为
 完整 product-proof test correction 提交为 `7e8f16c7bf3908abb5424cab9457986f6e162674`；
-`tests/play 44 passed`；affected 集 `461 passed, 2 skipped`；full suite `1683 passed,
-2 skipped`；full `src/tgn` coverage `97.08%`；所有指定 warning-as-error 门禁为零
-warning。两个 skip 都是 Windows 上既有的 POSIX FIFO 测试，原因是当前平台不提供 FIFO
-创建能力。PC1 仍是 implementation candidate，不创建或移动任何 freeze tag。
+本轮 comprehensive recovery/boundary correction code/test 提交为
+`0510c4dc8d83f1e80f725bde693232662deba1f2`；`tests/play 67 passed`；affected 集
+`484 passed, 2 skipped`；full suite `1706 passed, 2 skipped`；`src/tgn/play 96.72%`、
+`src/tgn/story 96.95%`、`src/tgn/campaign 97.55%`、`src/tgn/projection 100%`、full
+`src/tgn 97.01%`；所有指定 warning-as-error 门禁为零 warning。两个 skip 都是 Windows
+上既有的 POSIX FIFO 测试，原因是当前平台不提供 FIFO 创建能力。PC1 仍是
+implementation candidate，不创建或移动任何 freeze tag。
 
 PC1 是位于 Campaign 与 Story 之上的最外层产品整合层，不是新的 Engine phase。它
 把真实玩家、冻结的 deterministic Campaign、非权威 Story 和一个可选的外部
