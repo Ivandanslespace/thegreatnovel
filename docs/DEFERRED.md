@@ -43,7 +43,12 @@ The Phase 10 foundation direction is limited to:
 The Phase 10A contract is the first deterministic-use loop only. A second
 Capability and its acquisition provenance remain Phase 10B; a passive Capability
 path remains Phase 10C. Capability authoring inside WorldGen remains deferred and
-is not an implicit Phase 10A change to the existing WorldPack compiler.
+is not an implicit Phase 10A change to the existing WorldPack compiler. The fixed
+`phase10a-devour-overlay-v1` bundle and its Projection bridge are product-fixture
+contracts, not a generic overlay framework or arbitrary initial-state patch
+system. Arbitrary Capability WorldGen authoring remains deferred.
+Generic overlay frameworks and arbitrary initial-state patch systems remain
+prohibited.
 
 Capability, CapabilityGrant, and source-system language describe the design boundary;
 they do not authorize Python classes, database schema, Event additions, tests, or a

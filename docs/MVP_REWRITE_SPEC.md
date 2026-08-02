@@ -6989,10 +6989,16 @@ Phase 10B may use.
 #### 5.4.4 WorldPack and initial-state boundary
 
 The reviewed `phase75_expedition_v1` WorldGen compiler remains unchanged by this
-contract. A capability-enabled state may enter the Engine through the existing
-trusted initial-state JSON / Campaign creation seam. Phase 10A does not modify the
-Phase 9B World Draft schema, CompiledWorldPack schema, or WorldGen compiler.
-Capability authoring in WorldGen requires a later independent contract.
+contract. A Session may start from trusted initial-state JSON, but the complete
+Campaign / Story / Playable Client path has no independent initial-state override
+seam. It must use a re-verifiable World bundle and Projection bundle. Phase 10A
+therefore uses one fixed deterministic overlay bundle variant; it does not allow
+manual `initial_state.json` edits, Campaign-directory assembly, post-Campaign
+SQLite edits, disabled bundle verification, or arbitrary initial-state overrides.
+
+Phase 10A does not modify the Phase 9B World Draft schema, CompiledWorldPack
+schema, or WorldGen compiler. Capability authoring in WorldGen requires a later
+independent contract.
 
 For Phase 10A, the three levels mean:
 
@@ -7007,7 +7013,268 @@ applicability level:
 
 Campaigns without Phase 10A feature state retain byte-compatible legacy behavior.
 
-#### 5.4.5 Eligible remains model
+#### 5.4.5 Deterministic overlay bundle
+
+The fixed bundle compiler identities are:
+
+```text
+base compiler: phase9b-bounded-world-v1
+overlay compiler: phase10a-devour-overlay-v1
+mechanics profile: phase75_expedition_v1
+```
+
+The overlay is a fixed deterministic transformation, not a new World Draft or
+CompiledWorldPack schema, generic feature-overlay system, arbitrary initial-state
+patch engine, or second structurally different WorldPack:
+
+```text
+verified phase9b-bounded-world-v1 bundle
+→ apply exact devour_evolution genesis overlay
+→ publish phase10a-devour-overlay-v1 bundle
+```
+
+The bundle file set remains exactly six files:
+
+```text
+bundle.json
+world_request.json
+world_draft.json
+compiled_worldpack.json
+initial_state.json
+compile_report.json
+```
+
+The overlay bundle has no `overlay.json`, `capabilities.json`, `effects.json`,
+`plugins.json`, or `scripts/`. Relative to the verified base bundle,
+`world_request.json`, `world_draft.json`, and `compiled_worldpack.json` are
+byte-identical. `initial_state.json`, `compile_report.json`, and `bundle.json`
+are deterministically regenerated. `worldpack_hash` remains unchanged while
+`source_initial_state_hash` changes to the overlay state hash. Campaign binding
+continues to cover `worldpack_hash`, `source_initial_state_hash`, Projection
+hashes, Campaign manifest, and Session initial-state hash.
+
+#### 5.4.6 Exact overlay transformation
+
+Starting from the base compiler's rebuilt initial state, the overlay performs
+only these changes:
+
+```text
+player.stamina = 4
+player.max_stamina = 4
+```
+
+All other player fields, including `hp`, `max_hp`, `attack`, and `location_id`,
+remain the base values. It adds the exact genesis grant:
+
+```json
+{
+  "capability_grants": {
+    "player_devour_evolution_genesis": {
+      "holder_id": "player",
+      "capability_id": "devour_evolution",
+      "source_kind": "world_genesis",
+      "source_id": "protagonist_core_gift",
+      "acquired_event_seq": 0
+    }
+  }
+}
+```
+
+It adds the exact local state:
+
+```json
+{
+  "devour_evolution": {
+    "essence": 0
+  }
+}
+```
+
+It adds the following local encounter yield to the existing expedition:
+
+```json
+{
+  "encounter": {
+    "enemy_id": "enemy-1",
+    "enemy_hp": 2,
+    "enemy_max_hp": 2,
+    "enemy_attack": 1,
+    "active": false,
+    "devour_yield": {
+      "capability_id": "devour_evolution",
+      "essence": 1,
+      "consumed": false
+    }
+  }
+}
+```
+
+`inventory`, `target_loot`, `carried_loot`, `target_searched`, `progression`,
+`progression_gates`, `build_choice`, `build`, `phase_cycle`, `named_actor`,
+`world_facts`, and `player_knowledge` remain base values. Callers cannot submit
+or modify overlay contents. The overlay is not an arbitrary patch list, JSON
+Patch engine, dynamic transform handler, plugin loader, or bundle migration
+framework.
+
+#### 5.4.7 Overlay report and verification dispatch
+
+The overlay `compile_report.json` distinguishes base compilation from overlay
+compilation and uses this minimum exact field set:
+
+```json
+{
+  "schema_version": 1,
+  "valid": true,
+  "compiler_id": "phase10a-devour-overlay-v1",
+  "base_compiler_id": "phase9b-bounded-world-v1",
+  "overlay_id": "devour_evolution_genesis_v1",
+  "base_initial_state_hash": "<base state hash>",
+  "worldpack_hash": "<unchanged worldpack hash>",
+  "initial_state_hash": "<overlay state hash>",
+  "errors": [],
+  "bootstrap": "<deterministic bootstrap report>"
+}
+```
+
+`bootstrap` must prove `DROP → SEARCH → one lethal FIGHT → DEVOUR_REMAINS →
+EXTRACT` with at least:
+
+```text
+accepted_decisions = 5
+events = 5
+illegal_actions = 0
+essence = 1
+devour_yield.consumed = true
+replay_verified = true
+```
+
+Bootstrap does not create a Campaign, Story, or narration artifact.
+
+`verify_bundle()` accepts only `phase9b-bounded-world-v1` and
+`phase10a-devour-overlay-v1`. The base identity follows the existing verification
+path unchanged. For the overlay it strictly validates request and draft;
+recompiles the base with `phase9b-bounded-world-v1`; compares saved request,
+draft, and compiled WorldPack byte-for-byte with that base result; applies only
+the fixed overlay; reruns invariants and the Phase 10A bootstrap; rebuilds the
+report, manifest, and hashes; and compares all six saved artifacts byte-for-byte.
+Any other compiler identity fails closed. No overlay registry, arbitrary patch
+list, dynamic transform, plugin loader, or generic migration framework is
+introduced.
+
+#### 5.4.8 Projection bundle bridge
+
+The complete Campaign path compiles a Projection bundle from the verified
+overlay source. The existing Projection compiler first verifies the overlay
+bundle, continues using the same WorldPack and ProjectionDraft, and derives the
+projection from the invariant-checked overlay initial state. Only the overlay
+variant adds this identity map entry:
+
+```json
+{
+  "identities": {
+    "capabilities": {
+      "devour_evolution": "Devour Evolution"
+    }
+  }
+}
+```
+
+The overlay Projection manifest must bind its source initial-state hash to the
+overlay `initial_state.json` hash and its source WorldPack hash to the unchanged
+base `worldpack_hash`. Campaign creation must reject any Projection bundle whose
+source initial-state hash does not equal the verified overlay hash.
+
+The base Projection has no empty `capabilities` field added, and its canonical
+bytes, projection hash, mapped identity count, and initial presentation remain
+unchanged. The ProjectionDraft label schema remains unchanged. The Capability
+label is not user- or LLM-generated.
+
+The canonical Observation may expose:
+
+```json
+{
+  "capabilities": [
+    {
+      "capability_id": "devour_evolution",
+      "label": "Devour Evolution",
+      "source_kind": "world_genesis"
+    }
+  ]
+}
+```
+
+The presenter verifies that `capability_id` exists in
+`identities.capabilities`, obtains the display label from that identity map,
+retains `source_kind`, and does not expose `source_id`. An unknown Capability ID
+fails closed. `capability_id` is Engine authority, `source_kind` is a public
+authoritative provenance category, and `label` is Projection presentation.
+
+#### 5.4.9 `DEVOUR_REMAINS` presentation bridge
+
+The bounded presentation action adds only:
+
+```json
+{
+  "choice_id": "<deterministic choice ID>",
+  "action_type": "DEVOUR_REMAINS",
+  "params": {},
+  "duration_minutes": 20,
+  "stamina_cost": 1,
+  "display_params": {
+    "capability": {
+      "id": "devour_evolution",
+      "label": "Devour Evolution"
+    }
+  }
+}
+```
+
+There is no generic `USE_CAPABILITY`, `capability_id` action parameter, target
+parameter, or effect parameter. `display_params` is presentation-only: it is not
+Action authority, does not enter `ActionIntent.params`, `RecordedDecision.params`,
+or the `DEVOUR_RESOLVED` payload. Frozen PC1 already renders generic
+`action_type + display_params`; therefore `src/tgn/play/**` and `tests/play/**`
+remain unchanged. The numeric menu is expected to show the equivalent of
+`DEVOUR_REMAINS {"capability":{"id":"devour_evolution","label":"Devour Evolution"}}`
+using the existing terminal-safe renderer.
+
+#### 5.4.10 Complete path and autonomous consequence boundary
+
+The complete path is:
+
+```text
+verified base World bundle
+→ deterministic Phase 10A overlay bundle
+→ Projection bundle compiled from verified overlay source
+→ CampaignService.create
+→ Session
+→ Campaign choose
+→ Story prepare / commit / verify
+→ frozen PlayService numeric choice
+```
+
+Campaign does not add an initial-state override and does not read or understand
+`devour_evolution`, `CapabilityGrant`, `devour_yield`, or `DEVOUR_REMAINS`. It
+only verifies and binds generic source artifacts, Session, and Projection. Story
+does not decide Capability legality or effect.
+
+`DEVOUR_RESOLVED` advances 20 minutes. Its capability-specific reducer handler
+must not directly modify Named Actor relationship, goal, knowledge,
+`last_autonomous_action`, or player knowledge. It must still pass through the
+existing time-advancing Named Actor autonomous-consequence seam. If that seam's
+conditions are satisfied, the final Named Actor state may change in its existing,
+deterministic, replayable way. The implementation must prove that the consequence
+is neither skipped nor run twice, emits no second Actor Event, and is not copied
+into the `DEVOUR_RESOLVED` payload. If Mara already completed the relevant
+autonomous step during earlier `DROP`/`SEARCH`, the Phase 10A path must prove from
+real state whether DEVOUR causes another step; it may not hard-code an assumption.
+
+For an existing standard `phase9b-bounded-world-v1` bundle, the implementation
+compatibility gate is strict: bundle bytes and hashes, initial state, Projection
+bytes and hashes, initial presentation, Campaign creation behavior, and PC1 output
+remain identical. Existing golden values may not be updated to hide a regression.
+
+#### 5.4.11 Eligible remains model
 
 Phase 10A reuses the existing expedition encounter and adds one explicit,
 optional, local devour yield. It does not create a generic corpse, lootable-body,
@@ -7053,7 +7320,7 @@ never be consumed again. There is no arbitrary enemy target, corpse ID, enemy
 ability copying, stat-derived or text-derived essence, live-enemy consumption,
 Named Actor consumption, or inventory-item consumption.
 
-#### 5.4.6 Combat compatibility and fixture
+#### 5.4.12 Combat compatibility and fixture
 
 The existing `COMBAT_RESOLVED` consequence already sets a defeated enemy's
 `enemy_hp` to zero, sets `encounter.active` to false, keeps the expedition active,
@@ -7079,7 +7346,7 @@ or legacy-test stamina baselines. The intended executable path is:
 DROP → SEARCH → one lethal FIGHT → DEVOUR_REMAINS → EXTRACT
 ```
 
-#### 5.4.7 Capability-specific Action
+#### 5.4.13 Capability-specific Action
 
 The exact Action is:
 
@@ -7104,7 +7371,7 @@ capability IDs, caller-supplied duration, stamina cost, essence amount, enemy
 state, or any other Engine metadata. It is not a combat consequence, passive rule,
 or automatic consequence of another action.
 
-#### 5.4.8 `DEVOUR_RESOLVED` Event contract
+#### 5.4.14 `DEVOUR_RESOLVED` Event contract
 
 The semantic Event type is `DEVOUR_RESOLVED`. Its payload uses exactly the
 following fields, with no additional Phase 10A domain payload fields:
@@ -7129,7 +7396,7 @@ yield essence of one, unconsumed yield, exact before/gained/after arithmetic,
 fixed time and stamina cost, sufficient stamina, and the Event game minute being
 previous minute plus 20.
 
-#### 5.4.9 Deterministic consequence and cardinality
+#### 5.4.15 Deterministic consequence and cardinality
 
 Applying a valid `DEVOUR_RESOLVED` atomically does exactly this:
 
@@ -7142,9 +7409,13 @@ encounter.devour_yield.consumed = true
 
 It leaves unchanged player HP, player attack, enemy HP of zero, inactive
 encounter, active expedition, player location at target, carried loot, inventory,
-progression, build, Named Actor relationship/private knowledge, and the genesis
-CapabilityGrant. The player must separately choose `EXTRACT` to return to base
-and preserve carried loot.
+progression, build, and the genesis CapabilityGrant. The capability-specific
+handler must not directly modify Named Actor relationship, goal, knowledge,
+`last_autonomous_action`, or player knowledge. Because the action advances time,
+the existing time-advancing Named Actor autonomous-consequence seam still runs
+once when its real conditions are satisfied; its deterministic replayable state
+may therefore change. The player must separately choose `EXTRACT` to return to
+base and preserve carried loot.
 
 One successful action has exactly:
 
@@ -7161,7 +7432,7 @@ One successful action has exactly:
 It must not create `CAPABILITY_GRANTED`, `TIME_ADVANCED`, `RESOURCE_GAINED`, a
 second remains Event, an automatic `EXTRACT`, or a second Capability unlock.
 
-#### 5.4.10 Observation and Knowledge Boundary
+#### 5.4.16 Observation and Knowledge Boundary
 
 When the holder owns the grant, public Observation may show:
 
@@ -7184,7 +7455,7 @@ future Capabilities, Narrator reasoning, or private Named Actor state. When
 20 minutes, stamina cost one, and empty params. It does not reveal eligibility or
 yield before the action becomes legal.
 
-#### 5.4.11 Story, replay, and anti-forgery contract
+#### 5.4.17 Story, replay, and anti-forgery contract
 
 The generic Story pipeline preserves `action_type = DEVOUR_REMAINS` and
 `event_type = DEVOUR_RESOLVED`. Public facts may state that defeated remains were
@@ -7214,7 +7485,7 @@ actor_id
 action_id
 ```
 
-#### 5.4.12 Frozen PC1 compatibility and Phase 10B boundary
+#### 5.4.18 Frozen PC1 compatibility and Phase 10B boundary
 
 Phase 10A must not modify `src/tgn/play/**` or `tests/play/**`. Frozen PC1 only
 renders generic public choice ID/label/cost, accepts the numeric choice, submits

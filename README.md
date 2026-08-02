@@ -128,6 +128,12 @@ devour_evolution，通过明确的 DEVOUR_REMAINS action 消耗一个 eligible d
 remains，并确定性获得 1 essence。Phase 10A implementation 尚未开始，Phase 10
 也尚未冻结。Phase 9D 仍 deferred，且不是 Phase 10 前置条件。
 
+Phase 10A gameplay contract 已锁定；本轮只补充其
+phase10a-devour-overlay-v1 bundle 与 Projection bridge 设计。完整 Campaign 路径
+必须经过可重验证的 World bundle、Projection bundle、Campaign、Story 和冻结的
+PC1 generic choice renderer；不增加 initial-state override seam。mvp-rewrite
+仍只包含 documentation candidates。
+
 Phase 10 不得提前建立 EffectSystem、AbilityGraph、SkillTree mega-framework、generic
 rule DSL、plugin/handler registry，或在 Core 中加入 world-specific branching。
 现有 pending Narration Request 的自身 locale 是恢复时的权威值；只有新建 request
