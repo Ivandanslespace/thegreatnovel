@@ -5077,8 +5077,27 @@ authorize Phase 9C work.
 `phase-9c1-frozen` and `phase-9c2-frozen` are immutable and must never be moved,
 deleted, or recreated. Any future fix requires an explicit reopen or superseding-phase
 process. The Playable Client Milestone PC1 is an implementation candidate at
-`0510c4dc8d83f1e80f725bde693232662deba1f2` and is not frozen. Phase 9D is deferred /
+`3456178fb42eb6ae8c3debe33653924315e349d0` and is not frozen. Phase 9D is deferred /
 not started; Phase 10 has not started.
+
+**PC1 final process/file boundary hardening:**
+`3456178fb42eb6ae8c3debe33653924315e349d0`
+
+本轮仍是 implementation candidate，不创建 PC1 tag。POSIX narrator 使用
+`start_new_session=True` 并在失败、超时、stdout overflow、reader failure 或中断时
+清理整个 process group；Windows 使用 operation-owned Job Object 和
+`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` 包含 narrator 及其 descendants。response file
+在祖先 component、regular/non-reparse type、`O_NONBLOCK` open、descriptor/path identity
+和读后 observable 复核下读取；manual request、presentation 与 CLI 结果使用合法的
+terminal-safe JSON escape。公开 Campaign/Session/Story/Narration Request/Turn artifact
+models 被用于组合证明；Story progress 的 pending/committed/missing 与 oldest request
+合同在进入 next action 前验证。Windows `tests/play` 为 `85 passed`，受影响集合为
+`502 passed, 2 skipped`，全仓为 `1724 passed, 2 skipped`；coverage 为
+`src/tgn/play 97.47%`、`src/tgn/story 96.95%`、`src/tgn/campaign 97.55%`、
+`src/tgn/projection 100%`、full `src/tgn 97.09%`，warning-as-error 为 `0 warnings`。
+真实 WSL/POSIX 关键边界测试为 `5 passed`；两个 skip 仍是 Windows 无法创建 POSIX
+FIFO 的既有 Campaign 测试。Phase 9C2 继续 frozen，Phase 9D deferred/not started，
+Phase 10 not started。
 
 **Phase 9C1 publication source-identity correction commit:** `739a656fc8e7b50a12484049bb0f4598aa0cb1b2`; final
 idempotent source-identity fix: `f5aeba6dd0e02a028dde8c077dd5c68dfbd98159`; loaded Story
