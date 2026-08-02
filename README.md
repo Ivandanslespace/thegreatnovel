@@ -22,22 +22,26 @@ Frozen implementation SHA: `60ebf493ba90114c4f03048558e316ac07118ee2`
 
 Frozen implementation SHA: `218a246add4481088872487e80ac83ad1099171b`
 
-**Phase 9C — Phase 9C1 frozen at `phase-9c1-frozen`; Phase 9C2 not started**
+**Phase 9C — Phase 9C1 frozen at `phase-9c1-frozen`; Phase 9C2 implementation candidate (not frozen)**
 
-Frozen Phase 9C1 implementation SHA: `04640bb2bf8e9ab27980c9be61e8f89edf44bd28`。
+Frozen Phase 9C1 implementation SHA: `9bb739fdb1bd08d4c0c036e7c3d3c0ee5d083f01`。
 `phase-9c1-frozen` is immutable and must never be moved, deleted, or recreated。
-This freeze does not authorize Phase 9C2 implementation。
+Phase 9C2 implementation candidate SHA: `ad4772e6a712bfb445860b4e8daf8498a3cec363`。
+Phase 9C2 remains unfrozen; no `phase-9c2-frozen` tag exists。
 
 Phase 9C 的合同范围是 Persistent External Narration, Resume and Novel Export：
 使用与 Campaign 分离的 immutable Story sidecar 保存 deterministic Narration Request、
 pending/resume 状态和 committed turn artifacts，再从这些 artifact 确定性导出
-novel.md。当前实现仅覆盖 Phase 9C1，不包含 Narration provider、Narrator adapter、
-翻译数据库或 Phase 9C 以外的功能；Phase 9C2 的 locale switching、novel export
-和 terminal completion proof 尚未开始。合同同时固定历史 snapshot 的自有导出边界、冻结
+novel.md。Phase 9C1 不包含 Narration provider、Narrator adapter、翻译数据库或
+Phase 9C 以外的功能。Phase 9C2 candidate 增加 per-turn locale switching、
+deterministic snapshot/final novel export、terminal completion metadata、novel
+status classification 和 export CLI；不引入 provider、Story SQLite 或通用框架。
+合同同时固定历史 snapshot 的自有导出边界、冻结
 Session 的单 Event 基线和稳定 Campaign snapshot 捕获协议。当前实现覆盖
 Campaign-bound Story persistence、deterministic Narration Request、pending/resume、
-structured claims、committed turn artifacts、status、verify 和 local CLI；Phase 9C
-已冻结在 `phase-9c1-frozen`。
+structured claims、committed turn artifacts、status、verify、local CLI、locale
+switching 和 deterministic novel export；Phase 9C1 仍冻结，Phase 9C2 仍是
+implementation candidate。
 
 Phase 9C1 publication source-identity correction commit：`739a656fc8e7b50a12484049bb0f4598aa0cb1b2`；
 final idempotent source-identity fix：`f5aeba6dd0e02a028dde8c077dd5c68dfbd98159`；
@@ -50,8 +54,10 @@ pending request 也通过已锚定的 requests/ binding 重新验证；Phase 9C1
 Story root/turns identity、Campaign historical prefix 和 committed turn source
 identity 的完整校验，并在 post-move target identity 不匹配时保留竞争者 target。
 本次 directory fix 还要求 recommit 的 root/turns binding 与已加载 StoryView 的目录 identity 相等。
-当前验证：Story `151 passed`、Story coverage `96%`；Campaign `173 passed, 2 skipped`、Campaign coverage `98%`；Projection
-`112 passed`、Projection coverage `100%`；全仓 `1546 passed, 2 skipped`、全仓
+Phase 9C2 candidate 当前验证：Story `179 passed`、Story coverage `96%`；Campaign
+`173 passed, 2 skipped`、Campaign coverage `98%`；Worldgen `150 passed`；Projection
+`112 passed`、Projection coverage `100%`；Session `74 passed`；LLM Player
+`63 passed`；Phase 8 autoplay `1 passed`；全仓 `1574 passed, 2 skipped`、全仓
 coverage `97%`。
 两个 skipped 是 Windows 上
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和
@@ -81,7 +87,8 @@ include Narration, novel export, an LLM provider, translation, or any Phase 9C
 functionality. Its frozen implementation SHA is
 `218a246add4481088872487e80ac83ad1099171b`. Frozen implementation must not be
 modified directly; any fix requires an explicit reopen or superseding-phase
-process. Phase 9C1 is frozen at `phase-9c1-frozen`; Phase 9C2 has not started.
+process. Phase 9C1 is frozen at `phase-9c1-frozen`; Phase 9C2 is an implementation
+candidate and remains unfrozen.
 
 ## Legacy Implementation
 
@@ -108,7 +115,7 @@ frozen at `phase-9a-frozen`; Phase 9B1 is frozen at `phase-9b1-frozen`; Phase
 9B2A is frozen at `phase-9b2a-frozen`; Phase 9B2B is frozen at
 `phase-9b2b-frozen` with implementation SHA
 `218a246add4481088872487e80ac83ad1099171b`. Phase 9C1 is frozen at
-`phase-9c1-frozen`; Phase 9C2 has not started.
+`phase-9c1-frozen`; Phase 9C2 is an implementation candidate and remains unfrozen.
 
 ## Getting Started
 

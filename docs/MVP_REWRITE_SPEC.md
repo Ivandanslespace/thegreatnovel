@@ -4,7 +4,7 @@
 > 目标：从当前"大而全、持续修 Bug"的架构退回一个可验证、可重放、可自动测试的最小核心，然后通过确定性验证与 scripted autoplay 一层一层增加功能（LLM autoplay 在 LLM Player 层建立后引入）。  
 > 原始 Legacy 审查基线：2026-07-31 `main`，最初审查时约为 `4141e905...`。  
 > 当前开发线：`mvp-rewrite`。  
-> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9A frozen；Phase 9B1 frozen；Phase 9B2A frozen (`phase-9b2a-frozen`)；Phase 9B2B frozen (`phase-9b2b-frozen`)；Phase 9C1 frozen (`phase-9c1-frozen`)；Phase 9C2 not started。
+> 当前工程阶段：Phase 7 frozen；Phase 7.5 frozen；Phase 8 frozen；Phase 9A frozen；Phase 9B1 frozen；Phase 9B2A frozen (`phase-9b2a-frozen`)；Phase 9B2B frozen (`phase-9b2b-frozen`)；Phase 9C1 frozen (`phase-9c1-frozen`)；Phase 9C2 implementation candidate (not frozen)。
 > 参考作品：用户上传的《全民纜車求生，我一級一個三選一》。
 
 > **V2 修订说明 (2026-07-31)：** 本文档经过增量架构修订。第一 WorldPack 仍可以是缆车求生 Demo，但它的 Base / Expedition / Day-Night / Three-choice 属于第一批 vertical slice 局部实现，不是整个 Engine 的宇宙规则。V2 新增反主题/结构性硬编码原则、反过度抽象原则、Knowledge boundary、Habitat 可选抽象、ProgressionTrack/Gate、Feature Module 责任边界、Compatibility Pressure Test，并更新 Phase 5+ 路线图。原有工程架构内容（EventStore、Replay、Test Pyramid、Autoplay、ExploitAgent 等）完整保留。
@@ -2943,7 +2943,7 @@ Phase 9A — frozen (`phase-9a-frozen`): External Client Session Protocol
 Phase 9B1 — frozen (`phase-9b1-frozen`): Bounded World Draft Compilation
 Phase 9B2A — frozen (`phase-9b2a-frozen`): Player-Visible Projection Map
 Phase 9B2B — frozen (`phase-9b2b-frozen`): Atomic Campaign Bootstrap and Projected Session Integration
-Phase 9C1 — frozen (`phase-9c1-frozen`); Phase 9C2 — not started
+Phase 9C1 — frozen (`phase-9c1-frozen`); Phase 9C2 — implementation candidate (not frozen)
 ```
 
 The implementation deliberately split the original "Phase 2 — Minimal Action Engine" into smaller, independently verifiable stages.
@@ -3714,7 +3714,7 @@ relationship runtime, vector memory, and Phase 9 experiments
 ### Phase 9 — External-Client Generated-World Playable Loop
 
 **Status:** Phase 9B2B frozen at `phase-9b2b-frozen`; Phase 9C1 frozen at
-`phase-9c1-frozen`; Phase 9C2 not started.
+`phase-9c1-frozen`; Phase 9C2 implementation candidate (not frozen).
 
 **Product goal:**
 
@@ -4114,7 +4114,7 @@ artifacts. This freeze does not include Narration, novel export, an LLM
 provider, translation, or any Phase 9C functionality. The frozen implementation
 must not be modified directly; any fix requires an explicit reopen or
 superseding-phase process. Phase 9C1 is frozen at `phase-9c1-frozen`;
-Phase 9C2 has not started.
+Phase 9C2 is an implementation candidate and remains unfrozen.
 
 **Accepted frozen baselines:**
 
@@ -5050,9 +5050,11 @@ authorize Phase 9C work.
 
 #### Phase 9C — Persistent External Narration, Resume and Novel Export
 
-**Status:** Phase 9C1 frozen at `phase-9c1-frozen`; Phase 9C2 not started
+**Status:** Phase 9C1 frozen at `phase-9c1-frozen`; Phase 9C2 implementation candidate (not frozen)
 
-**Accepted frozen Phase 9C1 implementation SHA:** `04640bb2bf8e9ab27980c9be61e8f89edf44bd28`
+**Accepted frozen Phase 9C1 implementation SHA:** `9bb739fdb1bd08d4c0c036e7c3d3c0ee5d083f01`
+
+**Phase 9C2 implementation candidate SHA:** `ad4772e6a712bfb445860b4e8daf8498a3cec363`
 
 **Phase 9C1 publication source-identity correction commit:** `739a656fc8e7b50a12484049bb0f4598aa0cb1b2`; final
 idempotent source-identity fix: `f5aeba6dd0e02a028dde8c077dd5c68dfbd98159`; loaded Story
@@ -5067,18 +5069,20 @@ move 成功后的 descriptor/HANDLE close 不会反转已发布结果。final fi
 already-committed 重交也经过 Story root/turns identity、Campaign historical prefix
 和 committed turn source identity 的完整校验，并在 post-move target identity 不匹配时
 保留竞争者 target。本次 directory fix 还要求 recommit 的 root/turns binding 与已加载
-StoryView 的目录 identity 相等。当前验证结果：Story `151 passed`、Story coverage `96%`；Campaign `173 passed, 2 skipped`、
-Campaign coverage `98%`；Projection `112 passed`、Projection coverage `100%`；全仓
-`1546 passed, 2 skipped`、全仓 coverage `97%`。两个 skipped 是 Windows 上冻结的
+StoryView 的目录 identity 相等。Phase 9C2 candidate 当前验证结果：Story `179 passed`、Story coverage `96%`；Campaign
+`173 passed, 2 skipped`、Campaign coverage `98%`；Worldgen `150 passed`；Projection
+`112 passed`、Projection coverage `100%`；Session `74 passed`；LLM Player `63 passed`；
+Phase 8 autoplay `1 passed`；全仓 `1574 passed, 2 skipped`、全仓 coverage `97%`。两个 skipped 是 Windows 上冻结的
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和
 `tests/campaign/test_no_follow.py::test_copy_fifo_source_is_rejected_on_posix`，原因是
 当前平台无法创建 POSIX FIFO；不是 Phase 9C1 测试失败。
 
-**Contract type:** authoritative design contract with the frozen Phase 9C1
-implementation. 当前实现只覆盖 9C1；不实现 Phase 9C2 的 locale switching、novel export、
-terminal completion report 或 full interruption/export proof。`phase-9c1-frozen` is
-immutable and must never be moved, deleted, or recreated. This freeze does not
-authorize Phase 9C2 implementation。
+**Contract type:** authoritative design contract with frozen Phase 9C1 and the
+Phase 9C2 implementation candidate. Phase 9C2 当前实现覆盖 per-turn locale
+switching、deterministic snapshot/final novel export、terminal completion metadata、
+novel status classification 和 export CLI；不引入 Narration provider、Story SQLite、
+translation database 或通用框架。`phase-9c1-frozen` is immutable and must never be
+moved, deleted, or recreated. Phase 9C2 remains unfrozen and has no freeze tag。
 
 以下 9C.0–9C.18 是本 Phase 的 authoritative contract，覆盖并细化本节的产品方向。
 
@@ -5162,8 +5166,8 @@ Phase 9C 是一个 Phase，但分为两个有顺序依赖的 implementation slic
 - terminal completion report；
 - full interruption / resume acceptance proof。
 
-9C2 依赖 9C1。当前实现仅覆盖 9C1；9C2 尚未开始。Phase 9C1/9C2 都不
-直接修改 Phase 3.6–3.7 Narrator/Guard/Voice Pack、Phase 9A Session、Phase 9B2A
+9C2 依赖 9C1。当前实现覆盖 9C2 的 locale/export slice；9C2 仍是 implementation
+candidate，尚未冻结。Phase 9C1/9C2 都不直接修改 Phase 3.6–3.7 Narrator/Guard/Voice Pack、Phase 9A Session、Phase 9B2A
 Projection 或 Phase 9B2B Campaign 的冻结实现。
 
 ##### 9C.2 Campaign / Story boundary
@@ -6396,7 +6400,7 @@ guard 是 Phase 9C 的新边界，不能假装现有 regex guard 已经满足。
 Phase 9B2A — frozen at phase-9b2a-frozen
 Phase 9B2B — frozen at phase-9b2b-frozen
 Phase 9C1 — frozen at phase-9c1-frozen
-Phase 9C2 — not started
+Phase 9C2 — implementation candidate (not frozen)
 Phase 9D  — deferred
 ~~~
 
