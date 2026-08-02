@@ -34,6 +34,33 @@ def _pid_alive(pid: int) -> bool:
     return True
 
 
+def _parse_powershell_argv(command: str) -> list[str]:
+    assert command.startswith("& ")
+    value = command[2:]
+    result: list[str] = []
+    index = 0
+    while index < len(value):
+        assert value[index] == "'"
+        index += 1
+        chars: list[str] = []
+        while index < len(value):
+            if value[index] != "'":
+                chars.append(value[index])
+                index += 1
+                continue
+            if index + 1 < len(value) and value[index + 1] == "'":
+                chars.append("'")
+                index += 2
+                continue
+            index += 1
+            break
+        result.append("".join(chars))
+        if index < len(value):
+            assert value[index] == " "
+            index += 1
+    return result
+
+
 def _assert_dead(pid: int) -> None:
     # The production boundary waits for the owned group/job before returning;
     # assert the postcondition directly instead of polling with sleep.
@@ -227,7 +254,7 @@ def test_terminal_safe_json_round_trips_controls_and_unicode() -> None:
     assert "\\u001b" in rendered and "\\u007f" in rendered and "\\u0080" in rendered
 
 
-def test_manual_pending_prints_exact_argv_and_safe_quoting(tmp_path: Path) -> None:
+def test_manual_pending_prints_exact_argv_and_platform_quoting(tmp_path: Path) -> None:
     workspace_name = "space & 中文" if os.name == "nt" else "space & 'quote' \"double\" 中文"
     workspace = tmp_path / workspace_name
     workspace.mkdir()
@@ -240,11 +267,13 @@ def test_manual_pending_prints_exact_argv_and_safe_quoting(tmp_path: Path) -> No
     response_path = Path(argv[-1])
     assert response_path.parent == workspace.parent
     assert response_path.parent != workspace
-    command_line = next(item for item in output if item.startswith("Safe command: ")).split(": ", 1)[1]
+    label = "PowerShell command: " if os.name == "nt" else "POSIX shell command: "
+    command_line = next(item for item in output if item.startswith(label)).split(": ", 1)[1]
     if os.name == "nt":
-        assert command_line == subprocess.list2cmdline(argv)
-        synthetic = [sys.executable, "a & b", "single'\"double", "中文"]
-        assert service_module._quote_argv(synthetic, platform_name="nt") == subprocess.list2cmdline(synthetic)
+        assert _parse_powershell_argv(command_line) == argv
+        synthetic = [sys.executable, "foo&bar", "foo^bar", "%TEMP%", "!value!", "(a)", "single'quote", "中文"]
+        quoted = service_module._quote_argv(synthetic, platform_name="nt")
+        assert _parse_powershell_argv(quoted) == synthetic
     else:
         assert shlex.split(command_line) == argv
         synthetic = [sys.executable, "a & b", "single'\"double", "中文"]

@@ -453,7 +453,7 @@ def test_service_revalidation_and_loop_edges(monkeypatch: pytest.MonkeyPatch, tm
     monkeypatch.setattr(service_module, "commit_story", lambda *_args, **_kwargs: {"ok": True, "turn": {}})
     with pytest.raises(PlayError) as malformed_turn:
         service._commit_response(workspace / "campaign", workspace / "story", {}, output_fn=lambda _value: None)
-    assert malformed_turn.value.code == "PLAY_CLIENT_INTEGRITY_MISMATCH"
+    assert malformed_turn.value.code == "PLAY_NARRATOR_FAILED"
 
     assert service_module._POSITIVE_INPUT.fullmatch("1") is not None
     for invalid in ("1,2", "1+2", "1 2", "全部", "0", "01", "+1", "-1", "1.0", ""):

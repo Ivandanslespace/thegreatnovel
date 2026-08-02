@@ -7,7 +7,6 @@ import re
 import shlex
 import stat
 import hashlib
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Callable, Sequence
@@ -242,6 +241,32 @@ def _validate_manifest(value: Any, *, label: str) -> dict[str, Any]:
     return value
 
 
+def _validate_campaign_internal_binding(
+    campaign_manifest: Any,
+    campaign_session: Any,
+) -> tuple[CampaignManifest, SessionManifest]:
+    """Prove that the Campaign manifest and its Session describe one Campaign."""
+
+    manifest_value = _validate_manifest(campaign_manifest, label="campaign")
+    session_value = _validate_session_summary(campaign_session, label="campaign.session")
+    try:
+        manifest_model = CampaignManifest.from_dict(manifest_value)
+        session_model = SessionManifest.from_dict(session_value)
+    except Exception as exc:
+        raise _integrity("Campaign manifest and Session failed public model validation") from exc
+    checks = (
+        (manifest_model.campaign_id, session_model.campaign_id, "campaign_id"),
+        (manifest_model.session_id, session_model.session_id, "session_id"),
+        (manifest_model.campaign_id, session_model.session_id, "campaign/session identity"),
+        (manifest_model.actor_id, session_model.actor_id, "actor_id"),
+        (manifest_model.max_decisions, session_model.max_decisions, "max_decisions"),
+    )
+    for left, right, field in checks:
+        if left != right:
+            raise _integrity(f"Campaign manifest and Session {field} differ")
+    return manifest_model, session_model
+
+
 def _validate_choice(choice: Any, *, label: str) -> dict[str, Any]:
     if not isinstance(choice, dict):
         raise _integrity(f"{label} is invalid")
@@ -320,8 +345,9 @@ def _validate_request_pair(campaign_value: dict[str, Any]) -> tuple[dict[str, An
 def _validate_campaign_result(campaign: Any, *, require_verification: bool = False) -> dict[str, Any]:
     if not isinstance(campaign, dict) or campaign.get("ok") is not True:
         raise _integrity("Campaign result is invalid")
-    _validate_manifest(campaign.get("campaign"), label="campaign")
-    _validate_session_summary(campaign.get("session"), label="campaign.session")
+    campaign_manifest = _validate_manifest(campaign.get("campaign"), label="campaign")
+    campaign_session = _validate_session_summary(campaign.get("session"), label="campaign.session")
+    _validate_campaign_internal_binding(campaign_manifest, campaign_session)
     _validate_request_pair(campaign)
     if require_verification:
         verification = campaign.get("verification")
@@ -419,12 +445,7 @@ def _cross_check(campaign: dict[str, Any], story: dict[str, Any]) -> None:
     campaign_manifest = _validate_manifest(campaign.get("campaign"), label="campaign")
     campaign_session = _validate_session_summary(campaign.get("session"), label="campaign.session")
     story = _validate_story_status(story)
-    manifest_model = CampaignManifest.from_dict(campaign_manifest)
-    session_model = SessionManifest.from_dict(campaign_session)
-    if manifest_model.actor_id != session_model.actor_id:
-        raise _integrity("Campaign manifest and Session actor_id differ")
-    if manifest_model.max_decisions != session_model.max_decisions:
-        raise _integrity("Campaign manifest and Session max_decisions differ")
+    _validate_campaign_internal_binding(campaign_manifest, campaign_session)
     for field in _SHARED_SESSION_FIELDS:
         if campaign_session[field] != story["campaign_session"][field] or campaign_session[field] != story["session"][field]:
             raise _integrity(f"Campaign and Story session field {field} differs")
@@ -514,14 +535,14 @@ def _response_model(value: Any, request: NarrationRequest | None = None) -> Any:
     try:
         response = NarrationResponse.from_dict(value)
     except Exception as exc:
-        raise _integrity("Narration Response failed public model validation") from exc
+        raise PlayError("PLAY_NARRATOR_FAILED", "external narrator response failed public model validation") from exc
     if request is not None:
         if response.narration_request_id != request.narration_request_id:
-            raise _integrity("Narration Response request identity differs")
+            raise PlayError("PLAY_NARRATOR_FAILED", "external narrator response request identity differs")
         if response.narration_request_hash != request.narration_request_hash:
-            raise _integrity("Narration Response request hash differs")
+            raise PlayError("PLAY_NARRATOR_FAILED", "external narrator response request hash differs")
         if response.locale != request.narration_locale:
-            raise _integrity("Narration Response locale differs")
+            raise PlayError("PLAY_NARRATOR_FAILED", "external narrator response locale differs")
     return response
 
 
@@ -565,7 +586,13 @@ def _assert_turn_matches_request(turn: Any, request: NarrationRequest, response:
 
 def _quote_argv(argv: Sequence[str], *, platform_name: str | None = None) -> str:
     selected_platform = os.name if platform_name is None else platform_name
-    return subprocess.list2cmdline(list(argv)) if selected_platform == "nt" else shlex.join(list(argv))
+    if selected_platform == "nt":
+        # This is a PowerShell command, not a CreateProcess command line. A
+        # single-quoted argument keeps shell metacharacters literal; embedded
+        # single quotes use PowerShell's doubled-quote form.
+        quoted = ["'" + value.replace("'", "''") + "'" for value in argv]
+        return "& " + " ".join(quoted)
+    return shlex.join(list(argv))
 
 
 class PlayService:
@@ -890,7 +917,6 @@ class PlayService:
             request_model.story_id != story_model.story_id
             or request_model.campaign_id != campaign_model.campaign_id
             or request_model.session_id != campaign_model.session_id
-            or request_model.narration_locale != story_model.initial_narration_locale
         ):
             raise _integrity("pending Narration Request composition binding differs")
         response = read_external_json(response_path)
@@ -958,9 +984,15 @@ class PlayService:
         ]
         resume_argv = [sys.executable, "-m", "tgn.play", "resume", "--workspace", str(workspace)]
         output_fn("Command argv JSON: " + terminal_safe_json(narrate_argv))
-        output_fn("Safe command: " + terminal_safe_text(_quote_argv(narrate_argv)))
+        if os.name == "nt":
+            output_fn("PowerShell command: " + terminal_safe_text(_quote_argv(narrate_argv, platform_name="nt")))
+        else:
+            output_fn("POSIX shell command: " + terminal_safe_text(_quote_argv(narrate_argv, platform_name="posix")))
         output_fn("Resume argv JSON: " + terminal_safe_json(resume_argv))
-        output_fn("Safe resume command: " + terminal_safe_text(_quote_argv(resume_argv)))
+        if os.name == "nt":
+            output_fn("PowerShell command: " + terminal_safe_text(_quote_argv(resume_argv, platform_name="nt")))
+        else:
+            output_fn("POSIX shell command: " + terminal_safe_text(_quote_argv(resume_argv, platform_name="posix")))
 
     def _drain_narration_work(
         self,
@@ -977,7 +1009,7 @@ class PlayService:
             before_story = combined["story_status"]
             pending_id = before_story["pending_turn_id"]
             initial_locale = before_story["story"]["initial_narration_locale"]
-            prepare_locale = initial_locale if pending_id is not None else (creation_locale or initial_locale)
+            prepare_locale = None if pending_id is not None else (creation_locale or initial_locale)
             prepared = self._call_story(
                 prepare_story,
                 story_dir,
@@ -1007,8 +1039,6 @@ class PlayService:
             intended_locale = prepare_locale
             if pending_id is None and request_model.narration_locale != intended_locale:
                 raise _integrity("new Narration Request locale differs from intended locale")
-            if pending_id is not None and request_model.narration_locale != story_model.initial_narration_locale:
-                raise _integrity("pending Narration Request locale changed")
             if narrator_argv is None:
                 self._manual_pending(request, self.workspace, output_fn)
                 raise PlayError("PLAY_NARRATION_PENDING", "narration response is required before another action")

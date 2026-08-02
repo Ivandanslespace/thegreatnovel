@@ -330,6 +330,11 @@ def run_narrator(
         close_ok = _bounded_close(stdout_stream, cleanup_deadline)
         if reader is not None:
             reader.join(max(0.0, cleanup_deadline - time.monotonic()))
+            # Process-group/Job-Object cleanup is operational containment,
+            # not a security boundary. A live operation-owned reader is also
+            # a failed cleanup postcondition; never return success beside it.
+            if reader.is_alive():
+                close_ok = False
         if request_file is not None:
             close_ok = _bounded_close(request_file, cleanup_deadline) and close_ok
         if (not tree_ok or not close_ok) and failure is None:

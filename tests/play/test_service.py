@@ -257,7 +257,7 @@ def test_manual_mode_persists_engine_before_pending_and_prints_after_commit(play
     assert any(request["narration_request_id"] in item for item in output)
     assert any("--- NARRATION REQUEST BEGIN ---" in item for item in output)
     assert any("outside the workspace" in item for item in output)
-    assert any("tgn.play narrate" in item and "--response-file <response.json>" not in item for item in output)
+    assert any("tgn.play" in item and "narrate" in item and "--response-file <response.json>" not in item for item in output)
     assert not any("public consequence" in item for item in output)
 
     response_path = write_response(context["root"] / "response.json", request, prose="committed prose")
