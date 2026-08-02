@@ -24,10 +24,13 @@ Frozen implementation SHA: `218a246add4481088872487e80ac83ad1099171b`
 
 **Phase 9C — Phase 9C1 frozen at `phase-9c1-frozen`; Phase 9C2 implementation candidate (not frozen)**
 
-Frozen Phase 9C1 implementation SHA: `9bb739fdb1bd08d4c0c036e7c3d3c0ee5d083f01`。
+Accepted Phase 9C1 implementation SHA: `04640bb2bf8e9ab27980c9be61e8f89edf44bd28`。
+Phase 9C1 freeze commit / `phase-9c1-frozen` target: `9bb739fdb1bd08d4c0c036e7c3d3c0ee5d083f01`。
 `phase-9c1-frozen` is immutable and must never be moved, deleted, or recreated。
-Phase 9C2 implementation candidate SHA: `ad4772e6a712bfb445860b4e8daf8498a3cec363`。
+Initial Phase 9C2 implementation: `ad4772e6a712bfb445860b4e8daf8498a3cec363`。
+Phase 9C2 conditional-replacement correction: `b5fa586fb7e0838a95e14fb445508f4b5d8a32e6`。
 Phase 9C2 remains unfrozen; no `phase-9c2-frozen` tag exists。
+Phase 9D not started。
 
 Phase 9C 的合同范围是 Persistent External Narration, Resume and Novel Export：
 使用与 Campaign 分离的 immutable Story sidecar 保存 deterministic Narration Request、
@@ -54,11 +57,15 @@ pending request 也通过已锚定的 requests/ binding 重新验证；Phase 9C1
 Story root/turns identity、Campaign historical prefix 和 committed turn source
 identity 的完整校验，并在 post-move target identity 不匹配时保留竞争者 target。
 本次 directory fix 还要求 recommit 的 root/turns binding 与已加载 StoryView 的目录 identity 相等。
-Phase 9C2 candidate 当前验证：Story `179 passed`、Story coverage `96%`；Campaign
-`173 passed, 2 skipped`、Campaign coverage `98%`；Worldgen `150 passed`；Projection
-`112 passed`、Projection coverage `100%`；Session `74 passed`；LLM Player
-`63 passed`；Phase 8 autoplay `1 passed`；全仓 `1574 passed, 2 skipped`、全仓
-coverage `97%`。
+Phase 9C2 conditional-replacement correction：`b5fa586fb7e0838a95e14fb445508f4b5d8a32e6`。`novel.md` 的已有目标现在
+必须以完整 expected observable 进行条件替换；POSIX 使用 anchored exchange 保留
+displaced target，Windows 使用 `ReplaceFileW` 及 writer-owned backup；parent、target
+和 writer artifact 在原子操作后再次校验，竞争者不会被覆盖或删除。CLI 的
+`--accepted-decisions` 只接受 canonical non-negative integer。Phase 9C2 candidate
+当前验证：Story `203 passed`、Story coverage `96%`；Campaign `173 passed, 2 skipped`、
+Campaign coverage `98%`；Worldgen `150 passed`；Projection `112 passed`、Projection
+coverage `100%`；Session `74 passed`；LLM Player `63 passed`；Phase 8 autoplay
+`1 passed`；全仓 `1598 passed, 2 skipped`、全仓 coverage `97%`。
 两个 skipped 是 Windows 上
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和
 `tests/campaign/test_no_follow.py::test_copy_fifo_source_is_rejected_on_posix`，原因是

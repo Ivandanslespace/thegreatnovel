@@ -5052,9 +5052,15 @@ authorize Phase 9C work.
 
 **Status:** Phase 9C1 frozen at `phase-9c1-frozen`; Phase 9C2 implementation candidate (not frozen)
 
-**Accepted frozen Phase 9C1 implementation SHA:** `9bb739fdb1bd08d4c0c036e7c3d3c0ee5d083f01`
+**Accepted Phase 9C1 implementation SHA:** `04640bb2bf8e9ab27980c9be61e8f89edf44bd28`
 
-**Phase 9C2 implementation candidate SHA:** `ad4772e6a712bfb445860b4e8daf8498a3cec363`
+**Phase 9C1 freeze commit / `phase-9c1-frozen` target:** `9bb739fdb1bd08d4c0c036e7c3d3c0ee5d083f01`
+
+**Initial Phase 9C2 implementation:** `ad4772e6a712bfb445860b4e8daf8498a3cec363`
+
+**Phase 9C2 conditional-replacement correction:** `b5fa586fb7e0838a95e14fb445508f4b5d8a32e6`
+
+`phase-9c1-frozen` is immutable; Phase 9C2 remains unfrozen and Phase 9D has not started.
 
 **Phase 9C1 publication source-identity correction commit:** `739a656fc8e7b50a12484049bb0f4598aa0cb1b2`; final
 idempotent source-identity fix: `f5aeba6dd0e02a028dde8c077dd5c68dfbd98159`; loaded Story
@@ -5069,10 +5075,15 @@ move 成功后的 descriptor/HANDLE close 不会反转已发布结果。final fi
 already-committed 重交也经过 Story root/turns identity、Campaign historical prefix
 和 committed turn source identity 的完整校验，并在 post-move target identity 不匹配时
 保留竞争者 target。本次 directory fix 还要求 recommit 的 root/turns binding 与已加载
-StoryView 的目录 identity 相等。Phase 9C2 candidate 当前验证结果：Story `179 passed`、Story coverage `96%`；Campaign
+StoryView 的目录 identity 相等。Phase 9C2 conditional-replacement correction (`b5fa586fb7e0838a95e14fb445508f4b5d8a32e6`)
+要求已有 `novel.md` 目标必须以完整 expected observable 进行条件替换；POSIX 使用
+anchored exchange 保留 displaced target，Windows 使用 `ReplaceFileW` 与 writer-owned
+backup；原子操作后的 parent、target 和 writer artifact identity 继续校验，竞争者不会
+被覆盖或删除。CLI 的 `--accepted-decisions` 只接受 canonical non-negative integer。
+Phase 9C2 candidate 当前验证结果：Story `203 passed`、Story coverage `96%`；Campaign
 `173 passed, 2 skipped`、Campaign coverage `98%`；Worldgen `150 passed`；Projection
 `112 passed`、Projection coverage `100%`；Session `74 passed`；LLM Player `63 passed`；
-Phase 8 autoplay `1 passed`；全仓 `1574 passed, 2 skipped`、全仓 coverage `97%`。两个 skipped 是 Windows 上冻结的
+Phase 8 autoplay `1 passed`；全仓 `1598 passed, 2 skipped`、全仓 coverage `97%`。两个 skipped 是 Windows 上冻结的
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和
 `tests/campaign/test_no_follow.py::test_copy_fifo_source_is_rejected_on_posix`，原因是
 当前平台无法创建 POSIX FIFO；不是 Phase 9C1 测试失败。
