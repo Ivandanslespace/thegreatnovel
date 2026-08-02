@@ -336,6 +336,13 @@ def _fake_posix_dirfd_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
             value = fd_paths[value]
         return real_scandir(value)
 
+    def fake_linux_no_replace(source, target, source_dir_fd=None, target_dir_fd=None):
+        source_path = actual_path(source, source_dir_fd)
+        target_path = actual_path(target, target_dir_fd)
+        if os.path.lexists(target_path):
+            raise publication.PublicationConflict("publication target already exists")
+        os.replace(source_path, target_path)
+
     monkeypatch.setattr(publication.os, "open", fake_open)
     monkeypatch.setattr(publication.os, "close", fake_close)
     monkeypatch.setattr(publication.os, "fstat", fake_fstat)
@@ -344,6 +351,7 @@ def _fake_posix_dirfd_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(publication.os, "unlink", fake_unlink)
     monkeypatch.setattr(publication.os, "rmdir", fake_rmdir)
     monkeypatch.setattr(publication.os, "scandir", fake_scandir)
+    monkeypatch.setattr(publication, "_linux_no_replace", fake_linux_no_replace)
     return fd_paths
 
 
@@ -446,7 +454,7 @@ def test_conditional_publication_observable_and_cleanup_edges(
             binding._remove_expected_file_anchored(child.name, invalid_expected)
         with monkeypatch.context() as context:
             context.setattr(publication.os, "unlink", lambda *_args, **_kwargs: (_ for _ in ()).throw(FileNotFoundError()))
-            with pytest.raises(PublicationBoundaryChanged):
+            with pytest.raises(PublicationRuntime):
                 binding._remove_expected_file_anchored(child.name, expected)
         with monkeypatch.context() as context:
             context.setattr(publication.os, "unlink", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("unlink")))
@@ -503,6 +511,86 @@ def test_conditional_publication_observable_and_cleanup_edges(
         binding.close_safely()
 
 
+def test_posix_cleanup_check_to_quarantine_race_preserves_competitor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    target = tmp_path / "novel.md"
+    target.write_bytes(b"expected")
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    expected = binding.capture_file_observable(target.name)
+
+    def replace_candidate(_name: str, _expected: ExpectedPublicationFile) -> None:
+        competitor = tmp_path / "cleanup-competitor.md"
+        competitor.write_bytes(b"competitor")
+        os.replace(competitor, target)
+
+    monkeypatch.setattr(binding, "_before_cleanup_quarantine_move", replace_candidate)
+    try:
+        with pytest.raises(PublicationBoundaryChanged):
+            binding._remove_expected_file_anchored(target.name, expected)
+        assert target.read_bytes() == b"competitor"
+        assert binding.capture_file_observable(target.name).identity != expected.identity
+        assert {child.name for child in tmp_path.iterdir()} == {"novel.md"}
+    finally:
+        binding.close_safely()
+
+
+def test_windows_writer_cleanup_check_to_handle_race_preserves_competitor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    temporary = tmp_path / ".novel.md.writer.tmp"
+    temporary.write_bytes(b"writer")
+    temporary_name = temporary.name
+    expected = binding.capture_file_observable(temporary_name)
+
+    def replace_candidate(_name: str, _expected: ExpectedPublicationFile) -> None:
+        competitor = tmp_path / "writer-competitor.md"
+        competitor.write_bytes(b"competitor")
+        os.replace(competitor, temporary)
+
+    hook_name = "_before_windows_delete_handle" if os.name == "nt" else "_before_cleanup_quarantine_move"
+    monkeypatch.setattr(binding, hook_name, replace_candidate)
+    try:
+        with pytest.raises(PublicationBoundaryChanged):
+            binding._remove_expected_file_anchored(temporary_name, expected)
+        assert temporary.read_bytes() == b"competitor"
+        assert {child.name for child in tmp_path.iterdir()} == {temporary_name}
+    finally:
+        binding.close_safely()
+
+
+def test_windows_backup_cleanup_check_to_handle_race_preserves_competitor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "novel.md"
+    target.write_bytes(b"canonical")
+    backup = tmp_path / ".novel.md.writer.backup"
+    backup.write_bytes(b"expected backup")
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    expected = binding.capture_file_observable(backup.name)
+
+    def replace_candidate(_name: str, _expected: ExpectedPublicationFile) -> None:
+        competitor = tmp_path / "backup-competitor.md"
+        competitor.write_bytes(b"competitor backup")
+        os.replace(competitor, backup)
+
+    hook_name = "_before_windows_delete_handle" if os.name == "nt" else "_before_cleanup_quarantine_move"
+    monkeypatch.setattr(binding, hook_name, replace_candidate)
+    try:
+        with pytest.raises(PublicationBoundaryChanged):
+            binding._remove_expected_file_anchored(backup.name, expected)
+        assert target.read_bytes() == b"canonical"
+        assert backup.read_bytes() == b"competitor backup"
+        assert {child.name for child in tmp_path.iterdir()} == {"novel.md", backup.name}
+    finally:
+        binding.close_safely()
+
+
 def test_anchored_posix_directory_cleanup_and_final_window(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
     binding = publication.BoundPublicationDirectory.bind(tmp_path)
@@ -523,13 +611,17 @@ def test_anchored_posix_post_move_parent_change_removes_only_published_target(tm
     fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
     binding = publication.BoundPublicationDirectory.bind(tmp_path)
     detached = tmp_path.with_name(f"{tmp_path.name}-post-move-detached")
+    moved = False
 
     def move_and_replace_parent(source, target, source_fd, target_fd):
+        nonlocal moved
         binding._close_temp_fd()
         os.replace(fd_paths[source_fd] / source, fd_paths[target_fd] / target)
-        tmp_path.rename(detached)
-        tmp_path.mkdir()
-        fd_paths[17] = detached
+        if not moved:
+            tmp_path.rename(detached)
+            tmp_path.mkdir()
+            fd_paths[17] = detached
+            moved = True
 
     monkeypatch.setattr(publication, "_linux_no_replace", move_and_replace_parent)
     try:
@@ -1180,13 +1272,14 @@ def test_publication_move_identity_type_and_parent_error_boundaries(
         return binding
 
     binding = make_binding("oserror.json")
-    monkeypatch.setattr(
-        publication,
-        "_linux_no_replace",
-        lambda *_args: (_ for _ in ()).throw(OSError("move")),
-    )
-    with pytest.raises(PublicationRuntime, match="atomic no-replace"):
-        binding._move_temp("oserror-target.json")
+    with monkeypatch.context() as context:
+        context.setattr(
+            publication,
+            "_linux_no_replace",
+            lambda *_args: (_ for _ in ()).throw(OSError("move")),
+        )
+        with pytest.raises(PublicationRuntime, match="atomic no-replace"):
+            binding._move_temp("oserror-target.json")
     binding.cleanup_temp()
 
     binding = make_binding("identity.json")

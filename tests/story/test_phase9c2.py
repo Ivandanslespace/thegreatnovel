@@ -788,6 +788,68 @@ def test_phase9c2_complete_campaign_story_locale_resume_and_final_rebuild_proof(
     assert verify_story(story, campaign_dir=campaign)["valid"] is True
 
 
+def test_phase9c2_existing_novel_replace_campaign_integration_proof(
+    story_factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign, story, config = story_factory(name="phase9c2-existing-novel-replace", max_decisions=10)
+    init_story(
+        story,
+        campaign_dir=campaign,
+        story_id=config["story_id"],
+        initial_narration_locale="en",
+        initial_voice_id="cablecar_survival",
+    )
+    windows_replace_calls: list[tuple[object, ...]] = []
+    if os.name == "nt":
+        original_windows_replace = publication_module._windows_replace_file
+
+        def spy_windows_replace(*args, **kwargs):
+            windows_replace_calls.append(args)
+            return original_windows_replace(*args, **kwargs)
+
+        monkeypatch.setattr(publication_module, "_windows_replace_file", spy_windows_replace)
+
+    _choose(campaign, "DROP")
+    drop_request = prepare_story(story, campaign_dir=campaign)["request"]
+    commit_story(
+        story,
+        campaign_dir=campaign,
+        response=response_for(drop_request, prose="The first consequence is now visible."),
+    )
+    first_export = export_story(story, campaign_dir=campaign, mode="snapshot", accepted_decisions=1)
+    assert first_export["novel_status"] == "CURRENT_SNAPSHOT"
+    first_bytes = (story / "novel.md").read_bytes()
+    assert {child.name for child in story.iterdir()} == {"story.json", "requests", "turns", "novel.md"}
+
+    _choose(campaign, "SEARCH")
+    search_request = prepare_story(story, campaign_dir=campaign)["request"]
+    commit_story(
+        story,
+        campaign_dir=campaign,
+        response=response_for(search_request, prose="The second consequence changes the snapshot."),
+    )
+    second_export = export_story(story, campaign_dir=campaign, mode="snapshot", accepted_decisions=2)
+    assert second_export["novel_status"] == "CURRENT_SNAPSHOT"
+    second_bytes = (story / "novel.md").read_bytes()
+    assert second_bytes != first_bytes
+    assert {child.name for child in story.iterdir()} == {"story.json", "requests", "turns", "novel.md"}
+
+    current = next_campaign(campaign)
+    stop_campaign(
+        campaign,
+        request_fingerprint=current["canonical_request"]["request_fingerprint"],
+    )
+    final_export = export_story(story, campaign_dir=campaign, mode="final")
+    assert final_export["novel_status"] == "CURRENT_FINAL"
+    assert verify_story(story, campaign_dir=campaign)["verification"]["novel_status"] == "CURRENT_FINAL"
+    assert {child.name for child in story.iterdir()} == {"story.json", "requests", "turns", "novel.md"}
+    assert (story / "novel.md").read_bytes() != second_bytes
+    assert verify_campaign(campaign)["verification"]["event_replay"] is True
+    if os.name == "nt":
+        assert len(windows_replace_calls) >= 2
+
+
 @pytest.mark.parametrize(
     "result,error_number,expected",
     [
@@ -892,7 +954,7 @@ def _windows_recovery_fixture(
         lambda name: values[name] if name in values else (_ for _ in ()).throw(FileNotFoundError(name)),
     )
 
-    def remove(name: str, expected: ExpectedPublicationFile) -> None:
+    def remove(name: str, expected: ExpectedPublicationFile, **_kwargs) -> None:
         if values.get(name) != expected:
             raise PublicationBoundaryChanged("unexpected Windows test object")
         values.pop(name)
@@ -1162,7 +1224,7 @@ def test_windows_replace_failure_cleanup_failure_is_bounded(
     monkeypatch.setattr(
         binding,
         "_remove_expected_file_anchored",
-        lambda *_args: (_ for _ in ()).throw(PublicationRuntime("cleanup")),
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(PublicationRuntime("cleanup")),
     )
     with pytest.raises(PublicationRuntime, match="cleanup"):
         binding._recover_windows_replace_failure(

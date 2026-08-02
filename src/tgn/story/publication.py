@@ -346,6 +346,10 @@ class _BY_HANDLE_FILE_INFORMATION(ctypes.Structure):
     ]
 
 
+class _FILE_DISPOSITION_INFO(ctypes.Structure):
+    _fields_ = [("DeleteFile", ctypes.wintypes.BOOL)]
+
+
 class BoundPublicationDirectory:
     """One operation-local, caller-visible parent directory binding."""
 
@@ -355,6 +359,8 @@ class BoundPublicationDirectory:
     _FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
     _FILE_READ_ATTRIBUTES = 0x00000080
     _FILE_LIST_DIRECTORY = 0x00000001
+    _DELETE = 0x00010000
+    _FILE_DISPOSITION_INFO_CLASS = 4
     _FILE_SHARE_READ = 0x00000001
     _FILE_SHARE_WRITE = 0x00000002
     _FILE_SHARE_DELETE = 0x00000004
@@ -373,6 +379,9 @@ class BoundPublicationDirectory:
         self._temp_handle: int | None = None
         self._temp_identity: tuple[Any, ...] | None = None
         self._temp_owned = False
+        self._quarantine_name: str | None = None
+        self._quarantine_fd: int | None = None
+        self._quarantine_identity: tuple[Any, ...] | None = None
 
     @classmethod
     def bind(cls, parent: str | Path) -> "BoundPublicationDirectory":
@@ -491,7 +500,13 @@ class BoundPublicationDirectory:
             self._close_temp_handle_safely()
             raise PublicationRuntime("owned temporary HANDLE cannot be opened") from exc
 
-    def _open_windows_child_handle(self, name: str, kind: str) -> tuple[int, int, tuple[Any, ...]]:
+    def _open_windows_child_handle(
+        self,
+        name: str,
+        kind: str,
+        *,
+        delete: bool = False,
+    ) -> tuple[int, int, tuple[Any, ...]]:
         """Open one non-reparse child and return its stable Windows identity."""
 
         name = _ensure_name(name)
@@ -509,7 +524,7 @@ class BoundPublicationDirectory:
                 ctypes.wintypes.HANDLE,
             ]
             create_file.restype = ctypes.wintypes.HANDLE
-            access = self._FILE_READ_ATTRIBUTES
+            access = self._FILE_READ_ATTRIBUTES | (self._DELETE if delete else 0)
             flags = self._FILE_FLAG_OPEN_REPARSE_POINT
             if kind == "directory":
                 access |= self._FILE_LIST_DIRECTORY
@@ -517,7 +532,9 @@ class BoundPublicationDirectory:
             handle = create_file(
                 os.fspath(self.path / name),
                 access,
-                self._FILE_SHARE_READ | self._FILE_SHARE_WRITE | self._FILE_SHARE_DELETE,
+                self._FILE_SHARE_READ
+                if delete
+                else self._FILE_SHARE_READ | self._FILE_SHARE_WRITE | self._FILE_SHARE_DELETE,
                 None,
                 self._OPEN_EXISTING,
                 flags,
@@ -559,6 +576,71 @@ class BoundPublicationDirectory:
             return attributes, identity
         finally:
             self._close_windows_handle_value(handle)
+
+    def _windows_remove_file_by_handle(
+        self,
+        name: str,
+        expected: ExpectedPublicationFile,
+        *,
+        retained_handle: int | None = None,
+    ) -> None:
+        """Delete one exact Windows file through a DELETE-capable HANDLE."""
+
+        if os.name != "nt":
+            raise PublicationUnavailable("Windows handle deletion is unavailable")
+        if retained_handle is not None:
+            attributes, identity = self._windows_info_for_handle(retained_handle)
+            if (
+                attributes & self._FILE_ATTRIBUTE_DIRECTORY
+                or attributes & self._FILE_ATTRIBUTE_REPARSE_POINT
+                or identity != expected.identity
+            ):
+                raise PublicationBoundaryChanged("Windows cleanup HANDLE identity changed")
+        current = self._capture_file_observable_anchored(name)
+        if current != expected:
+            raise PublicationBoundaryChanged("Windows cleanup target observable changed")
+        self._before_windows_delete_handle(name, expected)
+        handle: int | None = None
+        try:
+            handle, attributes, identity = self._open_windows_child_handle(
+                name,
+                "file",
+                delete=True,
+            )
+            if (
+                attributes & self._FILE_ATTRIBUTE_DIRECTORY
+                or attributes & self._FILE_ATTRIBUTE_REPARSE_POINT
+                or identity != expected.identity
+            ):
+                raise PublicationBoundaryChanged("Windows cleanup target identity changed")
+            try:
+                kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+                set_information = kernel32.SetFileInformationByHandle
+                set_information.argtypes = [
+                    ctypes.wintypes.HANDLE,
+                    ctypes.wintypes.DWORD,
+                    ctypes.c_void_p,
+                    ctypes.wintypes.DWORD,
+                ]
+                set_information.restype = ctypes.wintypes.BOOL
+                disposition = _FILE_DISPOSITION_INFO(True)
+                if not set_information(
+                    ctypes.wintypes.HANDLE(handle),
+                    self._FILE_DISPOSITION_INFO_CLASS,
+                    ctypes.byref(disposition),
+                    ctypes.sizeof(disposition),
+                ):
+                    error_number = ctypes.get_last_error()
+                    if error_number in {1, 50, 120}:
+                        raise PublicationUnavailable("Windows handle deletion is unavailable")
+                    raise PublicationRuntime("Windows handle deletion failed")
+            except (PublicationBoundaryChanged, PublicationUnavailable, PublicationRuntime):
+                raise
+            except Exception as exc:
+                raise PublicationUnavailable("Windows handle deletion is unavailable") from exc
+        finally:
+            if handle is not None:
+                self._close_windows_handle_value(handle)
 
     def _capture_path_identity(self) -> tuple[Any, ...]:
         try:
@@ -909,6 +991,247 @@ class BoundPublicationDirectory:
             raise PublicationRuntime("owned temporary identity changed")
         return current
 
+    def _capture_file_observable_at(
+        self,
+        parent_fd: int,
+        name: str,
+    ) -> ExpectedPublicationFile:
+        """Capture one regular file relative to an already bound POSIX fd."""
+
+        name = _ensure_name(name)
+        try:
+            initial = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            if not is_actual_regular_file(initial):
+                raise PublicationRuntime("quarantine child is not a regular file")
+            flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+            fd = os.open(name, flags, dir_fd=parent_fd)
+            try:
+                opened = os.fstat(fd)
+                if not is_actual_regular_file(opened) or _stat_identity(opened) != _stat_identity(initial):
+                    raise PublicationRuntime("quarantine child identity changed while opening")
+                chunks: list[bytes] = []
+                while True:
+                    chunk = os.read(fd, 1024 * 1024)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                final = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+                if not is_actual_regular_file(final) or _stat_identity(final) != _stat_identity(opened):
+                    raise PublicationRuntime("quarantine child identity changed while reading")
+                payload = b"".join(chunks)
+                return ExpectedPublicationFile(
+                    identity=_stat_identity(final),
+                    sha256=sha256_bytes(payload),
+                    size=len(payload),
+                    mtime_ns=int(final.st_mtime_ns),
+                    payload=payload,
+                )
+            finally:
+                os.close(fd)
+        except PublicationRuntime:
+            raise
+        except FileNotFoundError:
+            raise
+        except OSError as exc:
+            raise PublicationRuntime("quarantine child cannot be captured") from exc
+
+    def _move_no_replace_between(
+        self,
+        source_name: str,
+        source_fd: int,
+        target_name: str,
+        target_fd: int,
+    ) -> None:
+        """Move one name between bound POSIX directories without replacement."""
+
+        source_name = _ensure_name(source_name)
+        target_name = _ensure_name(target_name)
+        if sys.platform.startswith("linux"):
+            _linux_no_replace(source_name, target_name, source_fd, target_fd)
+        elif sys.platform == "darwin":
+            _macos_no_replace(source_name, target_name, source_fd, target_fd)
+        else:
+            raise PublicationUnavailable("platform has no supported cleanup quarantine primitive")
+
+    def _open_cleanup_quarantine(self) -> tuple[str, int]:
+        """Create one operation-owned private POSIX cleanup directory."""
+
+        if os.name == "nt" or self.directory_fd is None:
+            raise PublicationUnavailable("cleanup quarantine is unavailable")
+        self._check_handle()
+        for _ in range(32):
+            name = f".cleanup.{secrets.token_hex(16)}"
+            try:
+                os.mkdir(name, 0o700, dir_fd=self.directory_fd)
+                flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+                fd = os.open(name, flags, dir_fd=self.directory_fd)
+                item_stat = os.fstat(fd)
+                if not is_actual_directory(item_stat):
+                    os.close(fd)
+                    raise OSError("cleanup quarantine is not a directory")
+                self._quarantine_name = name
+                self._quarantine_fd = fd
+                self._quarantine_identity = _stat_identity(item_stat)
+                return name, fd
+            except FileExistsError:
+                continue
+            except OSError as exc:
+                try:
+                    os.rmdir(name, dir_fd=self.directory_fd)
+                except Exception:
+                    pass
+                raise PublicationRuntime("cleanup quarantine cannot be created") from exc
+        raise PublicationRuntime("cleanup quarantine name allocation failed")
+
+    def _close_cleanup_quarantine(self) -> None:
+        """Close and remove the empty operation-owned quarantine directory."""
+
+        name = self._quarantine_name
+        fd = self._quarantine_fd
+        expected = self._quarantine_identity
+        if name is None or fd is None or expected is None:
+            return
+        errors: list[BaseException] = []
+        try:
+            retained = os.fstat(fd)
+            if not is_actual_directory(retained) or _stat_identity(retained) != expected:
+                raise PublicationRuntime("cleanup quarantine identity changed")
+            with os.scandir(fd) as iterator:
+                if any(True for _ in iterator):
+                    raise PublicationRuntime("cleanup quarantine is not empty")
+            os.close(fd)
+            self._quarantine_fd = None
+            current = self._stat_at(name)
+            if not is_actual_directory(current) or _stat_identity(current) != expected:
+                raise PublicationRuntime("cleanup quarantine name identity changed")
+            os.rmdir(name, dir_fd=self.directory_fd)
+        except FileNotFoundError as exc:
+            errors.append(PublicationBoundaryChanged("cleanup quarantine disappeared"))
+            errors[-1].__cause__ = exc
+        except (PublicationBoundaryChanged, PublicationRuntime) as exc:
+            errors.append(exc)
+        except OSError as exc:
+            errors.append(PublicationRuntime("cleanup quarantine cannot be removed"))
+            errors[-1].__cause__ = exc
+        finally:
+            if self._quarantine_fd is not None:
+                try:
+                    os.close(self._quarantine_fd)
+                except OSError as exc:
+                    errors.append(PublicationRuntime("cleanup quarantine descriptor cannot be closed"))
+                    errors[-1].__cause__ = exc
+            self._quarantine_name = None
+            self._quarantine_fd = None
+            self._quarantine_identity = None
+        if errors:
+            raise errors[0]
+
+    def _before_cleanup_quarantine_move(
+        self,
+        name: str,
+        expected: ExpectedPublicationFile,
+    ) -> None:
+        """Test seam for the check-to-quarantine linearization window."""
+
+        del name, expected
+
+    def _before_cleanup_delete(
+        self,
+        name: str,
+        expected: ExpectedPublicationFile,
+    ) -> None:
+        """Test seam for the final quarantined-object deletion window."""
+
+        del name, expected
+
+    def _before_windows_delete_handle(
+        self,
+        name: str,
+        expected: ExpectedPublicationFile,
+    ) -> None:
+        """Test seam for the check-to-HANDLE-delete linearization window."""
+
+        del name, expected
+
+    def _restore_quarantined_file(
+        self,
+        original_name: str,
+        quarantine_name: str,
+        actual: ExpectedPublicationFile,
+    ) -> bool:
+        if self._quarantine_fd is None or self.directory_fd is None:
+            raise PublicationRuntime("cleanup quarantine is not active")
+        if self._exists_at(original_name):
+            return False
+        self._move_no_replace_between(
+            quarantine_name,
+            self._quarantine_fd,
+            original_name,
+            self.directory_fd,
+        )
+        restored = self._capture_file_observable_anchored(original_name)
+        if restored != actual:
+            raise PublicationRuntime("cleanup competitor could not be restored")
+        return True
+
+    def _quarantine_remove_expected_file(
+        self,
+        name: str,
+        expected: ExpectedPublicationFile,
+    ) -> None:
+        """Move the candidate into private quarantine before deleting it."""
+
+        if self.directory_fd is None:
+            raise PublicationUnavailable("cleanup quarantine is unavailable")
+        current = self._capture_file_observable_anchored(name)
+        if current != expected:
+            raise PublicationBoundaryChanged("publication cleanup candidate changed")
+        self._before_cleanup_quarantine_move(name, expected)
+        _quarantine_dir, quarantine_fd = self._open_cleanup_quarantine()
+        quarantine_name = "candidate"
+        primary: BaseException | None = None
+        try:
+            self._move_no_replace_between(name, self.directory_fd, quarantine_name, quarantine_fd)
+            actual = self._capture_file_observable_at(quarantine_fd, quarantine_name)
+            if actual != expected:
+                if not self._restore_quarantined_file(name, quarantine_name, actual):
+                    raise PublicationRuntime("cleanup competitor could not be safely restored")
+                raise PublicationBoundaryChanged("publication cleanup candidate changed")
+            self._before_cleanup_delete(quarantine_name, expected)
+            after_hook = self._capture_file_observable_at(quarantine_fd, quarantine_name)
+            if after_hook != expected:
+                if not self._restore_quarantined_file(name, quarantine_name, after_hook):
+                    raise PublicationRuntime("cleanup competitor could not be safely restored")
+                raise PublicationBoundaryChanged("publication cleanup candidate changed")
+            try:
+                os.unlink(quarantine_name, dir_fd=quarantine_fd)
+            except FileNotFoundError as exc:
+                try:
+                    restored = self._restore_quarantined_file(name, quarantine_name, expected)
+                except BaseException as restore_exc:
+                    raise PublicationRuntime("quarantined cleanup object disappeared") from restore_exc
+                if restored:
+                    raise PublicationRuntime("quarantined cleanup object disappeared") from exc
+                raise PublicationRuntime("quarantined cleanup competitor cannot be preserved") from exc
+            except OSError as exc:
+                try:
+                    restored = self._restore_quarantined_file(name, quarantine_name, expected)
+                except BaseException as restore_exc:
+                    raise PublicationRuntime("quarantined cleanup object cannot be removed") from restore_exc
+                if restored:
+                    raise PublicationRuntime("quarantined cleanup object cannot be removed") from exc
+                raise PublicationRuntime("quarantined cleanup competitor cannot be preserved") from exc
+        except BaseException as exc:
+            primary = exc
+            raise
+        finally:
+            try:
+                self._close_cleanup_quarantine()
+            except BaseException as cleanup_exc:
+                if primary is None:
+                    raise
+                raise cleanup_exc from primary
+
     def _remove_tree_at(self, parent_fd: int, name: str, expected: tuple[Any, ...]) -> None:
         flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
         child_fd = os.open(name, flags, dir_fd=parent_fd)
@@ -942,7 +1265,8 @@ class BoundPublicationDirectory:
             else:
                 if not is_actual_regular_file(current):
                     raise OSError("owned target is not a regular file")
-                current_identity = self._identity_at(name, "file")
+                current_observable = self._capture_file_observable_anchored(name)
+                current_identity = current_observable.identity
             if current_identity != expected:
                 raise OSError("owned target identity changed")
             if directory:
@@ -951,12 +1275,11 @@ class BoundPublicationDirectory:
                 else:
                     shutil.rmtree(self.path / name)
             else:
-                if self.directory_fd is not None:
-                    os.unlink(name, dir_fd=self.directory_fd)
-                else:
-                    os.unlink(self.path / name)
+                self._remove_expected_file_anchored(name, current_observable)
         except FileNotFoundError:
             return
+        except PublicationUnavailable:
+            raise
         except PublicationRuntime:
             raise
         except Exception as exc:
@@ -966,21 +1289,22 @@ class BoundPublicationDirectory:
         self,
         name: str,
         expected: ExpectedPublicationFile,
+        *,
+        retained_handle: int | None = None,
     ) -> None:
         """Remove only an exact, operation-observed regular file."""
 
         current = self._capture_file_observable_anchored(name)
         if current != expected:
             raise PublicationBoundaryChanged("publication displaced file changed")
-        try:
-            if self.directory_fd is not None:
-                os.unlink(_ensure_name(name), dir_fd=self.directory_fd)
-            else:
-                os.unlink(self.path / _ensure_name(name))
-        except FileNotFoundError as exc:
-            raise PublicationBoundaryChanged("publication displaced file disappeared") from exc
-        except OSError as exc:
-            raise PublicationRuntime("publication displaced file cannot be removed") from exc
+        if os.name == "nt":
+            self._windows_remove_file_by_handle(
+                name,
+                expected,
+                retained_handle=retained_handle,
+            )
+        else:
+            self._quarantine_remove_expected_file(name, expected)
 
     def _clear_temp_state(self) -> None:
         """Forget a consumed temporary without pathname cleanup."""
@@ -1281,11 +1605,16 @@ class BoundPublicationDirectory:
         name = self._temp_name
         if name is None:
             raise PublicationRuntime("Windows writer replacement name is unavailable")
-        self._close_temp_resources()
+        retained_handle = self._temp_handle
         current = self._capture_file_observable_anchored(name)
         if current != writer:
             raise PublicationRuntime("Windows writer replacement identity changed")
-        self._remove_expected_file_anchored(name, writer)
+        self._remove_expected_file_anchored(
+            name,
+            writer,
+            retained_handle=retained_handle,
+        )
+        self._close_temp_resources()
         self._clear_temp_state()
 
     def _discard_windows_expected_backup(
