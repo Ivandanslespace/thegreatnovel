@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import io
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -26,19 +27,35 @@ from .conftest import narrator_argv, write_narrator
 def test_run_narrator_uses_explicit_argv_and_shell_false(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: dict[str, object] = {}
 
-    def fake_run(*args, **kwargs):
+    class FakeProcess:
+        def __init__(self) -> None:
+            self.stdout = io.BytesIO(b'{"ok":true}')
+            self.returncode = 0
+
+        def poll(self):
+            return self.returncode
+
+        def wait(self, timeout=None):
+            return self.returncode
+
+        def kill(self):
+            self.returncode = -9
+
+    def fake_popen(*args, **kwargs):
         seen["args"] = args
         seen.update(kwargs)
-        return SimpleNamespace(returncode=0, stdout=b'{"ok":true}', stderr=b"secret diagnostic")
+        seen["stdin_bytes"] = kwargs["stdin"].read()
+        kwargs["stdin"].seek(0)
+        return FakeProcess()
 
-    monkeypatch.setattr(narrator_module.subprocess, "run", fake_run)
+    monkeypatch.setattr(narrator_module.subprocess, "Popen", fake_popen)
     result = run_narrator(["python", "script.py", "argument;literal"], {"request": 1})
     assert result == {"ok": True}
     assert seen["args"] == (["python", "script.py", "argument;literal"],)
     assert seen["shell"] is False
-    assert seen["check"] is False
-    assert seen["stderr"] is subprocess.PIPE
-    assert seen["input"] == canonical_document({"request": 1})
+    assert seen["stderr"] is subprocess.DEVNULL
+    assert seen["stdout"] is subprocess.PIPE
+    assert seen["stdin_bytes"] == canonical_document({"request": 1})
 
 
 def test_run_narrator_real_success_and_nonzero(tmp_path: Path) -> None:
@@ -84,7 +101,64 @@ def test_run_narrator_timeout_is_bounded(tmp_path: Path) -> None:
     assert "timed out" in error.value.message
 
 
-@pytest.mark.parametrize("value", [None, "0", "601", "nan", "inf"])
+def test_run_narrator_accepts_exact_one_megabyte_and_discards_stderr(tmp_path: Path) -> None:
+    script = tmp_path / "exact.py"
+    script.write_text(
+        "import sys\n"
+        "payload = b'{\"x\":\"' + b'a' * (1024 * 1024 - 8) + b'\"}'\n"
+        "sys.stderr.buffer.write(b'diagnostic' * 1000000)\n"
+        "sys.stdout.buffer.write(payload)\n",
+        encoding="utf-8",
+    )
+    result = run_narrator([sys.executable, str(script)], {"request": 1})
+    assert len(result["x"]) == 1024 * 1024 - 8
+
+
+def test_run_narrator_kills_unbounded_stdout(tmp_path: Path) -> None:
+    script = tmp_path / "unbounded.py"
+    script.write_text(
+        "import sys\n"
+        "while True:\n"
+        "    sys.stdout.buffer.write(b'x' * 65536)\n"
+        "    sys.stdout.flush()\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(PlayError) as error:
+        run_narrator([sys.executable, str(script)], {"request": 1})
+    assert error.value.code == "PLAY_NARRATOR_FAILED"
+
+
+def test_run_narrator_reader_failure_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    class BrokenStream:
+        def read(self, _size):
+            raise OSError("reader failure")
+
+        def close(self):
+            return None
+
+    class FakeProcess:
+        def __init__(self):
+            self.stdout = BrokenStream()
+            self.returncode = 0
+            self.killed = False
+
+        def poll(self):
+            return self.returncode
+
+        def wait(self, timeout=None):
+            return self.returncode
+
+        def kill(self):
+            self.killed = True
+
+    process = FakeProcess()
+    monkeypatch.setattr(narrator_module.subprocess, "Popen", lambda *_args, **_kwargs: process)
+    with pytest.raises(PlayError) as error:
+        run_narrator(["python"], {"request": 1})
+    assert error.value.code == "PLAY_NARRATOR_FAILED"
+
+
+@pytest.mark.parametrize("value", [None, True, "0", "601", "nan", "inf"])
 def test_timeout_validation(value) -> None:
     with pytest.raises(PlayError) as error:
         validate_timeout(value)

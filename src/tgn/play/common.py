@@ -14,6 +14,8 @@ from ..core.hashing import canonical_json
 
 SUPPORTED_LOCALES = frozenset({"zh-CN", "en", "ar"})
 MAX_NARRATOR_STDOUT = 1024 * 1024
+MAX_CANONICAL_INTEGER_DIGITS = 1000
+MAX_PLAYER_OPTION_DIGITS = 64
 _REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400)
 
 PLAY_ERROR_CODES = frozenset(
@@ -80,6 +82,9 @@ def validate_json_value(value: Any, *, path: str = "$") -> None:
         for key, child in value.items():
             if not isinstance(key, str):
                 raise TypeError(f"{path} contains a non-string object key")
+            if any(0xD800 <= ord(character) <= 0xDFFF for character in key):
+                raise ValueError(f"{path} contains a Unicode surrogate key")
+            key.encode("utf-8")
             validate_json_value(child, path=f"{path}/{key}")
         return
     if isinstance(value, (list, tuple)):
@@ -131,7 +136,12 @@ def _is_actual_regular_file(value: os.stat_result) -> bool:
 
 def lexical_absolute(value: str | Path) -> Path:
     try:
-        return Path(os.path.abspath(os.fspath(Path(value))))
+        if not isinstance(value, (str, Path)):
+            raise TypeError("path must be a string or Path")
+        path = Path(value)
+        if "\x00" in str(path):
+            raise ValueError("path contains NUL")
+        return Path(os.path.abspath(os.fspath(path)))
     except (TypeError, ValueError, OSError) as exc:
         raise PlayError("INVALID_PLAY_INPUT", "workspace path is invalid") from exc
 
@@ -206,38 +216,45 @@ def workspace_children(workspace: Path) -> tuple[Path, Path]:
 def parse_positive_integer(value: Any, field: str) -> int:
     if not isinstance(value, str) or not value or any(character not in "0123456789" for character in value):
         raise PlayError("INVALID_PLAY_INPUT", f"{field} must be a canonical positive integer")
+    if len(value) > MAX_CANONICAL_INTEGER_DIGITS:
+        raise PlayError("INVALID_PLAY_INPUT", f"{field} is too large")
     if value[0] == "0":
         raise PlayError("INVALID_PLAY_INPUT", f"{field} must be a canonical positive integer")
-    try:
-        result = int(value)
-    except ValueError as exc:
-        raise PlayError("INVALID_PLAY_INPUT", f"{field} is invalid") from exc
-    if result <= 0:
-        raise PlayError("INVALID_PLAY_INPUT", f"{field} must be positive")
-    return result
+    return int(value)
 
 
 def parse_nonnegative_integer(value: Any, field: str) -> int:
     if not isinstance(value, str) or not value or any(character not in "0123456789" for character in value):
         raise PlayError("INVALID_PLAY_INPUT", f"{field} must be a canonical non-negative integer")
+    if len(value) > MAX_CANONICAL_INTEGER_DIGITS:
+        raise PlayError("INVALID_PLAY_INPUT", f"{field} is too large")
     if len(value) > 1 and value[0] == "0":
         raise PlayError("INVALID_PLAY_INPUT", f"{field} must be a canonical non-negative integer")
-    try:
-        return int(value)
-    except ValueError as exc:
-        raise PlayError("INVALID_PLAY_INPUT", f"{field} is invalid") from exc
+    return int(value)
 
 
 def read_external_json(path: str | Path, *, max_bytes: int = MAX_NARRATOR_STDOUT) -> Any:
-    if os.fspath(path) == "-":
+    if isinstance(path, str) and path == "-":
         raise PlayError("INVALID_PLAY_INPUT", "response file '-' is only valid on the process stdin boundary")
     source = lexical_absolute(path)
+    descriptor: int | None = None
     try:
         initial = os.lstat(source)
         if not _is_actual_regular_file(initial):
             raise OSError("response file is not regular")
-        with open(source, "rb") as handle:
+        flags = os.O_RDONLY
+        flags |= getattr(os, "O_BINARY", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(source, flags)
+        opened = os.fstat(descriptor)
+        if not _same_file_observable(initial, opened):
+            raise OSError("response file identity changed while opening")
+        with os.fdopen(descriptor, "rb", closefd=True) as handle:
+            descriptor = None
             payload = handle.read(max_bytes + 1)
+            after = os.fstat(handle.fileno())
+            if not _same_file_observable(opened, after):
+                raise OSError("response file identity changed while reading")
         if len(payload) > max_bytes:
             raise ValueError("response file is too large")
         return parse_json_document(payload, max_bytes=max_bytes)
@@ -245,10 +262,51 @@ def read_external_json(path: str | Path, *, max_bytes: int = MAX_NARRATOR_STDOUT
         raise
     except Exception as exc:
         raise PlayError("PLAY_NARRATOR_FAILED", "narrator response file is invalid") from exc
+    finally:
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+
+def _file_identity(value: os.stat_result) -> tuple[int, int]:
+    """Return the stable identity used by the local response-file boundary."""
+
+    return (int(getattr(value, "st_dev", 0)), int(getattr(value, "st_ino", 0)))
+
+
+def _same_file_observable(left: os.stat_result, right: os.stat_result) -> bool:
+    return (
+        _is_actual_regular_file(left)
+        and _is_actual_regular_file(right)
+        and _file_identity(left) == _file_identity(right)
+        and int(getattr(left, "st_size", -1)) == int(getattr(right, "st_size", -1))
+        and int(getattr(left, "st_mtime_ns", -1)) == int(getattr(right, "st_mtime_ns", -1))
+    )
+
+
+def terminal_safe_text(value: str) -> str:
+    """Escape terminal control bytes while retaining ordinary Unicode/newlines."""
+
+    if not isinstance(value, str):
+        raise TypeError("terminal text must be a string")
+    output: list[str] = []
+    for character in value:
+        codepoint = ord(character)
+        if character in {"\n", "\t"}:
+            output.append(character)
+        elif codepoint < 0x20 or codepoint == 0x7F or 0x80 <= codepoint <= 0x9F:
+            output.append(f"\\x{codepoint:02x}")
+        else:
+            output.append(character)
+    return "".join(output)
 
 
 __all__ = [
     "MAX_NARRATOR_STDOUT",
+    "MAX_CANONICAL_INTEGER_DIGITS",
+    "MAX_PLAYER_OPTION_DIGITS",
     "PLAY_ERROR_CODES",
     "PlayError",
     "SUPPORTED_LOCALES",
@@ -260,6 +318,7 @@ __all__ = [
     "parse_positive_integer",
     "read_external_json",
     "require_workspace",
+    "terminal_safe_text",
     "validate_json_value",
     "workspace_children",
 ]

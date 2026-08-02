@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import copy
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,6 +22,7 @@ from tgn.play.common import (
     parse_positive_integer,
     read_external_json,
     require_workspace,
+    terminal_safe_text,
     validate_json_value,
 )
 
@@ -41,6 +43,8 @@ def test_common_boundary_helpers_cover_strict_values_and_safe_errors(tmp_path: P
     for value in (float("nan"), float("inf"), "\ud800", {1: "bad"}, {"x": object()}):
         with pytest.raises((ValueError, TypeError)):
             validate_json_value(value)
+    with pytest.raises(ValueError):
+        validate_json_value({"\ud800": 1})
     with pytest.raises(TypeError):
         parse_json_document("not bytes")  # type: ignore[arg-type]
     with pytest.raises(ValueError):
@@ -68,6 +72,8 @@ def test_common_boundary_helpers_cover_strict_values_and_safe_errors(tmp_path: P
     oversized.write_bytes(b"x" * (MAX_NARRATOR_STDOUT + 1))
     with pytest.raises(PlayError):
         read_external_json(oversized)
+    assert "\x1b" not in terminal_safe_text("\x1b[31m中文\n\x1b[0m")
+    assert "\\x1b" in terminal_safe_text("\x1b[31m中文\n\x1b[0m")
 
 
 def test_workspace_boundaries_cover_missing_file_and_nonempty_cases(tmp_path: Path) -> None:
@@ -98,7 +104,7 @@ def test_narrator_process_failure_edges(monkeypatch: pytest.MonkeyPatch) -> None
     def raise_os_error(*_args, **_kwargs):
         raise OSError("not exposed")
 
-    monkeypatch.setattr(narrator_process.subprocess, "run", raise_os_error)
+    monkeypatch.setattr(narrator_process.subprocess, "Popen", raise_os_error)
     with pytest.raises(PlayError) as error:
         narrator_process.run_narrator(["python"], {})
     assert error.value.code == "PLAY_NARRATOR_FAILED"
@@ -107,14 +113,24 @@ def test_narrator_process_failure_edges(monkeypatch: pytest.MonkeyPatch) -> None
     def raise_value_error(*_args, **_kwargs):
         raise ValueError("not exposed")
 
-    monkeypatch.setattr(narrator_process.subprocess, "run", raise_value_error)
+    monkeypatch.setattr(narrator_process.subprocess, "Popen", raise_value_error)
     with pytest.raises(PlayError):
         narrator_process.run_narrator(["python"], {})
 
     monkeypatch.setattr(
         narrator_process.subprocess,
-        "run",
-        lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout=b"[]", stderr=b""),
+        "Popen",
+        lambda *_args, **_kwargs: type(
+            "FakeProcess",
+            (),
+            {
+                "stdout": __import__("io").BytesIO(b"[]"),
+                "returncode": 0,
+                "poll": lambda self: self.returncode,
+                "wait": lambda self, timeout=None: self.returncode,
+                "kill": lambda self: None,
+            },
+        )(),
     )
     with pytest.raises(PlayError) as error:
         narrator_process.run_narrator(["python"], {})
@@ -243,9 +259,76 @@ def _valid_pair() -> dict[str, object]:
         "stamina_cost": 0,
     }
     return {
-        "canonical_request": {"request_fingerprint": "fp", "choices": [choice]},
-        "player_presentation": {"request_fingerprint": "fp", "choices": [dict(choice)]},
+        "canonical_request": {"request_fingerprint": "a" * 64, "choices": [choice]},
+        "player_presentation": {"request_fingerprint": "a" * 64, "choices": [dict(choice)]},
     }
+
+
+def _valid_session(*, status: str = "AWAITING_DECISION") -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "session_id": "campaign-001",
+        "campaign_id": "campaign-001",
+        "actor_id": "player",
+        "max_decisions": 20,
+        "accepted_decisions": 0,
+        "recorded_decision_count": 0,
+        "status": status,
+        "stop_reason": None if status == "AWAITING_DECISION" else ("EXPLICIT_STOP" if status == "STOPPED" else status),
+        "current_event_seq": 0,
+        "current_state_decision_seq": 0,
+        "current_state_hash": "b" * 64,
+        "current_request_fingerprint": "a" * 64 if status == "AWAITING_DECISION" else None,
+    }
+
+
+def test_request_presentation_validator_is_strict_about_authority_and_types() -> None:
+    valid = _valid_pair()
+    valid["session"] = _valid_session()
+    service_module._validate_request_pair(valid)
+    mutations = []
+    missing_fingerprint = copy.deepcopy(valid)
+    del missing_fingerprint["canonical_request"]["request_fingerprint"]  # type: ignore[index]
+    mutations.append(missing_fingerprint)
+    empty_choices = copy.deepcopy(valid)
+    empty_choices["canonical_request"]["choices"] = []  # type: ignore[index]
+    mutations.append(empty_choices)
+    missing_field = copy.deepcopy(valid)
+    del missing_field["player_presentation"]["choices"][0]["stamina_cost"]  # type: ignore[index]
+    mutations.append(missing_field)
+    duplicate_ids = copy.deepcopy(valid)
+    duplicate_ids["canonical_request"]["choices"].append(copy.deepcopy(duplicate_ids["canonical_request"]["choices"][0]))  # type: ignore[index]
+    duplicate_ids["player_presentation"]["choices"].append(copy.deepcopy(duplicate_ids["player_presentation"]["choices"][0]))  # type: ignore[index]
+    mutations.append(duplicate_ids)
+    nested_bool = copy.deepcopy(valid)
+    nested_bool["canonical_request"]["choices"][0]["params"] = {"nested": True}  # type: ignore[index]
+    nested_bool["player_presentation"]["choices"][0]["params"] = {"nested": 1}  # type: ignore[index]
+    mutations.append(nested_bool)
+    duration_bool = copy.deepcopy(valid)
+    duration_bool["canonical_request"]["choices"][0]["duration_minutes"] = True  # type: ignore[index]
+    mutations.append(duration_bool)
+    stamina_bool = copy.deepcopy(valid)
+    stamina_bool["canonical_request"]["choices"][0]["stamina_cost"] = True  # type: ignore[index]
+    mutations.append(stamina_bool)
+    for mutation in mutations:
+        with pytest.raises(PlayError):
+            service_module._validate_request_pair(mutation)
+
+
+@pytest.mark.parametrize("status", ["STOPPED", "MAX_DECISIONS", "NO_LEGAL_ACTIONS"])
+def test_terminal_session_status_requires_null_request(status: str) -> None:
+    value = {"session": _valid_session(status=status), "canonical_request": None, "player_presentation": None}
+    assert service_module._validate_request_pair(value) == (None, None)
+    malformed = {"session": _valid_session(status=status), **_valid_pair()}
+    with pytest.raises(PlayError):
+        service_module._validate_request_pair(malformed)
+
+
+def test_unknown_session_status_fails_closed() -> None:
+    session = _valid_session()
+    session["status"] = "TERMINAL"
+    with pytest.raises(PlayError):
+        service_module._validate_request_pair({"session": session, **_valid_pair()})
 
 
 def test_service_boundary_helpers_and_error_mapping(tmp_path: Path) -> None:
@@ -260,8 +343,9 @@ def test_service_boundary_helpers_and_error_mapping(tmp_path: Path) -> None:
     regular = tmp_path / "regular"
     regular.write_text("x", encoding="utf-8")
     assert service_module._present_directory(regular) is False
-    assert service_module._validate_request_pair({}) == (None, None)
-    assert service_module._validate_request_pair(_valid_pair())[0]["request_fingerprint"] == "fp"  # type: ignore[index]
+    with pytest.raises(PlayError):
+        service_module._validate_request_pair({})
+    assert service_module._validate_request_pair(_valid_pair())[0]["request_fingerprint"] == "a" * 64  # type: ignore[index]
     invalid_values = [
         {"canonical_request": {}},
         {"canonical_request": "bad", "player_presentation": {}},
@@ -355,59 +439,25 @@ def test_service_revalidation_and_loop_edges(monkeypatch: pytest.MonkeyPatch, tm
     (workspace / "story").mkdir()
     service = PlayService(workspace)
     monkeypatch.setattr(service, "_verify_pair", lambda *_args: ({}, {}))
-
-    def pending_call(function, *_args, operation, **_kwargs):
-        if operation == "pending status":
-            return {"ok": True, "pending_turn_id": "turn-000001"}
-        return {"ok": True, "request": None}
-
-    monkeypatch.setattr(service, "_call_story", pending_call)
     response_path = tmp_path / "response.json"
     response_path.write_bytes(b"[]")
+    monkeypatch.setattr(
+        service,
+        "_read_status_pair",
+        lambda *_args, **_kwargs: {"story_status": {"pending_turn_id": None}},
+    )
     with pytest.raises(PlayError) as pending_error:
         service.narrate(response_file=response_path, output_fn=lambda _value: None)
-    assert pending_error.value.code == "PLAY_NARRATION_PENDING"
-
-    monkeypatch.setattr(service, "_call_story", lambda function, *_args, operation, **_kwargs: {"ok": True, "pending_turn_id": "turn-000001", "request": {}} if operation == "pending status" else {"ok": True, "request": None})
-    with pytest.raises(PlayError):
-        service.narrate(response_file=response_path, output_fn=lambda _value: None)
+    assert pending_error.value.code == "INVALID_PLAY_INPUT"
 
     monkeypatch.setattr(service_module, "commit_story", lambda *_args, **_kwargs: {"ok": True, "turn": {}})
     with pytest.raises(PlayError) as malformed_turn:
         service._commit_response(workspace / "campaign", workspace / "story", {}, output_fn=lambda _value: None)
     assert malformed_turn.value.code == "PLAY_CLIENT_INTEGRITY_MISMATCH"
 
-    monkeypatch.setattr(service, "_complete_pending", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr(service, "_call_campaign", lambda function, *_args, operation, **_kwargs: {"ok": True, "canonical_request": None, "player_presentation": None, "session": {}})
-    monkeypatch.setattr(service, "_call_story", lambda *_args, **_kwargs: {"ok": True, "export_readiness": {"final_ready": False}})
-    terminal = service._loop(workspace / "campaign", workspace / "story", locale=None, narrator_argv=None, narrator_timeout=1, input_fn=input, output_fn=lambda _value: None)
-    assert terminal["terminal"] is True
-
-    pair = _valid_pair()
-    monkeypatch.setattr(service, "_call_campaign", lambda function, *_args, operation, **_kwargs: {"ok": True, **pair})
-    with pytest.raises(PlayError) as type_error:
-        service._loop(workspace / "campaign", workspace / "story", locale=None, narrator_argv=None, narrator_timeout=1, input_fn=lambda: 1, output_fn=lambda _value: None)
-    assert type_error.value.code == "INVALID_PLAY_INPUT"
-
-    values = iter(["99"])
-
-    def bad_option():
-        try:
-            return next(values)
-        except StopIteration as exc:
-            raise EOFError from exc
-
-    with pytest.raises(PlayError) as option_error:
-        service._loop(workspace / "campaign", workspace / "story", locale=None, narrator_argv=None, narrator_timeout=1, input_fn=bad_option, output_fn=lambda _value: None)
-    assert option_error.value.code == "INVALID_PLAY_INPUT"
-
-    invalid_choice = _valid_pair()
-    invalid_choice["canonical_request"]["choices"] = [{"action_type": "WAIT", "params": {}, "duration_minutes": None, "stamina_cost": 0}]  # type: ignore[index]
-    invalid_choice["player_presentation"]["choices"] = [{"action_type": "WAIT", "params": {}, "duration_minutes": None, "stamina_cost": 0}]  # type: ignore[index]
-    monkeypatch.setattr(service, "_call_campaign", lambda function, *_args, operation, **_kwargs: {"ok": True, **invalid_choice})
-    with pytest.raises(PlayError) as choice_error:
-        service._loop(workspace / "campaign", workspace / "story", locale=None, narrator_argv=None, narrator_timeout=1, input_fn=lambda: "1", output_fn=lambda _value: None)
-    assert choice_error.value.code == "PLAY_CLIENT_INTEGRITY_MISMATCH"
+    assert service_module._POSITIVE_INPUT.fullmatch("1") is not None
+    for invalid in ("1,2", "1+2", "1 2", "全部", "0", "01", "+1", "-1", "1.0", ""):
+        assert service_module._POSITIVE_INPUT.fullmatch(invalid) is None
 
 
 def test_new_preserves_campaign_when_story_initialization_fails(monkeypatch: pytest.MonkeyPatch, play_context) -> None:

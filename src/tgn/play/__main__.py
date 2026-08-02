@@ -74,16 +74,20 @@ def _narrator_argv(arguments: argparse.Namespace) -> tuple[list[str] | None, flo
         if arguments.narrator_arg:
             raise PlayError("INVALID_PLAY_INPUT", "narrator arguments require narrator executable")
         return None, timeout
-    if not isinstance(arguments.narrator_exec, str) or not arguments.narrator_exec:
+    if not isinstance(arguments.narrator_exec, str) or not arguments.narrator_exec or "\x00" in arguments.narrator_exec:
         raise PlayError("INVALID_PLAY_INPUT", "narrator executable is invalid")
+    if not isinstance(arguments.narrator_arg, list) or not all(
+        isinstance(item, str) and item and "\x00" not in item for item in arguments.narrator_arg
+    ):
+        raise PlayError("INVALID_PLAY_INPUT", "narrator arguments are invalid")
     return [arguments.narrator_exec, *arguments.narrator_arg], timeout
 
 
 def dispatch(arguments: argparse.Namespace, *, input_fn=input, output_fn=print) -> dict[str, Any]:
-    service = PlayService(arguments.workspace)
     if arguments.command == "new":
         max_decisions = parse_positive_integer(arguments.max_decisions, "max_decisions")
         argv, timeout = _narrator_argv(arguments)
+        service = PlayService(arguments.workspace)
         return service.new(
             world_bundle_dir=arguments.world_bundle_dir,
             projection_bundle_dir=arguments.projection_bundle_dir,
@@ -100,6 +104,7 @@ def dispatch(arguments: argparse.Namespace, *, input_fn=input, output_fn=print) 
         )
     if arguments.command == "resume":
         argv, timeout = _narrator_argv(arguments)
+        service = PlayService(arguments.workspace)
         return service.resume(
             locale=arguments.locale,
             story_id=arguments.story_id,
@@ -110,15 +115,19 @@ def dispatch(arguments: argparse.Namespace, *, input_fn=input, output_fn=print) 
             output_fn=output_fn,
         )
     if arguments.command == "narrate":
+        service = PlayService(arguments.workspace)
         return service.narrate(response_file=arguments.response_file, output_fn=output_fn)
     if arguments.command == "status":
+        service = PlayService(arguments.workspace)
         return service.status()
     if arguments.command == "verify":
+        service = PlayService(arguments.workspace)
         return service.verify()
     if arguments.command == "export":
         accepted = None
         if arguments.accepted_decisions is not None:
             accepted = parse_nonnegative_integer(arguments.accepted_decisions, "accepted_decisions")
+        service = PlayService(arguments.workspace)
         return service.export(mode=arguments.mode, accepted_decisions=accepted)
     raise PlayError("INVALID_PLAY_INPUT", "unknown Playable Client command")
 

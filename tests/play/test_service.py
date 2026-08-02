@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 
 import tgn.play.service as play_service_module
-from tgn.campaign import next_campaign, verify_campaign
-from tgn.story import init_story, prepare_story, status_story, verify_story
+from tgn.campaign import choose_campaign, next_campaign, verify_campaign
+from tgn.story import StoryError, init_story, prepare_story, status_story, verify_story
 from tgn.story.common import canonical_bytes
 
 from tgn.play import PlayError, PlayService
@@ -65,6 +65,103 @@ def _snapshot_tree(root: Path) -> dict[str, tuple[bytes, int, int]]:
     return result
 
 
+def _accept_actions(campaign: Path, action_types: list[str]) -> None:
+    for action_type in action_types:
+        current = next_campaign(campaign)
+        request = current["canonical_request"]
+        choice = next(choice for choice in request["choices"] if choice["action_type"] == action_type)
+        choose_campaign(
+            campaign,
+            request_fingerprint=request["request_fingerprint"],
+            choice_id=choice["choice_id"],
+        )
+
+
+def test_resume_drains_multiple_missing_story_turns_before_input(play_context, monkeypatch: pytest.MonkeyPatch) -> None:
+    context = play_context
+    campaign = create_campaign_for_context(context)
+    _accept_actions(campaign, ["DROP", "SEARCH", "EXTRACT"])
+    story = context["workspace"] / "story"
+    init_story(story, campaign_dir=campaign, story_id="story-001", initial_narration_locale="zh-CN", initial_voice_id="cablecar_survival")
+    narrator = write_narrator(context["root"] / "backlog_narrator.py")
+    original_next = play_service_module.next_campaign
+
+    def tracked_next(path: Path):
+        # A next() call is legal only after all three historical turns have
+        # been committed; the drain path deliberately uses status_campaign.
+        assert len(list((story / "turns").glob("*.json"))) == 3
+        return original_next(path)
+
+    monkeypatch.setattr(play_service_module, "next_campaign", tracked_next)
+    result = PlayService(context["workspace"]).resume(
+        narrator_argv=narrator_argv(narrator),
+        input_fn=iter(["STOP"]).__next__,
+        output_fn=lambda _value: None,
+    )
+    assert result["terminal"] is True
+    assert [item.name for item in sorted((story / "turns").glob("*.json"))] == [
+        "turn-000001.json",
+        "turn-000002.json",
+        "turn-000003.json",
+    ]
+
+
+def test_resume_drains_terminal_max_decisions_without_input(play_context) -> None:
+    context = play_context
+    campaign = context["workspace"] / "campaign"
+    context["workspace"].mkdir(parents=True, exist_ok=True)
+    from tgn.campaign import create_campaign
+
+    create_campaign(
+        campaign,
+        world_bundle_dir=context["world"],
+        projection_bundle_dir=context["projection"],
+        campaign_id="campaign-001",
+        actor_id="player",
+        max_decisions=2,
+    )
+    _accept_actions(campaign, ["DROP", "SEARCH"])
+    story = context["workspace"] / "story"
+    init_story(story, campaign_dir=campaign, story_id="story-001", initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    narrator = write_narrator(context["root"] / "max_narrator.py")
+
+    def unexpected_input() -> str:
+        raise AssertionError("terminal backlog must be drained before input")
+
+    result = PlayService(context["workspace"]).resume(
+        narrator_argv=narrator_argv(narrator),
+        input_fn=unexpected_input,
+        output_fn=lambda _value: None,
+    )
+    assert result["terminal"] is True
+    assert result["export"]["novel_status"] == "CURRENT_FINAL"
+
+
+def test_middle_backlog_narrator_failure_preserves_oldest_pending_turn(play_context) -> None:
+    context = play_context
+    campaign = create_campaign_for_context(context)
+    _accept_actions(campaign, ["DROP", "SEARCH", "EXTRACT"])
+    story = context["workspace"] / "story"
+    init_story(story, campaign_dir=campaign, story_id="story-001", initial_narration_locale="zh-CN", initial_voice_id="cablecar_survival")
+    narrator = write_narrator(context["root"] / "middle_failure.py", fail_on_call=3)
+    with pytest.raises(PlayError) as error:
+        PlayService(context["workspace"]).resume(
+            narrator_argv=narrator_argv(narrator),
+            input_fn=lambda: (_ for _ in ()).throw(AssertionError("input called before backlog drain")),
+            output_fn=lambda _value: None,
+        )
+    assert error.value.code == "PLAY_NARRATOR_FAILED"
+    pending_bytes = (story / "requests" / "turn-000003.json").read_bytes()
+    assert status_story(story, campaign_dir=campaign)["pending_turn_id"] == "turn-000003"
+    resumed = PlayService(context["workspace"]).resume(
+        narrator_argv=narrator_argv(narrator),
+        input_fn=iter(["STOP"]).__next__,
+        output_fn=lambda _value: None,
+    )
+    assert resumed["terminal"] is True
+    assert (story / "requests" / "turn-000003.json").read_bytes() == pending_bytes
+
+
 def test_complete_playable_proof_with_real_campaign_story_and_local_narrator(play_context) -> None:
     context = play_context
     narrator = write_narrator(context["root"] / "fake_narrator.py", fail_on_call=2)
@@ -114,7 +211,7 @@ def test_complete_playable_proof_with_real_campaign_story_and_local_narrator(pla
         json.loads((story / "requests" / f"turn-{index:06d}.json").read_bytes())
         for index in range(1, 5)
     ]
-    assert [request["narration_locale"] for request in requests] == ["zh-CN", "zh-CN", "ar", "ar"]
+    assert [request["narration_locale"] for request in requests] == ["zh-CN", "zh-CN", "ar", "zh-CN"]
     assert (context["root"] / "fake_narrator.marker").read_text(encoding="utf-8") == "5"
 
     final_bytes = (story / "novel.md").read_bytes()
@@ -158,6 +255,9 @@ def test_manual_mode_persists_engine_before_pending_and_prints_after_commit(play
     assert verify_campaign(campaign)["session"]["accepted_decisions"] == 1
     request = prepare_story(story, campaign_dir=campaign)["request"]
     assert any(request["narration_request_id"] in item for item in output)
+    assert any("--- NARRATION REQUEST BEGIN ---" in item for item in output)
+    assert any("outside the workspace" in item for item in output)
+    assert any("python -m tgn.play narrate" in item for item in output)
     assert not any("public consequence" in item for item in output)
 
     response_path = write_response(context["root"] / "response.json", request, prose="committed prose")
@@ -304,4 +404,58 @@ def test_narrate_without_existing_pending_request_fails_closed(play_context) -> 
             response_file=context["root"] / "missing-response.json",
             output_fn=lambda _value: None,
         )
-    assert error.value.code == "PLAY_NARRATION_PENDING"
+    assert error.value.code == "INVALID_PLAY_INPUT"
+
+
+def test_relative_workspace_is_lexically_fixed_and_response_must_be_external(play_context, monkeypatch: pytest.MonkeyPatch) -> None:
+    context = play_context
+    campaign = create_campaign_for_context(context)
+    story = context["workspace"] / "story"
+    init_story(story, campaign_dir=campaign, story_id="story-001", initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    monkeypatch.chdir(context["root"])
+    service = PlayService(Path("play"))
+    other = context["root"] / "other"
+    other.mkdir()
+    monkeypatch.chdir(other)
+    assert service.status()["ok"] is True
+    with pytest.raises(PlayError) as error:
+        service.narrate(response_file=context["workspace"] / "response.json", output_fn=lambda _value: None)
+    assert error.value.code == "INVALID_PLAY_INPUT"
+
+
+def test_commit_failure_prints_no_prose_and_preserves_pending(play_context, monkeypatch: pytest.MonkeyPatch) -> None:
+    context = play_context
+    with pytest.raises(PlayError):
+        _manual_new(context, input_values=["2"], output=[])
+    campaign = context["workspace"] / "campaign"
+    story = context["workspace"] / "story"
+    request = prepare_story(story, campaign_dir=campaign)["request"]
+    response_path = write_response(context["root"] / "outside-response.json", request, prose="must not print")
+    monkeypatch.setattr(
+        play_service_module,
+        "commit_story",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(StoryError("STORY_PUBLICATION_UNAVAILABLE", "injected")),
+    )
+    output: list[str] = []
+    with pytest.raises(PlayError) as error:
+        PlayService(context["workspace"]).narrate(response_file=response_path, output_fn=output.append)
+    assert error.value.code == "PLAY_STORY_FAILED"
+    assert output == []
+    assert status_story(story, campaign_dir=campaign)["pending_turn_id"] == "turn-000001"
+    assert not list((story / "turns").glob("*.json"))
+
+
+def test_terminal_renderer_escapes_raw_prose_but_story_keeps_exact_bytes(play_context) -> None:
+    context = play_context
+    with pytest.raises(PlayError):
+        _manual_new(context, input_values=["2"], output=[])
+    campaign = context["workspace"] / "campaign"
+    story = context["workspace"] / "story"
+    request = prepare_story(story, campaign_dir=campaign)["request"]
+    raw_prose = "\x1b[31m公开后果\n中文\x1b[0m"
+    response_path = write_response(context["root"] / "control-response.json", request, prose=raw_prose)
+    output: list[str] = []
+    PlayService(context["workspace"]).narrate(response_file=response_path, output_fn=output.append)
+    assert all("\x1b" not in item for item in output)
+    stored = json.loads((story / "turns" / "turn-000001.json").read_bytes())
+    assert stored["prose"] == raw_prose
