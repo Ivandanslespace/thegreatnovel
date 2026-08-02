@@ -123,6 +123,139 @@ def test_prepare_existing_committed_request_is_read_only_with_later_pending(stor
     assert prepare_story(story, campaign_dir=campaign)["request"] == second
 
 
+def test_recommit_rejects_same_bytes_with_new_committed_turn_identity(
+    story_factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign, story, config = story_factory(name="recommit-same-bytes-new-identity")
+    init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    _choose(campaign, "DROP")
+    request = prepare_story(story, campaign_dir=campaign)["request"]
+    response = response_for(request)
+    commit_story(story, campaign_dir=campaign, response=response)
+    turn_path = story / "turns" / "turn-000001.json"
+    original_payload = turn_path.read_bytes()
+    original_load = service_module.load_story_view
+    armed = True
+    replaced = False
+
+    def load_and_replace(path: Path):
+        nonlocal replaced
+        view = original_load(path)
+        if armed and not replaced:
+            before = next(item for item in view.files if item.relative_path == "turns/turn-000001.json")
+            turn_path.unlink()
+            turn_path.write_bytes(original_payload)
+            after = next(item for item in original_load(path).files if item.relative_path == "turns/turn-000001.json")
+            assert after.identity != before.identity
+            replaced = True
+        return view
+
+    monkeypatch.setattr(service_module, "load_story_view", load_and_replace)
+    with pytest.raises(StoryError) as error:
+        commit_story(story, campaign_dir=campaign, response=response)
+    assert error.value.code == "STORY_INTEGRITY_MISMATCH"
+    assert replaced is True
+    assert turn_path.read_bytes() == original_payload
+
+
+def test_recommit_rejects_turn_directory_replacement_even_with_identical_turn(
+    story_factory,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign, story, config = story_factory(name="recommit-turn-directory-replacement")
+    init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    _choose(campaign, "DROP")
+    request = prepare_story(story, campaign_dir=campaign)["request"]
+    response = response_for(request)
+    commit_story(story, campaign_dir=campaign, response=response)
+    turns = story / "turns"
+    backup = tmp_path / "recommit-turns-original"
+    original_load = service_module.load_story_view
+    replaced = False
+
+    def load_and_replace(path: Path):
+        nonlocal replaced
+        view = original_load(path)
+        if not replaced:
+            turns.rename(backup)
+            turns.mkdir()
+            (turns / "turn-000001.json").write_bytes((backup / "turn-000001.json").read_bytes())
+            replaced = True
+        return view
+
+    monkeypatch.setattr(service_module, "load_story_view", load_and_replace)
+    try:
+        with pytest.raises(StoryError) as error:
+            commit_story(story, campaign_dir=campaign, response=response)
+        assert error.value.code == "STORY_INTEGRITY_MISMATCH"
+        assert replaced is True
+        assert (turns / "turn-000001.json").exists()
+        assert (backup / "turn-000001.json").exists()
+    finally:
+        if turns.exists():
+            (turns / "turn-000001.json").unlink(missing_ok=True)
+            turns.rmdir()
+        if backup.exists():
+            backup.rename(turns)
+
+
+def test_recommit_rejects_story_root_replacement(
+    story_factory,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign, story, config = story_factory(name="recommit-story-root-replacement")
+    init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    _choose(campaign, "DROP")
+    request = prepare_story(story, campaign_dir=campaign)["request"]
+    response = response_for(request)
+    commit_story(story, campaign_dir=campaign, response=response)
+    backup = tmp_path / "recommit-story-original"
+    original_load = service_module.load_story_view
+    replaced = False
+
+    def load_and_replace(path: Path):
+        nonlocal replaced
+        view = original_load(path)
+        if not replaced:
+            story.rename(backup)
+            story.mkdir()
+            (story / "requests").mkdir()
+            (story / "turns").mkdir()
+            for relative in (
+                "story.json",
+                "requests/turn-000001.json",
+                "turns/turn-000001.json",
+            ):
+                replacement = story / relative
+                replacement.write_bytes((backup / relative).read_bytes())
+            replaced = True
+        return view
+
+    monkeypatch.setattr(service_module, "load_story_view", load_and_replace)
+    try:
+        with pytest.raises(StoryError) as error:
+            commit_story(story, campaign_dir=campaign, response=response)
+        assert error.value.code == "STORY_INTEGRITY_MISMATCH"
+        assert replaced is True
+        assert (story / "turns" / "turn-000001.json").exists()
+    finally:
+        if story.exists():
+            for relative in (
+                "story.json",
+                "requests/turn-000001.json",
+                "turns/turn-000001.json",
+            ):
+                (story / relative).unlink(missing_ok=True)
+            (story / "requests").rmdir()
+            (story / "turns").rmdir()
+            story.rmdir()
+        if backup.exists():
+            backup.rename(story)
+
+
 def test_story_parent_symlink_is_rejected_before_any_story_read(story_factory, tmp_path: Path) -> None:
     campaign, _story, config = story_factory()
     real_parent = tmp_path / "real-parent"
@@ -451,6 +584,61 @@ def _tamper_historical_event(campaign: Path) -> None:
         connection.commit()
     finally:
         connection.close()
+
+
+def test_recommit_rejects_historical_campaign_prefix_mutation(
+    story_factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign, story, config = story_factory(name="recommit-historical-prefix-tamper")
+    init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    _choose(campaign, "DROP")
+    request = prepare_story(story, campaign_dir=campaign)["request"]
+    response = response_for(request)
+    commit_story(story, campaign_dir=campaign, response=response)
+    original = service_module._commit_prefix_check
+    tampered = False
+
+    def mutate_before_prefix_check(*args, **kwargs):
+        nonlocal tampered
+        if not tampered:
+            _tamper_historical_event(campaign)
+            tampered = True
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(service_module, "_commit_prefix_check", mutate_before_prefix_check)
+    with pytest.raises(StoryError) as error:
+        commit_story(story, campaign_dir=campaign, response=response)
+    assert error.value.code == "CAMPAIGN_INTEGRITY_MISMATCH"
+    assert tampered is True
+    assert (story / "turns" / "turn-000001.json").exists()
+
+
+def test_recommit_allows_later_campaign_append_with_unchanged_prefix(
+    story_factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign, story, config = story_factory(name="recommit-later-campaign-append")
+    init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    _choose(campaign, "DROP")
+    request = prepare_story(story, campaign_dir=campaign)["request"]
+    response = response_for(request)
+    commit_story(story, campaign_dir=campaign, response=response)
+    original = service_module._commit_prefix_check
+    appended = False
+
+    def append_before_prefix_check(campaign_dir, before, current_request):
+        nonlocal appended
+        if not appended:
+            _choose(campaign, "EXTRACT")
+            appended = True
+        return original(campaign_dir, before, current_request)
+
+    monkeypatch.setattr(service_module, "_commit_prefix_check", append_before_prefix_check)
+    result = commit_story(story, campaign_dir=campaign, response=response)
+    assert result["ok"] is True
+    assert result["result"] == "already_committed"
+    assert appended is True
 
 
 @pytest.mark.parametrize("guard_call", [3, 4])

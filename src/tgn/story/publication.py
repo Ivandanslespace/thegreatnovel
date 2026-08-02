@@ -821,19 +821,12 @@ class BoundPublicationDirectory:
         source_kind: str,
     ) -> None:
         """Fail closed without deleting a target that may be a competitor."""
-
-        try:
-            source_stat = self._stat_at(source_name)
-        except FileNotFoundError:
-            self._remove_owned_name(target_name, target_identity, directory=source_kind == "directory")
-            raise PublicationBoundaryChanged("published target identity changed")
-        except PublicationRuntime:
-            raise
-        except OSError as exc:
-            raise PublicationRuntime("publication source cannot be rechecked") from exc
-        if self._identity_at(source_name, source_kind) == self._temp_identity:
-            raise PublicationBoundaryChanged("published target identity changed")
-        raise PublicationBoundaryChanged("publication source identity changed after atomic move")
+        del target_name, target_identity, source_name, source_kind
+        # A mismatched target is never owned by this writer.  The source name
+        # may have disappeared because the primitive consumed it, but that is
+        # not evidence that a different object now occupying the target name
+        # belongs to this operation.  Leave both objects untouched.
+        raise PublicationBoundaryChanged("published target identity changed")
 
     def _move_temp(self, target_name: str) -> None:
         target_name = _ensure_name(target_name)

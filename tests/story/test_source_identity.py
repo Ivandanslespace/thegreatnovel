@@ -125,7 +125,9 @@ def test_post_move_target_identity_mismatch_fails_closed(tmp_path: Path, monkeyp
         assert binding.temp_name is not None
         source_path = binding.path / binding.temp_name
         target_path = binding.path / target.name
+        target_path.write_bytes(b"writer-target")
         source_path.unlink()
+        target_path.unlink()
         target_path.write_bytes(b"wrong-target")
 
     if publication.sys.platform.startswith("win"):
@@ -139,7 +141,7 @@ def test_post_move_target_identity_mismatch_fails_closed(tmp_path: Path, monkeyp
             publication.publish_bytes_no_replace(target, b"correct-target", parent_binding=binding)
     finally:
         binding.close_safely()
-    assert not target.exists()
+    assert target.read_bytes() == b"wrong-target"
 
 
 def test_same_bytes_pending_request_replacement_is_not_idempotent(story_factory, monkeypatch: pytest.MonkeyPatch) -> None:

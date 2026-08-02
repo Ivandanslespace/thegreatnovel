@@ -418,6 +418,62 @@ def _pending_request_unchanged(
         raise PublicationBoundaryChanged("story-error:STORY_INTEGRITY_MISMATCH")
 
 
+def _story_file_identity(file_stat: os.stat_result) -> tuple[Any, ...]:
+    device = getattr(file_stat, "st_dev", None)
+    inode = getattr(file_stat, "st_ino", None)
+    if device is not None and inode is not None and not (device == 0 and inode == 0):
+        return ("posix", int(device), int(inode))
+    return (
+        "fallback",
+        int(getattr(file_stat, "st_file_attributes", 0)),
+        int(getattr(file_stat, "st_ctime_ns", 0)),
+        int(file_stat.st_mode),
+    )
+
+
+def _validate_committed_turn_unchanged(
+    view: StoryView,
+    turn: TurnNarrationArtifact,
+    turns_binding: BoundPublicationDirectory,
+) -> bytes:
+    """Validate an existing committed turn through its anchored source parent."""
+
+    expected_file = next(
+        (item for item in view.files if item.relative_path == f"turns/{turn.turn_id}.json"),
+        None,
+    )
+    expected_payload = next(
+        (payload for number, value, payload in view.turns if value.turn_id == turn.turn_id),
+        None,
+    )
+    if expected_file is None or expected_payload is None:
+        raise _story_integrity("committed turn observable is missing")
+    try:
+        current_payload, current_stat = turns_binding.read_child_bytes(f"{turn.turn_id}.json")
+    except Exception as exc:
+        raise _story_integrity("committed turn source changed during recommit") from exc
+    if (
+        _story_file_identity(current_stat) != expected_file.identity
+        or current_payload != expected_payload
+        or sha256_bytes(current_payload) != expected_file.sha256
+        or len(current_payload) != expected_file.size
+        or current_stat.st_mtime_ns != expected_file.mtime_ns
+    ):
+        raise _story_integrity("committed turn source changed during recommit")
+    try:
+        current_value = TurnNarrationArtifact.from_dict(parse_json_bytes(current_payload, require_canonical=True))
+    except Exception as exc:
+        raise _story_integrity("committed turn artifact is invalid") from exc
+    if (
+        current_value.to_dict() != turn.to_dict()
+        or current_value.turn_id != turn.turn_id
+        or current_value.turn_artifact_hash != turn.turn_artifact_hash
+        or turn_artifact_hash(current_value.to_dict()) != current_value.turn_artifact_hash
+    ):
+        raise _story_integrity("committed turn artifact changed during recommit")
+    return current_payload
+
+
 def _commit_publication_guard(
     view: StoryView,
     campaign_dir: str | Path,
@@ -926,12 +982,19 @@ class StoryService:
             raise StoryError("NARRATION_REQUEST_NOT_FOUND", "narration request is not present")
         if request.narration_request_id != response_value.narration_request_id:
             raise StoryError("NARRATION_RESPONSE_INVALID", "response request identity is invalid")
-        artifact = _artifact_from_response(request, response_value)
-        artifact_payload = canonical_bytes(artifact.to_dict())
-        target = view.root / "turns" / f"turn-{number:06d}.json"
         if number in view.turn_map:
+            root_binding, turns_binding = _open_story_publication_bindings(view, "turns")
             try:
-                existing_payload, _ = read_regular_file(target)
+                root_binding.check()
+                turns_binding.check()
+                _commit_prefix_check(campaign_dir, snapshot, request)
+                existing_payload = _validate_committed_turn_unchanged(
+                    view,
+                    view.turn_map[number],
+                    turns_binding,
+                )
+                artifact = _artifact_from_response(request, response_value)
+                artifact_payload = canonical_bytes(artifact.to_dict())
                 if existing_payload == artifact_payload:
                     return {
                         "ok": True,
@@ -939,9 +1002,15 @@ class StoryService:
                         "error_code": "TURN_ALREADY_COMMITTED",
                         "turn": artifact.to_dict(),
                     }
-            except Exception:
-                pass
+            except PublicationBoundaryChanged as exc:
+                raise _story_integrity("Story directory identity changed during recommit") from exc
+            finally:
+                turns_binding.close_safely()
+                root_binding.close_safely()
             raise StoryError("TURN_CONFLICT", "turn already has a different committed artifact")
+        artifact = _artifact_from_response(request, response_value)
+        artifact_payload = canonical_bytes(artifact.to_dict())
+        target = view.root / "turns" / f"turn-{number:06d}.json"
         _commit_prefix_check(campaign_dir, snapshot, request)
         root_binding, requests_binding = _open_story_publication_bindings(view, "requests")
         turns_binding: BoundPublicationDirectory | None = None
