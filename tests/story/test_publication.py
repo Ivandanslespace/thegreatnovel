@@ -11,6 +11,7 @@ import pytest
 
 import tgn.story.publication as publication
 from tgn.story.publication import (
+    BoundPublicationDirectory,
     ExpectedPublicationFile,
     PublicationBoundaryChanged,
     PublicationConflict,
@@ -970,6 +971,157 @@ def test_windows_delete_handle_blocks_post_acquisition_mutation(
         if competitor_source.exists():
             competitor_source.unlink()
         binding.close_safely()
+
+
+@pytest.mark.parametrize(
+    ("options", "expected_access", "expected_share"),
+    [
+        (
+            {},
+            BoundPublicationDirectory._FILE_READ_ATTRIBUTES,
+            BoundPublicationDirectory._FILE_SHARE_READ
+            | BoundPublicationDirectory._FILE_SHARE_WRITE
+            | BoundPublicationDirectory._FILE_SHARE_DELETE,
+        ),
+        (
+            {"delete": True},
+            BoundPublicationDirectory._FILE_READ_ATTRIBUTES
+            | BoundPublicationDirectory._GENERIC_READ
+            | BoundPublicationDirectory._DELETE,
+            BoundPublicationDirectory._FILE_SHARE_READ,
+        ),
+        (
+            {"compatible_with_delete": True},
+            BoundPublicationDirectory._FILE_READ_ATTRIBUTES,
+            BoundPublicationDirectory._FILE_SHARE_READ | BoundPublicationDirectory._FILE_SHARE_DELETE,
+        ),
+    ],
+)
+def test_windows_child_handle_share_modes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options: dict[str, bool],
+    expected_access: int,
+    expected_share: int,
+) -> None:
+    calls: list[tuple[int, int]] = []
+
+    class CapturingCreateFile:
+        argtypes = None
+        restype = None
+
+        def __call__(self, _path, access, share, *_args):
+            calls.append((int(access), int(share)))
+            return ctypes.c_void_p(123)
+
+    class Kernel:
+        def __init__(self) -> None:
+            self.CreateFileW = CapturingCreateFile()
+
+    binding = publication.BoundPublicationDirectory(tmp_path)
+    with monkeypatch.context() as context:
+        context.setattr(publication.ctypes, "WinDLL", lambda *_args, **_kwargs: Kernel())
+        context.setattr(binding, "_windows_info_for_handle", lambda _handle: (0, ("windows", 123)))
+        handle, _attributes, identity = binding._open_windows_child_handle("child", "file", **options)
+
+    assert handle == 123
+    assert identity == ("windows", 123)
+    assert calls == [(expected_access, expected_share)]
+    if options == {"compatible_with_delete": True}:
+        access, share = calls[0]
+        assert not access & publication.BoundPublicationDirectory._DELETE
+        assert not access & 0x40000000
+        assert share & publication.BoundPublicationDirectory._FILE_SHARE_READ
+        assert share & publication.BoundPublicationDirectory._FILE_SHARE_DELETE
+        assert not share & publication.BoundPublicationDirectory._FILE_SHARE_WRITE
+
+
+def test_windows_delete_handle_identity_compatibility_and_real_disposition(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "delete-compatible"
+    target.write_bytes(b"delete-compatible payload")
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    delete_handle: int | None = None
+    try:
+        expected = binding.capture_file_observable(target.name)
+        delete_handle, _attributes, delete_identity = binding._open_windows_child_handle(
+            target.name,
+            "file",
+            delete=True,
+        )
+        _identity_attributes, identity = binding._windows_identity_at(
+            target.name,
+            "file",
+            compatible_with_delete=True,
+        )
+        assert identity == delete_identity
+
+        def try_open(access: int, share: int) -> int | None:
+            kernel32 = publication.ctypes.WinDLL("kernel32", use_last_error=True)
+            create_file = kernel32.CreateFileW
+            create_file.argtypes = [
+                ctypes.c_wchar_p,
+                ctypes.wintypes.DWORD,
+                ctypes.wintypes.DWORD,
+                ctypes.c_void_p,
+                ctypes.wintypes.DWORD,
+                ctypes.wintypes.DWORD,
+                ctypes.wintypes.HANDLE,
+            ]
+            create_file.restype = ctypes.wintypes.HANDLE
+            raw = create_file(
+                str(target),
+                access,
+                share,
+                None,
+                binding._OPEN_EXISTING,
+                binding._FILE_FLAG_OPEN_REPARSE_POINT,
+                None,
+            )
+            value = ctypes.cast(raw, ctypes.c_void_p).value
+            if value in {None, -1, ctypes.c_void_p(-1).value}:
+                return None
+            return int(value)
+
+        write_handle = try_open(
+            0x40000000,
+            binding._FILE_SHARE_READ | binding._FILE_SHARE_WRITE | binding._FILE_SHARE_DELETE,
+        )
+        assert write_handle is None
+
+        competitor = tmp_path / "rename-source"
+        competitor.write_bytes(b"competitor")
+        with pytest.raises(OSError):
+            os.replace(competitor, target)
+        assert competitor.exists()
+        observed = binding._capture_file_observable_from_windows_handle(target.name, delete_handle)
+        assert observed == expected
+
+        with pytest.raises(PublicationRuntime):
+            binding._open_windows_child_handle(target.name, "file", delete=True)
+
+        kernel32 = publication.ctypes.WinDLL("kernel32", use_last_error=True)
+        set_information = kernel32.SetFileInformationByHandle
+        set_information.argtypes = [
+            ctypes.wintypes.HANDLE,
+            ctypes.wintypes.DWORD,
+            ctypes.c_void_p,
+            ctypes.wintypes.DWORD,
+        ]
+        set_information.restype = ctypes.wintypes.BOOL
+        disposition = publication._FILE_DISPOSITION_INFO(True)
+        assert set_information(
+            ctypes.wintypes.HANDLE(delete_handle),
+            binding._FILE_DISPOSITION_INFO_CLASS,
+            ctypes.byref(disposition),
+            ctypes.sizeof(disposition),
+        ), ctypes.get_last_error()
+    finally:
+        if delete_handle is not None:
+            binding._close_windows_handle_value(delete_handle)
+        binding.close_safely()
+    assert not target.exists()
 
 
 def test_windows_handle_observable_failure_boundaries(

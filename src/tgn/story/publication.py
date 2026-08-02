@@ -529,6 +529,12 @@ class BoundPublicationDirectory:
             access = self._FILE_READ_ATTRIBUTES | (self._DELETE if delete else 0)
             if delete:
                 access |= self._GENERIC_READ
+            if delete:
+                share_mode = self._FILE_SHARE_READ
+            elif compatible_with_delete:
+                share_mode = self._FILE_SHARE_READ | self._FILE_SHARE_DELETE
+            else:
+                share_mode = self._FILE_SHARE_READ | self._FILE_SHARE_WRITE | self._FILE_SHARE_DELETE
             flags = self._FILE_FLAG_OPEN_REPARSE_POINT
             if kind == "directory":
                 access |= self._FILE_LIST_DIRECTORY
@@ -536,9 +542,7 @@ class BoundPublicationDirectory:
             handle = create_file(
                 os.fspath(self.path / name),
                 access,
-                self._FILE_SHARE_READ
-                if delete or compatible_with_delete
-                else self._FILE_SHARE_READ | self._FILE_SHARE_WRITE | self._FILE_SHARE_DELETE,
+                share_mode,
                 None,
                 self._OPEN_EXISTING,
                 flags,
