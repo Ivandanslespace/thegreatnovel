@@ -5077,11 +5077,14 @@ authorize Phase 9C work.
 `phase-9c1-frozen` and `phase-9c2-frozen` are immutable and must never be moved,
 deleted, or recreated. Any future fix requires an explicit reopen or superseding-phase
 process. The Playable Client Milestone PC1 is an implementation candidate at
-`3456178fb42eb6ae8c3debe33653924315e349d0` and is not frozen. Phase 9D is deferred /
+`96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce` and is not frozen. Phase 9D is deferred /
 not started; Phase 10 has not started.
 
 **PC1 final process/file boundary hardening:**
 `3456178fb42eb6ae8c3debe33653924315e349d0`
+
+**PC1 final acceptance correction:**
+`96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`
 
 本轮仍是 implementation candidate，不创建 PC1 tag。POSIX narrator 使用
 `start_new_session=True` 并在失败、超时、stdout overflow、reader failure 或中断时
@@ -5091,12 +5094,46 @@ not started; Phase 10 has not started.
 和读后 observable 复核下读取；manual request、presentation 与 CLI 结果使用合法的
 terminal-safe JSON escape。公开 Campaign/Session/Story/Narration Request/Turn artifact
 models 被用于组合证明；Story progress 的 pending/committed/missing 与 oldest request
-合同在进入 next action 前验证。Windows `tests/play` 为 `85 passed`，受影响集合为
-`502 passed, 2 skipped`，全仓为 `1724 passed, 2 skipped`；coverage 为
-`src/tgn/play 97.47%`、`src/tgn/story 96.95%`、`src/tgn/campaign 97.55%`、
-`src/tgn/projection 100%`、full `src/tgn 97.09%`，warning-as-error 为 `0 warnings`。
-真实 WSL/POSIX 关键边界测试为 `5 passed`；两个 skip 仍是 Windows 无法创建 POSIX
+合同在进入 next action 前验证。Windows `tests/play` 为 `101 passed`，受影响集合为
+`518 passed, 2 skipped`，全仓为 `1740 passed, 2 skipped`；coverage 为
+`src/tgn/play 97.11%`、`src/tgn/story 96.95%`、`src/tgn/campaign 97.55%`、
+`src/tgn/projection 100%`、full `src/tgn 97.05%`，warning-as-error 为 `0 warnings`。
+真实 WSL/POSIX `tests/play` 为 `101 passed`；两个 skip 仍是 Windows 无法创建 POSIX
 FIFO 的既有 Campaign 测试。Phase 9C2 继续 frozen，Phase 9D deferred/not started，
+Phase 10 not started。
+
+本轮 PC1 acceptance correction 只收紧 PlayService 的边界组合：existing pending
+Narration Request 保留自身已持久化的 `narration_locale`，恢复时不得重新注入 Story
+initial locale；只有新 request 接受一次性 locale override，下一次新 request 回到
+initial locale。Campaign manifest 与 SessionManifest 在 Story 尚不存在、`resume()`
+准备初始化之前，就必须通过公开 model 验证同一 Campaign 的 `campaign_id`、
+`session_id`、`actor_id` 和 `max_decisions` 绑定。外部或 manual NarrationResponse 的
+field set、schema、request identity/hash、locale、claims 或 prose 错误均属于
+`PLAY_NARRATOR_FAILED`；pending request 保留、Campaign 不回滚、不提交 turn、不得
+提前输出 prose。NarrationRequest 或 TurnNarrationArtifact 自身的模型/Story 完整性
+错误仍属于 `PLAY_CLIENT_INTEGRITY_MISMATCH` 或 `PLAY_STORY_FAILED`。
+
+Windows manual guidance 的 exact `Command argv JSON` 与 `Resume argv JSON` 是权威参数
+数组；Windows 文本命令只标为 `PowerShell command`，每个参数使用 PowerShell
+single-quoted literal，并不伪称为 security-safe shell 或 sandbox。PC1 的外部 narrator
+executable 是用户选择的 trusted local adapter。PC1 不 sandbox 文件系统、网络、凭据或
+hostile native code；POSIX `start_new_session`/process group 与 Windows Job Object
+只提供 bounded operational cleanup，不是 security isolation boundary。Windows 的
+`Popen → AssignProcessToJobObject` 在 assignment 之前无法对抗故意逃逸的恶意 native
+process。cleanup 成功后 reader thread 必须不再存活，否则操作失败。
+
+新增 `tests/play/test_pc1_product_acceptance.py` 直接用公开 Campaign、Story、Play API
+证明：one-choice/one-consequence、公开 time pressure、progression growth、resource
+与 relationship opportunity cost、Named Actor public value，以及只引用 `public_brief`
+的 deterministic narrative coherence；同时覆盖非默认 locale pending 的
+external-failure/reopen/manual-narrate 恢复、exact next-locale reset、Campaign
+manifest/Session mutation 和 external response error code matrix。当前 code/test
+correction 的回归为 `tests/play 101 passed`、affected `518 passed, 2 skipped`、全仓
+`1740 passed, 2 skipped`；coverage 为 `src/tgn/play 97.11%`、`src/tgn/story 96.95%`、
+`src/tgn/campaign 97.55%`、`src/tgn/projection 100%`、full `src/tgn 97.05%`，
+warning-as-error 为零 warning；真实 WSL/POSIX `tests/play` 为 `101 passed`。两个 skip
+仍是 Windows 上既有、无法创建 POSIX FIFO 的 Campaign 测试。PC1 继续是
+implementation candidate，不创建 tag；Phase 9C2 保持 frozen，Phase 9D deferred，
 Phase 10 not started。
 
 **Phase 9C1 publication source-identity correction commit:** `739a656fc8e7b50a12484049bb0f4598aa0cb1b2`; final
@@ -6469,7 +6506,7 @@ Phase 9B2A — frozen at phase-9b2a-frozen
 Phase 9B2B — frozen at phase-9b2b-frozen
 Phase 9C1 — frozen at phase-9c1-frozen
 Phase 9C2 — frozen at phase-9c2-frozen
-Playable Client Milestone PC1 — implementation candidate at `0510c4dc8d83f1e80f725bde693232662deba1f2`; not frozen
+Playable Client Milestone PC1 — implementation candidate at `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`; not frozen
 Phase 9D  — deferred / not started
 Phase 10  — not started
 ~~~
@@ -6477,7 +6514,7 @@ Phase 10  — not started
 #### Playable Client Milestone PC1 — Thin Local Human and External-Narrator Play Loop
 
 **Status:** Phase 9C2 remains frozen at `phase-9c2-frozen`; PC1 is an
-implementation candidate at `0510c4dc8d83f1e80f725bde693232662deba1f2` and is not
+implementation candidate at `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce` and is not
 frozen. Phase 9D remains deferred / not started; Phase 10 has not started.
 
 PC1 的第一枚实现提交 message 为 `feat: add thin local playable client`。当前验证结果为
@@ -6489,6 +6526,10 @@ PC1 的第一枚实现提交 message 为 `feat: add thin local playable client`�
 `src/tgn 97.01%`；所有指定 warning-as-error 门禁为零 warning。两个 skip 都是 Windows
 上既有的 POSIX FIFO 测试，原因是当前平台不提供 FIFO 创建能力。PC1 仍是
 implementation candidate，不创建或移动任何 freeze tag。
+
+PC1 final acceptance correction code/test commit 为
+`96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`；本轮最终 Windows/WSL 回归与覆盖率
+见上方 correction record，PC1 仍未冻结。
 
 PC1 是位于 Campaign 与 Story 之上的最外层产品整合层，不是新的 Engine phase。它
 把真实玩家、冻结的 deterministic Campaign、非权威 Story 和一个可选的外部

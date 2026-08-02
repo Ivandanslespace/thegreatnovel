@@ -40,7 +40,7 @@ Accepted frozen Phase 9C2 implementation SHA: `f9a8a10adb7579fe4e06e462fbbeee47c
 任何未来修复都必须经过显式 reopen 或 superseding-phase 流程。
 Phase 9C2 frozen at `phase-9c2-frozen`。
 Playable Client Milestone PC1 当前为 implementation candidate，最新 code/test correction
-提交为 `3456178fb42eb6ae8c3debe33653924315e349d0`；PC1 未冻结且未创建 tag。
+提交为 `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`；PC1 未冻结且未创建 tag。
 Phase 9D deferred / not started；Phase 10 not started。
 
 Playable Client Milestone PC1 是 Phase 9C2 之上的薄本地产品整合层，当前为
@@ -77,18 +77,30 @@ identity 的完整校验，并在 post-move target identity 不匹配时保留�
 PC1 implementation candidate commit：`0510c4dc8d83f1e80f725bde693232662deba1f2`；
 PC1 complete product-proof test correction：`7e8f16c7bf3908abb5424cab9457986f6e162674`；
 PC1 comprehensive recovery/boundary correction：`0510c4dc8d83f1e80f725bde693232662deba1f2`；
-PC1 final process/file boundary hardening：`3456178fb42eb6ae8c3debe33653924315e349d0`。
+PC1 final process/file boundary hardening：`3456178fb42eb6ae8c3debe33653924315e349d0`；
+PC1 final acceptance correction：`96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`。
 PC1 使用 `src/tgn/play/**` 提供 `new`、`resume`、`narrate`、`status`、`verify` 和
 `export`，只组合冻结 Campaign/Story 的公开 service API；不创建 Client 数据库、provider
-adapter 或 Phase 9D/10 功能。PC1 本轮回归结果为 `tests/play 85 passed`、affected 集
-`502 passed, 2 skipped`、全仓 `1724 passed, 2 skipped`；`src/tgn/play 97.47%`、
+adapter 或 Phase 9D/10 功能。PC1 本轮回归结果为 `tests/play 101 passed`、affected 集
+`518 passed, 2 skipped`、全仓 `1740 passed, 2 skipped`；`src/tgn/play 97.11%`、
 `src/tgn/story 96.95%`、`src/tgn/campaign 97.55%`、`src/tgn/projection 100%`、
-full `src/tgn 97.09%`；warning-as-error 为 `0 warnings`。POSIX 使用
+full `src/tgn 97.05%`；warning-as-error 为 `0 warnings`。POSIX 使用
 `start_new_session=True` 与 process-group cleanup，Windows 使用 operation-owned Job
 Object 的 `KILL_ON_JOB_CLOSE`；response file 在 `O_NONBLOCK`、祖先 component、handle/path
 identity 和最终 observable 复核下读取，CLI JSON 对 terminal controls 使用合法 JSON
-escape。真实 WSL/POSIX 关键边界测试为 `5 passed`。唯一 skips 是 Windows 上既有的两个
+escape。真实 WSL/POSIX `tests/play` 为 `101 passed`。唯一 skips 是 Windows 上既有的两个
 POSIX FIFO 测试。
+现有 pending Narration Request 的自身 locale 是恢复时的权威值；只有新建 request
+使用一次性 locale override，下一次新 request 回到 Story initial locale。Campaign
+manifest 与 Session 的 campaign/session ID、actor ID、max_decisions 在 Story 初始化前
+通过公开 model 做同 Campaign 绑定校验；外部 NarrationResponse 的字段、hash、locale、
+claims 或 prose 错误统一返回 `PLAY_NARRATOR_FAILED`，并保留 exact pending request。
+Windows 手工命令明确标为 `PowerShell command`，使用单引号参数；它不是安全沙箱。
+外部 narrator executable 是用户选择的 trusted local adapter；PC1 不隔离文件系统、网络、
+凭据或 hostile native code。POSIX process group 与 Windows Job Object 只提供 bounded
+operational cleanup，不是 security isolation boundary；Windows `Popen →
+AssignProcessToJobObject` 之前的恶意逃逸不在保证范围内。reader 线程必须在成功返回前
+结束。
 Phase 9C2 conditional-replacement correction：`b5fa586fb7e0838a95e14fb445508f4b5d8a32e6`。`novel.md` 的已有目标现在
 必须以完整 expected observable 进行条件替换；POSIX 使用 anchored exchange 保留
 displaced target，Windows 使用 `ReplaceFileW` 及 writer-owned backup；parent、target
