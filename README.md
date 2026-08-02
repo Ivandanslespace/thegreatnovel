@@ -43,9 +43,11 @@ Playable Client Milestone PC1 — frozen at `pc1-frozen`
 
 Accepted PC1 implementation SHA: `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`。
 `pc1-frozen` is immutable and must never be moved, deleted, or recreated。
-Phase 9C2 remains frozen；Phase 9D deferred / not started；Phase 10 has not started。
+Phase 9C2 remains frozen；Phase 9D deferred / not started。
 main publishes the frozen PC1 baseline；mvp-rewrite carries documentation-only Phase 10
-roadmap changes until implementation starts。
+roadmap changes until implementation starts。Phase 10 documentation direction is
+established；Phase 10A Feature Contract is locked as an implementation candidate；
+Phase 10A production implementation has not started，and Phase 10 remains unfrozen。
 
 Playable Client Milestone PC1 是 Phase 9C2 之上的薄本地产品整合层，现已冻结在
 `pc1-frozen`。它只通过 Campaign 与 Story 的公开 service
@@ -120,7 +122,10 @@ Client database 或 provider framework。
 
 Phase 10 将建立一个 holder 持有多个、带 provenance 的 Capability，并让这些
 Capability 进入确定性 action 或明确的局部 rule path。第一条实现路线是可持续产生
-后续固定 Capability 的 protagonist core gift。Phase 10 implementation 尚未开始，
+后续固定 Capability 的 protagonist core gift。Phase 10A 现在锁定为
+Genesis Core Gift + First Deterministic Use Loop：player 持有 genesis 的
+devour_evolution，通过明确的 DEVOUR_REMAINS action 消耗一个 eligible defeated
+remains，并确定性获得 1 essence。Phase 10A implementation 尚未开始，Phase 10
 也尚未冻结。Phase 9D 仍 deferred，且不是 Phase 10 前置条件。
 
 Phase 10 不得提前建立 EffectSystem、AbilityGraph、SkillTree mega-framework、generic

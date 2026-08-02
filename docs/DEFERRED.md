@@ -23,6 +23,12 @@ PC1 is frozen at `pc1-frozen`. Phase 10 is a documentation candidate only:
 Capability Foundation and Stackable Protagonist Gift. Phase 10 implementation has
 not started and Phase 10 is not frozen.
 
+The Phase 10A Feature Contract is locked as an implementation candidate, not as
+production code. It fixes one genesis `devour_evolution` CapabilityGrant for the
+`player` holder, one `DEVOUR_REMAINS` action, one `DEVOUR_RESOLVED` Event, and one
+deterministic essence accumulation slice. Phase 10A production implementation has
+not started and Phase 10 remains unfrozen.
+
 ### Active design direction, not implementation
 
 The Phase 10 foundation direction is limited to:
@@ -33,6 +39,11 @@ The Phase 10 foundation direction is limited to:
 - multiple permanent grants coexisting;
 - one bounded active action, one bounded passive/local rule path, and one bounded
   acquisition path.
+
+The Phase 10A contract is the first deterministic-use loop only. A second
+Capability and its acquisition provenance remain Phase 10B; a passive Capability
+path remains Phase 10C. Capability authoring inside WorldGen remains deferred and
+is not an implicit Phase 10A change to the existing WorldPack compiler.
 
 Capability, CapabilityGrant, and source-system language describe the design boundary;
 they do not authorize Python classes, database schema, Event additions, tests, or a

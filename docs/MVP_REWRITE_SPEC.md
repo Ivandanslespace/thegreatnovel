@@ -6810,8 +6810,9 @@ LocaleFramework、TranslationDatabase、AgentOrchestratorFramework 或 GenericWo
 
 ### Phase 10 — Capability Foundation and Stackable Protagonist Gift
 
-**Status:** documentation direction established; implementation not started; Phase 10
-is unfrozen.
+**Status:** Phase 10 documentation direction established; the Phase 10A Feature
+Contract is locked as an implementation candidate; Phase 10A production
+implementation has not started; Phase 10 remains unfrozen.
 
 #### 5.1 Phase 10 总目标
 
@@ -6899,41 +6900,342 @@ This is data and deterministic rule evaluation, not runtime Python plugin loadin
 
 #### 5.4 Phase 10 子阶段
 
-**Phase 10A — Core Gift and First Acquisition Loop**
+**Phase 10A — Genesis Core Gift + First Deterministic Use Loop**
 
-Target proof:
+The Phase 10A Feature Contract is locked as an implementation candidate. It
+proves one initial permanent CapabilityGrant, one holder, one genesis provenance,
+one capability-specific Action, one semantic Event, one deterministic resource
+accumulation result, and the complete Observation / Persistence / Replay /
+Campaign / Story / Autoplay / frozen-PC1 compatibility path.
+
+Phase 10A does not prove a second Capability, Capability acquisition from essence,
+multiple grants coexisting, a passive Capability, Capability removal or expiry,
+Equipment/Companion/Reward grants, or a generic registry. Those boundaries belong
+to Phase 10B, Phase 10C, or later independent modules.
+
+#### 5.4.1 First Capability and holder
+
+The first Capability is fixed:
 
 ```text
-one protagonist core gift
-one authoritative grant
-one explicit action
-one semantic Event
-one deterministic state consequence
+capability_id: devour_evolution
+public label: Devour Evolution
+holder_id: player
 ```
 
-The preferred product direction is `devour_evolution`. The first bounded action
-candidate is `DEVOUR_REMAINS`:
+`holder_id = player` is the stable entity reference for the current player
+character inside `GameState`. It is not the Session manifest `actor_id`, an
+`ActionIntent.actor_id`, a username, model ID, or controller identity. Phase 10A
+must not create a general Actor registry or add an actor-identity framework to all
+legacy GameStates for this slice.
+
+#### 5.4.2 Genesis CapabilityGrant
+
+The first grant exists in the initial authoritative state of a
+capability-enabled Campaign. It is not created by the first gameplay Event. The
+logical `capability_grants` field has this exact Phase 10A structure and field set:
+
+```json
+{
+  "capability_grants": {
+    "player_devour_evolution_genesis": {
+      "holder_id": "player",
+      "capability_id": "devour_evolution",
+      "source_kind": "world_genesis",
+      "source_id": "protagonist_core_gift",
+      "acquired_event_seq": 0
+    }
+  }
+}
+```
+
+The fixed values are:
 
 ```text
-defeated eligible remains
-→ deterministic time/resource cost
-→ remains consumed
-→ fixed essence gained
-→ one DEVOUR_RESOLVED Event
+grant_id: player_devour_evolution_genesis
+source_kind: world_genesis
+source_id: protagonist_core_gift
+acquired_event_seq: 0
 ```
 
-Phase 10A must not allow arbitrary targets, automatic copying of arbitrary enemy
-abilities, LLM-generated skills, dynamic code generation from enemy data, or
-arbitrary attribute absorption.
+`acquired_event_seq = 0` means that the grant is part of the Campaign initial
+GameState and is protected by `initial_state_hash` plus the compiled/authoritative
+initial-state binding. It does not claim that a DomainEvent exists at event
+sequence 0. Phase 10A must not create a `CAPABILITY_GRANTED` bootstrap Event,
+invent an event-sequence-zero Event, insert a grant after Campaign creation, or
+recover a grant from Narrator prose or a public label. A future Event-created
+CapabilityGrant must use its actual positive Event sequence, which is a Phase 10B
+contract.
+
+#### 5.4.3 Local Capability state
+
+The only Phase 10A local Capability state is:
+
+```json
+{
+  "devour_evolution": {
+    "essence": 0
+  }
+}
+```
+
+This is a local slice, not a generic Capability resource framework. `essence` is
+a strict integer, starts at zero, can never be negative, and increases by exactly
+one for each successful `DEVOUR_REMAINS`. In Phase 10A it does not upgrade
+attributes, unlock a second Capability, change attack, restore HP or stamina, or
+provide a random reward. It is only an authoritative accumulation fact that
+Phase 10B may use.
+
+#### 5.4.4 WorldPack and initial-state boundary
+
+The reviewed `phase75_expedition_v1` WorldGen compiler remains unchanged by this
+contract. A capability-enabled state may enter the Engine through the existing
+trusted initial-state JSON / Campaign creation seam. Phase 10A does not modify the
+Phase 9B World Draft schema, CompiledWorldPack schema, or WorldGen compiler.
+Capability authoring in WorldGen requires a later independent contract.
+
+For Phase 10A, the three levels mean:
+
+```text
+feature level:
+  authoritative initial state contains complete valid Phase 10A feature config
+ownership level:
+  capability_grants contains player_devour_evolution_genesis
+applicability level:
+  current authoritative state satisfies DEVOUR_REMAINS conditions
+```
+
+Campaigns without Phase 10A feature state retain byte-compatible legacy behavior.
+
+#### 5.4.5 Eligible remains model
+
+Phase 10A reuses the existing expedition encounter and adds one explicit,
+optional, local devour yield. It does not create a generic corpse, lootable-body,
+or entity-component framework:
+
+```json
+{
+  "encounter": {
+    "enemy_id": "enemy-1",
+    "enemy_hp": 2,
+    "enemy_max_hp": 2,
+    "enemy_attack": 1,
+    "active": false,
+    "devour_yield": {
+      "capability_id": "devour_evolution",
+      "essence": 1,
+      "consumed": false
+    }
+  }
+}
+```
+
+Without `devour_yield`, the enemy is not eligible. Its presence alone is not
+enough. `DEVOUR_REMAINS` is legal only when all of these are true:
+
+```text
+expedition is active
+player location == target_location_id
+encounter exists
+encounter.enemy_hp == 0
+encounter.active == false
+devour_yield exists
+devour_yield.capability_id == devour_evolution
+devour_yield.essence == 1
+devour_yield.consumed == false
+player owns player_devour_evolution_genesis
+player is alive
+player stamina >= 1
+```
+
+After success, `devour_yield.consumed` becomes true and the same remains can
+never be consumed again. There is no arbitrary enemy target, corpse ID, enemy
+ability copying, stat-derived or text-derived essence, live-enemy consumption,
+Named Actor consumption, or inventory-item consumption.
+
+#### 5.4.6 Combat compatibility and fixture
+
+The existing `COMBAT_RESOLVED` consequence already sets a defeated enemy's
+`enemy_hp` to zero, sets `encounter.active` to false, keeps the expedition active,
+and leaves the player at the target. The devour yield is configured in the
+encounter initial state. Combat does not emit a second remains Event, does not
+auto-run devour, and a `FIGHT` decision never gains essence.
+
+The capability-enabled Phase 10A acceptance fixture uses:
+
+```text
+player max_stamina = 4
+player initial stamina = 4
+SEARCH cost = 2
+one lethal FIGHT cost = 1
+DEVOUR_REMAINS cost = 1
+EXTRACT cost = 0
+```
+
+This applies only to the Phase 10A fixture and does not change existing WorldPack
+or legacy-test stamina baselines. The intended executable path is:
+
+```text
+DROP → SEARCH → one lethal FIGHT → DEVOUR_REMAINS → EXTRACT
+```
+
+#### 5.4.7 Capability-specific Action
+
+The exact Action is:
+
+```json
+{
+  "action_type": "DEVOUR_REMAINS",
+  "params": {}
+}
+```
+
+It is an explicit capability-specific action, not `USE_CAPABILITY`,
+`EXECUTE_EFFECT`, or `APPLY_ABILITY`. Its fixed cost is:
+
+```text
+duration_minutes: 20
+stamina_cost: 1
+```
+
+The player must select it explicitly. The request must contain no parameters or
+metadata beyond the exact empty `params` object. The Engine rejects target IDs,
+capability IDs, caller-supplied duration, stamina cost, essence amount, enemy
+state, or any other Engine metadata. It is not a combat consequence, passive rule,
+or automatic consequence of another action.
+
+#### 5.4.8 `DEVOUR_RESOLVED` Event contract
+
+The semantic Event type is `DEVOUR_RESOLVED`. Its payload uses exactly the
+following fields, with no additional Phase 10A domain payload fields:
+
+```json
+{
+  "capability_id": "devour_evolution",
+  "grant_id": "player_devour_evolution_genesis",
+  "enemy_id": "enemy-1",
+  "essence_before": 0,
+  "essence_gained": 1,
+  "essence_after": 1,
+  "time": 20,
+  "stamina_cost": 1
+}
+```
+
+The Engine constructs this payload from authoritative state; the caller cannot
+submit Event authority. The reducer must revalidate the exact grant and holder,
+Capability ID, eligible defeated encounter, exact enemy ID, yield Capability ID,
+yield essence of one, unconsumed yield, exact before/gained/after arithmetic,
+fixed time and stamina cost, sufficient stamina, and the Event game minute being
+previous minute plus 20.
+
+#### 5.4.9 Deterministic consequence and cardinality
+
+Applying a valid `DEVOUR_RESOLVED` atomically does exactly this:
+
+```text
+player.stamina -= 1
+game_minute += 20
+devour_evolution.essence += 1
+encounter.devour_yield.consumed = true
+```
+
+It leaves unchanged player HP, player attack, enemy HP of zero, inactive
+encounter, active expedition, player location at target, carried loot, inventory,
+progression, build, Named Actor relationship/private knowledge, and the genesis
+CapabilityGrant. The player must separately choose `EXTRACT` to return to base
+and preserve carried loot.
+
+One successful action has exactly:
+
+```text
+1 accepted player decision
+1 RecordedDecision ACTION
+1 DEVOUR_REMAINS ActionIntent
+1 ValidatedAction
+1 DEVOUR_RESOLVED DomainEvent
+1 event_seq increment
+1 decision_seq increment
+```
+
+It must not create `CAPABILITY_GRANTED`, `TIME_ADVANCED`, `RESOURCE_GAINED`, a
+second remains Event, an automatic `EXTRACT`, or a second Capability unlock.
+
+#### 5.4.10 Observation and Knowledge Boundary
+
+When the holder owns the grant, public Observation may show:
+
+```json
+{
+  "capabilities": [
+    {
+      "capability_id": "devour_evolution",
+      "label": "Devour Evolution",
+      "source_kind": "world_genesis"
+    }
+  ]
+}
+```
+
+The public projection does not expose `source_id` unless a later product contract
+requires it. Before applicability, it does not expose hidden enemy yield,
+future Capabilities, Narrator reasoning, or private Named Actor state. When
+`DEVOUR_REMAINS` is legal, its public legal choice exposes exact action identity,
+20 minutes, stamina cost one, and empty params. It does not reveal eligibility or
+yield before the action becomes legal.
+
+#### 5.4.11 Story, replay, and anti-forgery contract
+
+The generic Story pipeline preserves `action_type = DEVOUR_REMAINS` and
+`event_type = DEVOUR_RESOLVED`. Public facts may state that defeated remains were
+consumed, 20 minutes passed, one stamina was spent, essence increased by one, the
+player remained at the target, and the expedition remained active. Narration may
+not claim a second Capability, copied enemy power, attack increase, HP recovery,
+base return, or completed `EXTRACT`. Story remains derived and cannot decide
+eligibility or essence.
+
+Future implementation must prove that the genesis grant survives initial-state
+persistence, live state equals full replay and snapshot-plus-tail replay, the
+Event reconstructs essence and consumed status, and reopen preserves the exact
+legal-action state. Mutation of any of these fields must fail verification or
+replay:
+
+```text
+grant_id
+capability_id
+enemy_id
+essence_before
+essence_gained
+essence_after
+time
+stamina_cost
+game_minute
+actor_id
+action_id
+```
+
+#### 5.4.12 Frozen PC1 compatibility and Phase 10B boundary
+
+Phase 10A must not modify `src/tgn/play/**` or `tests/play/**`. Frozen PC1 only
+renders generic public choice ID/label/cost, accepts the numeric choice, submits
+the `choice_id`, and waits for Campaign/Story results. It must not contain a
+`DEVOUR_REMAINS` branch, client-side grant/remains state, or client-side essence
+calculation.
+
+Phase 10A may finish with the genesis grant and `devour_evolution.essence >= 1`,
+but it contains no second Capability. Phase 10B defines the second Capability ID,
+essence threshold, acquisition Event, second-grant provenance, coexistence proof,
+and second active action. Phase 10A does not add a placeholder Capability,
+generic unlock table, arbitrary essence-to-Capability mapping, or dynamic catalog.
 
 **Phase 10B — Second Capability and Coexistence**
 
-One devour-produced essence or fixed progression condition unlocks one predefined
-second Capability. The original core gift remains; two permanent grants coexist;
-the second Capability enters one explicit active action. The proof must show that
-one Capability can causally lead to another fixed Capability without replacing the
-original grant. The second Capability ID and mechanics belong to a later Phase 10B
-Feature Contract and are not defined here.
+One devour-produced essence or another fixed progression condition may later
+unlock one predefined second Capability. Phase 10A does not choose the threshold
+or create an unlock mapping. Phase 10B must define the second Capability ID,
+acquisition Event, second-grant provenance, and exact threshold. It must prove that
+the original core gift remains, two permanent grants coexist, and the second
+Capability enters one explicit active action without replacing the original grant.
 
 **Phase 10C — One Explicit Passive Capability**
 
