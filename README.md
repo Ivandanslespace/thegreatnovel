@@ -36,7 +36,8 @@ structured claims、committed turn artifacts、status、verify 和 local CLI；P
 尚未冻结。
 
 Phase 9C1 publication source-identity correction commit：`739a656fc8e7b50a12484049bb0f4598aa0cb1b2`；
-final idempotent source-identity fix：`f5aeba6dd0e02a028dde8c077dd5c68dfbd98159`。
+final idempotent source-identity fix：`f5aeba6dd0e02a028dde8c077dd5c68dfbd98159`；
+loaded Story directory identity fix：`04640bb2bf8e9ab27980c9be61e8f89edf44bd28`。
 本次修复将 Story root、requests/ 和 turns/ 的 publication parent 锚定到已验证的
 POSIX directory fd 或 Windows directory HANDLE；临时 artifact 的 retained
 descriptor/HANDLE、当前 source-name identity 和发布 target identity 必须一致，
@@ -44,8 +45,9 @@ pending request 也通过已锚定的 requests/ binding 重新验证；Phase 9C1
 implementation candidate，未冻结。final fix 使 already-committed 重交也经过
 Story root/turns identity、Campaign historical prefix 和 committed turn source
 identity 的完整校验，并在 post-move target identity 不匹配时保留竞争者 target。
-当前验证：Story `150 passed`、Story coverage `96%`；Campaign `173 passed, 2 skipped`、Campaign coverage `98%`；Projection
-`112 passed`、Projection coverage `100%`；全仓 `1545 passed, 2 skipped`、全仓
+本次 directory fix 还要求 recommit 的 root/turns binding 与已加载 StoryView 的目录 identity 相等。
+当前验证：Story `151 passed`、Story coverage `96%`；Campaign `173 passed, 2 skipped`、Campaign coverage `98%`；Projection
+`112 passed`、Projection coverage `100%`；全仓 `1546 passed, 2 skipped`、全仓
 coverage `97%`。
 两个 skipped 是 Windows 上
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和

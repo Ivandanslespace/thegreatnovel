@@ -5053,7 +5053,8 @@ authorize Phase 9C work.
 **Status:** Phase 9C1 implementation candidate (not frozen); Phase 9C2 not started
 
 **Phase 9C1 publication source-identity correction commit:** `739a656fc8e7b50a12484049bb0f4598aa0cb1b2`; final
-idempotent source-identity fix: `f5aeba6dd0e02a028dde8c077dd5c68dfbd98159`
+idempotent source-identity fix: `f5aeba6dd0e02a028dde8c077dd5c68dfbd98159`; loaded Story
+directory identity fix: `04640bb2bf8e9ab27980c9be61e8f89edf44bd28`
 
 本次 correction 将 Story root、`requests/` 和 `turns/` 的 publication parent 锚定到
 已验证的 POSIX directory fd 或 Windows directory HANDLE，跟踪 owned temporary，
@@ -5063,9 +5064,10 @@ requests/ binding 比较 file identity、canonical bytes、size、hash 和 schem
 move 成功后的 descriptor/HANDLE close 不会反转已发布结果。final fix 使
 already-committed 重交也经过 Story root/turns identity、Campaign historical prefix
 和 committed turn source identity 的完整校验，并在 post-move target identity 不匹配时
-保留竞争者 target。当前验证结果：Story `150 passed`、Story coverage `96%`；Campaign `173 passed, 2 skipped`、
+保留竞争者 target。本次 directory fix 还要求 recommit 的 root/turns binding 与已加载
+StoryView 的目录 identity 相等。当前验证结果：Story `151 passed`、Story coverage `96%`；Campaign `173 passed, 2 skipped`、
 Campaign coverage `98%`；Projection `112 passed`、Projection coverage `100%`；全仓
-`1545 passed, 2 skipped`、全仓 coverage `97%`。两个 skipped 是 Windows 上冻结的
+`1546 passed, 2 skipped`、全仓 coverage `97%`。两个 skipped 是 Windows 上冻结的
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和
 `tests/campaign/test_no_follow.py::test_copy_fifo_source_is_rejected_on_posix`，原因是
 当前平台无法创建 POSIX FIFO；不是 Phase 9C1 测试失败。
@@ -6393,6 +6395,7 @@ Phase 9B2B — frozen at phase-9b2b-frozen
 Phase 9C1 — implementation candidate (not frozen)
 Phase 9C1 publication source-identity correction — 739a656fc8e7b50a12484049bb0f4598aa0cb1b2
 Phase 9C1 final idempotent source-identity fix — f5aeba6dd0e02a028dde8c077dd5c68dfbd98159
+Phase 9C1 loaded Story directory identity fix — 04640bb2bf8e9ab27980c9be61e8f89edf44bd28
 Phase 9C2 — not started
 Phase 9D  — deferred
 ~~~
