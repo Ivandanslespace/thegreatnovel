@@ -7059,8 +7059,8 @@ Starting from the base compiler's rebuilt initial state, the overlay performs
 only these changes:
 
 ```text
-player.stamina = 4
-player.max_stamina = 4
+player.stamina = 5
+player.max_stamina = 5
 ```
 
 All other player fields, including `hp`, `max_hp`, `attack`, and `location_id`,
@@ -7146,6 +7146,9 @@ illegal_actions = 0
 essence = 1
 devour_yield.consumed = true
 replay_verified = true
+stamina_before_devour = 1
+stamina_after_devour = 0
+final_stamina_after_extract = 0
 ```
 
 Bootstrap does not create a Campaign, Story, or narration artifact.
@@ -7331,8 +7334,9 @@ auto-run devour, and a `FIGHT` decision never gains essence.
 The capability-enabled Phase 10A acceptance fixture uses:
 
 ```text
-player max_stamina = 4
-player initial stamina = 4
+player max_stamina = 5
+player initial stamina = 5
+DROP cost = 1
 SEARCH cost = 2
 one lethal FIGHT cost = 1
 DEVOUR_REMAINS cost = 1
@@ -7340,7 +7344,34 @@ EXTRACT cost = 0
 ```
 
 This applies only to the Phase 10A fixture and does not change existing WorldPack
-or legacy-test stamina baselines. The intended executable path is:
+or legacy-test stamina baselines. The complete stamina budget is:
+
+```text
+DROP 1
++ SEARCH 2
++ FIGHT 1
++ DEVOUR_REMAINS 1
+= 5 total stamina
+```
+
+The real state sequence is:
+
+```text
+initial: 5
+after DROP: 4
+after SEARCH: 2
+after one lethal FIGHT: 1
+before DEVOUR_REMAINS: 1, therefore legal
+after DEVOUR_REMAINS: 0
+EXTRACT: legal because stamina cost is 0
+final: 0
+```
+
+The path does not depend on `REST`, automatic stamina recovery, a build effect,
+progression upgrade, Narrator intervention, a test-only stamina mutation, an
+extra Event, a reduced `DROP` cost, or a reduced `DEVOUR_REMAINS` cost. No sixth
+recovery action is introduced; existing REST, build, progression, combat, and
+action-cost rules are not changed. The intended executable path is:
 
 ```text
 DROP → SEARCH → one lethal FIGHT → DEVOUR_REMAINS → EXTRACT
