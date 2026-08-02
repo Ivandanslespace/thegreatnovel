@@ -6454,6 +6454,146 @@ Phase 9D  — deferred / not started
 Phase 10  — not started
 ~~~
 
+#### Playable Client Milestone PC1 — Thin Local Human and External-Narrator Play Loop
+
+**Status:** Phase 9C2 remains frozen at `phase-9c2-frozen`; PC1 is an
+implementation candidate and is not frozen. Phase 9D remains deferred / not started;
+Phase 10 has not started.
+
+PC1 是位于 Campaign 与 Story 之上的最外层产品整合层，不是新的 Engine phase。它
+把真实玩家、冻结的 deterministic Campaign、非权威 Story 和一个可选的外部
+narrator process 连接成一个可关闭、可恢复的本地 terminal loop：
+
+~~~text
+create Campaign and Story
+→ show player-visible state and choices
+→ accept exactly one choice or STOP
+→ Engine persists the accepted result
+→ Story prepares a Narration Request
+→ external narrator returns a structured response
+→ Story commits the turn
+→ display prose only after commit
+→ close and resume
+→ STOP or natural terminal state
+→ export final novel.md
+~~~
+
+PC1 的 public entry point 是 `python -m tgn.play`。只允许组合以下稳定公开 API：
+
+~~~text
+tgn.campaign:
+  create_campaign, next_campaign, choose_campaign, stop_campaign,
+  status_campaign, verify_campaign
+tgn.story:
+  init_story, prepare_story, commit_story, status_story,
+  verify_story, export_story
+~~~
+
+不得导入 Campaign、Story、Session、Engine 或 publication 的 private helper、SQLite
+repository、EventStore、Reducer、Story verification 或 Campaign snapshot internals。
+PC1 不直接读取或修改 `campaign.sqlite3`、`session.json`、
+`recorded_decisions.json`、`campaign.json`、Story `requests/` 或 `turns/`；所有状态
+必须经由各自公开 service API 获取。不得创建 ClientEngine、Coordinator、Workflow
+DSL、Saga、ProviderRouter、Plugin registry、Command/Event bus、通用 transaction
+manager、client database 或权威 `client.json`。
+
+##### PC1 workspace and allowed files
+
+调用方指定唯一 workspace，第一版形状为：
+
+~~~text
+<workspace>/
+├── campaign/
+└── story/
+~~~
+
+`new` 的 WorldPack 与 Projection bundle 由参数提供；Campaign 负责复制并锁定，PC1
+不再次复制或解释 bundle。不得在 Campaign 或 Story 中写入额外客户端文件。PC1
+实现只允许新增 `src/tgn/play/**` 和 `tests/play/**`；状态性文档只允许修改
+`README.md` 与本规范；不增加第三方依赖，不修改任何 frozen package、frozen test、
+pytest 或 coverage 配置。
+
+##### PC1 CLI contract
+
+至少提供 `new`、`resume`、`narrate`、`status`、`verify`、`export`，不新增顶层
+`tgn.__main__`。每个命令都显式接收 `--workspace`。
+
+- `new` 还接收 WorldPack/Projection bundle、campaign/story ID、actor ID、
+  max-decisions、locale 和 voice ID。它先验证输入与 workspace，再调用
+  `create_campaign()`，成功后才调用 `init_story()`，随后 verify 两者并进入 loop。
+  Campaign 成功而 Story 初始化失败时不得删除 Campaign；后续 `resume` 只能补齐
+  缺失 Story，不得伪造 new 成功。
+- `resume` verify Campaign，验证或安全初始化 matching Story，优先处理 pending / missing
+  narration，再取得当前 Campaign request/presentation，继续 loop。narrator 失败不回滚
+  Campaign。
+- `narrate` 只处理现有 pending request：verify 两侧、通过 `prepare_story()` 定位
+  exact request、读取 response file、调用 `commit_story()`，commit 成功后才打印 prose。
+  无 pending request、turn 覆盖、hash override、state/event/action 注入均 fail closed。
+- `status` 只读组合 Campaign status、Story status、terminal、pending/missing work、
+  snapshot/final readiness 和 novel status，不建立新的客户端真相。
+- `verify` 只调用 `verify_campaign()` 与 `verify_story()`，不得写文件、执行 Action、
+  生成 narration、修复 artifact 或导出 novel。
+- `export --mode snapshot|final` 完全委托 `export_story()`，不得复制或重写 novel builder。
+
+##### PC1 interaction and authority boundary
+
+`new` 与 `resume` 的每轮固定顺序为：完成已有 narration work → `next_campaign()` →
+验证 canonical request 与 player presentation 成对且 fingerprint 相等 → 显示
+player presentation → 接收一个且仅一个输入 → `choose_campaign()` 或 `stop_campaign()`
+→ accepted ACTION 后 `prepare_story()` → narrator response → `commit_story()` →
+仅在 commit 成功后显示 prose。Terminal 时 canonical request 与 player presentation
+必须同时为 null；若全部 turn committed 且 `final_ready`，自动调用
+`export_story(mode="final")`。
+
+显示选项只能来自 `player_presentation`，提交 authority 只能来自
+`canonical_request`。两者必须逐项匹配 `request_fingerprint`、`choice_id`、`action_type`、
+`params`、`duration_minutes` 和 `stamina_cost`；任何不一致返回
+`PLAY_CLIENT_INTEGRITY_MISMATCH`，不得调用 Campaign mutation。玩家输入只允许当前
+request 的 canonical 正整数编号、`STOP`、`:locale zh-CN`、`:locale en`、`:locale ar`。
+拒绝组合输入、自然语言 action、label、JSON ActionIntent、actor 或 params。每次最多
+提交一个 exact choice；locale 只影响尚未创建的下一个 Narration Request，不能改动
+pending request、Campaign 或已提交 turn。
+
+##### PC1 external narrator boundary
+
+可选 narrator 使用 `subprocess` 的显式 argv list、`shell=False`；禁止 shell command
+string、`eval`、`exec`、PowerShell/bash interpolation。stdin 是 UTF-8 exact Narration
+Request JSON；stdout 必须是唯一 Narration Response JSON；stderr 只能作诊断，不能写入
+Story 或错误消息。默认 stdout 上限 1 MiB、timeout 120 秒，timeout 允许范围 1–600 秒。
+非零退出、timeout、invalid UTF-8/JSON、duplicate keys、超大输出或 Story validation
+失败都保留 Campaign action 与 exact pending request，不创建 committed turn、不打印
+未提交 prose；下次 `resume` 重试同一 request。
+
+未提供 narrator command 时，accepted action 后打印 exact request 和 `narrate` 指引，
+以稳定的 `PLAY_NARRATION_PENDING` 非零结果（建议 exit code 3）结束；用户完成
+response 后运行 `narrate`，再运行 `resume`。commit-before-print 是硬约束：注入
+`commit_story()` 失败时 stdout 不得出现 response prose，pending 必须保留且不得有
+committed turn。
+
+##### PC1 error, proof and gates
+
+客户端错误命名空间保持小而稳定，至少包括：
+`INVALID_PLAY_INPUT`、`PLAY_WORKSPACE_INCOMPLETE`、`PLAY_CLIENT_INTEGRITY_MISMATCH`、
+`PLAY_NARRATOR_FAILED`、`PLAY_NARRATION_PENDING`、`PLAY_CAMPAIGN_FAILED` 和
+`PLAY_STORY_FAILED`。输出不得泄露 traceback、secret path、stderr、private GameState、
+private Event payload、SQLite rows 或 provider secret；CampaignError/StoryError 只能
+作为安全嵌套 code 保留。
+
+未来实现必须在 `tests/play/` 直接证明：真实 Campaign/Story 的 DROP → narrator commit
+→ SEARCH narrator failure → close/reopen exact pending request → retry → locale 切换
+到 ar → EXTRACT → TALK_TO_ACTOR public Knowledge Boundary → STOP 无 Event/Story turn
+→ final export → Campaign/Story verify → close/reopen status identical；还必须覆盖
+single-choice rejection、presentation mismatch、subprocess `shell=False`、timeout/UTF-8/
+duplicate-key/size 边界、commit-before-print、read-only status/verify 和无 provider/network。
+测试只使用 `tmp_path`、唯一 workspace/ID 和本地 fake narrator executable，不依赖 sleep、
+共享数据库或固定全局路径。
+
+PC1 coverage hard gates 为 `src/tgn/play >= 95%`、`src/tgn/story >= 95%`、
+`src/tgn/campaign >= 95%`、`src/tgn/projection == 100%`、full `src/tgn >= 97%`。
+不得新增 skip、xfail、warning ignore、coverage exclusion 或 `pragma: no cover`，现有
+Windows POSIX FIFO skips 可以保留。完成本里程碑后只提交普通 branch commit，不创建
+Playable Client tag，也不冻结 PC1。
+
 #### Phase 9D — Evaluation Matrix（Deferred Phase 9D）
 
 原有 `model × persona × scenario × seed × prompt` 矩阵保留为后续评估路线，但不再

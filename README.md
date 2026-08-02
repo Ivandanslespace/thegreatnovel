@@ -42,6 +42,13 @@ Phase 9C2 frozen at `phase-9c2-frozen`。
 Playable Client Milestone 是下一项已批准里程碑，尚未开始。
 Phase 9D deferred / not started；Phase 10 not started。
 
+Playable Client Milestone PC1 是 Phase 9C2 之上的薄本地产品整合层，当前为
+implementation candidate，未创建 tag。它只通过 Campaign 与 Story 的公开 service
+API 组合一个可恢复的本地人类玩家 / 外部 narrator loop：Engine 先持久化一个
+action，Story 再准备并提交 narration，只有 committed turn 才能向玩家显示 prose，
+最终由 Story 导出 novel.md。PC1 不修改任何 frozen package、测试或配置，不开始
+Phase 9D 或 Phase 10。
+
 Phase 9C 的合同范围是 Persistent External Narration, Resume and Novel Export：
 使用与 Campaign 分离的 immutable Story sidecar 保存 deterministic Narration Request、
 pending/resume 状态和 committed turn artifacts，再从这些 artifact 确定性导出
