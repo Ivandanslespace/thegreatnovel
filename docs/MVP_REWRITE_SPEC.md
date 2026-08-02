@@ -5068,6 +5068,8 @@ authorize Phase 9C work.
 
 **Phase 9C2 Windows delete-HANDLE exact-observable correction:** `a445cf4b925f550d22c661504049be025ffa73c2`
 
+**Phase 9C2 Windows DELETE-HANDLE share-compatibility correction:** `f9a8a10adb7579fe4e06e462fbbeee47cdf69aea`
+
 **Parallel pytest tooling commit:** `1dfa3fe33bf5bea35e831cf56af9678fd2e88dd4`
 
 `phase-9c1-frozen` is immutable; Phase 9C2 remains unfrozen. The Playable Client
@@ -5104,10 +5106,10 @@ type、bytes、SHA-256、size 和 mtime_ns 完整 observable 复核通过后，�
 `SetFileInformationByHandle(FILE_DISPOSITION_INFO)`；HANDLE 的 share mode 允许 read
 但拒绝 write/delete，因此复核与删除之间不会重新落回 pathname-only cleanup。
 同一 identity 的原地 bytes、size 或 mtime 变化均 fail closed，文件保持不被删除。
-Phase 9C2 candidate 当前验证结果：Story `240 passed`、Story coverage `96.94%`；Campaign
+Phase 9C2 candidate 当前验证结果：Story `244 passed`、Story coverage `96.95%`；Campaign
 `173 passed, 2 skipped`、Campaign coverage `97.55%`；Worldgen `150 passed`；Projection
 `112 passed`、Projection coverage `100%`；Session `74 passed`；LLM Player `63 passed`；
-Phase 8 autoplay `1 passed`；全仓 `1635 passed, 2 skipped`、全仓 coverage `97.04%`；
+Phase 8 autoplay `1 passed`；全仓 `1639 passed, 2 skipped`、全仓 coverage `97.04%`；
 warning-as-error 全仓回归为 `0 warnings`。使用 pytest-xdist `3.8.0`，12/12 worker、
 WorkStealing、`--max-worker-restart=0`，未发生 worker crash/restart。两个 skipped 是 Windows 上冻结的
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和

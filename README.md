@@ -33,6 +33,7 @@ Phase 9C2 Windows/recovery correction: `5685fb645d30d85bf4942e91973409d878d97bac
 Phase 9C2 cleanup identity correction: `0dc03156155a8914d586e6efb621c5817e0a05c7`；
 Phase 9C2 recovery test correction: `d1f64153e59c3f62cd4784f0641b2cadda38f325`；
 Phase 9C2 Windows delete-HANDLE exact-observable correction: `a445cf4b925f550d22c661504049be025ffa73c2`；
+Phase 9C2 Windows DELETE-HANDLE share-compatibility correction: `f9a8a10adb7579fe4e06e462fbbeee47cdf69aea`；
 parallel pytest tooling commit: `1dfa3fe33bf5bea35e831cf56af9678fd2e88dd4`。
 Phase 9C2 remains unfrozen; no `phase-9c2-frozen` tag exists。
 Playable Client Milestone not started。
@@ -73,10 +74,10 @@ Story parent 内重新检查 target、replacement、backup 与 retained writer H
 只会触发 bounded failure，不会被删除。POSIX displaced expected target 也只在
 完整 observable 相等时清理，recoverable failure 不留下 `.tmp` 或 `.backup`。
 `--accepted-decisions` 只接受 canonical non-negative integer。Phase 9C2 candidate
-当前验证：Story `240 passed`、Story coverage `96.94%`；Campaign `173 passed, 2 skipped`、
+当前验证：Story `244 passed`、Story coverage `96.95%`；Campaign `173 passed, 2 skipped`、
 Campaign coverage `97.55%`；Worldgen `150 passed`；Projection `112 passed`、Projection
 coverage `100%`；Session `74 passed`；LLM Player `63 passed`；Phase 8 autoplay
-`1 passed`；全仓 `1635 passed, 2 skipped`、全仓 coverage `97.04%`；warning-as-error
+`1 passed`；全仓 `1639 passed, 2 skipped`、全仓 coverage `97.04%`；warning-as-error
 全仓回归为 `0 warnings`。使用 pytest-xdist `3.8.0`，12/12 worker、WorkStealing，
 max-worker-restart=0，未发生 worker crash/restart。
 两个 skipped 是 Windows 上
