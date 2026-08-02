@@ -50,4 +50,3 @@ def test_overlay_uses_frozen_pc1_numeric_path(bundle_pair):
         for line in output
     )
     assert (story / "novel.md").exists()
-
