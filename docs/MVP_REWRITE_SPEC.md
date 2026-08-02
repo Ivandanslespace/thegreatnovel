@@ -5076,8 +5076,8 @@ authorize Phase 9C work.
 
 `phase-9c1-frozen` and `phase-9c2-frozen` are immutable and must never be moved,
 deleted, or recreated. Any future fix requires an explicit reopen or superseding-phase
-process. The Playable Client Milestone PC1 is an implementation candidate at
-`96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce` and is not frozen. Phase 9D is deferred /
+process. The Playable Client Milestone PC1 is frozen at `pc1-frozen` with accepted
+implementation SHA `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`. Phase 9D is deferred /
 not started; Phase 10 has not started.
 
 **PC1 final process/file boundary hardening:**
@@ -5086,7 +5086,7 @@ not started; Phase 10 has not started.
 **PC1 final acceptance correction:**
 `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`
 
-本轮仍是 implementation candidate，不创建 PC1 tag。POSIX narrator 使用
+PC1 现已冻结在 `pc1-frozen`。POSIX narrator 使用
 `start_new_session=True` 并在失败、超时、stdout overflow、reader failure 或中断时
 清理整个 process group；Windows 使用 operation-owned Job Object 和
 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` 包含 narrator 及其 descendants。response file
@@ -5132,9 +5132,8 @@ correction 的回归为 `tests/play 101 passed`、affected `518 passed, 2 skippe
 `1740 passed, 2 skipped`；coverage 为 `src/tgn/play 97.11%`、`src/tgn/story 96.95%`、
 `src/tgn/campaign 97.55%`、`src/tgn/projection 100%`、full `src/tgn 97.05%`，
 warning-as-error 为零 warning；真实 WSL/POSIX `tests/play` 为 `101 passed`。两个 skip
-仍是 Windows 上既有、无法创建 POSIX FIFO 的 Campaign 测试。PC1 继续是
-implementation candidate，不创建 tag；Phase 9C2 保持 frozen，Phase 9D deferred，
-Phase 10 not started。
+仍是 Windows 上既有、无法创建 POSIX FIFO 的 Campaign 测试。PC1 已冻结在
+`pc1-frozen`；Phase 9C2 保持 frozen，Phase 9D deferred，Phase 10 not started。
 
 **Phase 9C1 publication source-identity correction commit:** `739a656fc8e7b50a12484049bb0f4598aa0cb1b2`; final
 idempotent source-identity fix: `f5aeba6dd0e02a028dde8c077dd5c68dfbd98159`; loaded Story
@@ -6506,16 +6505,18 @@ Phase 9B2A — frozen at phase-9b2a-frozen
 Phase 9B2B — frozen at phase-9b2b-frozen
 Phase 9C1 — frozen at phase-9c1-frozen
 Phase 9C2 — frozen at phase-9c2-frozen
-Playable Client Milestone PC1 — implementation candidate at `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`; not frozen
+Playable Client Milestone PC1 — frozen at `pc1-frozen`; accepted implementation
+SHA `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`
 Phase 9D  — deferred / not started
 Phase 10  — not started
 ~~~
 
 #### Playable Client Milestone PC1 — Thin Local Human and External-Narrator Play Loop
 
-**Status:** Phase 9C2 remains frozen at `phase-9c2-frozen`; PC1 is an
-implementation candidate at `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce` and is not
-frozen. Phase 9D remains deferred / not started; Phase 10 has not started.
+**Status:** Phase 9C2 remains frozen at `phase-9c2-frozen`; Playable Client Milestone
+PC1 is frozen at `pc1-frozen` with accepted implementation SHA
+`96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`. Phase 9D remains deferred / not started;
+Phase 10 has not started.
 
 PC1 的第一枚实现提交 message 为 `feat: add thin local playable client`。当前验证结果为
 完整 product-proof test correction 提交为 `7e8f16c7bf3908abb5424cab9457986f6e162674`；
@@ -6524,12 +6525,27 @@ PC1 的第一枚实现提交 message 为 `feat: add thin local playable client`�
 `484 passed, 2 skipped`；full suite `1706 passed, 2 skipped`；`src/tgn/play 96.72%`、
 `src/tgn/story 96.95%`、`src/tgn/campaign 97.55%`、`src/tgn/projection 100%`、full
 `src/tgn 97.01%`；所有指定 warning-as-error 门禁为零 warning。两个 skip 都是 Windows
-上既有的 POSIX FIFO 测试，原因是当前平台不提供 FIFO 创建能力。PC1 仍是
-implementation candidate，不创建或移动任何 freeze tag。
+上既有的 POSIX FIFO 测试，原因是当前平台不提供 FIFO 创建能力。以上为历史中间
+candidate 阶段记录；最终 PC1 状态与冻结记录见下方。
 
 PC1 final acceptance correction code/test commit 为
-`96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`；本轮最终 Windows/WSL 回归与覆盖率
-见上方 correction record，PC1 仍未冻结。
+`96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`；该 accepted implementation 已冻结在
+`pc1-frozen`。最终验证为：`tests/play 101 passed`；affected
+`518 passed, 2 skipped`；full suite `1740 passed, 2 skipped`；full serial
+`1740 passed, 2 skipped`；real WSL/POSIX `tests/play 101 passed`；
+`src/tgn/play 97.11%`、`src/tgn/story 96.95%`、`src/tgn/campaign 97.55%`、
+`src/tgn/projection 100.00%`、full `src/tgn 97.05%`；warnings `0`。唯一 skips 为
+`tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 与
+`tests/campaign/test_no_follow.py::test_copy_fifo_source_is_rejected_on_posix`，原因是
+最终 Windows full-suite 主机无法创建 POSIX FIFO；PC1 自身没有新增 skip。
+
+`pc1-frozen` is immutable：`src/tgn/play/**` 与 `tests/play/**` 的冻结生产实现和测试
+不得原地编辑。未来 PC1 缺陷必须经过显式 PC1 reopen，或由新的 superseding
+milestone/phase 以新的 implementation SHA 和新的 freeze tag 处理；该 tag 不得移动、
+删除或重建。PC1 仍是 Campaign/Engine authority 之上的 thin outer client，Story 是
+derived/non-authoritative，external narrator 是 trusted local adapter；process
+containment 只用于 operational cleanup，不是 security sandbox；不存在 Client database
+或 provider framework。
 
 PC1 是位于 Campaign 与 Story 之上的最外层产品整合层，不是新的 Engine phase。它
 把真实玩家、冻结的 deterministic Campaign、非权威 Story 和一个可选的外部
@@ -6662,8 +6678,13 @@ duplicate-key/size 边界、commit-before-print、read-only status/verify 和无
 PC1 coverage hard gates 为 `src/tgn/play >= 95%`、`src/tgn/story >= 95%`、
 `src/tgn/campaign >= 95%`、`src/tgn/projection == 100%`、full `src/tgn >= 97%`。
 不得新增 skip、xfail、warning ignore、coverage exclusion 或 `pragma: no cover`，现有
-Windows POSIX FIFO skips 可以保留。完成本里程碑后只提交普通 branch commit，不创建
-Playable Client tag，也不冻结 PC1。
+Windows POSIX FIFO skips 可以保留。PC1 现已冻结在 `pc1-frozen`；未来修改必须走
+显式 reopen 或 superseding milestone/phase 流程。
+
+下一里程碑方向为 Phase 10：一个由 growth 产生的 Capability 必须成为真实可执行的
+非 basic action。Phase 9D 仍 deferred，且不是 Phase 10 前置条件。Phase 10 不得引入
+EffectSystem、AbilityGraph、SkillTree mega-framework、generic rule DSL 或
+world-specific branching。
 
 #### Phase 9D — Evaluation Matrix（Deferred Phase 9D）
 

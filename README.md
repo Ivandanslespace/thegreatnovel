@@ -39,12 +39,14 @@ Accepted frozen Phase 9C2 implementation SHA: `f9a8a10adb7579fe4e06e462fbbeee47c
 `phase-9c2-frozen` is immutable and must never be moved, deleted, or recreated；
 任何未来修复都必须经过显式 reopen 或 superseding-phase 流程。
 Phase 9C2 frozen at `phase-9c2-frozen`。
-Playable Client Milestone PC1 当前为 implementation candidate，最新 code/test correction
-提交为 `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`；PC1 未冻结且未创建 tag。
-Phase 9D deferred / not started；Phase 10 not started。
+Playable Client Milestone PC1 — frozen at `pc1-frozen`
 
-Playable Client Milestone PC1 是 Phase 9C2 之上的薄本地产品整合层，当前为
-implementation candidate，未创建 tag。它只通过 Campaign 与 Story 的公开 service
+Accepted PC1 implementation SHA: `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`。
+`pc1-frozen` is immutable and must never be moved, deleted, or recreated。
+Phase 9C2 remains frozen；Phase 9D deferred / not started；Phase 10 has not started。
+
+Playable Client Milestone PC1 是 Phase 9C2 之上的薄本地产品整合层，现已冻结在
+`pc1-frozen`。它只通过 Campaign 与 Story 的公开 service
 API 组合一个可恢复的本地人类玩家 / 外部 narrator loop：Engine 先持久化一个
 action，Story 再准备并提交 narration，只有 committed turn 才能向玩家显示 prose，
 最终由 Story 导出 novel.md。PC1 不修改任何 frozen package、测试或配置，不开始
@@ -74,11 +76,15 @@ pending request 也通过已锚定的 requests/ binding 重新验证；Phase 9C1
 Story root/turns identity、Campaign historical prefix 和 committed turn source
 identity 的完整校验，并在 post-move target identity 不匹配时保留竞争者 target。
 本次 directory fix 还要求 recommit 的 root/turns binding 与已加载 StoryView 的目录 identity 相等。
-PC1 implementation candidate commit：`0510c4dc8d83f1e80f725bde693232662deba1f2`；
+PC1 initial implementation candidate commit：`0510c4dc8d83f1e80f725bde693232662deba1f2`；
 PC1 complete product-proof test correction：`7e8f16c7bf3908abb5424cab9457986f6e162674`；
 PC1 comprehensive recovery/boundary correction：`0510c4dc8d83f1e80f725bde693232662deba1f2`；
 PC1 final process/file boundary hardening：`3456178fb42eb6ae8c3debe33653924315e349d0`；
 PC1 final acceptance correction：`96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`。
+以上 accepted implementation 已冻结为 `pc1-frozen`；冻结范围为
+`src/tgn/play/**` 与 `tests/play/**`。冻结生产实现和测试不得原地编辑；未来缺陷
+必须经过显式 PC1 reopen，或由新的 superseding milestone/phase 以新的 implementation
+SHA 和新的 freeze tag 处理。PC1 freeze tag 不得移动、删除或重建。
 PC1 使用 `src/tgn/play/**` 提供 `new`、`resume`、`narrate`、`status`、`verify` 和
 `export`，只组合冻结 Campaign/Story 的公开 service API；不创建 Client 数据库、provider
 adapter 或 Phase 9D/10 功能。PC1 本轮回归结果为 `tests/play 101 passed`、affected 集
@@ -90,6 +96,26 @@ Object 的 `KILL_ON_JOB_CLOSE`；response file 在 `O_NONBLOCK`、祖先 compone
 identity 和最终 observable 复核下读取，CLI JSON 对 terminal controls 使用合法 JSON
 escape。真实 WSL/POSIX `tests/play` 为 `101 passed`。唯一 skips 是 Windows 上既有的两个
 POSIX FIFO 测试。
+
+PC1 freeze verification record：`tests/play` `101 passed`；affected
+`tests/play tests/campaign tests/story` `518 passed, 2 skipped`；full suite
+`1740 passed, 2 skipped`；full serial `1740 passed, 2 skipped`；real WSL/POSIX
+`tests/play` `101 passed`。Coverage 为 `src/tgn/play 97.11%`、
+`src/tgn/story 96.95%`、`src/tgn/campaign 97.55%`、`src/tgn/projection 100.00%`、
+full `src/tgn 97.05%`；warnings `0`。唯一 skips 为
+`tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 与
+`tests/campaign/test_no_follow.py::test_copy_fifo_source_is_rejected_on_posix`，原因是
+最终 Windows full-suite 主机无法创建 POSIX FIFO；PC1 自身没有新增 skip。
+
+PC1 冻结不改变架构边界：PC1 是 thin outer client，Campaign/Engine 仍是 authority，
+Story 仍是 derived/non-authoritative artifact；external narrator 是 trusted local
+adapter；process containment 只是 operational cleanup，不是 security sandbox。不存在
+Client database 或 provider framework。
+
+下一里程碑方向为 Phase 10：让一个由 growth 产生的 Capability 成为真实可执行的
+非 basic action。Phase 9D 仍 deferred，且不是 Phase 10 前置条件。Phase 10 不得引入
+EffectSystem、AbilityGraph、SkillTree mega-framework、generic rule DSL 或
+world-specific branching。
 现有 pending Narration Request 的自身 locale 是恢复时的权威值；只有新建 request
 使用一次性 locale override，下一次新 request 回到 Story initial locale。Campaign
 manifest 与 Session 的 campaign/session ID、actor ID、max_decisions 在 Story 初始化前
