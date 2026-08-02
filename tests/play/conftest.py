@@ -40,18 +40,29 @@ def write_response(path: Path, request: dict[str, Any], *, prose: str = "A publi
     return path
 
 
-def write_narrator(path: Path, *, fail_first: bool = False) -> Path:
+def write_narrator(path: Path, *, fail_first: bool = False, fail_on_call: int | None = None) -> Path:
     marker = path.with_suffix(".marker")
     marker_text = repr(str(marker))
-    failure = (
-        f"from pathlib import Path\n"
-        f"marker = Path({marker_text})\n"
-        "if not marker.exists():\n"
-        "    marker.write_text('failed', encoding='utf-8')\n"
-        "    raise SystemExit(9)\n"
-        if fail_first
-        else ""
-    )
+    if fail_on_call is not None:
+        failure = (
+            f"from pathlib import Path\n"
+            f"marker = Path({marker_text})\n"
+            "call_count = int(marker.read_text(encoding='utf-8')) if marker.exists() else 0\n"
+            "call_count += 1\n"
+            "marker.write_text(str(call_count), encoding='utf-8')\n"
+            f"if call_count == {fail_on_call}:\n"
+            "    raise SystemExit(9)\n"
+        )
+    elif fail_first:
+        failure = (
+            f"from pathlib import Path\n"
+            f"marker = Path({marker_text})\n"
+            "if not marker.exists():\n"
+            "    marker.write_text('failed', encoding='utf-8')\n"
+            "    raise SystemExit(9)\n"
+        )
+    else:
+        failure = ""
     path.write_text(
         "import json, sys\n"
         f"{failure}"

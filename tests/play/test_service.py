@@ -67,7 +67,7 @@ def _snapshot_tree(root: Path) -> dict[str, tuple[bytes, int, int]]:
 
 def test_complete_playable_proof_with_real_campaign_story_and_local_narrator(play_context) -> None:
     context = play_context
-    narrator = write_narrator(context["root"] / "fake_narrator.py", fail_first=True)
+    narrator = write_narrator(context["root"] / "fake_narrator.py", fail_on_call=2)
     argv = narrator_argv(narrator)
     first_output: list[str] = []
     with pytest.raises(PlayError) as first_error:
@@ -81,28 +81,41 @@ def test_complete_playable_proof_with_real_campaign_story_and_local_narrator(pla
             locale="zh-CN",
             voice_id="cablecar_survival",
             narrator_argv=argv,
-            input_fn=_ScriptedActions(context["workspace"] / "campaign", ["DROP"]),
+            input_fn=_ScriptedActions(context["workspace"] / "campaign", ["DROP", "SEARCH"]),
             output_fn=first_output.append,
         )
     assert first_error.value.code == "PLAY_NARRATOR_FAILED"
 
     campaign = context["workspace"] / "campaign"
     story = context["workspace"] / "story"
-    assert verify_campaign(campaign)["session"]["accepted_decisions"] == 1
+    # DROP was narrated successfully; SEARCH is the exact pending request after
+    # the second narrator call fails. This is the close/reopen boundary.
+    assert verify_campaign(campaign)["session"]["accepted_decisions"] == 2
     pending = prepare_story(story, campaign_dir=campaign)["request"]
     assert pending["narration_locale"] == "zh-CN"
-    assert status_story(story, campaign_dir=campaign)["pending_turn_id"] == "turn-000001"
+    assert pending["turn_id"] == "turn-000002"
+    pending_bytes = (story / "requests" / "turn-000002.json").read_bytes()
+    drop_turn_bytes = (story / "turns" / "turn-000001.json").read_bytes()
+    assert status_story(story, campaign_dir=campaign)["pending_turn_id"] == "turn-000002"
 
     resume_output: list[str] = []
     resumed = PlayService(context["workspace"]).resume(
         narrator_argv=argv,
-        input_fn=_ScriptedActions(campaign, ["SEARCH", ":locale ar", "EXTRACT", "TALK_TO_ACTOR", "STOP"]),
+        input_fn=_ScriptedActions(campaign, [":locale ar", "EXTRACT", "TALK_TO_ACTOR", "STOP"]),
         output_fn=resume_output.append,
     )
     assert resumed["terminal"] is True
     assert resumed["export"]["novel_status"] == "CURRENT_FINAL"
     assert len(list((story / "turns").glob("*.json"))) == 4
     assert len(list((story / "requests").glob("*.json"))) == 4
+    assert (story / "requests" / "turn-000002.json").read_bytes() == pending_bytes
+    assert (story / "turns" / "turn-000001.json").read_bytes() == drop_turn_bytes
+    requests = [
+        json.loads((story / "requests" / f"turn-{index:06d}.json").read_bytes())
+        for index in range(1, 5)
+    ]
+    assert [request["narration_locale"] for request in requests] == ["zh-CN", "zh-CN", "ar", "ar"]
+    assert (context["root"] / "fake_narrator.marker").read_text(encoding="utf-8") == "5"
 
     final_bytes = (story / "novel.md").read_bytes()
     assert "中文后果".encode("utf-8") in final_bytes
