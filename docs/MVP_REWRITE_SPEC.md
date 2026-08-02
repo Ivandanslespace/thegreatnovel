@@ -5066,9 +5066,12 @@ authorize Phase 9C work.
 
 **Phase 9C2 recovery test correction:** `d1f64153e59c3f62cd4784f0641b2cadda38f325`
 
+**Phase 9C2 Windows delete-HANDLE exact-observable correction:** `a445cf4b925f550d22c661504049be025ffa73c2`
+
 **Parallel pytest tooling commit:** `1dfa3fe33bf5bea35e831cf56af9678fd2e88dd4`
 
-`phase-9c1-frozen` is immutable; Phase 9C2 remains unfrozen and Phase 9D has not started.
+`phase-9c1-frozen` is immutable; Phase 9C2 remains unfrozen. The Playable Client
+Milestone and Phase 9D have not started.
 
 **Phase 9C1 publication source-identity correction commit:** `739a656fc8e7b50a12484049bb0f4598aa0cb1b2`; final
 idempotent source-identity fix: `f5aeba6dd0e02a028dde8c077dd5c68dfbd98159`; loaded Story
@@ -5095,11 +5098,16 @@ partial layout 以 no-replace 恢复 expected target；竞争者和未知对象�
 归属时返回 bounded cleanup/publication failure。POSIX post-primitive interference 只删除
 完整 observable 相等的 displaced expected target，因此可恢复失败不留下 `.tmp` 或
 `.backup` debris。上一轮的 unclosed sqlite3 connection warning 已改为显式 close；
-最终 warning-as-error 全仓回归为 `0 warnings`。
-Phase 9C2 candidate 当前验证结果：Story `235 passed`、Story coverage `97%`；Campaign
-`173 passed, 2 skipped`、Campaign coverage `98%`；Worldgen `150 passed`；Projection
+最终 warning-as-error 全仓回归为 `0 warnings`。本次 Windows delete-HANDLE correction
+要求 DELETE-capable HANDLE 保持打开，在最后一次 pathname identity、regular/non-reparse
+type、bytes、SHA-256、size 和 mtime_ns 完整 observable 复核通过后，才调用
+`SetFileInformationByHandle(FILE_DISPOSITION_INFO)`；HANDLE 的 share mode 允许 read
+但拒绝 write/delete，因此复核与删除之间不会重新落回 pathname-only cleanup。
+同一 identity 的原地 bytes、size 或 mtime 变化均 fail closed，文件保持不被删除。
+Phase 9C2 candidate 当前验证结果：Story `240 passed`、Story coverage `96.94%`；Campaign
+`173 passed, 2 skipped`、Campaign coverage `97.55%`；Worldgen `150 passed`；Projection
 `112 passed`、Projection coverage `100%`；Session `74 passed`；LLM Player `63 passed`；
-Phase 8 autoplay `1 passed`；全仓 `1630 passed, 2 skipped`、全仓 coverage `97.01%`；
+Phase 8 autoplay `1 passed`；全仓 `1635 passed, 2 skipped`、全仓 coverage `97.04%`；
 warning-as-error 全仓回归为 `0 warnings`。使用 pytest-xdist `3.8.0`，12/12 worker、
 WorkStealing、`--max-worker-restart=0`，未发生 worker crash/restart。两个 skipped 是 Windows 上冻结的
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和
