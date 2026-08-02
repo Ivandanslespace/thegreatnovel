@@ -50,6 +50,18 @@ system. Arbitrary Capability WorldGen authoring remains deferred.
 Generic overlay frameworks and arbitrary initial-state patch systems remain
 prohibited.
 
+The Phase 10A Story public-facts bridge is now an explicit implementation
+candidate, not a change to the frozen Phase 9C2 contract. Phase 9C2 v1 already
+contains the bounded `public_event_facts[].facts` JSON object; the missing slice
+is a narrow Story reconstruction adapter for `DEVOUR_RESOLVED`. It may derive
+only `capability_id`, `essence_before`, `essence_gained`, `essence_after`, and
+`remains_consumed` from the authoritative Event plus replayed before/after state.
+The Narrator remains non-authoritative, legacy Event facts remain `{}`, and no
+generic public-fact ontology or new Story format is introduced. The bridge has
+not been implemented. Phase 10A acceptance remains blocked by the separately
+tracked presenter `enemy_id` boundary and the `devour_overlay.py` coverage gap
+(95.24%, missing lines 105/109/111).
+
 Capability, CapabilityGrant, and source-system language describe the design boundary;
 they do not authorize Python classes, database schema, Event additions, tests, or a
 generalized registry in the current phase.

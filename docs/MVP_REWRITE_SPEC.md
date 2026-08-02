@@ -7508,6 +7508,85 @@ not claim a second Capability, copied enemy power, attack increase, HP recovery,
 base return, or completed `EXTRACT`. Story remains derived and cannot decide
 eligibility or essence.
 
+#### 5.4.17a Bounded `DEVOUR_RESOLVED` Story public-event facts
+
+The Phase 9C2 Narration Request v1 already contains the exact
+`public_brief.action_result.public_event_facts[].facts` JSON object field. Phase
+10A does not change `STORY_SCHEMA_VERSION = 1`,
+`STORY_FORMAT_ID = phase9c-story-v1`,
+`NARRATION_REQUEST_FORMAT_ID = phase9c-narration-request-v1`, or
+`TURN_ARTIFACT_FORMAT_ID = phase9c-turn-narration-v1`. It does not add a database,
+request field, turn field, migration, or generic fact framework. The frozen
+`phase-9c2-frozen` implementation and tag remain immutable.
+
+The current implementation gap is narrower: Story reconstruction currently emits
+`facts: {}` for every Event. A future Phase 10A implementation may add a thin,
+feature-owned reconstruction bridge, such as
+`build_devour_public_event_facts(event_payload, state_before, state_after)`, and
+one explicit `DEVOUR_RESOLVED` branch in Story reconstruction. All other Event
+types continue to emit `facts: {}` under the existing contract.
+
+For the current Phase 10A fixture, the exact public facts object for
+`DEVOUR_RESOLVED` is:
+
+```json
+{
+  "capability_id": "devour_evolution",
+  "essence_before": 0,
+  "essence_gained": 1,
+  "essence_after": 1,
+  "remains_consumed": true
+}
+```
+
+The object has exactly these five fields. It deliberately excludes `grant_id`,
+`holder_id`, `source_kind`, `source_id`, `acquired_event_seq`, `enemy_id`, raw
+Event payload, and all private actor or World Truth fields. `capability_id` and
+the essence values are public facts for this bounded slice; they are not a new
+generic resource or fact ontology.
+
+Authority is ordered:
+
+```text
+authoritative DEVOUR_RESOLVED DomainEvent
+→ replayed state_before/state_after
+→ deterministic Story public facts
+```
+
+The bridge must validate the exact Event payload field set, the fixed capability
+and grant semantics, arithmetic (`after = before + gained`), and the post-state
+fact that `devour_yield.consumed` is true before it emits the five-field object.
+It must never infer facts from prose, a display label, a client response, or an
+unverified Story artifact. The Narrator remains non-authoritative and prose is
+never parsed back into GameState.
+
+These facts do not create a new claim kind. Existing bounded claim requirements
+remain the authority for `action_performed`, `stamina_changed`,
+`resource_delta`, `location_changed`, `public_fact_revealed`,
+`relationship_public_change`, and `terminal_reason`; essence must not be
+mislabelled as inventory, carried loot, or an actor fact. Existing legacy Event
+facts remain `{}`.
+
+The implementation contract must prove determinism: rebuilding the same accepted
+turn produces byte-identical request JSON and request hash; closing and reopening
+preserves the exact pending request; deleting only a pending request and
+rebuilding it yields the same bytes; and mutation of any five public values or
+their authoritative Event/state inputs fails closed. Public facts are display
+and narration input only, never a replay source.
+
+The direct acceptance proof must assert that the request contains one
+`DEVOUR_RESOLVED` public-event fact with the exact object above, while the public
+post-action observation separately shows the player at the target, the expedition
+still active, stamina decreased by one, and the remains consumed. It must also
+prove that no grant/source/enemy/private fields leak and that the committed Story
+turn retains `action_type = DEVOUR_REMAINS` and `event_type = DEVOUR_RESOLVED`.
+
+This amendment defines the bridge only. It does not fix the separately observed
+projection presenter `enemy_id` exposure boundary or the current
+`src/tgn/worldgen/devour_overlay.py` coverage gap (`95.24%`, missing lines
+`105/109/111`); those remain independent implementation blockers for Phase 10A
+acceptance.
+
 Future implementation must prove that the genesis grant survives initial-state
 persistence, live state equals full replay and snapshot-plus-tail replay, the
 Event reconstructs essence and consumed status, and reopen preserves the exact

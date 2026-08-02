@@ -142,6 +142,19 @@ Phase 10A candidate verification：`tests/phase10` `62 passed`；full suite
 `src/tgn/worldgen` `96.60%`。唯一 skips 仍是 Windows 主机无法创建 POSIX FIFO 的两个既有
 Campaign 测试；Phase 10A 没有新增 skip。
 
+Phase 10A Story public-facts bridge 已定义为实现候选的补充合同：Phase 9C2 的
+`NarrationRequest` v1 已有 `public_brief.action_result.public_event_facts[].facts`
+JSON object 字段，因此不修改 Story schema、request/turn format、数据库或冻结的
+Phase 9C2 实现。当前 gap 是 Story reconstruction 对所有 Event 都填充空 facts；未来
+实现可在 `src/tgn/gameplay/devour_evolution.py` 与 `src/tgn/story/reconstruction.py`
+增加仅针对 `DEVOUR_RESOLVED` 的窄适配，按 replayed before/after state 派生五项公开事实：
+`capability_id`、`essence_before`、`essence_gained`、`essence_after`、
+`remains_consumed`。DomainEvent 和 replayed state 是 authority，Narrator 不得产生或
+推断这些事实；其他现有 Event 继续使用 `{}`，不新增 claim kind 或通用事实框架。
+该 bridge 的 production implementation 尚未开始，Phase 10A 仍 unfrozen；独立验收仍
+保留两个后续 blocker：presenter 当前仍需收紧 raw `enemy_id` 的公开边界，且
+`src/tgn/worldgen/devour_overlay.py` 当前覆盖率为 `95.24%`，缺少 lines `105/109/111`。
+
 Phase 10 不得提前建立 EffectSystem、AbilityGraph、SkillTree mega-framework、generic
 rule DSL、plugin/handler registry，或在 Core 中加入 world-specific branching。
 现有 pending Narration Request 的自身 locale 是恢复时的权威值；只有新建 request
