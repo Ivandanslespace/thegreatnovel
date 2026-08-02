@@ -6811,8 +6811,9 @@ LocaleFramework、TranslationDatabase、AgentOrchestratorFramework 或 GenericWo
 ### Phase 10 — Capability Foundation and Stackable Protagonist Gift
 
 **Status:** Phase 10 documentation direction established; the Phase 10A Feature
-Contract is locked as an implementation candidate; Phase 10A production
-implementation has not started; Phase 10 remains unfrozen.
+Contract is locked as an implementation candidate; the Phase 10A production
+implementation candidate is recorded at `89e32661b2d26e58c21d09691df4bbc40ff0a2d1`;
+Phase 10 remains unfrozen.
 
 #### 5.1 Phase 10 总目标
 
@@ -6912,6 +6913,17 @@ Phase 10A does not prove a second Capability, Capability acquisition from essenc
 multiple grants coexisting, a passive Capability, Capability removal or expiry,
 Equipment/Companion/Reward grants, or a generic registry. Those boundaries belong
 to Phase 10B, Phase 10C, or later independent modules.
+
+The Phase 10A implementation candidate consists of the deterministic
+`devour_evolution` gameplay slice, the fixed
+`phase10a-devour-overlay-v1` six-file World bundle variant, its verified Projection
+identity bridge, and tests under `tests/phase10/**`. It does not modify Campaign,
+Session, Story, Autoplay, or the frozen PC1 packages. Candidate verification recorded
+`62 passed` in `tests/phase10`, `1802 passed, 2 skipped` in the full suite, zero
+warning-as-error warnings, `97.01%` full `src/tgn` coverage, and `100.00%`
+Projection coverage. The two skips are the pre-existing Windows-host POSIX FIFO
+Campaign tests; no Phase 10A skip was added. This is an implementation candidate,
+not a freeze, and no Phase 10 tag exists.
 
 #### 5.4.1 First Capability and holder
 

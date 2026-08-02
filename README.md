@@ -44,10 +44,11 @@ Playable Client Milestone PC1 — frozen at `pc1-frozen`
 Accepted PC1 implementation SHA: `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`。
 `pc1-frozen` is immutable and must never be moved, deleted, or recreated。
 Phase 9C2 remains frozen；Phase 9D deferred / not started。
-main publishes the frozen PC1 baseline；mvp-rewrite carries documentation-only Phase 10
-roadmap changes until implementation starts。Phase 10 documentation direction is
+main publishes the frozen PC1 baseline；mvp-rewrite carries the Phase 10A
+implementation candidate and its documentation。Phase 10 documentation direction is
 established；Phase 10A Feature Contract is locked as an implementation candidate；
-Phase 10A production implementation has not started，and Phase 10 remains unfrozen。
+Phase 10A production implementation candidate is recorded below，and Phase 10 remains
+unfrozen。
 
 Playable Client Milestone PC1 是 Phase 9C2 之上的薄本地产品整合层，现已冻结在
 `pc1-frozen`。它只通过 Campaign 与 Story 的公开 service
@@ -125,14 +126,21 @@ Capability 进入确定性 action 或明确的局部 rule path。第一条实现
 后续固定 Capability 的 protagonist core gift。Phase 10A 现在锁定为
 Genesis Core Gift + First Deterministic Use Loop：player 持有 genesis 的
 devour_evolution，通过明确的 DEVOUR_REMAINS action 消耗一个 eligible defeated
-remains，并确定性获得 1 essence。Phase 10A implementation 尚未开始，Phase 10
-也尚未冻结。Phase 9D 仍 deferred，且不是 Phase 10 前置条件。
+remains，并确定性获得 1 essence。Phase 10A implementation candidate 位于
+`89e32661b2d26e58c21d09691df4bbc40ff0a2d1`，尚未冻结。Phase 9D 仍 deferred，且
+不是 Phase 10 前置条件。
 
 Phase 10A gameplay contract 已锁定；本轮只补充其
 phase10a-devour-overlay-v1 bundle 与 Projection bridge 设计。完整 Campaign 路径
 必须经过可重验证的 World bundle、Projection bundle、Campaign、Story 和冻结的
 PC1 generic choice renderer；不增加 initial-state override seam。mvp-rewrite
-仍只包含 documentation candidates。
+现在包含 Phase 10A candidate code/tests 与 documentation；没有 Phase 10 freeze tag。
+
+Phase 10A candidate verification：`tests/phase10` `62 passed`；full suite
+`1802 passed, 2 skipped`；warning-as-error `0 warnings`；full `src/tgn` coverage
+`97.01%`，`src/tgn/projection` `100.00%`，`src/tgn/gameplay` `98.33%`，
+`src/tgn/worldgen` `96.60%`。唯一 skips 仍是 Windows 主机无法创建 POSIX FIFO 的两个既有
+Campaign 测试；Phase 10A 没有新增 skip。
 
 Phase 10 不得提前建立 EffectSystem、AbilityGraph、SkillTree mega-framework、generic
 rule DSL、plugin/handler registry，或在 Core 中加入 world-specific branching。
