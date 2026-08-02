@@ -53,3 +53,35 @@ def test_cli_dispatch_and_unexpected_error_mapping(story_factory, monkeypatch: p
     assert cli.main(["status", "--story-dir", str(story), "--campaign-dir", str(campaign)]) == 1
     output = json.loads(capsys.readouterr().out)
     assert output == {"error": {"code": "STORY_INTEGRITY_MISMATCH", "message": "Story operation failed"}, "ok": False}
+
+
+@pytest.mark.parametrize("raw", ["+1", "-1", "01", " 1", "1 ", "1.0", "true", "False", ""])
+def test_cli_export_rejects_noncanonical_accepted_decisions_before_mutation(
+    story_factory,
+    raw: str,
+    capsys,
+) -> None:
+    campaign, story, config = story_factory(name=f"cli-invalid-count-{len(raw)}")
+    init_story(
+        story,
+        campaign_dir=campaign,
+        story_id=config["story_id"],
+        initial_narration_locale="en",
+        initial_voice_id="cablecar_survival",
+    )
+    assert cli.main(
+        [
+            "export",
+            "--story-dir",
+            str(story),
+            "--campaign-dir",
+            str(campaign),
+            "--mode",
+            "snapshot",
+            "--accepted-decisions",
+            raw,
+        ]
+    ) == 1
+    output = json.loads(capsys.readouterr().out)
+    assert output["error"]["code"] == "INVALID_STORY_INPUT"
+    assert not (story / "novel.md").exists()

@@ -45,6 +45,7 @@ from .models import (
 from .novel import build_novel, novel_sha256, parse_novel_header
 from .publication import (
     BoundPublicationDirectory,
+    ExpectedPublicationFile,
     PublicationBoundaryChanged,
     PublicationConflict,
     PublicationRuntime,
@@ -339,7 +340,7 @@ def _publish_novel(
     replace_existing: bool,
     parent_binding: BoundPublicationDirectory,
     boundary_check: Any,
-    expected_target_identity: tuple[Any, ...] | None = None,
+    expected_target: ExpectedPublicationFile | None = None,
 ) -> None:
     try:
         if replace_existing:
@@ -348,7 +349,7 @@ def _publish_novel(
                 payload,
                 parent_binding=parent_binding,
                 boundary_check=boundary_check,
-                expected_target_identity=expected_target_identity,
+                expected_target=expected_target,
             )
         else:
             publish_bytes_no_replace(
@@ -367,8 +368,11 @@ def _publish_novel(
                 raise _story_integrity("novel target changed during export") from exc
             if code == "CAMPAIGN_SNAPSHOT_CHANGED":
                 raise StoryError("CAMPAIGN_SNAPSHOT_CHANGED", "Campaign changed during novel export") from exc
-        if message == "publication target identity changed":
-            raise _story_integrity("novel target identity changed during export") from exc
+        if message in {
+            "publication target identity changed",
+            "publication target observable changed",
+        }:
+            raise _story_integrity("novel target observable changed during export") from exc
         raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "novel publication boundary changed") from exc
     except PublicationConflict as exc:
         raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "novel target changed during export") from exc
@@ -1340,8 +1344,8 @@ class StoryService:
                 _novel_file_unchanged(view, root_binding)
 
             try:
-                expected_target_identity = (
-                    root_binding.child_identity("novel.md", "file")
+                expected_target = (
+                    root_binding.capture_file_observable("novel.md")
                     if view.novel is not None
                     else None
                 )
@@ -1353,7 +1357,7 @@ class StoryService:
                 replace_existing=view.novel is not None,
                 parent_binding=root_binding,
                 boundary_check=publication_guard,
-                expected_target_identity=expected_target_identity,
+                expected_target=expected_target,
             )
         finally:
             if root_binding is not None:

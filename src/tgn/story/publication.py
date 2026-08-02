@@ -19,6 +19,7 @@ import stat
 import sys
 import tempfile
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,7 @@ from .common import (
     is_actual_regular_file,
     lexical_absolute,
     read_regular_file,
+    sha256_bytes,
     validate_path_components,
     write_fd_all,
 )
@@ -46,6 +48,31 @@ class PublicationRuntime(RuntimeError):
 
 class PublicationBoundaryChanged(PublicationRuntime):
     """A caller-owned publication guard observed its bound state change."""
+
+
+@dataclass(frozen=True)
+class ExpectedPublicationFile:
+    """The exact regular file that a conditional replacement may displace."""
+
+    identity: tuple[Any, ...]
+    sha256: str
+    size: int
+    mtime_ns: int
+    payload: bytes
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.identity, tuple) or not self.identity:
+            raise PublicationRuntime("expected publication identity is invalid")
+        if type(self.size) is not int or self.size < 0:
+            raise PublicationRuntime("expected publication size is invalid")
+        if type(self.mtime_ns) is not int or self.mtime_ns < 0:
+            raise PublicationRuntime("expected publication mtime is invalid")
+        if not isinstance(self.sha256, str) or len(self.sha256) != 64:
+            raise PublicationRuntime("expected publication hash is invalid")
+        if not isinstance(self.payload, bytes):
+            raise PublicationRuntime("expected publication payload is invalid")
+        if len(self.payload) != self.size or sha256_bytes(self.payload) != self.sha256:
+            raise PublicationRuntime("expected publication observable is inconsistent")
 
 
 def _lexists(path: Path) -> bool:
@@ -116,23 +143,44 @@ def _windows_no_replace(source: str | Path, target: str | Path, parent_handle: i
     raise PublicationRuntime("Windows atomic publication failed")
 
 
-def _windows_replace(source: str | Path, target: str | Path, parent_handle: int | None = None) -> None:
-    """Replace one verified target while the bound parent HANDLE is held."""
+def _windows_replace_file(
+    source: str | Path,
+    target: str | Path,
+    backup: str | Path,
+    parent_handle: int | None = None,
+) -> None:
+    """Replace a target while atomically preserving its displaced object."""
 
     del parent_handle
     try:
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        move_file = kernel32.MoveFileExW
-        move_file.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32]
-        move_file.restype = ctypes.c_int
+        replace_file = kernel32.ReplaceFileW
+        replace_file.argtypes = [
+            ctypes.c_wchar_p,
+            ctypes.c_wchar_p,
+            ctypes.c_wchar_p,
+            ctypes.wintypes.DWORD,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+        ]
+        replace_file.restype = ctypes.wintypes.BOOL
     except Exception as exc:
         raise PublicationUnavailable("Windows atomic replace capability is unavailable") from exc
-    if move_file(os.fspath(source), os.fspath(target), 0x00000001):
+    if replace_file(
+        os.fspath(target),
+        os.fspath(source),
+        os.fspath(backup),
+        0,
+        None,
+        None,
+    ):
         return
     error_number = ctypes.get_last_error()
     if error_number in {1, 50, 120}:
         raise PublicationUnavailable("Windows atomic replace capability is unavailable")
-    raise PublicationRuntime("Windows atomic replace failed")
+    if error_number in {2, 3, 117}:
+        raise PublicationConflict("Windows atomic replace target is unavailable")
+    raise PublicationRuntime("Windows conditional atomic replace failed")
 
 
 def _linux_no_replace(
@@ -169,6 +217,38 @@ def _linux_no_replace(
     raise PublicationRuntime("Linux atomic publication failed")
 
 
+def _linux_exchange(
+    source: str | Path,
+    target: str | Path,
+    source_dir_fd: int | None = None,
+    target_dir_fd: int | None = None,
+) -> None:
+    """Atomically exchange two names while retaining the displaced object."""
+
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        renameat2 = getattr(libc, "renameat2")
+        renameat2.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+        renameat2.restype = ctypes.c_int
+    except Exception as exc:
+        raise PublicationUnavailable("Linux renameat2 exchange is unavailable") from exc
+    source_fd = -100 if source_dir_fd is None else source_dir_fd
+    target_fd = -100 if target_dir_fd is None else target_dir_fd
+    result = renameat2(
+        source_fd,
+        os.fsencode(source),
+        target_fd,
+        os.fsencode(target),
+        2,
+    )
+    if result == 0:
+        return
+    error_number = ctypes.get_errno()
+    if error_number in {errno.ENOSYS, errno.EOPNOTSUPP, errno.ENOTSUP, errno.EINVAL}:
+        raise PublicationUnavailable("Linux renameat2 exchange is unavailable")
+    raise PublicationRuntime("Linux atomic exchange failed")
+
+
 def _macos_no_replace(
     source: str | Path,
     target: str | Path,
@@ -201,6 +281,38 @@ def _macos_no_replace(
     if error_number in {errno.ENOSYS, errno.EOPNOTSUPP, errno.ENOTSUP, errno.EINVAL}:
         raise PublicationUnavailable("macOS renameatx_np no-replace capability is unavailable")
     raise PublicationRuntime("macOS atomic publication failed")
+
+
+def _macos_exchange(
+    source: str | Path,
+    target: str | Path,
+    source_dir_fd: int | None = None,
+    target_dir_fd: int | None = None,
+) -> None:
+    """Atomically exchange two names through macOS renameatx_np."""
+
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        renameatx_np = getattr(libc, "renameatx_np")
+        renameatx_np.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+        renameatx_np.restype = ctypes.c_int
+    except Exception as exc:
+        raise PublicationUnavailable("macOS renameatx_np exchange is unavailable") from exc
+    source_fd = -2 if source_dir_fd is None else source_dir_fd
+    target_fd = -2 if target_dir_fd is None else target_dir_fd
+    result = renameatx_np(
+        source_fd,
+        os.fsencode(source),
+        target_fd,
+        os.fsencode(target),
+        0x00000002,
+    )
+    if result == 0:
+        return
+    error_number = ctypes.get_errno()
+    if error_number in {errno.ENOSYS, errno.EOPNOTSUPP, errno.ENOTSUP, errno.EINVAL}:
+        raise PublicationUnavailable("macOS renameatx_np exchange is unavailable")
+    raise PublicationRuntime("macOS atomic exchange failed")
 
 
 class _BY_HANDLE_FILE_INFORMATION(ctypes.Structure):
@@ -503,6 +615,21 @@ class BoundPublicationDirectory:
         name = _ensure_name(name)
         self.check()
         try:
+            return self._read_child_bytes_anchored(name)
+        except PublicationRuntime:
+            raise
+        except FileNotFoundError:
+            raise
+        except OSError as exc:
+            raise PublicationRuntime("publication child cannot be read") from exc
+        finally:
+            self.check()
+
+    def _read_child_bytes_anchored(self, name: str) -> tuple[bytes, os.stat_result]:
+        """Read one child relative to the retained parent without a path check."""
+
+        name = _ensure_name(name)
+        try:
             initial = self._stat_at(name)
             if not is_actual_regular_file(initial):
                 raise PublicationRuntime("publication child is not a regular file")
@@ -533,6 +660,33 @@ class BoundPublicationDirectory:
             raise
         except OSError as exc:
             raise PublicationRuntime("publication child cannot be read") from exc
+
+    def _capture_file_observable_anchored(self, name: str) -> ExpectedPublicationFile:
+        """Capture exact file bytes and identity relative to the bound parent."""
+
+        payload, file_stat = self._read_child_bytes_anchored(name)
+        identity = self._identity_at(name, "file") if os.name == "nt" else _stat_identity(file_stat)
+        return ExpectedPublicationFile(
+            identity=identity,
+            sha256=sha256_bytes(payload),
+            size=len(payload),
+            mtime_ns=int(file_stat.st_mtime_ns),
+            payload=payload,
+        )
+
+    def capture_file_observable(self, name: str) -> ExpectedPublicationFile:
+        """Capture a regular child as an exact conditional-publication target."""
+
+        name = _ensure_name(name)
+        self.check()
+        try:
+            return self._capture_file_observable_anchored(name)
+        except PublicationRuntime:
+            raise
+        except FileNotFoundError:
+            raise
+        except OSError as exc:
+            raise PublicationRuntime("publication child observable cannot be captured") from exc
         finally:
             self.check()
 
@@ -792,6 +946,45 @@ class BoundPublicationDirectory:
         except Exception as exc:
             raise PublicationRuntime("publication cleanup failed") from exc
 
+    def _remove_expected_file_anchored(
+        self,
+        name: str,
+        expected: ExpectedPublicationFile,
+    ) -> None:
+        """Remove only an exact, operation-observed regular file."""
+
+        current = self._capture_file_observable_anchored(name)
+        if current != expected:
+            raise PublicationBoundaryChanged("publication displaced file changed")
+        try:
+            if self.directory_fd is not None:
+                os.unlink(_ensure_name(name), dir_fd=self.directory_fd)
+            else:
+                os.unlink(self.path / _ensure_name(name))
+        except FileNotFoundError as exc:
+            raise PublicationBoundaryChanged("publication displaced file disappeared") from exc
+        except OSError as exc:
+            raise PublicationRuntime("publication displaced file cannot be removed") from exc
+
+    def _clear_temp_state(self) -> None:
+        """Forget a consumed temporary without pathname cleanup."""
+
+        try:
+            self._close_temp_fd()
+        except PublicationRuntime:
+            pass
+        try:
+            self._close_temp_handle()
+        except PublicationRuntime:
+            pass
+        self._temp_name = None
+        self._temp_path = None
+        self._temp_kind = None
+        self._temp_fd = None
+        self._temp_handle = None
+        self._temp_identity = None
+        self._temp_owned = False
+
     def cleanup_temp(self) -> None:
         if self._temp_name is None or self._temp_kind is None:
             return
@@ -996,82 +1189,176 @@ class BoundPublicationDirectory:
                 raise cleanup_exc from exc
             raise
 
+    def _next_displaced_name(self, target_name: str) -> str:
+        target_name = _ensure_name(target_name)
+        for _ in range(32):
+            candidate = f".{target_name}.{secrets.token_hex(16)}.backup"
+            if not self._exists_at(candidate):
+                return candidate
+        raise PublicationRuntime("publication backup name allocation failed")
+
+    def _exchange_names(self, source_name: str, target_name: str) -> None:
+        if self.directory_fd is None:
+            raise PublicationUnavailable("anchored replace descriptor is unavailable")
+        try:
+            if sys.platform.startswith("linux"):
+                _linux_exchange(source_name, target_name, self.directory_fd, self.directory_fd)
+            elif sys.platform == "darwin":
+                _macos_exchange(source_name, target_name, self.directory_fd, self.directory_fd)
+            else:
+                raise PublicationUnavailable("platform has no supported conditional replace primitive")
+        except (PublicationUnavailable, PublicationRuntime):
+            raise
+        except OSError as exc:
+            raise PublicationRuntime("atomic conditional exchange failed") from exc
+
+    def _writer_target_matches(
+        self,
+        target_name: str,
+        writer: ExpectedPublicationFile,
+    ) -> bool:
+        try:
+            current = self._capture_file_observable_anchored(target_name)
+        except Exception:
+            return False
+        return (
+            current.identity == writer.identity
+            and current.sha256 == writer.sha256
+            and current.size == writer.size
+            and current.payload == writer.payload
+        )
+
+    def _restore_displaced_after_exchange(
+        self,
+        target_name: str,
+        displaced_name: str,
+        displaced: ExpectedPublicationFile,
+        writer: ExpectedPublicationFile,
+    ) -> None:
+        """Restore the displaced object and remove only the writer object."""
+
+        if not self._writer_target_matches(target_name, writer):
+            raise PublicationBoundaryChanged("publication target interference")
+        if os.name == "nt":
+            cleanup_name = self._next_displaced_name(target_name)
+            _windows_replace_file(
+                self.path / displaced_name,
+                self.path / target_name,
+                self.path / cleanup_name,
+                self.directory_handle,
+            )
+            restored = self._capture_file_observable_anchored(target_name)
+            if restored != displaced:
+                raise PublicationBoundaryChanged("publication target interference")
+            cleanup = self._capture_file_observable_anchored(cleanup_name)
+            if cleanup.identity != writer.identity or cleanup.payload != writer.payload:
+                raise PublicationBoundaryChanged("publication writer cleanup identity changed")
+            self._remove_expected_file_anchored(cleanup_name, cleanup)
+            return
+
+        self._exchange_names(displaced_name, target_name)
+        restored = self._capture_file_observable_anchored(target_name)
+        if restored != displaced:
+            raise PublicationBoundaryChanged("publication target interference")
+        writer_at_source = self._capture_file_observable_anchored(displaced_name)
+        if writer_at_source.identity != writer.identity or writer_at_source.payload != writer.payload:
+            raise PublicationBoundaryChanged("publication writer cleanup identity changed")
+        self._remove_expected_file_anchored(displaced_name, writer_at_source)
+
     def _replace_temp(
         self,
         target_name: str,
         *,
-        expected_target_identity: tuple[Any, ...] | None = None,
+        expected_target: ExpectedPublicationFile,
     ) -> None:
-        """Atomically replace an already verified regular target."""
+        """Conditionally replace a regular target while retaining its old object."""
 
         target_name = _ensure_name(target_name)
+        if not isinstance(expected_target, ExpectedPublicationFile):
+            raise PublicationRuntime("expected target observable is required")
         self._verify_temp()
         source_name = self._temp_name
         source_path = self._temp_path
         source_kind = self._temp_kind
         if source_name is None or source_path is None or source_kind != "file":
             raise PublicationRuntime("owned temporary file is not active")
+
         try:
-            target_stat = self._stat_at(target_name)
-            if not is_actual_regular_file(target_stat):
-                raise PublicationRuntime("novel target is not a regular file")
+            writer = self._capture_file_observable_anchored(source_name)
+            if writer.identity != self._temp_identity:
+                raise PublicationRuntime("owned temporary identity changed")
+            current_target = self._capture_file_observable_anchored(target_name)
         except FileNotFoundError as exc:
-            if expected_target_identity is not None:
-                raise PublicationBoundaryChanged("publication target identity changed") from exc
-            raise PublicationConflict("publication target disappeared") from exc
-        if expected_target_identity is not None:
-            try:
-                current_target_identity = self._identity_at(target_name, "file")
-            except FileNotFoundError as exc:
-                raise PublicationBoundaryChanged("publication target identity changed") from exc
-            except OSError as exc:
-                raise PublicationRuntime("publication target identity cannot be inspected") from exc
-            if current_target_identity != expected_target_identity:
-                raise PublicationBoundaryChanged("publication target identity changed")
+            raise PublicationBoundaryChanged("publication target observable changed") from exc
+        except PublicationBoundaryChanged:
+            raise
+        except PublicationRuntime:
+            raise
+        except OSError as exc:
+            raise PublicationRuntime("publication target observable cannot be inspected") from exc
+        if current_target != expected_target:
+            raise PublicationBoundaryChanged("publication target observable changed")
+
+        exchanged = False
+        displaced_name = target_name
         try:
             if os.name == "nt":
-                _windows_replace(source_path, self.path / target_name, self.directory_handle)
-            elif sys.platform.startswith("linux") or sys.platform == "darwin":
-                if self.directory_fd is None:
-                    raise PublicationUnavailable("anchored replace descriptor is unavailable")
-                os.replace(
-                    source_name,
-                    target_name,
-                    src_dir_fd=self.directory_fd,
-                    dst_dir_fd=self.directory_fd,
+                displaced_name = self._next_displaced_name(target_name)
+                _windows_replace_file(
+                    source_path,
+                    self.path / target_name,
+                    self.path / displaced_name,
+                    self.directory_handle,
                 )
             else:
-                raise PublicationUnavailable("platform has no supported atomic replace primitive")
-        except (PublicationConflict, PublicationUnavailable, PublicationRuntime):
+                self._exchange_names(source_name, target_name)
+                displaced_name = source_name
+            exchanged = True
+
+            displaced = self._capture_file_observable_anchored(displaced_name)
+            if not self._writer_target_matches(target_name, writer):
+                self._clear_temp_state()
+                raise PublicationBoundaryChanged("publication target interference")
+
+            if displaced != expected_target:
+                self._restore_displaced_after_exchange(
+                    target_name,
+                    displaced_name,
+                    displaced,
+                    writer,
+                )
+                self._clear_temp_state()
+                raise PublicationBoundaryChanged("publication target observable changed")
+
+            try:
+                self.check()
+            except PublicationBoundaryChanged:
+                self._restore_displaced_after_exchange(
+                    target_name,
+                    displaced_name,
+                    displaced,
+                    writer,
+                )
+                self._clear_temp_state()
+                raise
+
+            if not self._writer_target_matches(target_name, writer):
+                self._clear_temp_state()
+                raise PublicationBoundaryChanged("publication target interference")
+            self.check()
+
+            # The displaced object is exactly the observable captured at the
+            # beginning.  Remove it only after all parent and target checks
+            # have passed; the writer object remains at the canonical name.
+            self._remove_expected_file_anchored(displaced_name, displaced)
+            self._clear_temp_state()
+        except BaseException:
+            if exchanged:
+                # Once names have exchanged, the source name no longer names
+                # the writer temporary.  Never let generic temp cleanup
+                # delete a displaced or competing object by identity guess.
+                self._clear_temp_state()
             raise
-        except (OSError, TypeError) as exc:
-            raise PublicationRuntime("atomic replace failed") from exc
-        try:
-            target_after = self._stat_at(target_name)
-            if not is_actual_regular_file(target_after):
-                raise PublicationRuntime("published novel is not a regular file")
-            target_identity = self._identity_at(target_name, "file")
-        except PublicationRuntime:
-            raise
-        except Exception as exc:
-            raise PublicationRuntime("published novel cannot be verified") from exc
-        if target_identity != self._temp_identity:
-            self._handle_target_identity_mismatch(target_name, target_identity, source_name, "file")
-        try:
-            self._close_temp_fd()
-        except PublicationRuntime:
-            pass
-        try:
-            self._close_temp_handle()
-        except PublicationRuntime:
-            pass
-        self._temp_name = None
-        self._temp_path = None
-        self._temp_kind = None
-        self._temp_fd = None
-        self._temp_handle = None
-        self._temp_identity = None
-        self._temp_owned = False
 
     def publish_replace(
         self,
@@ -1080,12 +1367,23 @@ class BoundPublicationDirectory:
         *,
         boundary_check: Callable[[], None] | None = None,
         before_atomic: Callable[[], None] | None = None,
-        expected_target_identity: tuple[Any, ...] | None = None,
+        expected_target: ExpectedPublicationFile | None = None,
     ) -> None:
-        """Write a sibling temporary and replace one identity-checked target."""
+        """Write a sibling temporary and conditionally replace one target."""
 
+        if not isinstance(expected_target, ExpectedPublicationFile):
+            raise PublicationRuntime("expected target observable is required")
         self.checkpoint(boundary_check)
         try:
+            try:
+                current = self._capture_file_observable_anchored(_ensure_name(target_name))
+            except FileNotFoundError as exc:
+                raise PublicationBoundaryChanged("publication target observable changed") from exc
+            if current != expected_target:
+                raise PublicationBoundaryChanged("publication target observable changed")
+            if expected_target.payload == payload:
+                self.checkpoint(boundary_check)
+                return
             self.create_temp_file(target_name)
             self.checkpoint(boundary_check)
             self.write_temp_bytes(payload)
@@ -1096,7 +1394,7 @@ class BoundPublicationDirectory:
                 self.checkpoint(boundary_check)
             else:
                 self.check()
-            self._replace_temp(target_name, expected_target_identity=expected_target_identity)
+            self._replace_temp(target_name, expected_target=expected_target)
         except BaseException as exc:
             try:
                 self.cleanup_temp()
@@ -1232,12 +1530,14 @@ def replace_bytes_atomic(
     parent_binding: BoundPublicationDirectory | None = None,
     boundary_check: Callable[[], None] | None = None,
     before_atomic: Callable[[], None] | None = None,
-    expected_target_identity: tuple[Any, ...] | None = None,
+    expected_target: ExpectedPublicationFile | None = None,
 ) -> None:
-    """Replace one existing derived file through an anchored public boundary."""
+    """Conditionally replace one existing derived file through an anchored boundary."""
 
     if not isinstance(payload, bytes):
         raise PublicationRuntime("publication payload is not bytes")
+    if not isinstance(expected_target, ExpectedPublicationFile):
+        raise PublicationRuntime("expected target observable is required")
     target_path = lexical_absolute(target)
     binding = parent_binding
     owns_binding = binding is None
@@ -1251,7 +1551,7 @@ def replace_bytes_atomic(
             payload,
             boundary_check=boundary_check,
             before_atomic=before_atomic,
-            expected_target_identity=expected_target_identity,
+            expected_target=expected_target,
         )
     finally:
         if owns_binding and binding is not None:
@@ -1264,6 +1564,7 @@ def replace_bytes_atomic(
 
 __all__ = [
     "BoundPublicationDirectory",
+    "ExpectedPublicationFile",
     "PublicationBoundaryChanged",
     "PublicationConflict",
     "PublicationRuntime",

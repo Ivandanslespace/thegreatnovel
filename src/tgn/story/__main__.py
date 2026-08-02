@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from typing import Any, Sequence
 
@@ -99,7 +100,7 @@ def dispatch(arguments: argparse.Namespace) -> dict[str, Any]:
         if arguments.accepted_decisions is not None:
             try:
                 raw = arguments.accepted_decisions
-                if not isinstance(raw, str) or not raw or (raw != "0" and raw.startswith("0")):
+                if not isinstance(raw, str) or re.fullmatch(r"(?:0|[1-9][0-9]*)", raw) is None:
                     raise ValueError
                 accepted_decisions = int(raw)
             except (TypeError, ValueError) as exc:

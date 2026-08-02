@@ -4,6 +4,7 @@ import ctypes
 import dataclasses
 import json
 import os
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ import tgn.story.publication as publication_module
 import tgn.story.service as service_module
 
 from tgn.campaign import choose_campaign, next_campaign, stop_campaign
+from tgn.campaign import verify_campaign
 from tgn.story import (
     StoryError,
     commit_story,
@@ -25,6 +27,7 @@ from tgn.story.common import canonical_bytes
 from tgn.story.novel import build_novel, parse_novel_header
 from tgn.story.publication import (
     BoundPublicationDirectory,
+    ExpectedPublicationFile,
     PublicationBoundaryChanged,
     PublicationConflict,
     PublicationRuntime,
@@ -299,27 +302,52 @@ def test_novel_builder_rejects_invalid_boundaries() -> None:
 def test_derived_replace_uses_anchored_parent_and_cleans_failures(tmp_path: Path) -> None:
     target = tmp_path / "novel.md"
     target.write_bytes(b"old")
-    replace_bytes_atomic(target, b"new")
+    with pytest.raises(PublicationRuntime):
+        replace_bytes_atomic(target, b"new")
+    binding = BoundPublicationDirectory.bind(tmp_path)
+    expected = binding.capture_file_observable("novel.md")
+    binding.close_safely()
+    replace_bytes_atomic(target, b"new", expected_target=expected)
     assert target.read_bytes() == b"new"
 
-    with pytest.raises(PublicationConflict):
+    with pytest.raises(PublicationRuntime):
         replace_bytes_atomic(tmp_path / "missing.md", b"new")
     assert not list(tmp_path.glob("*.tmp"))
 
     directory_target = tmp_path / "directory.md"
     directory_target.mkdir()
     with pytest.raises(PublicationRuntime):
-        replace_bytes_atomic(directory_target, b"new")
+        replace_bytes_atomic(directory_target, b"new", expected_target=expected)
 
     binding = BoundPublicationDirectory.bind(tmp_path)
     try:
-        original_identity = binding._identity_at
-        binding._identity_at = lambda *_args: ("different",)  # type: ignore[method-assign]
-        with pytest.raises(PublicationBoundaryChanged):
+        with pytest.raises(PublicationRuntime):
             binding.publish_replace("novel.md", b"competitor")
-        binding._identity_at = original_identity  # type: ignore[method-assign]
     finally:
         binding.close_safely()
+
+
+def test_expected_publication_file_rejects_inconsistent_observables() -> None:
+    payload = b"payload"
+    valid = ExpectedPublicationFile(
+        identity=("test", 1),
+        sha256=publication_module.sha256_bytes(payload),
+        size=len(payload),
+        mtime_ns=1,
+        payload=payload,
+    )
+    assert valid.payload == payload
+    invalid_values = (
+        {"identity": (), "sha256": valid.sha256, "size": valid.size, "mtime_ns": valid.mtime_ns, "payload": payload},
+        {"identity": valid.identity, "sha256": valid.sha256, "size": -1, "mtime_ns": valid.mtime_ns, "payload": payload},
+        {"identity": valid.identity, "sha256": valid.sha256, "size": valid.size, "mtime_ns": -1, "payload": payload},
+        {"identity": valid.identity, "sha256": "bad", "size": valid.size, "mtime_ns": valid.mtime_ns, "payload": payload},
+        {"identity": valid.identity, "sha256": valid.sha256, "size": valid.size, "mtime_ns": valid.mtime_ns, "payload": "payload"},
+        {"identity": valid.identity, "sha256": valid.sha256, "size": valid.size + 1, "mtime_ns": valid.mtime_ns, "payload": payload},
+    )
+    for fields in invalid_values:
+        with pytest.raises(PublicationRuntime):
+            ExpectedPublicationFile(**fields)
 
 
 def test_derived_replace_uses_posix_dirfd_when_available(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -328,16 +356,19 @@ def test_derived_replace_uses_posix_dirfd_when_available(tmp_path: Path, monkeyp
     target.write_bytes(b"old")
     binding = BoundPublicationDirectory.bind(tmp_path)
 
-    def replace_file(source_name, target_name, *, src_dir_fd=None, dst_dir_fd=None):
+    def exchange_names(source_name, target_name, source_dir_fd=None, target_dir_fd=None):
+        source_path = fd_paths[source_dir_fd] / source_name
+        target_path = fd_paths[target_dir_fd] / target_name
+        displaced = source_path.with_name(f".exchange-{source_path.name}")
         binding._close_temp_fd()
-        os.replace(
-            fd_paths[src_dir_fd] / source_name,
-            fd_paths[dst_dir_fd] / target_name,
-        )
+        os.replace(source_path, displaced)
+        os.replace(target_path, source_path)
+        os.replace(displaced, target_path)
 
-    monkeypatch.setattr(publication_module.os, "replace", replace_file)
+    monkeypatch.setattr(publication_module, "_linux_exchange", exchange_names)
     try:
-        replace_bytes_atomic(target, b"new", parent_binding=binding)
+        expected = binding.capture_file_observable("novel.md")
+        replace_bytes_atomic(target, b"new", parent_binding=binding, expected_target=expected)
         assert target.read_bytes() == b"new"
     finally:
         binding.close_safely()
@@ -348,7 +379,7 @@ def test_derived_replace_rejects_same_bytes_new_target_identity(tmp_path: Path) 
     target.write_bytes(b"same bytes")
     binding = BoundPublicationDirectory.bind(tmp_path)
     try:
-        expected_identity = binding.child_identity("novel.md", "file")
+        expected = binding.capture_file_observable("novel.md")
         replacement = tmp_path / "replacement.md"
         replacement.write_bytes(b"same bytes")
         os.replace(replacement, target)
@@ -357,7 +388,7 @@ def test_derived_replace_rejects_same_bytes_new_target_identity(tmp_path: Path) 
             binding.publish_replace(
                 "novel.md",
                 b"new export",
-                expected_target_identity=expected_identity,
+                expected_target=expected,
             )
         assert target.read_bytes() == b"same bytes"
         assert not list(tmp_path.glob(".novel.md.*.tmp"))
@@ -370,58 +401,39 @@ def test_derived_replace_boundary_matrix(tmp_path: Path, monkeypatch: pytest.Mon
     target = tmp_path / "novel.md"
     target.write_bytes(b"old")
 
-    def replace_file(source_name, target_name, *, src_dir_fd=None, dst_dir_fd=None):
-        # The temporary descriptor is intentionally released only after its
-        # identity has been checked, mirroring the platform primitive.
-        binding._close_temp_fd()
-        os.replace(fd_paths[src_dir_fd] / source_name, fd_paths[dst_dir_fd] / target_name)
-
-    monkeypatch.setattr(publication_module.os, "replace", replace_file)
     binding = BoundPublicationDirectory.bind(tmp_path)
     try:
-        with pytest.raises(PublicationConflict):
-            binding.publish_replace("missing.md", b"missing")
+        expected = binding.capture_file_observable("novel.md")
+        with pytest.raises(PublicationBoundaryChanged):
+            binding.publish_replace("missing.md", b"missing", expected_target=expected)
 
         monkeypatch.setattr(publication_module.sys, "platform", "freebsd")
         with pytest.raises(PublicationUnavailable):
-            binding.publish_replace("novel.md", b"unsupported")
+            binding.publish_replace("novel.md", b"unsupported", expected_target=expected)
         monkeypatch.setattr(publication_module.sys, "platform", "linux")
 
         monkeypatch.setattr(
-            publication_module.os,
-            "replace",
+            publication_module,
+            "_linux_exchange",
             lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("rename")),
         )
         with pytest.raises(PublicationRuntime):
-            binding.publish_replace("novel.md", b"rename failure")
+            binding.publish_replace("novel.md", b"rename failure", expected_target=expected)
     finally:
         binding.close_safely()
 
     fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
     target.write_bytes(b"old")
     binding = BoundPublicationDirectory.bind(tmp_path)
-    directory = tmp_path / "not-regular"
-    directory.mkdir()
-    def replace_file_post(source_name, target_name, *, src_dir_fd=None, dst_dir_fd=None):
-        binding._close_temp_fd()
-        os.replace(fd_paths[src_dir_fd] / source_name, fd_paths[dst_dir_fd] / target_name)
-
-    monkeypatch.setattr(publication_module.os, "replace", replace_file_post)
-    original_stat = binding._stat_at
-    target_reads = 0
-
-    def invalid_post_stat(name):
-        nonlocal target_reads
-        if name == "novel.md":
-            target_reads += 1
-            if target_reads == 2:
-                return os.stat(directory)
-        return original_stat(name)
-
-    monkeypatch.setattr(binding, "_stat_at", invalid_post_stat)
+    expected = binding.capture_file_observable("novel.md")
+    monkeypatch.setattr(
+        publication_module,
+        "_linux_exchange",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("rename")),
+    )
     try:
         with pytest.raises(PublicationRuntime):
-            binding.publish_replace("novel.md", b"invalid post target")
+            binding.publish_replace("novel.md", b"invalid post target", expected_target=expected)
     finally:
         binding.close_safely()
 
@@ -431,33 +443,39 @@ def test_derived_replace_post_read_and_close_failures_are_bounded(tmp_path: Path
     target = tmp_path / "novel.md"
     target.write_bytes(b"old")
     binding = BoundPublicationDirectory.bind(tmp_path)
+    expected = binding.capture_file_observable("novel.md")
 
-    def replace_file(source_name, target_name, *, src_dir_fd=None, dst_dir_fd=None):
+    def exchange_names(source_name, target_name, source_dir_fd=None, target_dir_fd=None):
+        source_path = fd_paths[source_dir_fd] / source_name
+        target_path = fd_paths[target_dir_fd] / target_name
+        displaced = source_path.with_name(f".exchange-{source_path.name}")
         binding._close_temp_fd()
-        os.replace(fd_paths[src_dir_fd] / source_name, fd_paths[dst_dir_fd] / target_name)
+        os.replace(source_path, displaced)
+        os.replace(target_path, source_path)
+        os.replace(displaced, target_path)
 
-    monkeypatch.setattr(publication_module.os, "replace", replace_file)
-    original_stat = binding._stat_at
-    target_reads = 0
-
-    def failing_post_stat(name):
-        nonlocal target_reads
-        if name == "novel.md":
-            target_reads += 1
-            if target_reads == 2:
-                raise OSError("post-read")
-        return original_stat(name)
-
-    monkeypatch.setattr(binding, "_stat_at", failing_post_stat)
+    monkeypatch.setattr(publication_module, "_linux_exchange", exchange_names)
     try:
         with pytest.raises(PublicationRuntime):
-            binding.publish_replace("novel.md", b"post-read failure")
+            monkeypatch.setattr(
+                binding,
+                "_writer_target_matches",
+                lambda *_args: (_ for _ in ()).throw(PublicationRuntime("post-read")),
+            )
+            binding.publish_replace("novel.md", b"post-read failure", expected_target=expected)
     finally:
         binding.close_safely()
 
+
+def test_derived_replace_close_failures_are_bounded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    target = tmp_path / "novel.md"
     target.write_bytes(b"old")
     binding = BoundPublicationDirectory.bind(tmp_path)
+    expected = binding.capture_file_observable("novel.md")
 
     def close_fd_then_fail():
         raise PublicationRuntime("close fd")
@@ -465,23 +483,300 @@ def test_derived_replace_post_read_and_close_failures_are_bounded(tmp_path: Path
     def close_handle_then_fail():
         raise PublicationRuntime("close handle")
 
-    def replace_file_again(source_name, target_name, *, src_dir_fd=None, dst_dir_fd=None):
+    def exchange_names(source_name, target_name, source_dir_fd=None, target_dir_fd=None):
+        source_path = fd_paths[source_dir_fd] / source_name
+        target_path = fd_paths[target_dir_fd] / target_name
+        displaced = source_path.with_name(f".exchange-{source_path.name}")
         if binding._temp_fd is not None:
             os.close(binding._temp_fd)
             binding._temp_fd = None
-        os.replace(fd_paths[src_dir_fd] / source_name, fd_paths[dst_dir_fd] / target_name)
+        os.replace(source_path, displaced)
+        os.replace(target_path, source_path)
+        os.replace(displaced, target_path)
 
-    monkeypatch.setattr(publication_module.os, "replace", replace_file_again)
+    monkeypatch.setattr(publication_module, "_linux_exchange", exchange_names)
     monkeypatch.setattr(binding, "_close_temp_fd", close_fd_then_fail)
     monkeypatch.setattr(binding, "_close_temp_handle", close_handle_then_fail)
     try:
-        binding.publish_replace("novel.md", b"close failure")
+        binding.publish_replace("novel.md", b"close failure", expected_target=expected)
         assert target.read_bytes() == b"close failure"
     finally:
         binding.close_safely()
 
 
-@pytest.mark.parametrize("result,error_number,expected", [(1, 0, None), (0, 1, PublicationUnavailable), (0, 5, PublicationRuntime)])
+@pytest.mark.parametrize("competitor_payload", [b"old", b"competitor"])
+def test_conditional_replace_preserves_competitor_after_final_check(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    competitor_payload: bytes,
+) -> None:
+    fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    target = tmp_path / "novel.md"
+    target.write_bytes(b"old")
+    binding = BoundPublicationDirectory.bind(tmp_path)
+    expected = binding.capture_file_observable("novel.md")
+    armed = True
+
+    def exchange_names(source_name, target_name, source_dir_fd=None, target_dir_fd=None):
+        nonlocal armed
+        source_path = fd_paths[source_dir_fd] / source_name
+        target_path = fd_paths[target_dir_fd] / target_name
+        if armed:
+            competitor = target_path.with_name("competitor.md")
+            competitor.write_bytes(competitor_payload)
+            os.replace(competitor, target_path)
+            armed = False
+        binding._close_temp_fd()
+        displaced = source_path.with_name(f".exchange-{source_path.name}")
+        os.replace(source_path, displaced)
+        os.replace(target_path, source_path)
+        os.replace(displaced, target_path)
+
+    monkeypatch.setattr(publication_module, "_linux_exchange", exchange_names)
+    try:
+        with pytest.raises(PublicationBoundaryChanged):
+            replace_bytes_atomic(
+                target,
+                b"writer payload",
+                parent_binding=binding,
+                expected_target=expected,
+            )
+        competitor_identity = binding.child_identity("novel.md", "file")
+        assert target.read_bytes() == competitor_payload
+        assert competitor_identity != expected.identity
+        assert not list(tmp_path.glob(".novel.md.*.tmp"))
+    finally:
+        binding.close_safely()
+
+
+def test_conditional_replace_post_primitive_interference_preserves_unknown_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    target = tmp_path / "novel.md"
+    target.write_bytes(b"old")
+    binding = BoundPublicationDirectory.bind(tmp_path)
+    expected = binding.capture_file_observable("novel.md")
+    interfered = False
+
+    def exchange_names(source_name, target_name, source_dir_fd=None, target_dir_fd=None):
+        nonlocal interfered
+        source_path = fd_paths[source_dir_fd] / source_name
+        target_path = fd_paths[target_dir_fd] / target_name
+        binding._close_temp_fd()
+        displaced = source_path.with_name(f".exchange-{source_path.name}")
+        os.replace(source_path, displaced)
+        os.replace(target_path, source_path)
+        os.replace(displaced, target_path)
+        if not interfered:
+            competitor = target_path.with_name("unknown-competitor.md")
+            competitor.write_bytes(b"unknown competitor")
+            os.replace(competitor, target_path)
+            interfered = True
+
+    monkeypatch.setattr(publication_module, "_linux_exchange", exchange_names)
+    try:
+        with pytest.raises(PublicationBoundaryChanged):
+            replace_bytes_atomic(
+                target,
+                b"writer payload",
+                parent_binding=binding,
+                expected_target=expected,
+            )
+        assert target.read_bytes() == b"unknown competitor"
+        assert not target.read_bytes() == b"writer payload"
+    finally:
+        binding.close_safely()
+
+
+def test_export_rejects_story_root_replacement_after_final_guard(
+    story_factory,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign, story, config = story_factory(name="phase9c2-root-publication-race")
+    init_story(
+        story,
+        campaign_dir=campaign,
+        story_id=config["story_id"],
+        initial_narration_locale="zh-CN",
+        initial_voice_id="cablecar_survival",
+    )
+    _choose(campaign, "DROP")
+    request = prepare_story(story, campaign_dir=campaign)["request"]
+    commit_story(story, campaign_dir=campaign, response=response_for(request))
+    export_story(story, campaign_dir=campaign, mode="snapshot", accepted_decisions=1)
+    original_novel = (story / "novel.md").read_bytes()
+    _choose(campaign, "SEARCH")
+    next_request = prepare_story(story, campaign_dir=campaign)["request"]
+    commit_story(story, campaign_dir=campaign, response=response_for(next_request))
+
+    fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    detached = tmp_path / "phase9c2-root-detached"
+    moved = False
+    current_binding = None
+    original_exchange_method = publication_module.BoundPublicationDirectory._exchange_names
+
+    def capture_binding(self, source_name, target_name):
+        nonlocal current_binding
+        current_binding = self
+        return original_exchange_method(self, source_name, target_name)
+
+    def exchange_names(source_name, target_name, source_dir_fd=None, target_dir_fd=None):
+        nonlocal moved
+        assert current_binding is not None
+        if not moved:
+            current_binding._close_temp_fd()
+            story.rename(detached)
+            story.mkdir()
+            for child_name in ("story.json", "requests", "turns"):
+                (detached / child_name).rename(story / child_name)
+            fd_paths[source_dir_fd] = detached
+            moved = True
+        source_path = fd_paths[source_dir_fd] / source_name
+        target_path = fd_paths[target_dir_fd] / target_name
+        displaced = source_path.with_name(f".exchange-{source_path.name}")
+        os.replace(source_path, displaced)
+        os.replace(target_path, source_path)
+        os.replace(displaced, target_path)
+
+    monkeypatch.setattr(publication_module.BoundPublicationDirectory, "_exchange_names", capture_binding)
+    monkeypatch.setattr(publication_module, "_linux_exchange", exchange_names)
+    try:
+        with pytest.raises(StoryError) as error:
+            export_story(story, campaign_dir=campaign, mode="snapshot", accepted_decisions=2)
+        assert error.value.code == "STORY_PUBLICATION_UNAVAILABLE"
+        assert moved is True
+        assert not (story / "novel.md").exists()
+        assert (detached / "novel.md").read_bytes() == original_novel
+    finally:
+        if story.exists():
+            for child_name in ("story.json", "requests", "turns"):
+                child = story / child_name
+                if child.exists():
+                    child.rename(detached / child_name)
+            story.rmdir()
+        if detached.exists():
+            detached.rename(story)
+
+
+def test_phase9c2_complete_campaign_story_locale_resume_and_final_rebuild_proof(
+    story_factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign, story, config = story_factory(name="phase9c2-complete-proof", max_decisions=10)
+    init_story(
+        story,
+        campaign_dir=campaign,
+        story_id=config["story_id"],
+        initial_narration_locale="zh-CN",
+        initial_voice_id="cablecar_survival",
+    )
+
+    def no_completion(*_args, **_kwargs):
+        raise AssertionError("Phase 9C2 deterministic proof must not invoke a provider")
+
+    from tgn.llm_player import policy
+
+    monkeypatch.setattr(policy.LLMPlayerPolicy, "__init__", no_completion)
+
+    _choose(campaign, "DROP")
+    before_prepare = verify_campaign(campaign)
+    assert before_prepare["verification"]["event_replay"] is True
+    drop_request = prepare_story(story, campaign_dir=campaign)["request"]
+    assert drop_request["narration_locale"] == "zh-CN"
+    commit_story(
+        story,
+        campaign_dir=campaign,
+        response=response_for(drop_request, prose="中文后果已经出现。"),
+    )
+    drop_turn_bytes = (story / "turns" / "turn-000001.json").read_bytes()
+
+    _choose(campaign, "SEARCH")
+    search_request = prepare_story(story, campaign_dir=campaign)["request"]
+    search_history = verify_campaign(campaign)
+    assert search_history["verification"]["event_replay"] is True
+    assert status_story(story, campaign_dir=campaign)["pending_turn_id"] == "turn-000002"
+    reopened_request = prepare_story(story, campaign_dir=campaign)["request"]
+    assert reopened_request == search_request
+    commit_story(
+        story,
+        campaign_dir=campaign,
+        response=response_for(search_request, prose="搜索结果仍在公开边界内。"),
+    )
+
+    _choose(campaign, "EXTRACT")
+    arabic_request = prepare_story(story, campaign_dir=campaign, narration_locale="ar")["request"]
+    assert arabic_request["narration_locale"] == "ar"
+    commit_story(
+        story,
+        campaign_dir=campaign,
+        response=response_for(arabic_request, prose="ظهرت نتيجة واضحة."),
+    )
+
+    _choose(campaign, "TALK_TO_ACTOR")
+    talk_request = prepare_story(story, campaign_dir=campaign)["request"]
+    assert talk_request["narration_locale"] == "ar"
+    forbidden_keys = {"knowledge", "goal", "private_goal", "world_truth", "private_world_truth"}
+
+    def walk_keys(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                yield key
+                yield from walk_keys(child)
+        elif isinstance(value, list):
+            for child in value:
+                yield from walk_keys(child)
+
+    assert not forbidden_keys.intersection(walk_keys(talk_request))
+    commit_story(
+        story,
+        campaign_dir=campaign,
+        response=response_for(talk_request, prose="بقيت المعرفة الخاصة خارج السرد."),
+    )
+    talk_artifact = json.loads((story / "turns" / "turn-000004.json").read_text(encoding="utf-8"))
+    assert not forbidden_keys.intersection(walk_keys(talk_artifact))
+    assert (story / "turns" / "turn-000001.json").read_bytes() == drop_turn_bytes
+    assert any(
+        "بقيت" in (story / "turns" / "turn-000004.json").read_text(encoding="utf-8")
+        for _ in [0]
+    )
+
+    current = next_campaign(campaign)
+    stop_result = stop_campaign(
+        campaign,
+        request_fingerprint=current["canonical_request"]["request_fingerprint"],
+    )
+    assert stop_result["session"]["status"] == "STOPPED"
+    assert prepare_story(story, campaign_dir=campaign)["request"] is None
+    assert not (story / "requests" / "turn-000005.json").exists()
+    assert not (story / "turns" / "turn-000005.json").exists()
+    campaign_result = verify_campaign(campaign)
+    assert campaign_result["verification"]["event_replay"] is True
+    assert campaign_result["verification"]["recorded_decision_replay"] is True
+    with sqlite3.connect(campaign / "session" / "campaign.sqlite3") as connection:
+        assert connection.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 4
+    records = json.loads(
+        (campaign / "session" / "recorded_decisions.json").read_text(encoding="utf-8")
+    )["decisions"]
+    assert [record["outcome"] for record in records] == ["ACTION"] * 4 + ["STOP"]
+
+    exported = export_story(story, campaign_dir=campaign, mode="final")
+    assert exported["novel_status"] == "CURRENT_FINAL"
+    assert verify_story(story, campaign_dir=campaign)["verification"]["novel_status"] == "CURRENT_FINAL"
+    final_bytes = (story / "novel.md").read_bytes()
+    assert "中文后果".encode("utf-8") in final_bytes
+    assert "ظهرت".encode("utf-8") in final_bytes
+    assert "بقيت".encode("utf-8") in final_bytes
+    (story / "novel.md").unlink()
+    rebuilt = export_story(story, campaign_dir=campaign, mode="final")
+    assert rebuilt["novel_status"] == "CURRENT_FINAL"
+    assert (story / "novel.md").read_bytes() == final_bytes
+    assert verify_story(story, campaign_dir=campaign)["valid"] is True
+
+
+@pytest.mark.parametrize("result,error_number,expected", [(1, 0, None), (0, 1, PublicationUnavailable), (0, 2, PublicationConflict), (0, 5, PublicationRuntime)])
 def test_windows_replace_primitive_mapping(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, result: int, error_number: int, expected) -> None:
     class Function:
         def __init__(self, value: int):
@@ -493,15 +788,19 @@ def test_windows_replace_primitive_mapping(tmp_path: Path, monkeypatch: pytest.M
             return self.value
 
     class Kernel:
-        MoveFileExW = Function(result)
+        ReplaceFileW = Function(result)
 
     monkeypatch.setattr(publication_module.ctypes, "WinDLL", lambda *_args, **_kwargs: Kernel())
     monkeypatch.setattr(publication_module.ctypes, "get_last_error", lambda: error_number)
     if expected is None:
-        publication_module._windows_replace(tmp_path / "source", tmp_path / "target")
+        publication_module._windows_replace_file(
+            tmp_path / "source", tmp_path / "target", tmp_path / "backup"
+        )
     else:
         with pytest.raises(expected):
-            publication_module._windows_replace(tmp_path / "source", tmp_path / "target")
+            publication_module._windows_replace_file(
+                tmp_path / "source", tmp_path / "target", tmp_path / "backup"
+            )
 
     monkeypatch.setattr(
         publication_module.ctypes,
@@ -509,7 +808,9 @@ def test_windows_replace_primitive_mapping(tmp_path: Path, monkeypatch: pytest.M
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("missing")),
     )
     with pytest.raises(PublicationUnavailable):
-        publication_module._windows_replace(tmp_path / "source", tmp_path / "target")
+        publication_module._windows_replace_file(
+            tmp_path / "source", tmp_path / "target", tmp_path / "backup"
+        )
 
 
 def test_windows_identity_and_cleanup_boundaries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

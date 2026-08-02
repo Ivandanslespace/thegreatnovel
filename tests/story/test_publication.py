@@ -11,6 +11,7 @@ import pytest
 
 import tgn.story.publication as publication
 from tgn.story.publication import (
+    ExpectedPublicationFile,
     PublicationBoundaryChanged,
     PublicationConflict,
     PublicationRuntime,
@@ -119,6 +120,22 @@ def test_linux_primitive_mapping(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 
 @pytest.mark.parametrize("result,error_number,expected", [
     (0, 0, None),
+    (-1, errno.ENOSYS, PublicationUnavailable),
+    (-1, errno.EIO, PublicationRuntime),
+])
+def test_linux_exchange_primitive_mapping(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, result: int, error_number: int, expected) -> None:
+    fake = _FakeLib("renameat2", result)
+    monkeypatch.setattr(publication.ctypes, "CDLL", lambda *_args, **_kwargs: fake)
+    monkeypatch.setattr(publication.ctypes, "get_errno", lambda: error_number)
+    if expected is None:
+        publication._linux_exchange(tmp_path / "source", tmp_path / "target")
+    else:
+        with pytest.raises(expected):
+            publication._linux_exchange(tmp_path / "source", tmp_path / "target")
+
+
+@pytest.mark.parametrize("result,error_number,expected", [
+    (0, 0, None),
     (-1, errno.EEXIST, PublicationConflict),
     (-1, errno.EOPNOTSUPP, PublicationUnavailable),
     (-1, errno.EIO, PublicationRuntime),
@@ -132,6 +149,22 @@ def test_macos_primitive_mapping(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     else:
         with pytest.raises(expected):
             publication._macos_no_replace(tmp_path / "source", tmp_path / "target")
+
+
+@pytest.mark.parametrize("result,error_number,expected", [
+    (0, 0, None),
+    (-1, errno.EOPNOTSUPP, PublicationUnavailable),
+    (-1, errno.EIO, PublicationRuntime),
+])
+def test_macos_exchange_primitive_mapping(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, result: int, error_number: int, expected) -> None:
+    fake = _FakeLib("renameatx_np", result)
+    monkeypatch.setattr(publication.ctypes, "CDLL", lambda *_args, **_kwargs: fake)
+    monkeypatch.setattr(publication.ctypes, "get_errno", lambda: error_number)
+    if expected is None:
+        publication._macos_exchange(tmp_path / "source", tmp_path / "target")
+    else:
+        with pytest.raises(expected):
+            publication._macos_exchange(tmp_path / "source", tmp_path / "target")
 
 
 def test_publication_cleanup_and_failure_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -164,7 +197,11 @@ def test_publication_loader_and_cleanup_fail_closed(tmp_path: Path, monkeypatch:
     with pytest.raises(PublicationUnavailable):
         publication._linux_no_replace(source, target)
     with pytest.raises(PublicationUnavailable):
+        publication._linux_exchange(source, target)
+    with pytest.raises(PublicationUnavailable):
         publication._macos_no_replace(source, target)
+    with pytest.raises(PublicationUnavailable):
+        publication._macos_exchange(source, target)
 
     monkeypatch.setattr(publication, "_windows_no_replace", lambda *_args: (_ for _ in ()).throw(OSError("runtime")))
     with pytest.raises(PublicationRuntime):
@@ -364,6 +401,106 @@ def test_anchored_posix_file_publication_and_detached_cleanup(tmp_path: Path, mo
     binding.cleanup_temp()
     assert not list(detached.glob("*.tmp"))
     binding.close()
+
+
+def test_conditional_publication_observable_and_cleanup_edges(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    child = tmp_path / "child.json"
+    child.write_bytes(b"child")
+    expected = binding.capture_file_observable(child.name)
+    directory = tmp_path / "directory"
+    directory.mkdir()
+    try:
+        with pytest.raises(PublicationRuntime):
+            binding.child_identity("child.json", "invalid")
+        with pytest.raises(PublicationRuntime):
+            binding.child_identity("directory", "file")
+        with pytest.raises(FileNotFoundError):
+            binding.child_identity("missing", "file")
+
+        with pytest.raises(PublicationRuntime):
+            binding.read_child_bytes(directory.name)
+        with pytest.raises(FileNotFoundError):
+            binding.capture_file_observable("missing")
+        with monkeypatch.context() as context:
+            context.setattr(binding, "_capture_file_observable_anchored", lambda *_args: (_ for _ in ()).throw(OSError("capture")))
+            with pytest.raises(PublicationRuntime):
+                binding.capture_file_observable(child.name)
+        with monkeypatch.context() as context:
+            context.setattr(binding, "_stat_at", lambda *_args: (_ for _ in ()).throw(OSError("stat")))
+            with pytest.raises(PublicationRuntime):
+                binding.child_identity(child.name, "file")
+
+        invalid_expected = ExpectedPublicationFile(
+            identity=expected.identity,
+            sha256=publication.sha256_bytes(b"other"),
+            size=5,
+            mtime_ns=expected.mtime_ns,
+            payload=b"other",
+        )
+        with pytest.raises(PublicationBoundaryChanged):
+            binding._remove_expected_file_anchored(child.name, invalid_expected)
+        with monkeypatch.context() as context:
+            context.setattr(publication.os, "unlink", lambda *_args, **_kwargs: (_ for _ in ()).throw(FileNotFoundError()))
+            with pytest.raises(PublicationBoundaryChanged):
+                binding._remove_expected_file_anchored(child.name, expected)
+        with monkeypatch.context() as context:
+            context.setattr(publication.os, "unlink", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("unlink")))
+            with pytest.raises(PublicationRuntime):
+                binding._remove_expected_file_anchored(child.name, expected)
+
+        no_fd = publication.BoundPublicationDirectory(tmp_path)
+        with pytest.raises(PublicationUnavailable):
+            no_fd._exchange_names("source", "target")
+        monkeypatch.setattr(publication.sys, "platform", "darwin")
+        monkeypatch.setattr(publication, "_macos_exchange", lambda *_args: None)
+        binding._exchange_names("source", "target")
+        monkeypatch.setattr(publication.sys, "platform", "linux")
+
+        with monkeypatch.context() as context:
+            context.setattr(publication.os, "name", "posix")
+            binding._open_windows_temp_handle()
+        temp = binding.create_temp_file("edge.json")
+        with monkeypatch.context() as context:
+            context.setattr(publication.os, "fstat", lambda *_args: os.stat(tmp_path))
+            with pytest.raises(PublicationRuntime):
+                binding._verify_temp()
+        binding.cleanup_temp()
+
+        writer = ExpectedPublicationFile(
+            identity=("writer", 1),
+            sha256=publication.sha256_bytes(b"writer"),
+            size=6,
+            mtime_ns=1,
+            payload=b"writer",
+        )
+        displaced = ExpectedPublicationFile(
+            identity=("old", 1),
+            sha256=publication.sha256_bytes(b"old"),
+            size=3,
+            mtime_ns=1,
+            payload=b"old",
+        )
+        values = {"target": writer, "backup": displaced, "cleanup": writer}
+        removed: list[str] = []
+        with monkeypatch.context() as context:
+            context.setattr(publication.os, "name", "nt")
+            context.setattr(binding, "_writer_target_matches", lambda *_args: True)
+            context.setattr(binding, "_next_displaced_name", lambda *_args: "cleanup")
+            context.setattr(binding, "_capture_file_observable_anchored", lambda name: values[name])
+            context.setattr(binding, "_remove_expected_file_anchored", lambda name, _value: removed.append(name))
+            def fake_windows_replace(*_args):
+                values["target"] = displaced
+                values["cleanup"] = writer
+            context.setattr(publication, "_windows_replace_file", fake_windows_replace)
+            binding._restore_displaced_after_exchange("target", "backup", displaced, writer)
+        assert removed == ["cleanup"]
+    finally:
+        binding.close_safely()
 
 
 def test_anchored_posix_directory_cleanup_and_final_window(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
