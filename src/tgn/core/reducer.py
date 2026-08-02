@@ -79,6 +79,16 @@ def reduce_event(state: GameState, event: DomainEvent) -> GameState:
     # Phase 4 risk events
     elif event.event_type == "COMBAT_RESOLVED":
         _apply_combat_resolved(new_state, event)
+
+    # Phase 10A capability-specific event.  The feature module owns the
+    # exact payload and local state validation; this dispatch remains narrow.
+    elif event.event_type == "DEVOUR_RESOLVED":
+        from ..gameplay.devour_evolution import apply_devour_resolved
+
+        try:
+            apply_devour_resolved(new_state, event)
+        except Exception as exc:
+            raise ReducerError(f"Devour evolution event rejected: {exc}") from exc
     
     elif event.event_type == "EXPEDITION_FLED":
         _apply_expedition_fled(new_state, event)

@@ -5,6 +5,11 @@ from __future__ import annotations
 import copy
 from typing import Any
 
+from ..gameplay.devour_evolution import (
+    DEVOUR_EVOLUTION_CAPABILITY_ID,
+    DEVOUR_EVOLUTION_SOURCE_KIND,
+    DEVOUR_REMAINS,
+)
 from ..llm_player.models import LLMDecisionRequest
 from ..worldgen.models import WorldGenError
 from .common import assert_canonical_utf8, error, issue
@@ -235,6 +240,7 @@ _ACTION_PARAM_SCHEMA: dict[str, tuple[str, ...]] = {
     "REST": (),
     "CHOOSE_BUILD": ("build_id",),
     "TALK_TO_ACTOR": ("actor_id",),
+    DEVOUR_REMAINS: (),
 }
 
 
@@ -295,6 +301,14 @@ def _display_params(
         actor = _identity(identities.get("actors", {}), value, f"{path}/params/actor_id")
         display = {"id": value, "label": actor.get("name") if isinstance(actor, dict) else actor}
         return {"actor_id": display, "actor": copy.deepcopy(display)}
+    if action_type == DEVOUR_REMAINS:
+        capability_id = DEVOUR_EVOLUTION_CAPABILITY_ID
+        label = _identity(
+            identities.get("capabilities", {}),
+            capability_id,
+            f"{path}/display_params/capability/id",
+        )
+        return {"capability": {"id": capability_id, "label": label}}
     return {}
 
 
@@ -371,17 +385,67 @@ def _map_observation(observation: dict[str, Any], projection: PlayerProjectionMa
         result["actor"] = _map_actor(observation["actor"], identities, "/observation/actor")
     if "build" in observation:
         result["build"] = _map_build(observation["build"], identities, "/observation/build")
+    if "capabilities" in observation:
+        capabilities = observation["capabilities"]
+        if not isinstance(capabilities, list):
+            raise _unsupported_schema(
+                "/observation/capabilities",
+                "capabilities must be a list",
+                "list",
+                type(capabilities).__name__,
+            )
+        mapped_capabilities: list[dict[str, Any]] = []
+        for index, capability in enumerate(capabilities):
+            path = f"/observation/capabilities/{index}"
+            if not isinstance(capability, dict) or set(capability) != {
+                "capability_id",
+                "label",
+                "source_kind",
+            }:
+                raise _unsupported_schema(
+                    path,
+                    "capability observation has an unsupported field set",
+                    {"capability_id", "label", "source_kind"},
+                    capability,
+                )
+            capability_id = capability["capability_id"]
+            expected_label = _identity(
+                identities.get("capabilities", {}),
+                capability_id,
+                f"{path}/capability_id",
+            )
+            if capability["source_kind"] != DEVOUR_EVOLUTION_SOURCE_KIND:
+                raise _unsupported_schema(
+                    f"{path}/source_kind",
+                    "capability source kind is unsupported",
+                    DEVOUR_EVOLUTION_SOURCE_KIND,
+                    capability["source_kind"],
+                )
+            if capability["label"] != expected_label:
+                raise _unmapped(f"{path}/label", capability["label"])
+            mapped_capabilities.append(
+                {
+                    "capability_id": capability_id,
+                    "label": expected_label,
+                    "source_kind": capability["source_kind"],
+                }
+            )
+        result["capabilities"] = mapped_capabilities
     if "enemy" in observation:
         enemy = observation["enemy"]
         if not isinstance(enemy, dict):
             raise _unmapped("/observation/enemy", type(enemy).__name__)
-        # The explicit Phase 9B2A map has no enemy identity binding. Failing
-        # closed is safer than silently displaying an unmapped canonical ID.
-        if "enemy_id" in enemy:
-            raise _unmapped("/observation/enemy/enemy_id", enemy["enemy_id"])
+        # Legacy projections have no enemy presentation surface and therefore
+        # keep rejecting one.  The fixed Phase 10A overlay has exactly one
+        # public encounter identity; accepting only that stable ID avoids
+        # introducing an enemy registry or arbitrary world mapping.
+        enemy_id = enemy.get("enemy_id")
+        if enemy_id is not None:
+            if "capabilities" not in identities or enemy_id != "enemy-1":
+                raise _unmapped("/observation/enemy/enemy_id", enemy_id)
         result["enemy"] = {
             key: copy.deepcopy(enemy[key])
-            for key in ("enemy_hp", "enemy_max_hp", "enemy_attack")
+            for key in ("enemy_id", "enemy_hp", "enemy_max_hp", "enemy_attack")
             if key in enemy
         }
     return result

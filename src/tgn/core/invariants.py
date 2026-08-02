@@ -80,6 +80,22 @@ def check_invariants(state: "GameState") -> None:
         except Exception as exc:
             raise InvariantError(f"Named actor feature invariant: {exc}") from exc
 
+    # Phase 10A owns its narrow optional state contract.  Legacy states have
+    # none of these sections and remain byte-compatible with the old checks.
+    expedition = state.data.get("expedition")
+    encounter = expedition.get("encounter") if isinstance(expedition, dict) else None
+    if (
+        "capability_grants" in state.data
+        or "devour_evolution" in state.data
+        or (isinstance(encounter, dict) and "devour_yield" in encounter)
+    ):
+        from ..gameplay.devour_evolution import validate_devour_evolution_state
+
+        try:
+            validate_devour_evolution_state(state)
+        except Exception as exc:
+            raise InvariantError(f"Devour evolution feature invariant: {exc}") from exc
+
 
 def _check_expedition_invariants(state: "GameState") -> None:
     """Verify Phase 3 expedition-specific invariants."""

@@ -30,6 +30,15 @@ from .named_actor import (
     TALK_TO_ACTOR_TIME,
     can_talk_to_actor,
 )
+from .devour_evolution import (
+    DEVOUR_REMAINS,
+    DEVOUR_RESOLVED,
+    DEVOUR_STAMINA_COST,
+    DEVOUR_TIME,
+    build_devour_capability_observation,
+    build_devour_event_payload,
+    can_devour_remains,
+)
 
 
 # Fixed costs per spec
@@ -150,6 +159,17 @@ def get_legal_actions(state: GameState) -> tuple[LegalAction, ...]:
                         duration_minutes=SEARCH_COST["time"],
                         stamina_cost=SEARCH_COST["stamina"]
                     ))
+
+            # Phase 10A: a defeated, eligible remains can be consumed only by
+            # the explicit capability-specific action.  It is intentionally
+            # placed before EXTRACT and is absent from legacy states.
+            if can_devour_remains(state):
+                legal.append(LegalAction(
+                    action_type=DEVOUR_REMAINS,
+                    duration_minutes=DEVOUR_TIME,
+                    stamina_cost=DEVOUR_STAMINA_COST,
+                    params={},
+                ))
             
             # Can always EXTRACT from target location
             legal.append(LegalAction(
@@ -222,7 +242,7 @@ def validate_action(
     # Check action type is supported
     if intent.action_type not in ["WAIT", "DROP", "SEARCH", "EXTRACT", "FIGHT", "FLEE",
                                    "UPGRADE_PLAYER", "UPGRADE_BASE", "REST", "CHOOSE_BUILD",
-                                   TALK_TO_ACTOR]:
+                                   TALK_TO_ACTOR, DEVOUR_REMAINS]:
         errors.append(ActionValidationError(
             code="UNKNOWN_ACTION",
             message=f"Unknown action type: {intent.action_type}",
@@ -320,6 +340,14 @@ def validate_action(
                 message=f"{intent.action_type} does not accept parameter: {key}",
                 field=f"params.{key}",
             ))
+
+    elif intent.action_type == DEVOUR_REMAINS:
+        for key in intent.params:
+            errors.append(ActionValidationError(
+                code="UNEXPECTED_PARAMETER",
+                message=f"{DEVOUR_REMAINS} does not accept parameter: {key}",
+                field=f"params.{key}",
+            ))
     
     if errors:
         return ActionValidationResult(valid=False, action=None, errors=tuple(errors))
@@ -349,7 +377,7 @@ def execute_action(
     # Handle Phase 3/4/6/7 actions directly
     if intent.action_type in ["DROP", "SEARCH", "EXTRACT", "FIGHT", "FLEE",
                                "UPGRADE_PLAYER", "UPGRADE_BASE", "REST", "CHOOSE_BUILD",
-                               TALK_TO_ACTOR]:
+                               TALK_TO_ACTOR, DEVOUR_REMAINS]:
         return _execute_phase3_action(state, intent)
     
     # WAIT: validate via canonical source, then produce TIME_ADVANCED
@@ -605,6 +633,17 @@ def _execute_phase3_action(
             },
         )
 
+    elif intent.action_type == DEVOUR_REMAINS:
+        event = DomainEvent(
+            event_seq=state.event_seq + 1,
+            event_type=DEVOUR_RESOLVED,
+            game_minute=state.game_minute + DEVOUR_TIME,
+            decision_seq=state.decision_seq + 1,
+            action_id=validated.action_id,
+            actor_id=validated.actor_id,
+            payload=build_devour_event_payload(state),
+        )
+
     elif intent.action_type == TALK_TO_ACTOR:
         actor = state.data["named_actor"]
         event = DomainEvent(
@@ -686,6 +725,12 @@ def build_observation(state: GameState) -> dict[str, Any]:
     if "hp" in player:
         observation["hp"] = player["hp"]
         observation["max_hp"] = player["max_hp"]
+
+    # Phase 10A exposes only the approved Capability identity.  Eligibility,
+    # grant internals, and the encounter yield remain engine-private.
+    capabilities = build_devour_capability_observation(state)
+    if capabilities:
+        observation["capabilities"] = capabilities
     
     # Phase 4: Enemy visible only when encounter active
     encounter = exp.get("encounter")

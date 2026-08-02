@@ -12,7 +12,11 @@ from ..core.invariants import check_invariants
 from ..core.models import GameState
 from ..gameplay.expedition import build_observation
 from ..llm_player import build_llm_decision_request
-from ..worldgen import MECHANICS_PROFILE, verify_bundle
+from ..worldgen import (
+    DEVOUR_OVERLAY_COMPILER_ID,
+    MECHANICS_PROFILE,
+    verify_bundle,
+)
 from ..worldgen.models import ValidationIssue, WorldGenError
 from .common import (
     SHA256_HEX,
@@ -85,6 +89,7 @@ _SOURCE_STATE_FIELDS = {
 @dataclass(frozen=True)
 class _VerifiedSource:
     source_dir: Path
+    source_bundle_compiler_id: str
     worldpack_hash: str
     initial_state_hash: str
     compiled_worldpack: dict[str, Any]
@@ -326,6 +331,9 @@ def _verified_source(source_bundle_dir: str | Path) -> _VerifiedSource:
         raise _source_error("source worldpack hash binding is invalid", path="/source_bundle/bundle.json", actual=worldpack_hash)
     if initial_state_hash != verification.get("initial_state_hash") or not isinstance(initial_state_hash, str):
         raise _source_error("source initial state hash binding is invalid", path="/source_bundle/bundle.json", actual=initial_state_hash)
+    source_bundle_compiler_id = manifest.get("compiler_id")
+    if source_bundle_compiler_id != verification.get("compiler_id"):
+        raise _source_error("source bundle compiler identity is invalid", path="/source_bundle/bundle.json/compiler_id")
 
     if compiled_worldpack.get("mechanics_profile") != MECHANICS_PROFILE:
         raise error(
@@ -369,6 +377,7 @@ def _verified_source(source_bundle_dir: str | Path) -> _VerifiedSource:
 
     return _VerifiedSource(
         source_dir=root,
+        source_bundle_compiler_id=source_bundle_compiler_id,
         worldpack_hash=worldpack_hash,
         initial_state_hash=initial_state_hash,
         compiled_worldpack=copy.deepcopy(compiled_worldpack),
@@ -393,6 +402,52 @@ def _build_projection(source: _VerifiedSource, draft: ProjectionDraft) -> Player
     source_labels = public_content["labels"]
     labels = draft.labels
 
+    identities = {
+        "locations": {
+            "base-1": source_labels["base"],
+            "site-1": source_labels["target"],
+        },
+        "resources": {
+            "parts": labels["secondary_resource"],
+            "salvage": source_labels["resource"],
+        },
+        "actors": {
+            "mara": {
+                "name": source_labels["named_actor"],
+                "role": source_labels["named_actor_role"],
+            }
+        },
+        "actor_goals": {
+            "inspect_signal": source_labels["named_actor_public_goal"],
+            "report_finding": labels["actor_report_goal"],
+            "reported": labels["actor_reported_goal"],
+        },
+        "facts": {
+            "site-1-condition": {
+                "subject": labels["site_condition_subject"],
+                "values": {
+                    "safe": labels["site_condition_safe"],
+                    "unstable": labels["site_condition_unstable"],
+                },
+            }
+        },
+        "progression_tracks": {
+            "base": labels["base_track"],
+            "player": labels["player_track"],
+        },
+        "builds": {
+            "field_rest": labels["build_field_rest"],
+            "quick_rest": labels["build_quick_rest"],
+            "window_runner": labels["build_window_runner"],
+        },
+        "world_phases": {
+            "DAY": labels["phase_day"],
+            "NIGHT": labels["phase_night"],
+        },
+    }
+    if source.source_bundle_compiler_id == DEVOUR_OVERLAY_COMPILER_ID:
+        identities["capabilities"] = {"devour_evolution": "Devour Evolution"}
+
     projection = PlayerProjectionMap(
         schema_version=PROJECTION_SCHEMA_VERSION,
         projection_compiler_id=PROJECTION_COMPILER_ID,
@@ -406,49 +461,7 @@ def _build_projection(source: _VerifiedSource, draft: ProjectionDraft) -> Player
             "premise": public_content["premise"],
             "hazard": source_labels["hazard"],
         },
-        identities={
-            "locations": {
-                "base-1": source_labels["base"],
-                "site-1": source_labels["target"],
-            },
-            "resources": {
-                "parts": labels["secondary_resource"],
-                "salvage": source_labels["resource"],
-            },
-            "actors": {
-                "mara": {
-                    "name": source_labels["named_actor"],
-                    "role": source_labels["named_actor_role"],
-                }
-            },
-            "actor_goals": {
-                "inspect_signal": source_labels["named_actor_public_goal"],
-                "report_finding": labels["actor_report_goal"],
-                "reported": labels["actor_reported_goal"],
-            },
-            "facts": {
-                "site-1-condition": {
-                    "subject": labels["site_condition_subject"],
-                    "values": {
-                        "safe": labels["site_condition_safe"],
-                        "unstable": labels["site_condition_unstable"],
-                    },
-                }
-            },
-            "progression_tracks": {
-                "base": labels["base_track"],
-                "player": labels["player_track"],
-            },
-            "builds": {
-                "field_rest": labels["build_field_rest"],
-                "quick_rest": labels["build_quick_rest"],
-                "window_runner": labels["build_window_runner"],
-            },
-            "world_phases": {
-                "DAY": labels["phase_day"],
-                "NIGHT": labels["phase_night"],
-            },
-        },
+        identities=identities,
     )
     assert_canonical_utf8(projection.to_dict())
     return projection
@@ -466,6 +479,7 @@ def _mapped_identity_count(projection: PlayerProjectionMap) -> int:
         + len(identities["progression_tracks"])
         + len(identities["builds"])
         + len(identities["world_phases"])
+        + len(identities.get("capabilities", {}))
     )
 
 
@@ -520,6 +534,8 @@ def _compile_projection_from_verified_source(
         "initial_request_fingerprint": request.request_fingerprint,
         "initial_presentation_hash": presentation_digest,
     }
+    if source.source_bundle_compiler_id == DEVOUR_OVERLAY_COMPILER_ID:
+        report["source_bundle_compiler_id"] = DEVOUR_OVERLAY_COMPILER_ID
     assert_canonical_utf8(report)
     result = ProjectionCompilationResult(
         draft=normalized_draft,

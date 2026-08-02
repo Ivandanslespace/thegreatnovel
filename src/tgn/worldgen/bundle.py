@@ -26,6 +26,12 @@ from .compiler import (
     validate_request,
 )
 from .models import CompilationResult, ValidationIssue, WorldGenError
+from .devour_overlay import (
+    BASE_COMPILER_ID,
+    DEVOUR_OVERLAY_COMPILER_ID,
+    apply_devour_overlay,
+    build_devour_compile_report,
+)
 
 
 BUNDLE_FILES = frozenset(
@@ -205,7 +211,7 @@ def _validate_bundle_manifest(manifest: Any) -> None:
         raise _bundle_error("bundle.json has an invalid field set")
     if manifest["schema_version"] != 1 or type(manifest["schema_version"]) is not int:
         raise _bundle_error("bundle.json schema_version is unsupported")
-    if manifest["compiler_id"] != COMPILER_ID:
+    if manifest["compiler_id"] not in {COMPILER_ID, DEVOUR_OVERLAY_COMPILER_ID}:
         raise _bundle_error("bundle.json compiler_id is unsupported")
     if not isinstance(manifest["seed"], str) or not manifest["seed"] or "\x00" in manifest["seed"]:
         raise _bundle_error("bundle.json seed is invalid")
@@ -232,11 +238,21 @@ def verify_bundle(bundle_dir: str | Path) -> dict[str, Any]:
 
 
 def _verify_bundle(root: Path) -> dict[str, Any]:
-    """Fail closed after re-reading and rebuilding every deterministic artifact."""
-
     artifacts = _read_bundle_artifacts(root)
     manifest = artifacts["bundle.json"]
     _validate_bundle_manifest(manifest)
+
+    if manifest["compiler_id"] == DEVOUR_OVERLAY_COMPILER_ID:
+        return _verify_devour_overlay_bundle(root, artifacts, manifest)
+    return _verify_base_bundle(root, artifacts, manifest)
+
+
+def _verify_base_bundle(
+    root: Path,
+    artifacts: dict[str, Any],
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Fail closed after rebuilding the unchanged Phase 9B1 artifacts."""
 
     request, request_issues = validate_request(artifacts["world_request.json"])
     draft, draft_issues = validate_draft(artifacts["world_draft.json"])
@@ -283,6 +299,87 @@ def _verify_bundle(root: Path) -> dict[str, Any]:
     return {
         "valid": True,
         "compiler_id": COMPILER_ID,
+        "world_id": draft.world_id,
+        "worldpack_hash": manifest["worldpack_hash"],
+        "initial_state_hash": manifest["initial_state_hash"],
+    }
+
+
+def _verify_devour_overlay_bundle(
+    root: Path,
+    artifacts: dict[str, Any],
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Rebuild the base bundle, apply the one fixed overlay, and compare all six files."""
+
+    if manifest["compiler_id"] != DEVOUR_OVERLAY_COMPILER_ID:
+        raise _bundle_error("overlay compiler id is unsupported")
+    request, request_issues = validate_request(artifacts["world_request.json"])
+    draft, draft_issues = validate_draft(artifacts["world_draft.json"])
+    if request_issues or draft_issues or request is None or draft is None:
+        raise _bundle_error("overlay request or draft is invalid")
+    if request.to_dict() != artifacts["world_request.json"]:
+        raise _bundle_error("overlay world_request.json is not normalized")
+    if draft.to_dict() != artifacts["world_draft.json"]:
+        raise _bundle_error("overlay world_draft.json is not normalized")
+    for field, name in (
+        ("request_hash", "world_request.json"),
+        ("draft_hash", "world_draft.json"),
+        ("worldpack_hash", "compiled_worldpack.json"),
+        ("initial_state_hash", "initial_state.json"),
+        ("compile_report_hash", "compile_report.json"),
+    ):
+        if manifest[field] != state_hash(artifacts[name]):
+            raise _bundle_error(f"overlay {field} mismatch")
+
+    # Rebuild the verified base compilation rather than trusting any saved
+    # overlay state.  The base request/draft/worldpack remain byte-identical.
+    try:
+        base_compilation = compile_world(request, draft, manifest["seed"])
+    except Exception as exc:
+        raise _bundle_error("base recompilation failed for overlay verification") from exc
+    base_payloads = _artifact_payloads(base_compilation, manifest["seed"])
+    for name in ("world_request.json", "world_draft.json", "compiled_worldpack.json"):
+        if artifacts[name] != base_payloads[name]:
+            raise _bundle_error(f"overlay base artifact differs: {name}")
+    if manifest["worldpack_hash"] != base_payloads["bundle.json"]["worldpack_hash"]:
+        raise _bundle_error("overlay worldpack_hash differs from base")
+
+    try:
+        overlay_state = apply_devour_overlay(base_compilation.initial_state)
+        expected_report = build_devour_compile_report(
+            base_initial_state_hash=base_payloads["bundle.json"]["initial_state_hash"],
+            worldpack_hash=base_payloads["bundle.json"]["worldpack_hash"],
+            overlay_state=overlay_state,
+        )
+    except Exception as exc:
+        raise _bundle_error("fixed Phase 10A overlay rebuild failed") from exc
+    expected_initial = copy.deepcopy(overlay_state.__dict__)
+    expected_bundle = {
+        "schema_version": 1,
+        "compiler_id": DEVOUR_OVERLAY_COMPILER_ID,
+        "seed": manifest["seed"],
+        "request_hash": state_hash(base_payloads["world_request.json"]),
+        "draft_hash": state_hash(base_payloads["world_draft.json"]),
+        "worldpack_hash": state_hash(base_payloads["compiled_worldpack.json"]),
+        "initial_state_hash": state_hash(expected_initial),
+        "compile_report_hash": state_hash(expected_report),
+    }
+    expected = {
+        "bundle.json": expected_bundle,
+        "world_request.json": base_payloads["world_request.json"],
+        "world_draft.json": base_payloads["world_draft.json"],
+        "compiled_worldpack.json": base_payloads["compiled_worldpack.json"],
+        "initial_state.json": expected_initial,
+        "compile_report.json": expected_report,
+    }
+    for name in sorted(BUNDLE_FILES):
+        if artifacts[name] != expected[name]:
+            raise _bundle_error(f"recomputed overlay artifact differs: {name}")
+    _read_initial_state(artifacts["initial_state.json"])
+    return {
+        "valid": True,
+        "compiler_id": DEVOUR_OVERLAY_COMPILER_ID,
         "world_id": draft.world_id,
         "worldpack_hash": manifest["worldpack_hash"],
         "initial_state_hash": manifest["initial_state_hash"],
@@ -376,4 +473,119 @@ def compile_bundle(
             "worldpack_hash": temporary_verification["worldpack_hash"],
             "initial_state_hash": temporary_verification["initial_state_hash"],
         },
+    }
+
+
+def compile_devour_overlay_bundle(
+    base_bundle_dir: str | Path,
+    output_dir: str | Path,
+) -> dict[str, Any]:
+    """Compile and atomically publish the fixed Phase 10A overlay bundle."""
+
+    base_root = Path(base_bundle_dir)
+    target = Path(output_dir)
+    if target.exists():
+        raise _already_exists_error("output directory already exists", str(target))
+
+    base_verification = verify_bundle(base_root)
+    if base_verification.get("compiler_id") != BASE_COMPILER_ID:
+        raise _bundle_error("Phase 10A overlay input must be a verified base bundle")
+    base_artifacts = _read_bundle_artifacts(base_root)
+    base_manifest = base_artifacts["bundle.json"]
+    request, request_issues = validate_request(base_artifacts["world_request.json"])
+    draft, draft_issues = validate_draft(base_artifacts["world_draft.json"])
+    if request_issues or draft_issues or request is None or draft is None:
+        raise _bundle_error("verified base request or draft is invalid")
+    try:
+        base_compilation = compile_world(request, draft, base_manifest["seed"])
+        overlay_state = apply_devour_overlay(base_compilation.initial_state)
+        report = build_devour_compile_report(
+            base_initial_state_hash=base_manifest["initial_state_hash"],
+            worldpack_hash=base_manifest["worldpack_hash"],
+            overlay_state=overlay_state,
+        )
+    except Exception as exc:
+        raise _bundle_error("Phase 10A overlay compilation failed") from exc
+
+    initial_state = copy.deepcopy(overlay_state.__dict__)
+    manifest = {
+        "schema_version": 1,
+        "compiler_id": DEVOUR_OVERLAY_COMPILER_ID,
+        "seed": base_manifest["seed"],
+        "request_hash": state_hash(base_artifacts["world_request.json"]),
+        "draft_hash": state_hash(base_artifacts["world_draft.json"]),
+        "worldpack_hash": state_hash(base_artifacts["compiled_worldpack.json"]),
+        "initial_state_hash": state_hash(initial_state),
+        "compile_report_hash": state_hash(report),
+    }
+    values = {
+        "bundle.json": manifest,
+        "initial_state.json": initial_state,
+        "compile_report.json": report,
+    }
+
+    temporary_dir: Path | None = None
+    temporary_verification: dict[str, Any] | None = None
+    lock_path = _publication_lock_path(target)
+    lock_created = False
+    lock_fd: int | None = None
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary_dir = Path(
+            tempfile.mkdtemp(prefix=f".{target.name}.", dir=target.parent)
+        )
+        # Preserve the three base artifacts as original bytes; only the fixed
+        # overlay manifest/state/report are newly serialized.
+        for name in ("world_request.json", "world_draft.json", "compiled_worldpack.json"):
+            (temporary_dir / name).write_bytes((base_root / name).read_bytes())
+        for name, value in values.items():
+            _write_json(temporary_dir / name, value)
+        temporary_verification = verify_bundle(temporary_dir)
+
+        try:
+            lock_fd = os.open(
+                str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
+            )
+            lock_created = True
+            os.close(lock_fd)
+            lock_fd = None
+        except FileExistsError as exc:
+            raise _already_exists_error(
+                "overlay publication lock already exists; another cooperating compiler may be publishing",
+                str(lock_path),
+            ) from exc
+        if target.exists():
+            raise _already_exists_error(
+                "overlay output appeared before locked publication; target was preserved",
+                str(target),
+            )
+        try:
+            os.rename(temporary_dir, target)
+        except FileExistsError as exc:
+            raise _already_exists_error(
+                "overlay output appeared during atomic publication; target was preserved",
+                str(target),
+            ) from exc
+        temporary_dir = None
+    except WorldGenError:
+        raise
+    except Exception as exc:
+        raise _bundle_error("Phase 10A overlay publication failed") from exc
+    finally:
+        if lock_fd is not None:
+            os.close(lock_fd)
+        if lock_created:
+            try:
+                lock_path.unlink()
+            except FileNotFoundError:
+                pass
+        if temporary_dir is not None:
+            shutil.rmtree(temporary_dir, ignore_errors=True)
+
+    assert temporary_verification is not None
+    return {
+        "ok": True,
+        "valid": True,
+        "bundle_dir": str(target),
+        "preview": copy.deepcopy(temporary_verification),
     }
