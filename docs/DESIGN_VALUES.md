@@ -504,6 +504,45 @@ stat bonus
 
 
 
+# 6.2 主角金手指可以形成可积累的能力组合
+
+世界中的行动主体原则上服从同一套确定性规则。主角的特殊性不应写成：
+
+```text
+if protagonist:
+    ignore_rules()
+```
+
+而应来自真实、可追溯且难以复制的 Capability source、Capability grant、成长路径、
+资源转化能力、独占关系、血脉、装备、知识或环境机会：
+
+```text
+same world rules
++ asymmetric grants and growth potential
+= protagonist advantage
+```
+
+一个长期核心金手指可以通过真实 Event 和明确代价产生新资源、新知识、新状态或新的
+CapabilityGrant，从而形成多个能力共存的长期组合。能力不得由 Narrator 或 LLM 临时
+宣布；它必须是 Engine 可验证的权威事实。
+
+“叠加”首先只表示同一个 holder 可以同时拥有多个独立 Capability。它不表示一个
+action 会自动发动所有能力，也不表示能力可以无成本组合或被动效果可以无限堆叠。
+具体组合必须由独立 Feature Contract 证明。
+
+Capability 可以由其他系统授予，但不取代其他系统：
+
+- Equipment 可以 grant Capability，但 ownership、equip、transfer 是 Equipment 自身；
+- Companion 可以 enable joint Capability，但 Companion lifecycle 不是 Capability；
+- Reward system 可以 award Capability，但 lottery、rarity、pity 不是 Capability。
+
+因此不要为了容纳未来所有玄幻能力而提前建立 universal effect language、generic
+modifier algebra、generic priority graph、dynamic Python handler、plugin loader，或
+arbitrary natural-language rule execution。公共抽象只能在多个实际 vertical slice
+证明重复需求后提炼。
+
+---
+
 
 # 7. 反对“万能信息外挂”
 

@@ -44,6 +44,8 @@ Playable Client Milestone PC1 — frozen at `pc1-frozen`
 Accepted PC1 implementation SHA: `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`。
 `pc1-frozen` is immutable and must never be moved, deleted, or recreated。
 Phase 9C2 remains frozen；Phase 9D deferred / not started；Phase 10 has not started。
+main publishes the frozen PC1 baseline；mvp-rewrite carries documentation-only Phase 10
+roadmap changes until implementation starts。
 
 Playable Client Milestone PC1 是 Phase 9C2 之上的薄本地产品整合层，现已冻结在
 `pc1-frozen`。它只通过 Campaign 与 Story 的公开 service
@@ -112,10 +114,17 @@ Story 仍是 derived/non-authoritative artifact；external narrator 是 trusted 
 adapter；process containment 只是 operational cleanup，不是 security sandbox。不存在
 Client database 或 provider framework。
 
-下一里程碑方向为 Phase 10：让一个由 growth 产生的 Capability 成为真实可执行的
-非 basic action。Phase 9D 仍 deferred，且不是 Phase 10 前置条件。Phase 10 不得引入
-EffectSystem、AbilityGraph、SkillTree mega-framework、generic rule DSL 或
-world-specific branching。
+下一里程碑方向为：
+
+**Phase 10 — Capability Foundation and Stackable Protagonist Gift**
+
+Phase 10 将建立一个 holder 持有多个、带 provenance 的 Capability，并让这些
+Capability 进入确定性 action 或明确的局部 rule path。第一条实现路线是可持续产生
+后续固定 Capability 的 protagonist core gift。Phase 10 implementation 尚未开始，
+也尚未冻结。Phase 9D 仍 deferred，且不是 Phase 10 前置条件。
+
+Phase 10 不得提前建立 EffectSystem、AbilityGraph、SkillTree mega-framework、generic
+rule DSL、plugin/handler registry，或在 Core 中加入 world-specific branching。
 现有 pending Narration Request 的自身 locale 是恢复时的权威值；只有新建 request
 使用一次性 locale override，下一次新 request 回到 Story initial locale。Campaign
 manifest 与 Session 的 campaign/session ID、actor ID、max_decisions 在 Story 初始化前

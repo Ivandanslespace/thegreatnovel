@@ -19,6 +19,40 @@ relationship system or any of the deferred relationship features below.
 The fact that a local slice exists does not mean that its generalized framework,
 multi-actor version, or alternate WorldPack variants are implemented.
 
+PC1 is frozen at `pc1-frozen`. Phase 10 is a documentation candidate only:
+Capability Foundation and Stackable Protagonist Gift. Phase 10 implementation has
+not started and Phase 10 is not frozen.
+
+### Active design direction, not implementation
+
+The Phase 10 foundation direction is limited to:
+
+- stable Capability grant identity;
+- a holder;
+- source provenance and authoritative acquisition;
+- multiple permanent grants coexisting;
+- one bounded active action, one bounded passive/local rule path, and one bounded
+  acquisition path.
+
+Capability, CapabilityGrant, and source-system language describe the design boundary;
+they do not authorize Python classes, database schema, Event additions, tests, or a
+generalized registry in the current phase.
+
+### Still deferred beyond the Phase 10 foundation
+
+- Reward / Fortune / Lottery / Chest / Shop;
+- Equipment / Artifacts / Spatial Storage;
+- Companion / Pet / Summoning lifecycle;
+- Fusion and joint-growth systems;
+- Organization / Settlement;
+- Counterfactual Simulation;
+- Timeline Branching / Rewind;
+- Domains / Conditional Rule Overrides.
+
+Deferred modules may later grant or consume Capability facts, but Phase 10 must not
+prebuild their internal architecture. The generalized Capability registry remains
+deferred; plugin frameworks and future-proof interfaces remain prohibited.
+
 ## Deferred features
 
 ### Generalized gameplay systems

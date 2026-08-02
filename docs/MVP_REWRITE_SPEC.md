@@ -6681,10 +6681,12 @@ PC1 coverage hard gates 为 `src/tgn/play >= 95%`、`src/tgn/story >= 95%`、
 Windows POSIX FIFO skips 可以保留。PC1 现已冻结在 `pc1-frozen`；未来修改必须走
 显式 reopen 或 superseding milestone/phase 流程。
 
-下一里程碑方向为 Phase 10：一个由 growth 产生的 Capability 必须成为真实可执行的
-非 basic action。Phase 9D 仍 deferred，且不是 Phase 10 前置条件。Phase 10 不得引入
-EffectSystem、AbilityGraph、SkillTree mega-framework、generic rule DSL 或
-world-specific branching。
+下一里程碑方向为 `Phase 10 — Capability Foundation and Stackable Protagonist Gift`：
+建立 holder 持有多个 provenance-bound Capability grants，并让 Capability 进入确定性
+action 或明确 local rule path。第一实现方向为 protagonist core gift；Phase 10
+implementation 尚未开始且未冻结。Phase 9D 仍 deferred，且不是 Phase 10 前置条件。
+不得提前建立 EffectSystem、AbilityGraph、SkillTree mega-framework、generic rule DSL、
+plugin/handler registry 或 Core world-specific branching。
 
 #### Phase 9D — Evaluation Matrix（Deferred Phase 9D）
 
@@ -6806,19 +6808,179 @@ LocaleFramework、TranslationDatabase、AgentOrchestratorFramework 或 GenericWo
 
 ---
 
-### Phase 10 — Capability Action Vertical Slice
+### Phase 10 — Capability Foundation and Stackable Protagonist Gift
 
-**Contract:**
+**Status:** documentation direction established; implementation not started; Phase 10
+is unfrozen.
+
+#### 5.1 Phase 10 总目标
+
+Phase 10 establishes the minimum authoritative foundation for one actor to hold
+multiple provenance-bound Capabilities and for those Capabilities to enter
+deterministic actions or explicit local rule paths.
+
+An actor may hold multiple authoritative Capability grants. Each grant has stable
+identity and provenance. A Capability may produce an explicit legal action or one
+explicit local deterministic rule path. Capability ownership, execution and
+acquisition remain replayable and auditable.
+
+Phase 10 must eventually prove, through bounded vertical slices:
 
 ```text
-growth-produced new Capability enters truly executable Action
-1 capability only (non-basic combat/interaction action)
-source, availability, cost, target, effect, event, state change, observation, replay, autoplay
+Capability identity
+holder identity
+source provenance
+authoritative acquisition
+multiple permanent grants coexisting
+active execution
+one bounded passive rule path
+one Capability producing/acquiring another fixed Capability
+Observation → Event → Reducer → Persistence → Replay
+Campaign → Story → Autoplay → Playable Client
 ```
 
-Capability source not locked to player.skills — long-term may come from actor, equipment, progression, relationship, team, habitat, environment, world phase. Phase 10 implements one source only.
+The first implementation route is a protagonist core gift that can later produce
+additional fixed Capabilities. This is a roadmap direction, not an implementation
+commitment in the current documentation task.
 
-Do NOT build: EffectSystem Mega Framework, AbilityGraph, SkillTree framework.
+#### 5.2 最小概念边界
+
+These are logical concepts only; this contract does not prescribe Python classes,
+database tables, or a universal handler interface.
+
+- **Capability ID:** stable authoritative ID;
+- **Holder:** actor/entity currently holding the grant;
+- **Source provenance:** why and from where the grant was acquired;
+- **Acquisition fact:** the Event sequence or authoritative transition that created
+  the grant.
+
+The terminology is intentionally narrow: **Capability** means a special action
+possibility or explicit local rule that can be made authoritative; **CapabilityGrant**
+means the authoritative, traceable fact that a holder acquired one Capability;
+**Source system** means the independent mechanism that creates or removes such a
+grant; and **Subsystem** means an independent mechanism with its own state,
+lifecycle and Feature Contract. These words do not authorize a universal runtime
+framework.
+
+Conceptual example:
+
+```json
+{
+  "holder_id": "player",
+  "capability_id": "shadow_step",
+  "source_kind": "devoured_essence",
+  "source_id": "shadow_beast_core",
+  "acquired_event_seq": 42
+}
+```
+
+Display names are not authority. `holder_id` is conceptually not limited to the
+protagonist, although the first implementation may use only the current player.
+The first version requires permanent grants only. Temporary grants, equipment
+removal, lending, expiry and invalidation wait for a real product need and their
+own contract.
+
+#### 5.3 三层启用模型
+
+Phase 10 distinguishes three levels:
+
+1. **WorldPack feature level:** whether a WorldPack configures and enables a
+   particular mechanism;
+2. **Campaign ownership level:** which holder actually owns which CapabilityGrant;
+3. **Current applicability level:** whether current state permits the Capability
+   to enter a legal action or a specific rule path.
+
+```text
+feature enabled ≠ holder owns it
+holder owns it  ≠ currently legal to use
+```
+
+This is data and deterministic rule evaluation, not runtime Python plugin loading.
+
+#### 5.4 Phase 10 子阶段
+
+**Phase 10A — Core Gift and First Acquisition Loop**
+
+Target proof:
+
+```text
+one protagonist core gift
+one authoritative grant
+one explicit action
+one semantic Event
+one deterministic state consequence
+```
+
+The preferred product direction is `devour_evolution`. The first bounded action
+candidate is `DEVOUR_REMAINS`:
+
+```text
+defeated eligible remains
+→ deterministic time/resource cost
+→ remains consumed
+→ fixed essence gained
+→ one DEVOUR_RESOLVED Event
+```
+
+Phase 10A must not allow arbitrary targets, automatic copying of arbitrary enemy
+abilities, LLM-generated skills, dynamic code generation from enemy data, or
+arbitrary attribute absorption.
+
+**Phase 10B — Second Capability and Coexistence**
+
+One devour-produced essence or fixed progression condition unlocks one predefined
+second Capability. The original core gift remains; two permanent grants coexist;
+the second Capability enters one explicit active action. The proof must show that
+one Capability can causally lead to another fixed Capability without replacing the
+original grant. The second Capability ID and mechanics belong to a later Phase 10B
+Feature Contract and are not defined here.
+
+**Phase 10C — One Explicit Passive Capability**
+
+Implement exactly one bounded conditional passive path, such as one poison immunity,
+one bloodline defense, one bounded combat condition, or one bounded fortune
+observation. This is not a modifier registry, stacking algebra, priority engine,
+or condition-expression DSL.
+
+**Phase 10D — Capability Architecture Gate**
+
+Before Phase 10 can be considered for freeze, an independent review must prove at
+least three distinct forms: an active action, a passive local rule, and Capability
+acquisition. The foundation must not depend on a first-world theme name,
+protagonist hard-coded bypass, a single Capability slot, one fixed source kind, or
+Narrator authority. Phase 10D is a gate, not current implementation work.
+
+#### 5.5 Phase 10 明确不包含
+
+The following remain independent systems and are not part of the Phase 10
+foundation:
+
+- Reward / lottery / shop framework;
+- Equipment lifecycle;
+- Companion or pet lifecycle;
+- Fusion system;
+- Organization or settlement;
+- Counterfactual simulation;
+- Timeline branching or rewind;
+- generic domains;
+- generic combat override priority system;
+- arbitrary language-to-rule execution.
+
+Those systems may later grant, remove, or consume Capability facts, but their own
+state, lifecycle and Feature Contracts remain independent. Capability is not a
+replacement for Reward, Equipment, Companion, Organization or Timeline systems.
+
+#### 5.6 主角与 NPC 边界
+
+The foundation's holder concept is Actor-generic, while Phase 10's first
+implementation needs only the current player. Named Actors and Public World peers
+do not need the complete Capability action loop immediately. NPC Capabilities may
+connect only after the relevant Actor has a real Action/Event lifecycle and an
+independent contract. Do not create a generalized actor executor for hypothetical
+future NPC abilities.
+
+Phase 10 must not introduce an EffectSystem, AbilityGraph, SkillTree mega-framework,
+generic rule DSL, plugin/handler registry, or world-specific branching in Core.
 
 ---
 
@@ -6830,7 +6992,11 @@ Narrator / Guard / Voice Pack already exist as frozen infrastructure (Phase 3.6�
 
 ### Phase 11 — Public World Lite
 
-Content: aggregate population, few external peers, announcement, regional/public feed. Purpose: player feels world externally has other independent participants and group states. Not MMO simulation.
+**Status:** Phase 11 remains Public World Lite and follows the Phase 10 foundation.
+
+Content: aggregate population, few external peers, announcement, regional/public
+feed. Purpose: the player feels that the world has other independent participants
+and group states. This is not MMO simulation.
 
 Named Actor (Phase 7.5) and Public World peer are different subsystems — do not conflate.
 
@@ -6848,17 +7014,70 @@ Anti-Hardcoding Gate: if Core diff shows `if world_type == ...` or world-specifi
 
 Anti-Overgeneralization Gate: if 20 abstraction layers / plugin manager / universal schema added when two simple local variants suffice → NOT COMPLETE.
 
+Phase 12 remains the second structurally different WorldPack architecture gate. It
+must also verify that the Phase 10 foundation has not hard-coded expedition,
+enemy encounter, fixed base, first-world resource names, cultivation terminology,
+or protagonist-only field names. A second WorldPack may use the same foundation
+for structurally different capabilities such as negotiation permission, identity
+disguise, market insight, machine control, or environmental adaptation.
+
+Phase 12 does not need to implement every later subsystem. It is the important
+architecture check before larger follow-on expansion.
+
 ---
 
 ### Long-Horizon Optional Modules (not in current MVP phases)
 
-These require WorldPack-driven demand before implementation:
+The following are post-Phase-12 candidate modules. They are candidate routes, not
+current implementation commitments. Each requires a concrete WorldPack/product
+need and an independent Feature Contract before it can start.
 
-- Production / Automation / Upkeep
-- Bonded Entity (companion/pet/summon/drone)
-- Organization (guild/academy/sect/faction)
-- Market / Trade
-- Settlement / Civilization scale
+#### Phase 13 candidate — Reward, Fortune, Lottery, Chest and Shop
+
+This module owns deterministic RNG, reward pools, rarity, pity/guarantee, chests,
+lottery, and shop/currency where needed. A fortune Capability may affect this
+system, but Capability does not replace reward rules.
+
+#### Phase 14 candidate — Equipment, Artifacts and Spatial Storage
+
+This module owns ownership, equip/unequip, transfer, contained inventory,
+artifact-bound grants, and loss/destruction where required. An equipment artifact
+may grant a Capability, but Equipment lifecycle is not Capability itself.
+
+#### Phase 15 candidate — Companion Actor, Summoning and Pet Lifecycle
+
+This module owns a persistent Actor lifecycle, not merely a `SUMMON` Event. A
+Companion may enable a joint Capability, but Companion state and agency remain
+independent.
+
+#### Phase 16 candidate — Bond, Joint Capability and Fusion
+
+This module must define multiple Actor participation, state ownership, action
+rights, and dissolution rules. It is not a generic Capability-combination engine.
+
+#### Phase 17 candidate — Organization and Settlement
+
+This module owns members, roles, shared resources, buildings, and organization
+state. An organization may authorize a Capability without becoming a Capability
+registry.
+
+#### Phase 18 candidate — Counterfactual / Life Simulation
+
+This module must use non-authoritative prediction branches and must not pollute the
+formal EventStore or Campaign truth.
+
+#### Phase 19 candidate — Timeline Branching and Rewind
+
+This module must preserve old history and branch provenance. Rewind may not simply
+delete Events or erase authoritative history.
+
+#### Phase 20 candidate — Conditional Rule Overrides and Domains
+
+This module must define scope, duration, target, conflict and priority explicitly.
+It may not rewrite rules through arbitrary natural language.
+
+These candidate modules may later grant or consume Capability facts, but their own
+state, lifecycle and authority remain separate from the Phase 10 foundation.
 
 ### Future Optional Vertical Slice — Mutual Bond + Relationship-produced Capability
 
@@ -6870,7 +7089,8 @@ Recommended development order:
 ```text
 Phase 7.5 establishes one persistent Actor and knowledge boundary.
 Phase 8 establishes the LLM Player and its permission boundary.
-Phase 10 proves one executable Capability.
+Phase 10 establishes the Capability foundation and proves bounded active,
+passive, and acquisition slices.
 Later optional slice proves Mutual Bond + Relationship-produced Joint Capability.
 ```
 
