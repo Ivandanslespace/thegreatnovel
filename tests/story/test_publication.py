@@ -591,6 +591,395 @@ def test_windows_backup_cleanup_check_to_handle_race_preserves_competitor(
         binding.close_safely()
 
 
+def test_posix_quarantine_capture_identity_and_type_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    directory = tmp_path / "directory"
+    directory.mkdir()
+    missing = "missing-quarantine-file"
+    opening = tmp_path / "opening"
+    opening.write_bytes(b"opening")
+    other = tmp_path / "other"
+    other.write_bytes(b"other")
+    reading = tmp_path / "reading"
+    reading.write_bytes(b"reading")
+    try:
+        with pytest.raises(PublicationRuntime, match="regular file"):
+            binding._capture_file_observable_at(17, directory.name)
+        with pytest.raises(FileNotFoundError):
+            binding._capture_file_observable_at(17, missing)
+        with monkeypatch.context() as context:
+            context.setattr(publication.os, "fstat", lambda _fd: os.stat(other))
+            with pytest.raises(PublicationRuntime, match="identity changed while opening"):
+                binding._capture_file_observable_at(17, opening.name)
+        real_stat = publication.os.stat
+        stat_calls = 0
+
+        def change_during_read(value, *args, dir_fd=None, follow_symlinks=True, **kwargs):
+            nonlocal stat_calls
+            stat_calls += 1
+            if stat_calls == 1:
+                return real_stat(value, *args, dir_fd=dir_fd, follow_symlinks=follow_symlinks, **kwargs)
+            return os.stat(other)
+
+        with monkeypatch.context() as context:
+            context.setattr(publication.os, "stat", change_during_read)
+            with pytest.raises(PublicationRuntime, match="identity changed while reading"):
+                binding._capture_file_observable_at(17, reading.name)
+        with monkeypatch.context() as context:
+            context.setattr(
+                publication.os,
+                "stat",
+                lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("stat")),
+            )
+            with pytest.raises(PublicationRuntime, match="cannot be captured"):
+                binding._capture_file_observable_at(17, opening.name)
+        with monkeypatch.context() as context:
+            context.setattr(
+                binding,
+                "_capture_file_observable_anchored",
+                lambda *_args: (_ for _ in ()).throw(PublicationRuntime("already bounded")),
+            )
+            with pytest.raises(PublicationRuntime, match="already bounded"):
+                binding.capture_file_observable(opening.name)
+    finally:
+        binding.close_safely()
+
+
+def test_posix_quarantine_lifecycle_fail_closed_and_owned_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    try:
+        binding._close_cleanup_quarantine()
+
+        quarantine_name, _fd = binding._open_cleanup_quarantine()
+        binding._quarantine_identity = ("wrong",)
+        with pytest.raises(PublicationRuntime, match="identity changed"):
+            binding._close_cleanup_quarantine()
+        shutil.rmtree(tmp_path / quarantine_name)
+
+        quarantine_name, _fd = binding._open_cleanup_quarantine()
+        (tmp_path / quarantine_name / "leftover").write_bytes(b"owned")
+        with pytest.raises(PublicationRuntime, match="not empty"):
+            binding._close_cleanup_quarantine()
+        shutil.rmtree(tmp_path / quarantine_name)
+
+        quarantine_name, _fd = binding._open_cleanup_quarantine()
+        with monkeypatch.context() as context:
+            context.setattr(binding, "_stat_at", lambda *_args: os.stat(tmp_path))
+            with pytest.raises(PublicationRuntime, match="name identity changed"):
+                binding._close_cleanup_quarantine()
+        shutil.rmtree(tmp_path / quarantine_name)
+
+        quarantine_name, _fd = binding._open_cleanup_quarantine()
+        with monkeypatch.context() as context:
+            context.setattr(binding, "_stat_at", lambda *_args: (_ for _ in ()).throw(FileNotFoundError()))
+            with pytest.raises(PublicationBoundaryChanged, match="disappeared"):
+                binding._close_cleanup_quarantine()
+        shutil.rmtree(tmp_path / quarantine_name)
+
+        quarantine_name, _fd = binding._open_cleanup_quarantine()
+        with monkeypatch.context() as context:
+            context.setattr(publication.os, "rmdir", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("rmdir")))
+            with pytest.raises(PublicationRuntime, match="cannot be removed"):
+                binding._close_cleanup_quarantine()
+        shutil.rmtree(tmp_path / quarantine_name)
+
+        quarantine_name, _fd = binding._open_cleanup_quarantine()
+        with monkeypatch.context() as context:
+            context.setattr(binding, "_quarantine_identity", ("wrong",))
+            context.setattr(publication.os, "close", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("close")))
+            with pytest.raises(PublicationRuntime, match="identity changed"):
+                binding._close_cleanup_quarantine()
+        shutil.rmtree(tmp_path / quarantine_name)
+
+        collision = tmp_path / ".cleanup.fixed"
+        collision.mkdir()
+        with monkeypatch.context() as context:
+            context.setattr(publication.secrets, "token_hex", lambda _size: "fixed")
+            with pytest.raises(PublicationRuntime, match="allocation failed"):
+                binding._open_cleanup_quarantine()
+        collision.rmdir()
+    finally:
+        binding.close_safely()
+        fd_paths.pop(17, None)
+
+
+def test_posix_quarantine_restore_and_delete_races_preserve_observed_objects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    payload = b"expected"
+    target = tmp_path / "candidate"
+    target.write_bytes(payload)
+    expected = binding.capture_file_observable(target.name)
+    try:
+        with pytest.raises(PublicationRuntime, match="not active"):
+            binding._restore_quarantined_file("restored", "candidate", expected)
+        binding.directory_fd = None
+        with pytest.raises(PublicationUnavailable, match="unavailable"):
+            binding._quarantine_remove_expected_file(target.name, expected)
+        binding.directory_fd = 17
+
+        quarantine_name, _fd = binding._open_cleanup_quarantine()
+        assert binding._restore_quarantined_file(target.name, "candidate", expected) is False
+        binding._close_cleanup_quarantine()
+
+        target.unlink()
+        quarantine_name, _fd = binding._open_cleanup_quarantine()
+        def write_wrong_object(_source, _source_fd, _destination, _destination_fd):
+            (tmp_path / "restored").write_bytes(b"wrong")
+
+        monkeypatch.setattr(binding, "_move_no_replace_between", write_wrong_object)
+        with pytest.raises(PublicationRuntime, match="could not be restored"):
+            binding._restore_quarantined_file("restored", "candidate", expected)
+        (tmp_path / "restored").unlink()
+        binding._close_cleanup_quarantine()
+        monkeypatch.setattr(publication, "_linux_no_replace", lambda source, target_name, source_fd, target_fd: os.replace(
+            fd_paths[source_fd] / source,
+            fd_paths[target_fd] / target_name,
+        ))
+
+        target.write_bytes(payload)
+        with pytest.raises(PublicationBoundaryChanged, match="cleanup candidate changed"):
+            binding._quarantine_remove_expected_file(
+                target.name,
+                ExpectedPublicationFile(
+                    identity=expected.identity,
+                    sha256=publication.sha256_bytes(b"wrong"),
+                    size=5,
+                    mtime_ns=expected.mtime_ns,
+                    payload=b"wrong",
+                ),
+            )
+
+        current_expected = binding.capture_file_observable(target.name)
+        def change_after_move(source, source_fd, destination, destination_fd):
+            os.replace(fd_paths[source_fd] / source, fd_paths[destination_fd] / destination)
+            if source_fd == binding.directory_fd:
+                (fd_paths[destination_fd] / destination).write_bytes(b"changed")
+
+        monkeypatch.setattr(binding, "_move_no_replace_between", change_after_move)
+        with pytest.raises(PublicationBoundaryChanged, match="cleanup candidate changed"):
+            binding._quarantine_remove_expected_file(target.name, current_expected)
+        assert target.read_bytes() == b"changed"
+        target.unlink()
+
+        target.write_bytes(payload)
+        def change_before_delete(name, _expected):
+            quarantine = tmp_path / binding._quarantine_name / name
+            quarantine.unlink()
+            quarantine.write_bytes(b"changed")
+
+        monkeypatch.setattr(binding, "_move_no_replace_between", lambda source, source_fd, destination, destination_fd: os.replace(
+            fd_paths[source_fd] / source,
+            fd_paths[destination_fd] / destination,
+        ))
+        monkeypatch.setattr(binding, "_before_cleanup_delete", change_before_delete)
+        current_expected = binding.capture_file_observable(target.name)
+        with pytest.raises(PublicationBoundaryChanged, match="cleanup candidate changed"):
+            binding._quarantine_remove_expected_file(target.name, current_expected)
+        assert target.read_bytes() == b"changed"
+        target.unlink()
+    finally:
+        binding.close_safely()
+        fd_paths.pop(17, None)
+
+
+def test_windows_handle_cleanup_maps_errors_and_rechecks_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = publication.BoundPublicationDirectory(tmp_path)
+    payload = b"expected"
+    expected = ExpectedPublicationFile(
+        identity=("windows", 1),
+        sha256=publication.sha256_bytes(payload),
+        size=len(payload),
+        mtime_ns=1,
+        payload=payload,
+    )
+    with monkeypatch.context() as context:
+        context.setattr(publication.os, "name", "posix")
+        with pytest.raises(PublicationUnavailable, match="Windows handle deletion"):
+            binding._windows_remove_file_by_handle("candidate", expected)
+
+    with monkeypatch.context() as context:
+        context.setattr(publication.os, "name", "nt")
+        context.setattr(binding, "_capture_file_observable_anchored", lambda *_args: expected)
+        context.setattr(binding, "_open_windows_child_handle", lambda *_args, **_kwargs: (77, 0, expected.identity))
+        context.setattr(binding, "_close_windows_handle_value", lambda _handle: None)
+        context.setattr(binding, "_windows_info_for_handle", lambda _handle: (binding._FILE_ATTRIBUTE_DIRECTORY, ("other", 1)))
+        with pytest.raises(PublicationBoundaryChanged, match="HANDLE identity"):
+            binding._windows_remove_file_by_handle("candidate", expected, retained_handle=88)
+        context.setattr(binding, "_windows_info_for_handle", lambda _handle: (0, expected.identity))
+        context.setattr(binding, "_capture_file_observable_anchored", lambda *_args: ExpectedPublicationFile(
+            identity=("windows", 2),
+            sha256=expected.sha256,
+            size=expected.size,
+            mtime_ns=expected.mtime_ns,
+            payload=expected.payload,
+        ))
+        with pytest.raises(PublicationBoundaryChanged, match="target observable"):
+            binding._windows_remove_file_by_handle("candidate", expected)
+
+        context.setattr(binding, "_capture_file_observable_anchored", lambda *_args: expected)
+
+        class Kernel:
+            SetFileInformationByHandle = _FakeFunction(0)
+
+        context.setattr(publication.ctypes, "WinDLL", lambda *_args, **_kwargs: Kernel())
+        for error_number, error_type in ((1, PublicationUnavailable), (5, PublicationRuntime)):
+            context.setattr(publication.ctypes, "get_last_error", lambda error_number=error_number: error_number)
+            with pytest.raises(error_type):
+                binding._windows_remove_file_by_handle("candidate", expected)
+
+        class ExplodingKernel:
+            class SetFileInformationByHandle:
+                def __call__(self, *_args):
+                    raise RuntimeError("SetFileInformationByHandle")
+
+        context.setattr(publication.ctypes, "WinDLL", lambda *_args, **_kwargs: ExplodingKernel())
+        with pytest.raises(PublicationUnavailable, match="unavailable"):
+            binding._windows_remove_file_by_handle("candidate", expected)
+
+
+def test_posix_quarantine_platform_and_recursive_cleanup_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    try:
+        source = tmp_path / "mac-source"
+        source.write_bytes(b"mac")
+        with monkeypatch.context() as context:
+            context.setattr(publication.sys, "platform", "darwin")
+            context.setattr(
+                publication,
+                "_macos_no_replace",
+                lambda source_name, target_name, source_fd, target_fd: os.replace(
+                    fd_paths[source_fd] / source_name,
+                    fd_paths[target_fd] / target_name,
+                ),
+            )
+            binding._move_no_replace_between(source.name, 17, "mac-target", 17)
+        assert (tmp_path / "mac-target").read_bytes() == b"mac"
+
+        binding.directory_fd = None
+        with monkeypatch.context() as context:
+            context.setattr(publication.sys, "platform", "freebsd")
+            with pytest.raises(PublicationUnavailable, match="quarantine"):
+                binding._move_no_replace_between("mac-target", 17, "unused", 17)
+        binding.directory_fd = 17
+        with monkeypatch.context() as context:
+            context.setattr(publication.os, "name", "nt")
+            with pytest.raises(PublicationUnavailable, match="quarantine"):
+                binding._open_cleanup_quarantine()
+
+        with monkeypatch.context() as context:
+            context.setattr(
+                publication.os,
+                "open",
+                lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("open quarantine")),
+            )
+            with pytest.raises(PublicationRuntime, match="cannot be created"):
+                binding._open_cleanup_quarantine()
+
+        not_directory = tmp_path / "not-directory"
+        not_directory.write_bytes(b"file")
+        real_fstat = publication.os.fstat
+        fstat_calls = 0
+
+        def regular_quarantine_fstat(fd):
+            nonlocal fstat_calls
+            fstat_calls += 1
+            return real_fstat(fd) if fstat_calls == 1 else os.stat(not_directory)
+
+        with monkeypatch.context() as context:
+            context.setattr(publication.os, "fstat", regular_quarantine_fstat)
+            with pytest.raises(PublicationRuntime, match="cannot be created"):
+                binding._open_cleanup_quarantine()
+
+        invalid_tree = binding.create_temp_directory("invalid-tree")
+        (invalid_tree / "invalid-child").write_bytes(b"child")
+        original_directory = publication.is_actual_directory
+        original_regular = publication.is_actual_regular_file
+        directory_calls = 0
+
+        def root_only_directory(item_stat):
+            nonlocal directory_calls
+            directory_calls += 1
+            return original_directory(item_stat) if directory_calls == 1 else False
+
+        with monkeypatch.context() as context:
+            context.setattr(publication, "is_actual_directory", root_only_directory)
+            context.setattr(publication, "is_actual_regular_file", lambda _stat: False)
+            with pytest.raises(OSError, match="invalid child"):
+                binding._remove_tree_at(17, invalid_tree.name, publication._stat_identity(os.stat(invalid_tree)))
+        binding.cleanup_temp()
+
+        child = tmp_path / "generic-cleanup"
+        child.write_bytes(b"child")
+        child_stat = os.stat(child)
+        with monkeypatch.context() as context:
+            context.setattr(binding, "_capture_file_observable_anchored", lambda *_args: (_ for _ in ()).throw(ValueError("unexpected")))
+            with pytest.raises(PublicationRuntime, match="cleanup failed"):
+                binding._remove_owned_name(child.name, publication._stat_identity(child_stat), directory=False)
+    finally:
+        binding.close_safely()
+        fd_paths.pop(17, None)
+
+
+def test_windows_recovery_inspects_layout_before_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = publication.BoundPublicationDirectory(tmp_path)
+    old_payload = b"old"
+    writer_payload = b"writer"
+    old = ExpectedPublicationFile(
+        identity=("old", 1), sha256=publication.sha256_bytes(old_payload), size=3, mtime_ns=1, payload=old_payload
+    )
+    writer = ExpectedPublicationFile(
+        identity=("writer", 1), sha256=publication.sha256_bytes(writer_payload), size=6, mtime_ns=1, payload=writer_payload
+    )
+    binding._temp_name = "writer.tmp"
+    binding._temp_handle = 7
+    binding._temp_identity = writer.identity
+    failure = publication.WindowsReplaceFailure(publication.ERROR_UNABLE_TO_MOVE_REPLACEMENT_2)
+    with monkeypatch.context() as context:
+        context.setattr(publication.os, "name", "nt")
+        context.setattr(binding, "_check_handle", lambda: None)
+        context.setattr(binding, "_windows_retained_writer_matches", lambda _writer: False)
+        with pytest.raises(PublicationRuntime, match="cannot be proven"):
+            binding._recover_windows_displaced_restore_failure("novel.md", "displaced", "backup", old, writer, failure)
+
+        context.setattr(binding, "_windows_retained_writer_matches", lambda _writer: (_ for _ in ()).throw(ValueError("inspect")))
+        with pytest.raises(PublicationRuntime, match="cannot be inspected"):
+            binding._recover_windows_displaced_restore_failure("novel.md", "displaced", "backup", old, writer, failure)
+
+        values = {"novel.md": None, "displaced": old, "backup": writer}
+        context.setattr(binding, "_windows_retained_writer_matches", lambda _writer: True)
+        context.setattr(binding, "_capture_optional_file_observable", lambda name: values[name])
+        context.setattr(publication, "_windows_no_replace", lambda *_args: None)
+        context.setattr(binding, "_capture_file_observable_anchored", lambda _name: writer)
+        with pytest.raises(PublicationRuntime, match="target observable changed"):
+            binding._recover_windows_displaced_restore_failure("novel.md", "displaced", "backup", old, writer, failure)
+
+        values = {"novel.md": writer, "displaced": None, "backup": None}
+        with pytest.raises(PublicationRuntime, match="not safely recoverable"):
+            binding._recover_windows_displaced_restore_failure("novel.md", "displaced", "backup", old, writer, failure)
+
+
 def test_anchored_posix_directory_cleanup_and_final_window(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
     binding = publication.BoundPublicationDirectory.bind(tmp_path)
