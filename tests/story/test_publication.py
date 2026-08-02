@@ -981,3 +981,360 @@ def test_post_commit_descriptor_close_failure_does_not_reverse_publication(tmp_p
     assert (tmp_path / "committed.json").read_bytes() == b"payload"
     assert binding.temp_name is None
     binding.close_safely()
+
+
+def test_publication_remaining_observable_error_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    child = tmp_path / "child.json"
+    child.write_bytes(b"child")
+
+    with monkeypatch.context() as context:
+        context.setattr(binding, "_read_child_bytes_anchored", lambda *_args: (_ for _ in ()).throw(OSError("read")))
+        with pytest.raises(PublicationRuntime, match="cannot be read"):
+            binding.read_child_bytes(child.name)
+    with monkeypatch.context() as context:
+        context.setattr(binding, "_capture_file_observable_anchored", lambda *_args: (_ for _ in ()).throw(OSError("capture")))
+        with pytest.raises(PublicationRuntime, match="cannot be captured"):
+            binding.capture_file_observable(child.name)
+
+    binding.create_temp_file("write.json")
+    with monkeypatch.context() as context:
+        context.setattr(binding, "_verify_temp", lambda: (_ for _ in ()).throw(PublicationRuntime("verify")))
+        with pytest.raises(PublicationRuntime, match="verify"):
+            binding.write_temp_bytes(b"payload")
+    binding.cleanup_temp()
+
+    with monkeypatch.context() as context:
+        context.setattr(publication.ctypes, "WinDLL", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("close")))
+        binding._temp_handle = 123
+        with pytest.raises(PublicationRuntime, match="HANDLE"):
+            binding._close_temp_handle()
+    binding._temp_handle = None
+
+    inactive = publication.BoundPublicationDirectory(tmp_path)
+    inactive._verify_temp = lambda: None  # type: ignore[method-assign]
+    inactive._exists_at = lambda *_args: False  # type: ignore[method-assign]
+    with pytest.raises(PublicationRuntime, match="not active"):
+        inactive._move_temp("target.json")
+    with monkeypatch.context() as context:
+        context.setattr(inactive, "_exists_at", lambda *_args: True)
+        with pytest.raises(PublicationRuntime, match="backup name"):
+            inactive._next_displaced_name("target.json")
+
+    payload = b"old"
+    expected = ExpectedPublicationFile(
+        identity=("expected", 1),
+        sha256=publication.sha256_bytes(payload),
+        size=len(payload),
+        mtime_ns=1,
+        payload=payload,
+    )
+    wrong = ExpectedPublicationFile(
+        identity=("wrong", 1),
+        sha256=publication.sha256_bytes(b"wrong"),
+        size=5,
+        mtime_ns=1,
+        payload=b"wrong",
+    )
+    with pytest.raises(PublicationRuntime, match="not the expected"):
+        inactive._remove_displaced_if_expected("child.json", wrong, expected)
+    assert inactive._windows_retained_writer_matches(expected) is False
+    with pytest.raises(PublicationRuntime, match="name is unavailable"):
+        inactive._discard_windows_writer_replacement(expected)
+    inactive._temp_name = "wrong.tmp"
+    inactive._close_temp_resources = lambda: None  # type: ignore[method-assign]
+    inactive._capture_file_observable_anchored = lambda *_args: wrong  # type: ignore[method-assign]
+    with pytest.raises(PublicationRuntime, match="identity changed"):
+        inactive._discard_windows_writer_replacement(expected)
+    with pytest.raises(PublicationRuntime, match="backup identity"):
+        inactive._discard_windows_expected_backup("child.json", expected)
+    inactive._capture_file_observable_anchored = lambda *_args: (_ for _ in ()).throw(OSError("capture"))  # type: ignore[method-assign]
+    assert inactive._writer_target_matches("child.json", expected) is False
+    binding.close_safely()
+
+
+def test_publication_wrapper_and_adopted_error_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "target.json"
+    with pytest.raises(PublicationRuntime, match="payload"):
+        publication.publish_bytes_no_replace(target, "not-bytes")
+    with pytest.raises(PublicationRuntime, match="payload"):
+        publication.replace_bytes_atomic(target, "not-bytes", expected_target=None)
+    with pytest.raises(PublicationRuntime, match="expected target"):
+        publication.replace_bytes_atomic(target, b"payload")
+
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    target.write_bytes(b"old")
+    expected = binding.capture_file_observable(target.name)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    with pytest.raises(PublicationRuntime, match="outside bound parent"):
+        publication.publish_bytes_no_replace(outside / "child.json", b"payload", parent_binding=binding)
+    with pytest.raises(PublicationRuntime, match="outside bound parent"):
+        publication.replace_bytes_atomic(outside / "child.json", b"payload", parent_binding=binding, expected_target=expected)
+
+    source = tmp_path / "adopted.json"
+    source.write_bytes(b"adopted")
+    binding.adopt_existing(source, directory=False, owned=True)
+    monkeypatch.setattr(binding, "_move_temp", lambda *_args: None)
+    binding.publish_adopted("adopted-target", boundary_check=lambda: None, before_atomic=lambda: None)
+    binding.cleanup_temp()
+
+    fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    target.write_bytes(b"old")
+    posix = publication.BoundPublicationDirectory.bind(tmp_path)
+    expected = posix.capture_file_observable(target.name)
+    def exchange(source_name, target_name, source_dir_fd=None, target_dir_fd=None):
+        posix._close_temp_fd()
+        os.replace(fd_paths[source_dir_fd] / source_name, fd_paths[source_dir_fd] / ".exchange")
+        os.replace(fd_paths[target_dir_fd] / target_name, fd_paths[target_dir_fd] / source_name)
+        os.replace(fd_paths[source_dir_fd] / ".exchange", fd_paths[target_dir_fd] / target_name)
+
+    monkeypatch.setattr(publication, "_linux_exchange", exchange)
+    posix.publish_replace(target.name, b"new", before_atomic=lambda: None, expected_target=expected)
+    assert target.read_bytes() == b"new"
+    posix.close_safely()
+
+    with monkeypatch.context() as context:
+        context.setattr(publication, "_lexists", lambda *_args: True)
+        real_lstat = publication.os.lstat
+        context.setattr(
+            publication.os,
+            "lstat",
+            lambda value: (_ for _ in ()).throw(FileNotFoundError())
+            if Path(value) == tmp_path / "missing-owned"
+            else real_lstat(value),
+        )
+        publication._cleanup_owned(tmp_path / "missing-owned")
+    invalid = tmp_path / "invalid-owned"
+    invalid.write_bytes(b"invalid")
+    with monkeypatch.context() as context:
+        context.setattr(publication, "is_actual_regular_file", lambda _stat: False)
+        with pytest.raises(PublicationRuntime, match="invalid type"):
+            publication._cleanup_owned(invalid)
+
+
+def test_publication_windows_child_and_move_error_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = publication.BoundPublicationDirectory(tmp_path)
+    binding._temp_name = "temporary.tmp"
+    binding._temp_kind = "file"
+    binding._temp_identity = ("temp", 1)
+    with monkeypatch.context() as context:
+        context.setattr(
+            binding,
+            "_open_windows_child_handle",
+            lambda *_args: (_ for _ in ()).throw(PublicationRuntime("child")),
+        )
+        with pytest.raises(PublicationRuntime, match="child"):
+            binding._open_windows_temp_handle()
+
+    class InvalidChildKernel:
+        CreateFileW = _FakeFunction(ctypes.c_void_p(-1))
+
+    monkeypatch.setattr(publication.ctypes, "WinDLL", lambda *_args, **_kwargs: InvalidChildKernel())
+    with pytest.raises(PublicationRuntime, match="HANDLE"):
+        binding._open_windows_child_handle("temporary.tmp", "file")
+
+    class InvalidTypeKernel:
+        CreateFileW = _FakeFunction(ctypes.c_void_p(123))
+        CloseHandle = _FakeFunction(1)
+
+    monkeypatch.setattr(publication.ctypes, "WinDLL", lambda *_args, **_kwargs: InvalidTypeKernel())
+    monkeypatch.setattr(
+        binding,
+        "_windows_info_for_handle",
+        lambda _handle: (binding._FILE_ATTRIBUTE_DIRECTORY, ("directory", 1)),
+    )
+    with pytest.raises(PublicationRuntime, match="HANDLE"):
+        binding._open_windows_child_handle("temporary.tmp", "file")
+
+    with monkeypatch.context() as context:
+        context.setattr(publication.ctypes, "WinDLL", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("close")))
+        binding._temp_handle = 123
+        with pytest.raises(PublicationRuntime, match="HANDLE"):
+            binding._close_temp_handle()
+    binding._temp_handle = None
+
+    with pytest.raises(PublicationBoundaryChanged, match="identity"):
+        binding._handle_target_identity_mismatch("target", ("other",), "source", "file")
+
+
+def test_publication_move_identity_type_and_parent_error_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+
+    def make_binding(name: str):
+        binding = publication.BoundPublicationDirectory.bind(tmp_path)
+        binding.create_temp_file(name)
+        binding.write_temp_bytes(b"payload")
+        return binding
+
+    binding = make_binding("oserror.json")
+    monkeypatch.setattr(
+        publication,
+        "_linux_no_replace",
+        lambda *_args: (_ for _ in ()).throw(OSError("move")),
+    )
+    with pytest.raises(PublicationRuntime, match="atomic no-replace"):
+        binding._move_temp("oserror-target.json")
+    binding.cleanup_temp()
+
+    binding = make_binding("identity.json")
+
+    def move(source, target, source_dir_fd, target_dir_fd):
+        binding._close_temp_fd()
+        os.replace(fd_paths[source_dir_fd] / source, fd_paths[target_dir_fd] / target)
+
+    monkeypatch.setattr(publication, "_linux_no_replace", move)
+    monkeypatch.setattr(binding, "_identity_at", lambda *_args: ("wrong",))
+    with pytest.raises(PublicationBoundaryChanged, match="identity"):
+        binding._move_temp("identity-target.json")
+    binding.cleanup_temp()
+
+    binding = make_binding("type.json")
+    original_regular = publication.is_actual_regular_file
+    regular_calls = 0
+
+    def regular_then_invalid(item_stat):
+        nonlocal regular_calls
+        regular_calls += 1
+        return original_regular(item_stat) if regular_calls <= 2 else False
+
+    with monkeypatch.context() as context:
+        context.setattr(publication, "is_actual_regular_file", regular_then_invalid)
+        with pytest.raises(PublicationRuntime, match="invalid type"):
+            binding._move_temp("type-target.json")
+    binding.cleanup_temp()
+
+    binding = make_binding("parent-runtime.json")
+    monkeypatch.setattr(binding, "_capture_path_identity", lambda: (_ for _ in ()).throw(PublicationRuntime("parent")))
+    with pytest.raises(PublicationRuntime, match="parent"):
+        binding._move_temp("parent-runtime-target.json")
+    binding.cleanup_temp()
+
+    binding = make_binding("parent-oserror.json")
+    monkeypatch.setattr(binding, "_capture_path_identity", lambda: (_ for _ in ()).throw(OSError("parent")))
+    with pytest.raises(PublicationRuntime, match="parent changed"):
+        binding._move_temp("parent-oserror-target.json")
+    binding.cleanup_temp()
+
+
+def test_publication_close_and_wrapper_cleanup_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = publication.BoundPublicationDirectory(tmp_path)
+    binding._temp_handle = 123
+
+    class FailingCloseKernel:
+        CloseHandle = _FakeFunction(0)
+
+    with monkeypatch.context() as context:
+        context.setattr(publication.ctypes, "WinDLL", lambda *_args, **_kwargs: FailingCloseKernel())
+        context.setattr(publication.ctypes, "get_last_error", lambda: 5)
+        with pytest.raises(PublicationRuntime, match="HANDLE"):
+            binding._close_temp_handle()
+    binding._temp_handle = None
+
+    fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    binding.create_temp_file("close-handle.json")
+    binding.write_temp_bytes(b"payload")
+
+    def move(source, target, source_dir_fd, target_dir_fd):
+        binding._close_temp_fd()
+        os.replace(fd_paths[source_dir_fd] / source, fd_paths[target_dir_fd] / target)
+
+    monkeypatch.setattr(publication, "_linux_no_replace", move)
+    monkeypatch.setattr(binding, "_close_temp_handle", lambda: (_ for _ in ()).throw(PublicationRuntime("handle close")))
+    binding._move_temp("close-handle-target.json")
+    assert (tmp_path / "close-handle-target.json").read_bytes() == b"payload"
+    binding.close_safely()
+
+    directory_binding = publication.BoundPublicationDirectory(tmp_path)
+    directory_binding.directory_handle = 123
+    with monkeypatch.context() as context:
+        context.setattr(publication.ctypes, "WinDLL", lambda *_args, **_kwargs: FailingCloseKernel())
+        with pytest.raises(PublicationRuntime, match="descriptor cleanup"):
+            directory_binding.close()
+
+    fd_binding = publication.BoundPublicationDirectory(tmp_path)
+    fd_binding.directory_fd = 123456
+    with pytest.raises(PublicationRuntime, match="descriptor cleanup"):
+        fd_binding.close()
+
+    cleanup_binding = publication.BoundPublicationDirectory.bind(tmp_path)
+    target = tmp_path / "cleanup-target.json"
+    target.write_bytes(b"old")
+    expected = cleanup_binding.capture_file_observable(target.name)
+    monkeypatch.setattr(
+        cleanup_binding,
+        "cleanup_temp",
+        lambda: (_ for _ in ()).throw(PublicationRuntime("cleanup")),
+    )
+    with pytest.raises(PublicationRuntime, match="cleanup"):
+        cleanup_binding.publish_replace(
+            target.name,
+            b"new",
+            before_atomic=lambda: (_ for _ in ()).throw(PublicationRuntime("guard")),
+            expected_target=expected,
+        )
+    cleanup_binding.close_safely()
+
+    source = tmp_path / "atomic-source.json"
+    source.write_bytes(b"source")
+    with monkeypatch.context() as context:
+        context.setattr(
+            publication.BoundPublicationDirectory,
+            "bind",
+            classmethod(lambda cls, *_args: (_ for _ in ()).throw(ValueError("unexpected bind"))),
+        )
+        with pytest.raises(PublicationRuntime, match="atomic no-replace"):
+            publication.atomic_no_replace_move(source, tmp_path / "atomic-target.json", directory=False)
+
+    class FakeWrapperBinding:
+        path = tmp_path
+        temp_name = "owned.tmp"
+
+        def publish_bytes(self, *_args, **_kwargs):
+            raise PublicationRuntime("publish")
+
+        def publish_replace(self, *_args, **_kwargs):
+            raise PublicationRuntime("replace")
+
+        def cleanup_temp(self):
+            raise PublicationRuntime("cleanup")
+
+        def close_safely(self):
+            return None
+
+    with monkeypatch.context() as context:
+        context.setattr(
+            publication.BoundPublicationDirectory,
+            "bind",
+            classmethod(lambda cls, *_args: FakeWrapperBinding()),
+        )
+        with pytest.raises(PublicationRuntime, match="cleanup"):
+            publication.publish_bytes_no_replace(tmp_path / "wrapper.json", b"payload")
+        with pytest.raises(PublicationRuntime, match="cleanup"):
+            publication.replace_bytes_atomic(
+                tmp_path / "wrapper.json",
+                b"payload",
+                expected_target=ExpectedPublicationFile(
+                    identity=("wrapper", 1),
+                    sha256=publication.sha256_bytes(b"old"),
+                    size=3,
+                    mtime_ns=1,
+                    payload=b"old",
+                ),
+            )

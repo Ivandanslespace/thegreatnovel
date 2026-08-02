@@ -50,6 +50,26 @@ class PublicationBoundaryChanged(PublicationRuntime):
     """A caller-owned publication guard observed its bound state change."""
 
 
+ERROR_UNABLE_TO_REMOVE_REPLACED = 1175
+ERROR_UNABLE_TO_MOVE_REPLACEMENT = 1176
+ERROR_UNABLE_TO_MOVE_REPLACEMENT_2 = 1177
+
+
+class WindowsReplaceFailure(PublicationRuntime):
+    """A ReplaceFileW failure with its documented exact outcome preserved."""
+
+    _OUTCOMES = {
+        ERROR_UNABLE_TO_REMOVE_REPLACED: "ERROR_UNABLE_TO_REMOVE_REPLACED",
+        ERROR_UNABLE_TO_MOVE_REPLACEMENT: "ERROR_UNABLE_TO_MOVE_REPLACEMENT",
+        ERROR_UNABLE_TO_MOVE_REPLACEMENT_2: "ERROR_UNABLE_TO_MOVE_REPLACEMENT_2",
+    }
+
+    def __init__(self, error_number: int) -> None:
+        self.error_number = int(error_number)
+        self.outcome = self._OUTCOMES.get(self.error_number, "OTHER")
+        super().__init__(f"ReplaceFileW failed with {self.outcome} ({self.error_number})")
+
+
 @dataclass(frozen=True)
 class ExpectedPublicationFile:
     """The exact regular file that a conditional replacement may displace."""
@@ -176,11 +196,7 @@ def _windows_replace_file(
     ):
         return
     error_number = ctypes.get_last_error()
-    if error_number in {1, 50, 120}:
-        raise PublicationUnavailable("Windows atomic replace capability is unavailable")
-    if error_number in {2, 3, 117}:
-        raise PublicationConflict("Windows atomic replace target is unavailable")
-    raise PublicationRuntime("Windows conditional atomic replace failed")
+    raise WindowsReplaceFailure(error_number)
 
 
 def _linux_no_replace(
@@ -1228,6 +1244,221 @@ class BoundPublicationDirectory:
             and current.payload == writer.payload
         )
 
+    def _capture_optional_file_observable(
+        self,
+        name: str,
+    ) -> ExpectedPublicationFile | None:
+        try:
+            return self._capture_file_observable_anchored(name)
+        except FileNotFoundError:
+            return None
+
+    def _remove_displaced_if_expected(
+        self,
+        name: str,
+        displaced: ExpectedPublicationFile,
+        expected: ExpectedPublicationFile,
+    ) -> None:
+        """Remove a displaced object only when the original target is proven."""
+
+        if displaced != expected:
+            raise PublicationRuntime("publication displaced object is not the expected target")
+        self._remove_expected_file_anchored(name, displaced)
+
+    def _windows_retained_writer_matches(self, writer: ExpectedPublicationFile) -> bool:
+        if os.name != "nt" or self._temp_handle is None or self._temp_identity is None:
+            return False
+        attributes, identity = self._windows_info_for_handle(self._temp_handle)
+        return (
+            not bool(attributes & self._FILE_ATTRIBUTE_DIRECTORY)
+            and not bool(attributes & self._FILE_ATTRIBUTE_REPARSE_POINT)
+            and identity == self._temp_identity == writer.identity
+        )
+
+    def _discard_windows_writer_replacement(self, writer: ExpectedPublicationFile) -> None:
+        """Close and remove only the retained writer replacement."""
+
+        name = self._temp_name
+        if name is None:
+            raise PublicationRuntime("Windows writer replacement name is unavailable")
+        self._close_temp_resources()
+        current = self._capture_file_observable_anchored(name)
+        if current != writer:
+            raise PublicationRuntime("Windows writer replacement identity changed")
+        self._remove_expected_file_anchored(name, writer)
+        self._clear_temp_state()
+
+    def _discard_windows_expected_backup(
+        self,
+        name: str,
+        expected: ExpectedPublicationFile,
+    ) -> None:
+        current = self._capture_file_observable_anchored(name)
+        if current != expected:
+            raise PublicationRuntime("Windows replacement backup identity changed")
+        self._remove_expected_file_anchored(name, expected)
+
+    def _restore_windows_expected_backup(
+        self,
+        target_name: str,
+        backup_name: str,
+        expected: ExpectedPublicationFile,
+    ) -> None:
+        """Restore an expected backup without replacing a competitor."""
+
+        current_target = self._capture_optional_file_observable(target_name)
+        if current_target is not None:
+            # A target that is not the expected old target is a competitor and
+            # must remain at the canonical name.  The backup is operation-
+            # proven expected state and may be discarded safely.
+            if current_target != expected:
+                self._discard_windows_expected_backup(backup_name, expected)
+                return
+            self._discard_windows_expected_backup(backup_name, expected)
+            return
+        try:
+            _windows_no_replace(
+                self.path / backup_name,
+                self.path / target_name,
+                self.directory_handle,
+            )
+        except (PublicationConflict, PublicationUnavailable, PublicationRuntime) as exc:
+            observed_target = self._capture_optional_file_observable(target_name)
+            if observed_target is not None:
+                if observed_target != expected:
+                    self._discard_windows_expected_backup(backup_name, expected)
+                    return
+                self._discard_windows_expected_backup(backup_name, expected)
+                return
+            raise PublicationRuntime("Windows expected target could not be restored") from exc
+        restored = self._capture_file_observable_anchored(target_name)
+        if restored != expected:
+            raise PublicationRuntime("Windows restored target observable changed")
+        if self._capture_optional_file_observable(backup_name) is not None:
+            raise PublicationRuntime("Windows replacement backup was not consumed")
+
+    def _recover_windows_replace_failure(
+        self,
+        target_name: str,
+        backup_name: str,
+        expected: ExpectedPublicationFile,
+        writer: ExpectedPublicationFile,
+        failure: WindowsReplaceFailure,
+    ) -> None:
+        """Inspect and recover every documented ReplaceFileW failure layout."""
+
+        outcome = f"{failure.outcome} ({failure.error_number})"
+        try:
+            self._check_handle()
+            if not self._windows_retained_writer_matches(writer):
+                raise PublicationRuntime("Windows retained writer HANDLE identity changed")
+            replacement_name = self._temp_name
+            if replacement_name is None:
+                raise PublicationRuntime("Windows replacement temporary name is unavailable")
+            target = self._capture_optional_file_observable(target_name)
+            replacement = self._capture_optional_file_observable(replacement_name)
+            backup = self._capture_optional_file_observable(backup_name)
+        except PublicationRuntime:
+            raise PublicationRuntime("Windows ReplaceFileW failure layout cannot be proven")
+        except Exception as exc:
+            raise PublicationRuntime("Windows ReplaceFileW failure layout cannot be inspected") from exc
+
+        replacement_is_writer = replacement is not None and replacement == writer
+        backup_is_expected = backup is not None and backup == expected
+        target_is_expected = target is not None and target == expected
+
+        # 1175/1176 normally leave the old target in place, the writer at its
+        # temporary name, and no backup.  Do not infer this from the code: the
+        # layout was captured above before cleanup.
+        if target_is_expected and replacement_is_writer and backup is None:
+            self._discard_windows_writer_replacement(writer)
+            raise PublicationRuntime(f"Windows ReplaceFileW {outcome} failed before replacement")
+
+        # 1177 can leave the old target in the backup name while the canonical
+        # name is absent.  Restore it with no-replace semantics before deleting
+        # the separately proven writer replacement.
+        if target is None and backup_is_expected and replacement_is_writer:
+            self._restore_windows_expected_backup(target_name, backup_name, expected)
+            self._discard_windows_writer_replacement(writer)
+            raise PublicationRuntime(f"Windows ReplaceFileW {outcome} partial replacement recovered")
+
+        # A competitor may have occupied the canonical name before recovery.
+        # Preserve it, discard only the proven expected backup, and then remove
+        # only the retained writer object.
+        if target is not None and not target_is_expected and backup_is_expected and replacement_is_writer:
+            self._discard_windows_expected_backup(backup_name, expected)
+            self._discard_windows_writer_replacement(writer)
+            raise PublicationRuntime(f"Windows ReplaceFileW {outcome} competitor preserved")
+
+        # Other documented errors may have changed attributes/streams or left
+        # an unusual layout.  A writer object is still independently safe to
+        # remove, but every other object remains untouched unless its exact
+        # expected observable was proven above.
+        if replacement_is_writer:
+            self._discard_windows_writer_replacement(writer)
+        raise PublicationRuntime(f"Windows ReplaceFileW {outcome} failure layout is not safely recoverable")
+
+    def _recover_windows_displaced_restore_failure(
+        self,
+        target_name: str,
+        displaced_name: str,
+        backup_name: str,
+        displaced: ExpectedPublicationFile,
+        writer: ExpectedPublicationFile,
+        failure: WindowsReplaceFailure,
+    ) -> None:
+        """Inspect a failed Windows restore without guessing ownership.
+
+        The restore operation has a different source than the initial
+        publication: ``displaced_name`` is the object being restored and the
+        retained temporary HANDLE still identifies the writer currently at
+        the target.  Keep those identities separate so a partial
+        ReplaceFileW result cannot be mistaken for the initial layout.
+        """
+
+        outcome = f"{failure.outcome} ({failure.error_number})"
+        try:
+            self._check_handle()
+            if not self._windows_retained_writer_matches(writer):
+                raise PublicationRuntime("Windows retained writer HANDLE identity changed")
+            current_target = self._capture_optional_file_observable(target_name)
+            current_displaced = self._capture_optional_file_observable(displaced_name)
+            current_backup = self._capture_optional_file_observable(backup_name)
+        except PublicationRuntime:
+            raise PublicationRuntime("Windows restore failure layout cannot be proven")
+        except Exception as exc:
+            raise PublicationRuntime("Windows restore failure layout cannot be inspected") from exc
+
+        source_is_displaced = current_displaced is not None and current_displaced == displaced
+        backup_is_writer = current_backup is not None and current_backup == writer
+
+        # A documented partial move can leave the source at its temporary
+        # name, the canonical name absent, and the old target at backup.  In
+        # this restore operation the old target is the writer, so restore the
+        # known displaced source with no-replace semantics and remove only
+        # the exact writer backup.
+        if current_target is None and source_is_displaced and backup_is_writer:
+            _windows_no_replace(
+                self.path / displaced_name,
+                self.path / target_name,
+                self.directory_handle,
+            )
+            restored = self._capture_file_observable_anchored(target_name)
+            if restored != displaced:
+                raise PublicationRuntime("Windows restore target observable changed")
+            self._discard_windows_expected_backup(backup_name, writer)
+            raise PublicationRuntime(f"Windows ReplaceFileW {outcome} restore recovered")
+
+        # A competitor at the canonical name is never overwritten or
+        # deleted.  A writer backup is independently proven and may be
+        # removed; an unproven displaced object remains for bounded cleanup
+        # reporting rather than being guessed away.
+        if current_target is not None and current_target != writer and backup_is_writer:
+            self._discard_windows_expected_backup(backup_name, writer)
+            raise PublicationRuntime(f"Windows ReplaceFileW {outcome} restore competitor preserved")
+
+        raise PublicationRuntime(f"Windows ReplaceFileW {outcome} restore layout is not safely recoverable")
+
     def _restore_displaced_after_exchange(
         self,
         target_name: str,
@@ -1241,12 +1472,22 @@ class BoundPublicationDirectory:
             raise PublicationBoundaryChanged("publication target interference")
         if os.name == "nt":
             cleanup_name = self._next_displaced_name(target_name)
-            _windows_replace_file(
-                self.path / displaced_name,
-                self.path / target_name,
-                self.path / cleanup_name,
-                self.directory_handle,
-            )
+            try:
+                _windows_replace_file(
+                    self.path / displaced_name,
+                    self.path / target_name,
+                    self.path / cleanup_name,
+                    self.directory_handle,
+                )
+            except WindowsReplaceFailure as failure:
+                self._recover_windows_displaced_restore_failure(
+                    target_name,
+                    displaced_name,
+                    cleanup_name,
+                    displaced,
+                    writer,
+                    failure,
+                )
             restored = self._capture_file_observable_anchored(target_name)
             if restored != displaced:
                 raise PublicationBoundaryChanged("publication target interference")
@@ -1304,19 +1545,35 @@ class BoundPublicationDirectory:
         try:
             if os.name == "nt":
                 displaced_name = self._next_displaced_name(target_name)
-                _windows_replace_file(
-                    source_path,
-                    self.path / target_name,
-                    self.path / displaced_name,
-                    self.directory_handle,
-                )
+                try:
+                    _windows_replace_file(
+                        source_path,
+                        self.path / target_name,
+                        self.path / displaced_name,
+                        self.directory_handle,
+                    )
+                except WindowsReplaceFailure as failure:
+                    self._recover_windows_replace_failure(
+                        target_name,
+                        displaced_name,
+                        expected_target,
+                        writer,
+                        failure,
+                    )
             else:
                 self._exchange_names(source_name, target_name)
                 displaced_name = source_name
             exchanged = True
 
             displaced = self._capture_file_observable_anchored(displaced_name)
-            if not self._writer_target_matches(target_name, writer):
+            try:
+                writer_matches = self._writer_target_matches(target_name, writer)
+            except BaseException:
+                self._remove_displaced_if_expected(displaced_name, displaced, expected_target)
+                self._clear_temp_state()
+                raise
+            if not writer_matches:
+                self._remove_displaced_if_expected(displaced_name, displaced, expected_target)
                 self._clear_temp_state()
                 raise PublicationBoundaryChanged("publication target interference")
 
@@ -1342,7 +1599,14 @@ class BoundPublicationDirectory:
                 self._clear_temp_state()
                 raise
 
-            if not self._writer_target_matches(target_name, writer):
+            try:
+                writer_matches = self._writer_target_matches(target_name, writer)
+            except BaseException:
+                self._remove_displaced_if_expected(displaced_name, displaced, expected_target)
+                self._clear_temp_state()
+                raise
+            if not writer_matches:
+                self._remove_displaced_if_expected(displaced_name, displaced, expected_target)
                 self._clear_temp_state()
                 raise PublicationBoundaryChanged("publication target interference")
             self.check()
@@ -1564,11 +1828,15 @@ def replace_bytes_atomic(
 
 __all__ = [
     "BoundPublicationDirectory",
+    "ERROR_UNABLE_TO_MOVE_REPLACEMENT",
+    "ERROR_UNABLE_TO_MOVE_REPLACEMENT_2",
+    "ERROR_UNABLE_TO_REMOVE_REPLACED",
     "ExpectedPublicationFile",
     "PublicationBoundaryChanged",
     "PublicationConflict",
     "PublicationRuntime",
     "PublicationUnavailable",
+    "WindowsReplaceFailure",
     "atomic_no_replace_move",
     "publish_bytes_no_replace",
     "replace_bytes_atomic",

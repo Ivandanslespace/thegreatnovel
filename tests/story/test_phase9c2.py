@@ -27,11 +27,15 @@ from tgn.story.common import canonical_bytes
 from tgn.story.novel import build_novel, parse_novel_header
 from tgn.story.publication import (
     BoundPublicationDirectory,
+    ERROR_UNABLE_TO_MOVE_REPLACEMENT,
+    ERROR_UNABLE_TO_MOVE_REPLACEMENT_2,
+    ERROR_UNABLE_TO_REMOVE_REPLACED,
     ExpectedPublicationFile,
     PublicationBoundaryChanged,
     PublicationConflict,
     PublicationRuntime,
     PublicationUnavailable,
+    WindowsReplaceFailure,
     replace_bytes_atomic,
 )
 from tgn.story.reconstruction import reconstruct_campaign
@@ -465,6 +469,8 @@ def test_derived_replace_post_read_and_close_failures_are_bounded(tmp_path: Path
             binding.publish_replace("novel.md", b"post-read failure", expected_target=expected)
     finally:
         binding.close_safely()
+    assert target.read_bytes() == b"post-read failure"
+    assert {child.name for child in tmp_path.iterdir()} == {"novel.md"}
 
 
 def test_derived_replace_close_failures_are_bounded(
@@ -549,9 +555,11 @@ def test_conditional_replace_preserves_competitor_after_final_check(
         binding.close_safely()
 
 
+@pytest.mark.parametrize("competitor_payload", [b"same-byte competitor", b"different-byte competitor"])
 def test_conditional_replace_post_primitive_interference_preserves_unknown_target(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    competitor_payload: bytes,
 ) -> None:
     fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
     target = tmp_path / "novel.md"
@@ -571,7 +579,7 @@ def test_conditional_replace_post_primitive_interference_preserves_unknown_targe
         os.replace(displaced, target_path)
         if not interfered:
             competitor = target_path.with_name("unknown-competitor.md")
-            competitor.write_bytes(b"unknown competitor")
+            competitor.write_bytes(competitor_payload)
             os.replace(competitor, target_path)
             interfered = True
 
@@ -584,8 +592,9 @@ def test_conditional_replace_post_primitive_interference_preserves_unknown_targe
                 parent_binding=binding,
                 expected_target=expected,
             )
-        assert target.read_bytes() == b"unknown competitor"
+        assert target.read_bytes() == competitor_payload
         assert not target.read_bytes() == b"writer payload"
+        assert {child.name for child in tmp_path.iterdir()} == {"novel.md"}
     finally:
         binding.close_safely()
 
@@ -755,8 +764,11 @@ def test_phase9c2_complete_campaign_story_locale_resume_and_final_rebuild_proof(
     campaign_result = verify_campaign(campaign)
     assert campaign_result["verification"]["event_replay"] is True
     assert campaign_result["verification"]["recorded_decision_replay"] is True
-    with sqlite3.connect(campaign / "session" / "campaign.sqlite3") as connection:
+    connection = sqlite3.connect(campaign / "session" / "campaign.sqlite3")
+    try:
         assert connection.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 4
+    finally:
+        connection.close()
     records = json.loads(
         (campaign / "session" / "recorded_decisions.json").read_text(encoding="utf-8")
     )["decisions"]
@@ -776,8 +788,23 @@ def test_phase9c2_complete_campaign_story_locale_resume_and_final_rebuild_proof(
     assert verify_story(story, campaign_dir=campaign)["valid"] is True
 
 
-@pytest.mark.parametrize("result,error_number,expected", [(1, 0, None), (0, 1, PublicationUnavailable), (0, 2, PublicationConflict), (0, 5, PublicationRuntime)])
-def test_windows_replace_primitive_mapping(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, result: int, error_number: int, expected) -> None:
+@pytest.mark.parametrize(
+    "result,error_number,expected",
+    [
+        (1, 0, None),
+        (0, ERROR_UNABLE_TO_REMOVE_REPLACED, WindowsReplaceFailure),
+        (0, ERROR_UNABLE_TO_MOVE_REPLACEMENT, WindowsReplaceFailure),
+        (0, ERROR_UNABLE_TO_MOVE_REPLACEMENT_2, WindowsReplaceFailure),
+        (0, 5, WindowsReplaceFailure),
+    ],
+)
+def test_windows_replace_primitive_mapping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    result: int,
+    error_number: int,
+    expected,
+) -> None:
     class Function:
         def __init__(self, value: int):
             self.value = value
@@ -797,10 +824,15 @@ def test_windows_replace_primitive_mapping(tmp_path: Path, monkeypatch: pytest.M
             tmp_path / "source", tmp_path / "target", tmp_path / "backup"
         )
     else:
-        with pytest.raises(expected):
+        with pytest.raises(expected) as error:
             publication_module._windows_replace_file(
                 tmp_path / "source", tmp_path / "target", tmp_path / "backup"
             )
+        assert error.value.error_number == error_number
+        assert error.value.outcome == publication_module.WindowsReplaceFailure._OUTCOMES.get(
+            error_number,
+            "OTHER",
+        )
 
     monkeypatch.setattr(
         publication_module.ctypes,
@@ -810,6 +842,646 @@ def test_windows_replace_primitive_mapping(tmp_path: Path, monkeypatch: pytest.M
     with pytest.raises(PublicationUnavailable):
         publication_module._windows_replace_file(
             tmp_path / "source", tmp_path / "target", tmp_path / "backup"
+        )
+
+
+def _windows_recovery_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    target: ExpectedPublicationFile | None,
+    replacement: ExpectedPublicationFile,
+    backup: ExpectedPublicationFile | None,
+):
+    """Build a bounded Win32 layout model with real sibling names."""
+
+    class WindowsOSProxy:
+        name = "nt"
+
+        def __getattr__(self, name):
+            return getattr(os, name)
+
+    monkeypatch.setattr(publication_module, "os", WindowsOSProxy())
+    binding = BoundPublicationDirectory(tmp_path)
+    binding.directory_handle = 99
+    binding._handle_identity = ("parent", 1)
+    binding._path_identity = ("parent", 1)
+    binding._temp_name = ".novel.md.writer.tmp"
+    binding._temp_path = tmp_path / binding._temp_name
+    binding._temp_kind = "file"
+    binding._temp_handle = 123
+    binding._temp_identity = replacement.identity
+
+    values: dict[str, ExpectedPublicationFile] = {
+        "novel.md": target,
+        binding._temp_name: replacement,
+        ".novel.md.writer.backup": backup,
+    }
+    values = {name: value for name, value in values.items() if value is not None}
+    for name, value in values.items():
+        (tmp_path / name).write_bytes(value.payload)
+
+    monkeypatch.setattr(binding, "_windows_info", lambda: (binding._FILE_ATTRIBUTE_DIRECTORY, ("parent", 1)))
+    monkeypatch.setattr(binding, "_windows_info_for_handle", lambda _handle: (0, replacement.identity))
+    monkeypatch.setattr(binding, "_close_temp_resources", lambda: None)
+    monkeypatch.setattr(binding, "_close_temp_fd", lambda: None)
+    monkeypatch.setattr(binding, "_close_temp_handle", lambda: None)
+    monkeypatch.setattr(
+        binding,
+        "_capture_file_observable_anchored",
+        lambda name: values[name] if name in values else (_ for _ in ()).throw(FileNotFoundError(name)),
+    )
+
+    def remove(name: str, expected: ExpectedPublicationFile) -> None:
+        if values.get(name) != expected:
+            raise PublicationBoundaryChanged("unexpected Windows test object")
+        values.pop(name)
+        path = tmp_path / name
+        if path.exists():
+            path.unlink()
+
+    monkeypatch.setattr(binding, "_remove_expected_file_anchored", remove)
+    return binding, values
+
+
+def _windows_observable(identity: tuple[str, int], payload: bytes) -> ExpectedPublicationFile:
+    return ExpectedPublicationFile(
+        identity=identity,
+        sha256=publication_module.sha256_bytes(payload),
+        size=len(payload),
+        mtime_ns=1,
+        payload=payload,
+    )
+
+
+@pytest.mark.parametrize(
+    "error_number",
+    [ERROR_UNABLE_TO_REMOVE_REPLACED, ERROR_UNABLE_TO_MOVE_REPLACEMENT],
+)
+def test_windows_replace_failure_1175_1176_cleans_only_writer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    error_number: int,
+) -> None:
+    expected = _windows_observable(("old", error_number), b"old")
+    writer = _windows_observable(("writer", error_number), b"new")
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=expected,
+        replacement=writer,
+        backup=None,
+    )
+    with pytest.raises(PublicationRuntime, match=f"{error_number}"):
+        binding._recover_windows_replace_failure(
+            "novel.md",
+            ".novel.md.writer.backup",
+            expected,
+            writer,
+            WindowsReplaceFailure(error_number),
+        )
+    assert values == {"novel.md": expected}
+    assert (tmp_path / "novel.md").read_bytes() == b"old"
+    assert {child.name for child in tmp_path.iterdir()} == {"novel.md"}
+
+
+def test_windows_replace_failure_1177_recovers_expected_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = _windows_observable(("old", 1177), b"old")
+    writer = _windows_observable(("writer", 1177), b"new")
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=None,
+        replacement=writer,
+        backup=expected,
+    )
+
+    def restore(source, target, _parent_handle):
+        source_name = Path(source).name
+        target_name = Path(target).name
+        assert target_name not in values
+        values[target_name] = values.pop(source_name)
+        (tmp_path / source_name).unlink()
+        (tmp_path / target_name).write_bytes(values[target_name].payload)
+
+    monkeypatch.setattr(publication_module, "_windows_no_replace", restore)
+    with pytest.raises(PublicationRuntime, match="1177"):
+        binding._recover_windows_replace_failure(
+            "novel.md",
+            ".novel.md.writer.backup",
+            expected,
+            writer,
+            WindowsReplaceFailure(ERROR_UNABLE_TO_MOVE_REPLACEMENT_2),
+        )
+    assert values == {"novel.md": expected}
+    assert {child.name for child in tmp_path.iterdir()} == {"novel.md"}
+
+
+def test_windows_restore_failure_1177_recovers_displaced_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    displaced = _windows_observable(("displaced", 1177), b"displaced")
+    writer = _windows_observable(("writer", 1177), b"writer")
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=None,
+        replacement=writer,
+        backup=writer,
+    )
+    source_name = ".novel.md.displaced.backup"
+    old_temp_name = binding._temp_name
+    assert old_temp_name is not None
+    values.pop(old_temp_name)
+    (tmp_path / old_temp_name).unlink()
+    values[source_name] = displaced
+    (tmp_path / source_name).write_bytes(displaced.payload)
+
+    def restore(source, target, _parent_handle):
+        source_name_from_call = Path(source).name
+        target_name = Path(target).name
+        assert target_name not in values
+        values[target_name] = values.pop(source_name_from_call)
+        (tmp_path / source_name_from_call).unlink()
+        (tmp_path / target_name).write_bytes(values[target_name].payload)
+
+    monkeypatch.setattr(publication_module, "_windows_no_replace", restore)
+    with pytest.raises(PublicationRuntime, match="1177"):
+        binding._recover_windows_displaced_restore_failure(
+            "novel.md",
+            source_name,
+            ".novel.md.writer.backup",
+            displaced,
+            writer,
+            WindowsReplaceFailure(ERROR_UNABLE_TO_MOVE_REPLACEMENT_2),
+        )
+    assert values == {"novel.md": displaced}
+    assert {child.name for child in tmp_path.iterdir()} == {"novel.md"}
+
+
+def test_windows_restore_failure_preserves_competitor_and_unknown_displaced_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    displaced = _windows_observable(("displaced", 1175), b"displaced")
+    writer = _windows_observable(("writer", 1175), b"writer")
+    competitor = _windows_observable(("competitor", 1175), b"competitor")
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=competitor,
+        replacement=writer,
+        backup=writer,
+    )
+    source_name = ".novel.md.displaced.backup"
+    old_temp_name = binding._temp_name
+    assert old_temp_name is not None
+    values.pop(old_temp_name)
+    (tmp_path / old_temp_name).unlink()
+    values[source_name] = displaced
+    (tmp_path / source_name).write_bytes(displaced.payload)
+
+    with pytest.raises(PublicationRuntime, match="1175"):
+        binding._recover_windows_displaced_restore_failure(
+            "novel.md",
+            source_name,
+            ".novel.md.writer.backup",
+            displaced,
+            writer,
+            WindowsReplaceFailure(ERROR_UNABLE_TO_REMOVE_REPLACED),
+        )
+    assert values == {"novel.md": competitor, source_name: displaced}
+    assert {child.name for child in tmp_path.iterdir()} == {"novel.md", source_name}
+
+
+def test_windows_replace_failure_1177_preserves_competitor_and_cleans_writer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = _windows_observable(("old", 1), b"old")
+    writer = _windows_observable(("writer", 1), b"new")
+    competitor = _windows_observable(("competitor", 1), b"competitor")
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=competitor,
+        replacement=writer,
+        backup=expected,
+    )
+    with pytest.raises(PublicationRuntime, match="1177"):
+        binding._recover_windows_replace_failure(
+            "novel.md",
+            ".novel.md.writer.backup",
+            expected,
+            writer,
+            WindowsReplaceFailure(ERROR_UNABLE_TO_MOVE_REPLACEMENT_2),
+        )
+    assert values == {"novel.md": competitor}
+    assert (tmp_path / "novel.md").read_bytes() == b"competitor"
+    assert {child.name for child in tmp_path.iterdir()} == {"novel.md"}
+
+
+def test_windows_replace_failure_1177_preserves_unproven_backup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = _windows_observable(("old", 2), b"old")
+    writer = _windows_observable(("writer", 2), b"new")
+    unknown_backup = _windows_observable(("unknown", 2), b"unknown")
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=None,
+        replacement=writer,
+        backup=unknown_backup,
+    )
+    with pytest.raises(PublicationRuntime, match="1177"):
+        binding._recover_windows_replace_failure(
+            "novel.md",
+            ".novel.md.writer.backup",
+            expected,
+            writer,
+            WindowsReplaceFailure(ERROR_UNABLE_TO_MOVE_REPLACEMENT_2),
+        )
+    assert values == {".novel.md.writer.backup": unknown_backup}
+    assert not (tmp_path / ".novel.md.writer.tmp").exists()
+    assert {child.name for child in tmp_path.iterdir()} == {".novel.md.writer.backup"}
+
+
+def test_windows_replace_failure_1177_preserves_replacement_with_wrong_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = _windows_observable(("old", 3), b"old")
+    retained_writer = _windows_observable(("writer", 3), b"new")
+    replacement_competitor = _windows_observable(("replacement", 3), b"other")
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=None,
+        replacement=replacement_competitor,
+        backup=expected,
+    )
+    binding._temp_identity = retained_writer.identity
+    monkeypatch.setattr(binding, "_windows_info_for_handle", lambda _handle: (0, retained_writer.identity))
+    with pytest.raises(PublicationRuntime, match="1177"):
+        binding._recover_windows_replace_failure(
+            "novel.md",
+            ".novel.md.writer.backup",
+            expected,
+            retained_writer,
+            WindowsReplaceFailure(ERROR_UNABLE_TO_MOVE_REPLACEMENT_2),
+        )
+    assert values == {
+        ".novel.md.writer.tmp": replacement_competitor,
+        ".novel.md.writer.backup": expected,
+    }
+    assert {child.name for child in tmp_path.iterdir()} == {
+        ".novel.md.writer.tmp",
+        ".novel.md.writer.backup",
+    }
+
+
+def test_windows_replace_failure_cleanup_failure_is_bounded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = _windows_observable(("old", 4), b"old")
+    writer = _windows_observable(("writer", 4), b"new")
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=expected,
+        replacement=writer,
+        backup=None,
+    )
+    monkeypatch.setattr(
+        binding,
+        "_remove_expected_file_anchored",
+        lambda *_args: (_ for _ in ()).throw(PublicationRuntime("cleanup")),
+    )
+    with pytest.raises(PublicationRuntime, match="cleanup"):
+        binding._recover_windows_replace_failure(
+            "novel.md",
+            ".novel.md.writer.backup",
+            expected,
+            writer,
+            WindowsReplaceFailure(ERROR_UNABLE_TO_REMOVE_REPLACED),
+        )
+    assert values == {"novel.md": expected, ".novel.md.writer.tmp": writer}
+    assert {child.name for child in tmp_path.iterdir()} == {"novel.md", ".novel.md.writer.tmp"}
+
+
+def test_windows_expected_backup_restore_observes_competitors_and_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = _windows_observable(("old", 10), b"old")
+    writer = _windows_observable(("writer", 10), b"new")
+    competitor = _windows_observable(("competitor", 10), b"competitor")
+
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=competitor,
+        replacement=writer,
+        backup=expected,
+    )
+    binding._restore_windows_expected_backup("novel.md", ".novel.md.writer.backup", expected)
+    assert values == {"novel.md": competitor, ".novel.md.writer.tmp": writer}
+
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=expected,
+        replacement=writer,
+        backup=expected,
+    )
+    binding._restore_windows_expected_backup("novel.md", ".novel.md.writer.backup", expected)
+    assert values == {"novel.md": expected, ".novel.md.writer.tmp": writer}
+
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=None,
+        replacement=writer,
+        backup=expected,
+    )
+
+    def conflict_with_competitor(source, _target, _parent_handle):
+        source_name = Path(source).name
+        values["novel.md"] = competitor
+        (tmp_path / "novel.md").write_bytes(competitor.payload)
+        raise PublicationConflict("competitor appeared")
+
+    monkeypatch.setattr(publication_module, "_windows_no_replace", conflict_with_competitor)
+    binding._restore_windows_expected_backup("novel.md", ".novel.md.writer.backup", expected)
+    assert values == {"novel.md": competitor, ".novel.md.writer.tmp": writer}
+
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=None,
+        replacement=writer,
+        backup=expected,
+    )
+    monkeypatch.setattr(
+        publication_module,
+        "_windows_no_replace",
+        lambda *_args: (_ for _ in ()).throw(PublicationConflict("no target")),
+    )
+    with pytest.raises(PublicationRuntime, match="could not be restored"):
+        binding._restore_windows_expected_backup("novel.md", ".novel.md.writer.backup", expected)
+    assert values == {".novel.md.writer.tmp": writer, ".novel.md.writer.backup": expected}
+
+
+def test_windows_expected_backup_restore_rejects_changed_results(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = _windows_observable(("old", 11), b"old")
+    writer = _windows_observable(("writer", 11), b"new")
+    wrong = _windows_observable(("wrong", 11), b"wrong")
+
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=None,
+        replacement=writer,
+        backup=expected,
+    )
+
+    def restore_wrong(source, target, _parent_handle):
+        source_name = Path(source).name
+        target_name = Path(target).name
+        values.pop(source_name)
+        values[target_name] = wrong
+        (tmp_path / source_name).unlink()
+        (tmp_path / target_name).write_bytes(wrong.payload)
+
+    monkeypatch.setattr(publication_module, "_windows_no_replace", restore_wrong)
+    with pytest.raises(PublicationRuntime, match="restored target observable"):
+        binding._restore_windows_expected_backup("novel.md", ".novel.md.writer.backup", expected)
+    assert values == {"novel.md": wrong, ".novel.md.writer.tmp": writer}
+
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=None,
+        replacement=writer,
+        backup=expected,
+    )
+
+    def restore_but_leave_backup(source, target, _parent_handle):
+        source_name = Path(source).name
+        target_name = Path(target).name
+        values[target_name] = values[source_name]
+        (tmp_path / target_name).write_bytes(values[target_name].payload)
+
+    monkeypatch.setattr(publication_module, "_windows_no_replace", restore_but_leave_backup)
+    with pytest.raises(PublicationRuntime, match="backup was not consumed"):
+        binding._restore_windows_expected_backup("novel.md", ".novel.md.writer.backup", expected)
+    assert values == {
+        "novel.md": expected,
+        ".novel.md.writer.tmp": writer,
+        ".novel.md.writer.backup": expected,
+    }
+
+
+def test_windows_replace_temp_validation_and_failure_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = _windows_observable(("old", 20), b"old")
+    writer = _windows_observable(("writer", 20), b"new")
+
+    binding, _values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=expected,
+        replacement=writer,
+        backup=None,
+    )
+    binding._verify_temp = lambda: None  # type: ignore[method-assign]
+    with pytest.raises(PublicationRuntime, match="expected target"):
+        binding._replace_temp("novel.md", expected_target=None)
+
+    binding._temp_kind = "directory"
+    with pytest.raises(PublicationRuntime, match="owned temporary file"):
+        binding._replace_temp("novel.md", expected_target=expected)
+
+    binding, values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=expected,
+        replacement=writer,
+        backup=None,
+    )
+    binding._verify_temp = lambda: None  # type: ignore[method-assign]
+    wrong_writer = _windows_observable(("wrong", 20), b"wrong")
+    values[binding._temp_name] = wrong_writer  # type: ignore[index]
+    with pytest.raises(PublicationRuntime, match="identity changed"):
+        binding._replace_temp("novel.md", expected_target=expected)
+
+    binding, _values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=expected,
+        replacement=writer,
+        backup=None,
+    )
+    binding._verify_temp = lambda: None  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        binding,
+        "_capture_file_observable_anchored",
+        lambda *_args: (_ for _ in ()).throw(OSError("capture")),
+    )
+    with pytest.raises(PublicationRuntime, match="cannot be inspected"):
+        binding._replace_temp("novel.md", expected_target=expected)
+
+    competitor = _windows_observable(("competitor", 20), b"competitor")
+    binding, _values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=competitor,
+        replacement=writer,
+        backup=None,
+    )
+    binding._verify_temp = lambda: None  # type: ignore[method-assign]
+    with pytest.raises(PublicationBoundaryChanged, match="observable changed"):
+        binding._replace_temp("novel.md", expected_target=expected)
+
+    binding, _values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=expected,
+        replacement=writer,
+        backup=None,
+    )
+    binding._verify_temp = lambda: None  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        publication_module,
+        "_windows_replace_file",
+        lambda *_args: (_ for _ in ()).throw(WindowsReplaceFailure(ERROR_UNABLE_TO_MOVE_REPLACEMENT_2)),
+    )
+    monkeypatch.setattr(
+        binding,
+        "_recover_windows_replace_failure",
+        lambda *_args: (_ for _ in ()).throw(PublicationRuntime("recovery dispatched")),
+    )
+    with pytest.raises(PublicationRuntime, match="recovery dispatched"):
+        binding._replace_temp("novel.md", expected_target=expected)
+
+
+@pytest.mark.parametrize("second_result", [False, "raise"])
+def test_conditional_replace_second_guard_failure_cleans_displaced(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    second_result: bool | str,
+) -> None:
+    fd_paths = _fake_posix_dirfd_runtime(tmp_path, monkeypatch)
+    target = tmp_path / "novel.md"
+    target.write_bytes(b"old")
+    binding = BoundPublicationDirectory.bind(tmp_path)
+    expected = binding.capture_file_observable(target.name)
+
+    def exchange(source_name, target_name, source_dir_fd=None, target_dir_fd=None):
+        binding._close_temp_fd()
+        source = fd_paths[source_dir_fd] / source_name
+        target_path = fd_paths[target_dir_fd] / target_name
+        displaced = source.with_name(f".exchange-{source.name}")
+        os.replace(source, displaced)
+        os.replace(target_path, source)
+        os.replace(displaced, target_path)
+
+    monkeypatch.setattr(publication_module, "_linux_exchange", exchange)
+    calls = 0
+
+    def writer_matches(*_args):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return True
+        if second_result == "raise":
+            raise PublicationRuntime("second guard")
+        return False
+
+    monkeypatch.setattr(binding, "_writer_target_matches", writer_matches)
+    try:
+        expected_error = PublicationRuntime if second_result == "raise" else PublicationBoundaryChanged
+        with pytest.raises(expected_error):
+            binding.publish_replace(target.name, b"new", expected_target=expected)
+        assert target.read_bytes() == b"new"
+        assert {child.name for child in tmp_path.iterdir()} == {"novel.md"}
+    finally:
+        binding.close_safely()
+
+
+def test_windows_recovery_and_restore_layout_inspection_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = _windows_observable(("old", 21), b"old")
+    writer = _windows_observable(("writer", 21), b"new")
+
+    binding, _values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=expected,
+        replacement=writer,
+        backup=None,
+    )
+    with monkeypatch.context() as context:
+        context.setattr(binding, "_windows_retained_writer_matches", lambda *_args: False)
+        with pytest.raises(PublicationRuntime, match="failure layout"):
+            binding._recover_windows_replace_failure(
+                "novel.md",
+                ".novel.md.writer.backup",
+                expected,
+                writer,
+                WindowsReplaceFailure(ERROR_UNABLE_TO_REMOVE_REPLACED),
+            )
+
+    binding, _values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=expected,
+        replacement=writer,
+        backup=None,
+    )
+    binding._temp_name = None
+    with pytest.raises(PublicationRuntime, match="failure layout"):
+        binding._recover_windows_replace_failure(
+            "novel.md",
+            ".novel.md.writer.backup",
+            expected,
+            writer,
+            WindowsReplaceFailure(ERROR_UNABLE_TO_REMOVE_REPLACED),
+        )
+
+    binding, _values = _windows_recovery_fixture(
+        tmp_path,
+        monkeypatch,
+        target=expected,
+        replacement=writer,
+        backup=None,
+    )
+    monkeypatch.setattr(
+        binding,
+        "_capture_optional_file_observable",
+        lambda *_args: (_ for _ in ()).throw(OSError("layout")),
+    )
+    with pytest.raises(PublicationRuntime, match="failure layout"):
+        binding._recover_windows_replace_failure(
+            "novel.md",
+            ".novel.md.writer.backup",
+            expected,
+            writer,
+            WindowsReplaceFailure(ERROR_UNABLE_TO_REMOVE_REPLACED),
         )
 
 
