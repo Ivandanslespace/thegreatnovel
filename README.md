@@ -29,6 +29,7 @@ Phase 9C1 freeze commit / `phase-9c1-frozen` target: `9bb739fdb1bd08d4c0c036e7c3
 `phase-9c1-frozen` is immutable and must never be moved, deleted, or recreated。
 Initial Phase 9C2 implementation: `ad4772e6a712bfb445860b4e8daf8498a3cec363`。
 Phase 9C2 conditional-replacement correction: `b5fa586fb7e0838a95e14fb445508f4b5d8a32e6`。
+Phase 9C2 Windows/recovery correction: `5685fb645d30d85bf4942e91973409d878d97bac`。
 Phase 9C2 remains unfrozen; no `phase-9c2-frozen` tag exists。
 Phase 9D not started。
 
@@ -61,11 +62,17 @@ Phase 9C2 conditional-replacement correction：`b5fa586fb7e0838a95e14fb445508f4b
 必须以完整 expected observable 进行条件替换；POSIX 使用 anchored exchange 保留
 displaced target，Windows 使用 `ReplaceFileW` 及 writer-owned backup；parent、target
 和 writer artifact 在原子操作后再次校验，竞争者不会被覆盖或删除。CLI 的
+`ReplaceFileW` 失败会保留精确的 `1175`、`1176` 和 `1177` outcome，并在 bound
+Story parent 内重新检查 target、replacement、backup 与 retained writer HANDLE。
+可证明的 `1177` partial layout 会先以 no-replace 恢复 expected target；未知对象
+只会触发 bounded failure，不会被删除。POSIX displaced expected target 也只在
+完整 observable 相等时清理，recoverable failure 不留下 `.tmp` 或 `.backup`。
 `--accepted-decisions` 只接受 canonical non-negative integer。Phase 9C2 candidate
-当前验证：Story `203 passed`、Story coverage `96%`；Campaign `173 passed, 2 skipped`、
+当前验证：Story `225 passed`、Story coverage `95%`；Campaign `173 passed, 2 skipped`、
 Campaign coverage `98%`；Worldgen `150 passed`；Projection `112 passed`、Projection
 coverage `100%`；Session `74 passed`；LLM Player `63 passed`；Phase 8 autoplay
-`1 passed`；全仓 `1598 passed, 2 skipped`、全仓 coverage `97%`。
+`1 passed`；全仓 `1620 passed, 2 skipped`、全仓 coverage `97.00%`；warning-as-error
+全仓回归为 `0 warnings`。
 两个 skipped 是 Windows 上
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和
 `tests/campaign/test_no_follow.py::test_copy_fifo_source_is_rejected_on_posix`，原因是

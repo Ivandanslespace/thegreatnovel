@@ -5060,6 +5060,8 @@ authorize Phase 9C work.
 
 **Phase 9C2 conditional-replacement correction:** `b5fa586fb7e0838a95e14fb445508f4b5d8a32e6`
 
+**Phase 9C2 Windows/recovery correction:** `5685fb645d30d85bf4942e91973409d878d97bac`
+
 `phase-9c1-frozen` is immutable; Phase 9C2 remains unfrozen and Phase 9D has not started.
 
 **Phase 9C1 publication source-identity correction commit:** `739a656fc8e7b50a12484049bb0f4598aa0cb1b2`; final
@@ -5080,10 +5082,18 @@ StoryView 的目录 identity 相等。Phase 9C2 conditional-replacement correcti
 anchored exchange 保留 displaced target，Windows 使用 `ReplaceFileW` 与 writer-owned
 backup；原子操作后的 parent、target 和 writer artifact identity 继续校验，竞争者不会
 被覆盖或删除。CLI 的 `--accepted-decisions` 只接受 canonical non-negative integer。
-Phase 9C2 candidate 当前验证结果：Story `203 passed`、Story coverage `96%`；Campaign
+ReplaceFileW 的 `1175`、`1176`、`1177` documented outcomes 现在由专用 failure
+outcome 保留；每次失败都在 bound Story parent 内重新检查 canonical target、replacement
+temporary、backup、retained writer HANDLE 和 expected observable。可证明的 `1177`
+partial layout 以 no-replace 恢复 expected target；竞争者和未知对象始终保留，无法证明
+归属时返回 bounded cleanup/publication failure。POSIX post-primitive interference 只删除
+完整 observable 相等的 displaced expected target，因此可恢复失败不留下 `.tmp` 或
+`.backup` debris。上一轮的 unclosed sqlite3 connection warning 已改为显式 close；
+最终 warning-as-error 全仓回归为 `0 warnings`。
+Phase 9C2 candidate 当前验证结果：Story `225 passed`、Story coverage `95%`；Campaign
 `173 passed, 2 skipped`、Campaign coverage `98%`；Worldgen `150 passed`；Projection
 `112 passed`、Projection coverage `100%`；Session `74 passed`；LLM Player `63 passed`；
-Phase 8 autoplay `1 passed`；全仓 `1598 passed, 2 skipped`、全仓 coverage `97%`。两个 skipped 是 Windows 上冻结的
+Phase 8 autoplay `1 passed`；全仓 `1620 passed, 2 skipped`、全仓 coverage `97.00%`。两个 skipped 是 Windows 上冻结的
 `tests/campaign/test_no_follow.py::test_campaign_fifo_is_rejected_on_posix` 和
 `tests/campaign/test_no_follow.py::test_copy_fifo_source_is_rejected_on_posix`，原因是
 当前平台无法创建 POSIX FIFO；不是 Phase 9C1 测试失败。
