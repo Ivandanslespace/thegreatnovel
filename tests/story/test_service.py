@@ -56,7 +56,7 @@ def test_init_prepare_commit_verify_and_idempotency(story_factory) -> None:
     assert verify_story(story, campaign_dir=campaign)["valid"] is True
 
 
-def test_invalid_response_keeps_pending_and_locale_is_fixed(story_factory) -> None:
+def test_invalid_response_keeps_pending_and_pending_locale_is_immutable(story_factory) -> None:
     campaign, story, config = story_factory()
     init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="zh-CN", initial_voice_id="cablecar_survival")
     _choose(campaign, "DROP")
@@ -66,9 +66,9 @@ def test_invalid_response_keeps_pending_and_locale_is_fixed(story_factory) -> No
         commit_story(story, campaign_dir=campaign, response=invalid)
     assert error.value.code == "NARRATION_RESPONSE_INVALID"
     assert status_story(story, campaign_dir=campaign)["pending_turn_id"] == "turn-000001"
-    with pytest.raises(StoryError) as error:
-        prepare_story(story, campaign_dir=campaign, narration_locale="ar")
-    assert error.value.code == "INVALID_STORY_INPUT"
+    unchanged = prepare_story(story, campaign_dir=campaign, narration_locale="ar")
+    assert unchanged["request"] == request
+    assert unchanged["request"]["narration_locale"] == "zh-CN"
 
 
 def test_stop_creates_no_story_turn(story_factory) -> None:
@@ -109,14 +109,14 @@ def test_wrong_valid_campaign_is_binding_mismatch(story_factory, tmp_path: Path)
     assert error.value.code in {"CAMPAIGN_BINDING_MISMATCH", "CAMPAIGN_INTEGRITY_MISMATCH"}
 
 
-def test_novel_is_unsupported_and_not_deleted(story_factory) -> None:
+def test_tampered_novel_is_rejected_and_not_deleted(story_factory) -> None:
     campaign, story, config = story_factory()
     init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
     novel = story / "novel.md"
     novel.write_text("future", encoding="utf-8")
     with pytest.raises(StoryError) as error:
         verify_story(story, campaign_dir=campaign)
-    assert error.value.code == "UNSUPPORTED_STORY_FORMAT"
+    assert error.value.code == "STORY_INTEGRITY_MISMATCH"
     assert novel.exists()
 
 

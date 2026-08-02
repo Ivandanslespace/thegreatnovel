@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping
 
 from ..core.hashing import state_hash
 from ..core.models import GameState
@@ -21,6 +21,7 @@ from .models import (
     NarrationRequest,
     StoryError,
     StoryManifest,
+    SUPPORTED_LOCALES,
     request_hash,
 )
 
@@ -209,6 +210,7 @@ def _reconstruct_request(
     snapshot: CampaignSnapshot,
     projection: PlayerProjectionMap,
     records: tuple[Any, ...],
+    narration_locales: Mapping[int, str] | None = None,
 ) -> tuple[ReconstructedTurn, ...]:
     initial_value = parse_snapshot_json(snapshot, "world/initial_state.json")
     try:
@@ -234,6 +236,7 @@ def _reconstruct_request(
     event_index = 0
     action_count = 0
     stop_seen = False
+    current_locale = story_manifest.initial_narration_locale
     for recorded_index, record in enumerate(records, start=1):
         if record.decision_number != recorded_index:
             raise _integrity("RecordedDecision numbers are not contiguous")
@@ -288,6 +291,11 @@ def _reconstruct_request(
         if event_seq != event["event_seq"] or event["event_seq"] < 0:
             raise _integrity("Event sequence is invalid")
 
+        if narration_locales is not None and accepted_number in narration_locales:
+            current_locale = narration_locales[accepted_number]
+            if current_locale not in SUPPORTED_LOCALES:
+                raise _integrity("narration locale is unsupported")
+
         before_presentation = build_player_presentation(before_request, projection)
         after_presentation = build_player_presentation(after_request, projection)
         terminal_reason: str | None = None
@@ -334,7 +342,7 @@ def _reconstruct_request(
             "event_seq_end": event_seq,
             "state_hash_before": before_hash,
             "state_hash_after": after_hash,
-            "narration_locale": story_manifest.initial_narration_locale,
+            "narration_locale": current_locale,
             "voice_id": story_manifest.initial_voice_id,
             "public_brief": brief,
             "claim_requirements": requirements,
@@ -359,6 +367,7 @@ def _reconstruct_request(
 def reconstruct_campaign(
     story_manifest: StoryManifest,
     snapshot: CampaignSnapshot,
+    narration_locales: Mapping[int, str] | None = None,
 ) -> CampaignHistory:
     """Rebuild every accepted ACTION request from one captured Campaign view."""
 
@@ -381,7 +390,14 @@ def reconstruct_campaign(
     if projection.source_worldpack_hash != story_manifest.worldpack_hash or projection.source_initial_state_hash != story_manifest.source_initial_state_hash:
         raise _integrity("Projection binding does not match Story Campaign binding")
     try:
-        action_turns = _reconstruct_request(campaign_manifest, story_manifest, snapshot, projection, records)
+        action_turns = _reconstruct_request(
+            campaign_manifest,
+            story_manifest,
+            snapshot,
+            projection,
+            records,
+            narration_locales,
+        )
     except StoryError:
         raise
     except Exception as exc:

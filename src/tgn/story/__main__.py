@@ -9,7 +9,7 @@ from typing import Any, Sequence
 from ..core.hashing import canonical_json
 from .common import parse_json_bytes, read_regular_file
 from .models import StoryError
-from .service import commit_story, init_story, prepare_story, status_story, verify_story
+from .service import commit_story, export_story, init_story, prepare_story, status_story, verify_story
 
 
 class _JSONArgumentParser(argparse.ArgumentParser):
@@ -38,6 +38,11 @@ def build_parser() -> argparse.ArgumentParser:
     _add_dirs(commit_parser)
     commit_parser.add_argument("response", nargs="?")
     commit_parser.add_argument("--response-file", dest="response_file")
+
+    export_parser = commands.add_parser("export")
+    _add_dirs(export_parser)
+    export_parser.add_argument("--mode", required=True)
+    export_parser.add_argument("--accepted-decisions")
 
     for name in ("status", "verify"):
         command = commands.add_parser(name)
@@ -88,6 +93,22 @@ def dispatch(arguments: argparse.Namespace) -> dict[str, Any]:
             arguments.story_dir,
             campaign_dir=arguments.campaign_dir,
             response=_read_response(arguments),
+        )
+    if arguments.command == "export":
+        accepted_decisions: int | None = None
+        if arguments.accepted_decisions is not None:
+            try:
+                raw = arguments.accepted_decisions
+                if not isinstance(raw, str) or not raw or (raw != "0" and raw.startswith("0")):
+                    raise ValueError
+                accepted_decisions = int(raw)
+            except (TypeError, ValueError) as exc:
+                raise StoryError("INVALID_STORY_INPUT", "accepted_decisions must be an integer") from exc
+        return export_story(
+            arguments.story_dir,
+            campaign_dir=arguments.campaign_dir,
+            mode=arguments.mode,
+            accepted_decisions=accepted_decisions,
         )
     if arguments.command == "status":
         return status_story(arguments.story_dir, campaign_dir=arguments.campaign_dir)

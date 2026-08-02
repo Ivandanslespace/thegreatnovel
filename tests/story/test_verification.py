@@ -48,9 +48,9 @@ def test_story_view_not_found_root_type_and_extra_tree(story_factory, tmp_path: 
 
     novel = story / "novel.md"
     novel.write_text("future", encoding="utf-8")
-    with pytest.raises(StoryError) as error:
-        load_story_view(story)
-    assert error.value.code == "UNSUPPORTED_STORY_FORMAT"
+    view = load_story_view(story)
+    assert view.novel is not None
+    assert view.novel_bytes == b"future"
     novel.unlink()
 
 

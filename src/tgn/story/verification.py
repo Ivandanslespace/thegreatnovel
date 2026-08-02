@@ -28,6 +28,7 @@ from .models import (
 
 _TURN_FILE_RE = re.compile(r"turn-([0-9]{6,})\.json\Z")
 _STORY_CHILDREN = {"story.json", "requests", "turns"}
+_OPTIONAL_STORY_CHILDREN = {"novel.md"}
 
 
 def _file_identity(file_stat: os.stat_result) -> tuple[object, ...]:
@@ -79,6 +80,8 @@ class StoryView:
     turns: tuple[tuple[int, TurnNarrationArtifact, bytes], ...]
     files: tuple[StoryFileObservable, ...]
     directories: tuple[StoryDirectoryObservable, ...]
+    novel: StoryFileObservable | None = None
+    novel_bytes: bytes | None = None
 
     @property
     def request_map(self) -> dict[int, NarrationRequest]:
@@ -161,7 +164,7 @@ def _read_turn_file(directory: Path, entry_name: str) -> tuple[int, bytes, Any]:
 
 
 def load_story_view(story_dir: str | Path) -> StoryView:
-    """Read the exact Phase 9C1 tree without creating or repairing anything."""
+    """Read the exact Story tree without creating or repairing anything."""
 
     root = lexical_absolute(story_dir)
     try:
@@ -185,9 +188,7 @@ def load_story_view(story_dir: str | Path) -> StoryView:
         children = {entry.name for entry in list_actual_children(root)}
     except OSError as exc:
         raise StoryError("STORY_INTEGRITY_MISMATCH", "Story root cannot be inspected") from exc
-    if "novel.md" in children:
-        raise StoryError("UNSUPPORTED_STORY_FORMAT", "novel.md belongs to a later Story format")
-    if children != _STORY_CHILDREN:
+    if not children.issubset(_STORY_CHILDREN | _OPTIONAL_STORY_CHILDREN) or not _STORY_CHILDREN.issubset(children):
         raise _story_integrity("Story root exact tree is invalid")
     try:
         manifest_value, manifest_payload, manifest_stat = read_canonical_json_file(root / "story.json")
@@ -208,6 +209,21 @@ def load_story_view(story_dir: str | Path) -> StoryView:
             _file_identity(manifest_stat),
         )
     ]
+    novel_observable: StoryFileObservable | None = None
+    novel_payload: bytes | None = None
+    if "novel.md" in children:
+        try:
+            novel_payload, novel_stat = read_regular_file(root / "novel.md")
+        except Exception as exc:
+            raise _story_integrity("novel.md cannot be read safely") from exc
+        novel_observable = StoryFileObservable(
+            "novel.md",
+            sha256_bytes(novel_payload),
+            len(novel_payload),
+            novel_stat.st_mtime_ns,
+            _file_identity(novel_stat),
+        )
+        file_values.append(novel_observable)
     seen_request: set[int] = set()
     seen_turn: set[int] = set()
     for directory_name, target, seen, rel_prefix in (
@@ -268,6 +284,8 @@ def load_story_view(story_dir: str | Path) -> StoryView:
         turns=tuple(turn_values),
         files=tuple(file_values),
         directories=directories,
+        novel=novel_observable,
+        novel_bytes=novel_payload,
     )
 
 

@@ -14,6 +14,7 @@ from .models import (
 from .service import (
     StoryService,
     commit_story,
+    export_story,
     init_story,
     prepare_story,
     status_story,
@@ -32,6 +33,7 @@ __all__ = [
     "StoryService",
     "TurnNarrationArtifact",
     "commit_story",
+    "export_story",
     "init_story",
     "prepare_story",
     "status_story",

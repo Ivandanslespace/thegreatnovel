@@ -116,6 +116,25 @@ def _windows_no_replace(source: str | Path, target: str | Path, parent_handle: i
     raise PublicationRuntime("Windows atomic publication failed")
 
 
+def _windows_replace(source: str | Path, target: str | Path, parent_handle: int | None = None) -> None:
+    """Replace one verified target while the bound parent HANDLE is held."""
+
+    del parent_handle
+    try:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        move_file = kernel32.MoveFileExW
+        move_file.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32]
+        move_file.restype = ctypes.c_int
+    except Exception as exc:
+        raise PublicationUnavailable("Windows atomic replace capability is unavailable") from exc
+    if move_file(os.fspath(source), os.fspath(target), 0x00000001):
+        return
+    error_number = ctypes.get_last_error()
+    if error_number in {1, 50, 120}:
+        raise PublicationUnavailable("Windows atomic replace capability is unavailable")
+    raise PublicationRuntime("Windows atomic replace failed")
+
+
 def _linux_no_replace(
     source: str | Path,
     target: str | Path,
@@ -514,6 +533,28 @@ class BoundPublicationDirectory:
             raise
         except OSError as exc:
             raise PublicationRuntime("publication child cannot be read") from exc
+        finally:
+            self.check()
+
+    def child_identity(self, name: str, kind: str) -> tuple[Any, ...]:
+        """Capture one child identity through this operation's bound parent."""
+
+        name = _ensure_name(name)
+        if kind not in {"file", "directory"}:
+            raise PublicationRuntime("publication child kind is invalid")
+        self.check()
+        try:
+            item_stat = self._stat_at(name)
+            valid = is_actual_regular_file(item_stat) if kind == "file" else is_actual_directory(item_stat)
+            if not valid:
+                raise PublicationRuntime("publication child has an invalid file type")
+            return self._identity_at(name, kind)
+        except PublicationRuntime:
+            raise
+        except FileNotFoundError:
+            raise
+        except OSError as exc:
+            raise PublicationRuntime("publication child identity cannot be inspected") from exc
         finally:
             self.check()
 
@@ -955,6 +996,114 @@ class BoundPublicationDirectory:
                 raise cleanup_exc from exc
             raise
 
+    def _replace_temp(
+        self,
+        target_name: str,
+        *,
+        expected_target_identity: tuple[Any, ...] | None = None,
+    ) -> None:
+        """Atomically replace an already verified regular target."""
+
+        target_name = _ensure_name(target_name)
+        self._verify_temp()
+        source_name = self._temp_name
+        source_path = self._temp_path
+        source_kind = self._temp_kind
+        if source_name is None or source_path is None or source_kind != "file":
+            raise PublicationRuntime("owned temporary file is not active")
+        try:
+            target_stat = self._stat_at(target_name)
+            if not is_actual_regular_file(target_stat):
+                raise PublicationRuntime("novel target is not a regular file")
+        except FileNotFoundError as exc:
+            if expected_target_identity is not None:
+                raise PublicationBoundaryChanged("publication target identity changed") from exc
+            raise PublicationConflict("publication target disappeared") from exc
+        if expected_target_identity is not None:
+            try:
+                current_target_identity = self._identity_at(target_name, "file")
+            except FileNotFoundError as exc:
+                raise PublicationBoundaryChanged("publication target identity changed") from exc
+            except OSError as exc:
+                raise PublicationRuntime("publication target identity cannot be inspected") from exc
+            if current_target_identity != expected_target_identity:
+                raise PublicationBoundaryChanged("publication target identity changed")
+        try:
+            if os.name == "nt":
+                _windows_replace(source_path, self.path / target_name, self.directory_handle)
+            elif sys.platform.startswith("linux") or sys.platform == "darwin":
+                if self.directory_fd is None:
+                    raise PublicationUnavailable("anchored replace descriptor is unavailable")
+                os.replace(
+                    source_name,
+                    target_name,
+                    src_dir_fd=self.directory_fd,
+                    dst_dir_fd=self.directory_fd,
+                )
+            else:
+                raise PublicationUnavailable("platform has no supported atomic replace primitive")
+        except (PublicationConflict, PublicationUnavailable, PublicationRuntime):
+            raise
+        except (OSError, TypeError) as exc:
+            raise PublicationRuntime("atomic replace failed") from exc
+        try:
+            target_after = self._stat_at(target_name)
+            if not is_actual_regular_file(target_after):
+                raise PublicationRuntime("published novel is not a regular file")
+            target_identity = self._identity_at(target_name, "file")
+        except PublicationRuntime:
+            raise
+        except Exception as exc:
+            raise PublicationRuntime("published novel cannot be verified") from exc
+        if target_identity != self._temp_identity:
+            self._handle_target_identity_mismatch(target_name, target_identity, source_name, "file")
+        try:
+            self._close_temp_fd()
+        except PublicationRuntime:
+            pass
+        try:
+            self._close_temp_handle()
+        except PublicationRuntime:
+            pass
+        self._temp_name = None
+        self._temp_path = None
+        self._temp_kind = None
+        self._temp_fd = None
+        self._temp_handle = None
+        self._temp_identity = None
+        self._temp_owned = False
+
+    def publish_replace(
+        self,
+        target_name: str,
+        payload: bytes,
+        *,
+        boundary_check: Callable[[], None] | None = None,
+        before_atomic: Callable[[], None] | None = None,
+        expected_target_identity: tuple[Any, ...] | None = None,
+    ) -> None:
+        """Write a sibling temporary and replace one identity-checked target."""
+
+        self.checkpoint(boundary_check)
+        try:
+            self.create_temp_file(target_name)
+            self.checkpoint(boundary_check)
+            self.write_temp_bytes(payload)
+            self.checkpoint(boundary_check)
+            if before_atomic is not None:
+                before_atomic()
+            if boundary_check is not None:
+                self.checkpoint(boundary_check)
+            else:
+                self.check()
+            self._replace_temp(target_name, expected_target_identity=expected_target_identity)
+        except BaseException as exc:
+            try:
+                self.cleanup_temp()
+            except PublicationRuntime as cleanup_exc:
+                raise cleanup_exc from exc
+            raise
+
     def close_safely(self) -> None:
         try:
             self.close()
@@ -1076,6 +1225,43 @@ def publish_bytes_no_replace(
                 binding.close_safely()
 
 
+def replace_bytes_atomic(
+    target: str | Path,
+    payload: bytes,
+    *,
+    parent_binding: BoundPublicationDirectory | None = None,
+    boundary_check: Callable[[], None] | None = None,
+    before_atomic: Callable[[], None] | None = None,
+    expected_target_identity: tuple[Any, ...] | None = None,
+) -> None:
+    """Replace one existing derived file through an anchored public boundary."""
+
+    if not isinstance(payload, bytes):
+        raise PublicationRuntime("publication payload is not bytes")
+    target_path = lexical_absolute(target)
+    binding = parent_binding
+    owns_binding = binding is None
+    try:
+        if binding is None:
+            binding = BoundPublicationDirectory.bind(target_path.parent)
+        elif binding.path != target_path.parent:
+            raise PublicationRuntime("publication target is outside bound parent")
+        binding.publish_replace(
+            target_path.name,
+            payload,
+            boundary_check=boundary_check,
+            before_atomic=before_atomic,
+            expected_target_identity=expected_target_identity,
+        )
+    finally:
+        if owns_binding and binding is not None:
+            try:
+                if binding.temp_name is not None:
+                    binding.cleanup_temp()
+            finally:
+                binding.close_safely()
+
+
 __all__ = [
     "BoundPublicationDirectory",
     "PublicationBoundaryChanged",
@@ -1084,4 +1270,5 @@ __all__ = [
     "PublicationUnavailable",
     "atomic_no_replace_move",
     "publish_bytes_no_replace",
+    "replace_bytes_atomic",
 ]

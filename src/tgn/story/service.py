@@ -38,9 +38,11 @@ from .models import (
     StoryError,
     StoryManifest,
     TurnNarrationArtifact,
+    SUPPORTED_LOCALES,
     request_hash,
     turn_artifact_hash,
 )
+from .novel import build_novel, novel_sha256, parse_novel_header
 from .publication import (
     BoundPublicationDirectory,
     PublicationBoundaryChanged,
@@ -49,6 +51,7 @@ from .publication import (
     PublicationUnavailable,
     atomic_no_replace_move,
     publish_bytes_no_replace,
+    replace_bytes_atomic,
 )
 from .reconstruction import CampaignHistory, ReconstructedTurn, reconstruct_campaign
 from .verification import (
@@ -83,6 +86,25 @@ def _validate_voice(voice_id: str) -> None:
         create_builtin_registry().get(voice_id)
     except Exception as exc:
         raise _invalid("voice_id is not an approved built-in Voice Profile") from exc
+
+
+def _validate_narration_locale(value: Any) -> str:
+    if type(value) is not str or value not in SUPPORTED_LOCALES:
+        raise _invalid("narration_locale is unsupported")
+    return value
+
+
+def _story_locale_map(view: StoryView) -> dict[int, str]:
+    """Return immutable Story-owned locale choices for existing requests."""
+
+    result: dict[int, str] = {}
+    for number, request, _payload in view.requests:
+        if request.voice_id != view.manifest.initial_voice_id:
+            raise _story_integrity("Story request voice differs from immutable Story voice")
+        if request.narration_locale not in SUPPORTED_LOCALES:
+            raise _story_integrity("Story request locale is unsupported")
+        result[number] = request.narration_locale
+    return result
 
 
 def _path_gate(story_dir: str | Path, campaign_dir: str | Path, *, story_may_be_missing: bool) -> tuple[Path, Path]:
@@ -135,9 +157,11 @@ def _stable_history(
     view: StoryView,
     campaign_dir: str | Path,
     snapshot: CampaignSnapshot,
+    *,
+    narration_locales: dict[int, str] | None = None,
 ) -> tuple[CampaignManifest, CampaignSnapshot, CampaignHistory]:
     try:
-        history = reconstruct_campaign(view.manifest, snapshot)
+        history = reconstruct_campaign(view.manifest, snapshot, narration_locales)
     except StoryError:
         raise
     except Exception as exc:
@@ -306,6 +330,50 @@ def _published_turn(
         return "conflict"
     except (PublicationUnavailable, PublicationRuntime) as exc:
         raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "turn publication is unavailable") from exc
+
+
+def _publish_novel(
+    path: Path,
+    payload: bytes,
+    *,
+    replace_existing: bool,
+    parent_binding: BoundPublicationDirectory,
+    boundary_check: Any,
+    expected_target_identity: tuple[Any, ...] | None = None,
+) -> None:
+    try:
+        if replace_existing:
+            replace_bytes_atomic(
+                path,
+                payload,
+                parent_binding=parent_binding,
+                boundary_check=boundary_check,
+                expected_target_identity=expected_target_identity,
+            )
+        else:
+            publish_bytes_no_replace(
+                path,
+                payload,
+                parent_binding=parent_binding,
+                boundary_check=boundary_check,
+            )
+    except StoryError:
+        raise
+    except PublicationBoundaryChanged as exc:
+        message = str(exc)
+        if message.startswith("story-error:"):
+            code = message.split(":", 1)[1]
+            if code == "STORY_INTEGRITY_MISMATCH":
+                raise _story_integrity("novel target changed during export") from exc
+            if code == "CAMPAIGN_SNAPSHOT_CHANGED":
+                raise StoryError("CAMPAIGN_SNAPSHOT_CHANGED", "Campaign changed during novel export") from exc
+        if message == "publication target identity changed":
+            raise _story_integrity("novel target identity changed during export") from exc
+        raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "novel publication boundary changed") from exc
+    except PublicationConflict as exc:
+        raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "novel target changed during export") from exc
+    except (PublicationUnavailable, PublicationRuntime) as exc:
+        raise StoryError("STORY_PUBLICATION_UNAVAILABLE", "novel publication is unavailable") from exc
 
 
 def _story_publication_guard(view: StoryView, directory_name: str):
@@ -640,11 +708,109 @@ def _assert_story_read_only(view: StoryView) -> None:
         raise _story_integrity("Story observables changed during read-only verification")
 
 
+def _committed_turn_prefix(view: StoryView, count: int) -> tuple[TurnNarrationArtifact, ...]:
+    if type(count) is not int or count < 0:
+        raise _story_integrity("novel accepted_decisions is invalid")
+    turn_map = view.turn_map
+    result: list[TurnNarrationArtifact] = []
+    for number in range(1, count + 1):
+        turn = turn_map.get(number)
+        if turn is None:
+            raise _story_integrity("novel committed prefix is incomplete")
+        result.append(turn)
+    return tuple(result)
+
+
+def _novel_file_unchanged(view: StoryView, root_binding: BoundPublicationDirectory) -> None:
+    expected = view.novel
+    if expected is None:
+        try:
+            root_binding.read_child_bytes("novel.md")
+        except FileNotFoundError:
+            return
+        except Exception as exc:
+            raise PublicationBoundaryChanged("story-error:STORY_INTEGRITY_MISMATCH") from exc
+        raise PublicationBoundaryChanged("novel target appeared during export")
+    try:
+        payload, file_stat = root_binding.read_child_bytes("novel.md")
+    except Exception as exc:
+        raise PublicationBoundaryChanged("story-error:STORY_INTEGRITY_MISMATCH") from exc
+    current_identity = _story_file_identity(file_stat)
+    if (
+        current_identity != expected.identity
+        or payload != view.novel_bytes
+        or sha256_bytes(payload) != expected.sha256
+        or len(payload) != expected.size
+        or file_stat.st_mtime_ns != expected.mtime_ns
+    ):
+        raise PublicationBoundaryChanged("story-error:STORY_INTEGRITY_MISMATCH")
+
+
+def _classify_novel(view: StoryView, history: CampaignHistory) -> str:
+    if view.novel is None or view.novel_bytes is None:
+        return "ABSENT"
+    try:
+        header = parse_novel_header(view.novel_bytes)
+        if (
+            header.story_id != view.manifest.story_id
+            or header.campaign_id != view.manifest.campaign_id
+            or header.session_id != view.manifest.session_id
+        ):
+            raise ValueError("novel identity binding is invalid")
+        if header.export_mode == "snapshot":
+            if header.accepted_decisions > history.accepted_decisions:
+                raise ValueError("snapshot boundary exceeds Campaign history")
+            turns = _committed_turn_prefix(view, header.accepted_decisions)
+            expected = build_novel(
+                story_id=view.manifest.story_id,
+                campaign_id=view.manifest.campaign_id,
+                session_id=view.manifest.session_id,
+                mode="snapshot",
+                accepted_decisions=header.accepted_decisions,
+                recorded_decision_count=header.accepted_decisions,
+                turns=turns,
+            )
+            if expected != view.novel_bytes:
+                raise ValueError("novel snapshot bytes do not match committed artifacts")
+            return "CURRENT_SNAPSHOT" if header.accepted_decisions == history.accepted_decisions else "HISTORICAL_SNAPSHOT"
+        if history.stop_reason not in {"EXPLICIT_STOP", "MAX_DECISIONS", "NO_LEGAL_ACTIONS"}:
+            raise ValueError("final novel requires a terminal Campaign")
+        if header.accepted_decisions != history.accepted_decisions or header.recorded_decision_count != history.recorded_decision_count:
+            raise ValueError("final novel counts do not match terminal Campaign")
+        turns = _committed_turn_prefix(view, history.accepted_decisions)
+        expected = build_novel(
+            story_id=view.manifest.story_id,
+            campaign_id=view.manifest.campaign_id,
+            session_id=view.manifest.session_id,
+            mode="final",
+            accepted_decisions=history.accepted_decisions,
+            recorded_decision_count=history.recorded_decision_count,
+            turns=turns,
+            stop_reason=history.stop_reason,
+        )
+        if expected != view.novel_bytes:
+            raise ValueError("final novel bytes do not match committed artifacts")
+        return "CURRENT_FINAL"
+    except StoryError:
+        raise
+    except Exception as exc:
+        raise _story_integrity("novel.md is invalid or does not match Story artifacts") from exc
+
+
 def _derived_status(view: StoryView, history: CampaignHistory) -> dict[str, Any]:
     committed = len(view.turns)
     request_count = len(view.requests)
     pending = request_count == committed + 1
     missing_numbers = list(range(request_count + 1, history.accepted_decisions + 1))
+    committed_prefix = committed
+    current_snapshot_ready = committed_prefix == history.accepted_decisions
+    final_ready = (
+        history.stop_reason in {"EXPLICIT_STOP", "MAX_DECISIONS", "NO_LEGAL_ACTIONS"}
+        and current_snapshot_ready
+        and not pending
+        and not missing_numbers
+    )
+    novel_status = _classify_novel(view, history)
     return {
         "story": view.manifest.to_dict(),
         "campaign_session": copy.deepcopy(history.session),
@@ -653,7 +819,7 @@ def _derived_status(view: StoryView, history: CampaignHistory) -> dict[str, Any]
         "recorded_decision_count": history.recorded_decision_count,
         "request_count": request_count,
         "committed_turn_count": committed,
-        "committed_prefix": committed,
+        "committed_prefix": committed_prefix,
         "pending_turn_id": f"turn-{request_count:06d}" if pending else None,
         "missing_request_turn_ids": [f"turn-{number:06d}" for number in missing_numbers],
         "next_preparable_turn_id": (
@@ -661,8 +827,13 @@ def _derived_status(view: StoryView, history: CampaignHistory) -> dict[str, Any]
             if not pending and request_count < history.accepted_decisions
             else None
         ),
-        "novel_status": "ABSENT",
-        "phase_9c2_export_ready": False,
+        "novel_status": novel_status,
+        "export_readiness": {
+            "snapshot_exportable_through": committed_prefix,
+            "current_snapshot_ready": current_snapshot_ready,
+            "final_ready": final_ready,
+        },
+        "phase_9c2_export_ready": current_snapshot_ready or final_ready,
         "missing_narration_work": bool(missing_numbers or pending),
     }
 
@@ -878,9 +1049,22 @@ class StoryService:
                         "Story temporary cleanup is unavailable",
                     ) from cleanup_error
 
-    def _bound_history(self, campaign_dir: str | Path) -> tuple[StoryView, CampaignManifest, CampaignSnapshot, CampaignHistory]:
+    def _bound_history(
+        self,
+        campaign_dir: str | Path,
+        *,
+        narration_locales: dict[int, str] | None = None,
+    ) -> tuple[StoryView, CampaignManifest, CampaignSnapshot, CampaignHistory]:
         view, _campaign_manifest, snapshot = _load_story_and_bound(self.story_dir, campaign_dir)
-        campaign_manifest, stable_snapshot, history = _stable_history(view, campaign_dir, snapshot)
+        locale_map = _story_locale_map(view)
+        if narration_locales:
+            locale_map.update(narration_locales)
+        campaign_manifest, stable_snapshot, history = _stable_history(
+            view,
+            campaign_dir,
+            snapshot,
+            narration_locales=locale_map,
+        )
         _validate_existing_artifacts(view, history)
         _assert_story_read_only(view)
         return view, campaign_manifest, stable_snapshot, history
@@ -892,9 +1076,9 @@ class StoryService:
         turn_id: str | None = None,
         narration_locale: str | None = None,
     ) -> dict[str, Any]:
+        if narration_locale is not None:
+            _validate_narration_locale(narration_locale)
         view, campaign_manifest, snapshot, history = self._bound_history(campaign_dir)
-        if narration_locale is not None and narration_locale != view.manifest.initial_narration_locale:
-            raise _invalid("Phase 9C1 Story locale is fixed")
         request_map = view.request_map
         turn_map = view.turn_map
         requested_number = _parse_turn_id(turn_id) if turn_id is not None else None
@@ -929,6 +1113,18 @@ class StoryService:
         if next_number > history.accepted_decisions:
             _require_complete_snapshot_unchanged(campaign_dir, snapshot)
             return {"ok": True, "request": None, "status": _derived_status(view, history)}
+        effective_locale = narration_locale
+        if effective_locale is None:
+            if request_map:
+                effective_locale = request_map[max(request_map)].narration_locale
+            else:
+                effective_locale = view.manifest.initial_narration_locale
+        locale_overrides = _story_locale_map(view)
+        locale_overrides[next_number] = effective_locale
+        view, campaign_manifest, snapshot, history = self._bound_history(
+            campaign_dir,
+            narration_locales=locale_overrides,
+        )
         expected = history.action_turns[next_number - 1].request
         payload = canonical_bytes(expected.to_dict())
         # Unlike commit, prepare cannot tolerate a later Campaign append: the
@@ -966,7 +1162,11 @@ class StoryService:
     def commit(self, *, campaign_dir: str | Path, response: Any) -> dict[str, Any]:
         view, _campaign_manifest, snapshot = _load_story_and_bound(self.story_dir, campaign_dir)
         try:
-            history = reconstruct_campaign(view.manifest, snapshot)
+            history = reconstruct_campaign(
+                view.manifest,
+                snapshot,
+                _story_locale_map(view),
+            )
         except StoryError:
             raise
         except Exception as exc:
@@ -1062,6 +1262,112 @@ class StoryService:
             "status": _derived_status(refreshed, history),
         }
 
+    def export(
+        self,
+        *,
+        campaign_dir: str | Path,
+        mode: str = "snapshot",
+        accepted_decisions: int | None = None,
+    ) -> dict[str, Any]:
+        if type(mode) is not str or mode not in {"snapshot", "final"}:
+            raise _invalid("novel export mode is invalid")
+        if mode == "snapshot":
+            if type(accepted_decisions) is not int:
+                raise _invalid("snapshot export requires integer accepted_decisions")
+            if accepted_decisions < 0:
+                raise _invalid("accepted_decisions must be non-negative")
+        elif accepted_decisions is not None:
+            raise _invalid("final export does not accept accepted_decisions")
+
+        view, _campaign_manifest, snapshot, history = self._bound_history(campaign_dir)
+        if view.novel is not None:
+            # Export may replace a valid derived snapshot/final artifact, but
+            # it must never silently repair an already tampered novel.
+            _classify_novel(view, history)
+
+        if mode == "snapshot":
+            assert accepted_decisions is not None
+            if accepted_decisions > history.accepted_decisions:
+                raise _invalid("snapshot boundary exceeds current Campaign decisions")
+            try:
+                turns = _committed_turn_prefix(view, accepted_decisions)
+            except StoryError as exc:
+                if exc.code == "STORY_INTEGRITY_MISMATCH":
+                    raise StoryError(
+                        "STORY_INCOMPLETE",
+                        "snapshot export requires a complete committed prefix",
+                    ) from exc
+                raise
+            recorded_count = accepted_decisions
+            stop_reason = None
+            status = "CURRENT_SNAPSHOT" if accepted_decisions == history.accepted_decisions else "HISTORICAL_SNAPSHOT"
+        else:
+            stop_reason = history.stop_reason
+            if stop_reason not in {"EXPLICIT_STOP", "MAX_DECISIONS", "NO_LEGAL_ACTIONS"}:
+                raise StoryError("STORY_INCOMPLETE", "final export requires a terminal Session")
+            if len(view.turns) != history.accepted_decisions or len(view.requests) != history.accepted_decisions:
+                raise StoryError("STORY_INCOMPLETE", "final export requires every accepted ACTION narration")
+            turns = _committed_turn_prefix(view, history.accepted_decisions)
+            accepted_decisions = history.accepted_decisions
+            recorded_count = history.recorded_decision_count
+            status = "CURRENT_FINAL"
+
+        try:
+            payload = build_novel(
+                story_id=view.manifest.story_id,
+                campaign_id=view.manifest.campaign_id,
+                session_id=view.manifest.session_id,
+                mode=mode,
+                accepted_decisions=accepted_decisions,
+                recorded_decision_count=recorded_count,
+                turns=turns,
+                stop_reason=stop_reason,
+            )
+        except StoryError:
+            raise
+        except Exception as exc:
+            raise _story_integrity("novel cannot be built from committed turns") from exc
+
+        root_binding: BoundPublicationDirectory | None = None
+        try:
+            root_binding = BoundPublicationDirectory.bind(view.root)
+
+            def publication_guard() -> None:
+                if not story_directory_identity_matches(view.root, view.root_directory):
+                    raise PublicationBoundaryChanged("Story root identity changed during novel export")
+                root_binding.check()
+                _require_complete_snapshot_unchanged(campaign_dir, snapshot)
+                _novel_file_unchanged(view, root_binding)
+
+            try:
+                expected_target_identity = (
+                    root_binding.child_identity("novel.md", "file")
+                    if view.novel is not None
+                    else None
+                )
+            except (FileNotFoundError, PublicationBoundaryChanged, PublicationRuntime) as exc:
+                raise _story_integrity("novel target changed during export") from exc
+            _publish_novel(
+                view.root / "novel.md",
+                payload,
+                replace_existing=view.novel is not None,
+                parent_binding=root_binding,
+                boundary_check=publication_guard,
+                expected_target_identity=expected_target_identity,
+            )
+        finally:
+            if root_binding is not None:
+                root_binding.close_safely()
+        return {
+            "ok": True,
+            "export_mode": mode,
+            "accepted_decisions": accepted_decisions,
+            "recorded_decision_count": recorded_count,
+            "stop_reason": stop_reason,
+            "novel_status": status,
+            "novel_sha256": novel_sha256(payload),
+        }
+
     def status(self, *, campaign_dir: str | Path) -> dict[str, Any]:
         view, _campaign_manifest, _snapshot, history = self._bound_history(campaign_dir)
         return {"ok": True, **_derived_status(view, history)}
@@ -1078,7 +1384,7 @@ class StoryService:
                 "committed_prefix": status["committed_prefix"],
                 "pending_turn_id": status["pending_turn_id"],
                 "missing_narration_work": status["missing_narration_work"],
-                "novel_status": "ABSENT",
+                "novel_status": status["novel_status"],
                 "read_only": True,
             },
         }
@@ -1126,9 +1432,24 @@ def verify_story(story_dir: str | Path, *, campaign_dir: str | Path) -> dict[str
     return StoryService(story_dir).verify(campaign_dir=campaign_dir)
 
 
+def export_story(
+    story_dir: str | Path,
+    *,
+    campaign_dir: str | Path,
+    mode: str = "snapshot",
+    accepted_decisions: int | None = None,
+) -> dict[str, Any]:
+    return StoryService(story_dir).export(
+        campaign_dir=campaign_dir,
+        mode=mode,
+        accepted_decisions=accepted_decisions,
+    )
+
+
 __all__ = [
     "StoryService",
     "commit_story",
+    "export_story",
     "init_story",
     "prepare_story",
     "status_story",
