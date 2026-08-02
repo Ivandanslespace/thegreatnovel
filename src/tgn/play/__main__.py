@@ -6,8 +6,7 @@ import argparse
 import sys
 from typing import Any, Sequence
 
-from ..core.hashing import canonical_json
-from .common import PlayError, parse_nonnegative_integer, parse_positive_integer
+from .common import PlayError, parse_nonnegative_integer, parse_positive_integer, terminal_safe_json
 from .narrator_process import DEFAULT_NARRATOR_TIMEOUT, validate_timeout
 from .service import DEFAULT_VOICE_ID, PlayService
 
@@ -136,13 +135,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         arguments = build_parser().parse_args(argv)
         result = dispatch(arguments)
-        print(canonical_json(result))
+        print(terminal_safe_json(result))
         return 0
     except PlayError as exc:
-        print(canonical_json({"ok": False, "error": exc.to_dict()}))
+        print(terminal_safe_json({"ok": False, "error": exc.to_dict()}))
         return exc.exit_code
     except Exception:
-        print(canonical_json({"ok": False, "error": {"code": "PLAY_STORY_FAILED", "message": "Playable Client boundary failed"}}))
+        print(terminal_safe_json({"ok": False, "error": {"code": "PLAY_STORY_FAILED", "message": "Playable Client boundary failed"}}))
         return 2
 
 

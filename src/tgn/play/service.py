@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import stat
 import hashlib
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
 from ..campaign import (
     CampaignError,
+    CampaignManifest,
     choose_campaign,
     create_campaign,
     next_campaign,
@@ -18,9 +22,14 @@ from ..campaign import (
     stop_campaign,
     verify_campaign,
 )
+from ..session import SessionManifest
 from ..core.hashing import canonical_json
 from ..story import (
+    NarrationRequest,
+    NarrationResponse,
+    StoryManifest,
     StoryError,
+    TurnNarrationArtifact,
     commit_story,
     export_story,
     init_story,
@@ -30,6 +39,7 @@ from ..story import (
 )
 from .common import (
     MAX_PLAYER_OPTION_DIGITS,
+    MAX_CANONICAL_INTEGER_DIGITS,
     PlayError,
     SUPPORTED_LOCALES,
     canonical_document,
@@ -37,6 +47,7 @@ from .common import (
     lexical_absolute,
     read_external_json,
     require_workspace,
+    terminal_safe_json,
     terminal_safe_text,
     validate_json_value,
     workspace_children,
@@ -161,6 +172,8 @@ def _strict_turn_id(value: Any, field: str = "turn_id") -> str:
     match = _TURN_ID.fullmatch(value)
     if match is None:
         raise _integrity(f"{field} is invalid")
+    if len(match.group(1)) > MAX_CANONICAL_INTEGER_DIGITS:
+        raise _integrity(f"{field} is too large")
     number = int(match.group(1))
     if number <= 0 or value != f"turn-{number:06d}":
         raise _integrity(f"{field} is not canonical")
@@ -200,32 +213,12 @@ def _present_directory(path: Path) -> bool:
 def _validate_session_summary(session: Any, *, label: str = "session") -> dict[str, Any]:
     if not isinstance(session, dict) or set(session) != _SESSION_FIELDS:
         raise _integrity(f"{label} has an invalid field set")
-    _strict_int(session["schema_version"], f"{label}.schema_version", positive=True)
-    _strict_id(session["session_id"], f"{label}.session_id")
-    _strict_id(session["campaign_id"], f"{label}.campaign_id")
-    _strict_id(session["actor_id"], f"{label}.actor_id")
-    max_decisions = _strict_int(session["max_decisions"], f"{label}.max_decisions", positive=True)
-    accepted = _strict_int(session["accepted_decisions"], f"{label}.accepted_decisions", nonnegative=True)
-    recorded = _strict_int(session["recorded_decision_count"], f"{label}.recorded_decision_count", nonnegative=True)
-    _strict_int(session["current_event_seq"], f"{label}.current_event_seq", nonnegative=True)
-    _strict_int(session["current_state_decision_seq"], f"{label}.current_state_decision_seq", nonnegative=True)
-    _strict_sha(session["current_state_hash"], f"{label}.current_state_hash")
+    try:
+        SessionManifest.from_dict(session)
+    except Exception as exc:
+        raise _integrity(f"{label} failed public SessionManifest validation") from exc
     status = session["status"]
-    if not isinstance(status, str) or status not in _SESSION_STATUSES:
-        raise _integrity(f"{label}.status is unsupported")
-    expected_stop_reason = {
-        "AWAITING_DECISION": None,
-        "STOPPED": "EXPLICIT_STOP",
-        "MAX_DECISIONS": "MAX_DECISIONS",
-        "NO_LEGAL_ACTIONS": "NO_LEGAL_ACTIONS",
-    }[status]
-    if session["stop_reason"] != expected_stop_reason:
-        raise _integrity(f"{label}.status and stop_reason disagree")
     current_fingerprint = session["current_request_fingerprint"]
-    if current_fingerprint is not None:
-        _strict_sha(current_fingerprint, f"{label}.current_request_fingerprint")
-    if accepted > max_decisions or recorded < accepted:
-        raise _integrity(f"{label} decision counts are invalid")
     if status == "AWAITING_DECISION" and current_fingerprint is None:
         raise _integrity(f"{label}.current_request_fingerprint is required")
     if status in _TERMINAL_STATUSES and current_fingerprint is not None:
@@ -239,32 +232,13 @@ def _validate_manifest(value: Any, *, label: str) -> dict[str, Any]:
     expected_fields = _CAMPAIGN_MANIFEST_FIELDS if label == "campaign" else _STORY_MANIFEST_FIELDS
     if set(value) != expected_fields:
         raise _integrity(f"{label} has an invalid field set")
-    if type(value["schema_version"]) is not int or value["schema_version"] != 1:
-        raise _integrity(f"{label}.schema_version is invalid")
-    expected_format = "phase9b2b-campaign-v1" if label == "campaign" else "phase9c-story-v1"
-    if value["campaign_format_id" if label == "campaign" else "story_format_id"] != expected_format:
-        raise _integrity(f"{label}.format_id is invalid")
-    for field in ("campaign_id", "session_id", "worldpack_hash", "source_initial_state_hash", "player_projection_hash"):
-        if field.endswith("_hash"):
-            _strict_sha(value.get(field), f"{label}.{field}")
+    try:
+        if label == "campaign":
+            CampaignManifest.from_dict(value)
         else:
-            _strict_id(value.get(field), f"{label}.{field}")
-    if value["campaign_id"] != value["session_id"]:
-        raise _integrity(f"{label} session binding is invalid")
-    if label == "campaign":
-        _strict_sha(value.get("initial_request_fingerprint"), f"{label}.initial_request_fingerprint")
-        _strict_sha(value.get("world_bundle_manifest_hash"), f"{label}.world_bundle_manifest_hash")
-        _strict_sha(value.get("projection_bundle_manifest_hash"), f"{label}.projection_bundle_manifest_hash")
-        _strict_sha(value.get("initial_presentation_hash"), f"{label}.initial_presentation_hash")
-        _strict_sha(value.get("initial_session_state_hash"), f"{label}.initial_session_state_hash")
-        _strict_id(value.get("actor_id"), f"{label}.actor_id")
-        _strict_int(value.get("max_decisions"), f"{label}.max_decisions", positive=True)
-    else:
-        _strict_id(value.get("story_id"), f"{label}.story_id")
-        if value.get("initial_narration_locale") not in SUPPORTED_LOCALES:
-            raise _integrity(f"{label}.initial_narration_locale is invalid")
-        _strict_id(value.get("initial_voice_id"), f"{label}.initial_voice_id")
-        _strict_sha(value.get("campaign_manifest_hash"), f"{label}.campaign_manifest_hash")
+            StoryManifest.from_dict(value)
+    except Exception as exc:
+        raise _integrity(f"{label} failed public manifest validation") from exc
     return value
 
 
@@ -308,8 +282,6 @@ def _validate_request_pair(campaign_value: dict[str, Any]) -> tuple[dict[str, An
     if request is None:
         if session is not None and session["status"] == "AWAITING_DECISION":
             raise _integrity("AWAITING_DECISION has no request")
-        if session is not None and session["status"] not in _TERMINAL_STATUSES:
-            raise _integrity("Campaign status is inconsistent with a terminal request")
         return None, None
     if not isinstance(request, dict) or not isinstance(presentation, dict):
         raise _integrity("Campaign request and presentation are invalid")
@@ -342,8 +314,6 @@ def _validate_request_pair(campaign_value: dict[str, Any]) -> tuple[dict[str, An
         presented_ids.add(presented_choice["choice_id"])
         if not all(_canonical_equal(canonical_choice[field], presented_choice[field]) for field in _CHOICE_FIELDS):
             raise _integrity("Campaign choice authority differs from presentation")
-    if canonical_ids != presented_ids:
-        raise _integrity("Campaign choice IDs differ")
     return request, presentation
 
 
@@ -384,8 +354,6 @@ def _validate_story_status(story: Any) -> dict[str, Any]:
         raise _integrity("Story status fields are incomplete")
     manifest = story["story"]
     _validate_manifest(manifest, label="story")
-    if manifest["campaign_id"] != manifest["session_id"]:
-        raise _integrity("Story session binding is invalid")
     campaign_session = _validate_session_summary(story["campaign_session"], label="story.campaign_session")
     session = _validate_session_summary(story["session"], label="story.session")
     if campaign_session != session:
@@ -416,6 +384,11 @@ def _validate_story_status(story: Any) -> dict[str, Any]:
         expected_next = f"turn-{request_count + 1:06d}"
         if pending is not None or request_count >= accepted or next_preparable != expected_next:
             raise _integrity("Story next preparable turn is inconsistent")
+    elif pending is None and request_count < accepted:
+        raise _integrity("Story next preparable turn is missing")
+    if pending is None:
+        if request_count != committed:
+            raise _integrity("Story without pending request must have no request backlog")
     readiness = story["export_readiness"]
     if not isinstance(readiness, dict) or set(readiness) != {"snapshot_exportable_through", "current_snapshot_ready", "final_ready"}:
         raise _integrity("Story export readiness is invalid")
@@ -435,6 +408,10 @@ def _validate_story_status(story: Any) -> dict[str, Any]:
     export_ready = _strict_bool(story["phase_9c2_export_ready"], "story.phase_9c2_export_ready")
     if export_ready != (current_ready or final_ready):
         raise _integrity("Story export-ready flag is inconsistent")
+    if story["novel_status"] == "CURRENT_FINAL" and not final_ready:
+        raise _integrity("CURRENT_FINAL Story is not final-ready")
+    if story["novel_status"] == "CURRENT_SNAPSHOT" and not current_ready:
+        raise _integrity("CURRENT_SNAPSHOT Story is not snapshot-ready")
     return story
 
 
@@ -442,6 +419,12 @@ def _cross_check(campaign: dict[str, Any], story: dict[str, Any]) -> None:
     campaign_manifest = _validate_manifest(campaign.get("campaign"), label="campaign")
     campaign_session = _validate_session_summary(campaign.get("session"), label="campaign.session")
     story = _validate_story_status(story)
+    manifest_model = CampaignManifest.from_dict(campaign_manifest)
+    session_model = SessionManifest.from_dict(campaign_session)
+    if manifest_model.actor_id != session_model.actor_id:
+        raise _integrity("Campaign manifest and Session actor_id differ")
+    if manifest_model.max_decisions != session_model.max_decisions:
+        raise _integrity("Campaign manifest and Session max_decisions differ")
     for field in _SHARED_SESSION_FIELDS:
         if campaign_session[field] != story["campaign_session"][field] or campaign_session[field] != story["session"][field]:
             raise _integrity(f"Campaign and Story session field {field} differs")
@@ -465,12 +448,12 @@ def _cross_check(campaign: dict[str, Any], story: dict[str, Any]) -> None:
 
 def _render_presentation(presentation: dict[str, Any], output: OutputFunction) -> None:
     output("当前玩家可见状态：")
-    output(terminal_safe_text(canonical_json(presentation)))
+    output(terminal_safe_json(presentation))
     output("可选行动：")
     for index, choice in enumerate(presentation["choices"], start=1):
         action_type = terminal_safe_text(choice["action_type"])
         display_params = choice.get("display_params")
-        suffix = f" {terminal_safe_text(canonical_json(display_params))}" if display_params is not None else ""
+        suffix = f" {terminal_safe_json(display_params)}" if display_params is not None else ""
         output(f"{index}. {action_type}{suffix}")
     output("输入选项编号、STOP，或 :locale zh-CN / :locale en / :locale ar")
 
@@ -520,6 +503,71 @@ def _validate_response_path(path: Any, workspace: Path) -> Path:
     return candidate
 
 
+def _request_model(value: Any) -> NarrationRequest:
+    try:
+        return NarrationRequest.from_dict(value)
+    except Exception as exc:
+        raise _integrity("Narration Request failed public model validation") from exc
+
+
+def _response_model(value: Any, request: NarrationRequest | None = None) -> Any:
+    try:
+        response = NarrationResponse.from_dict(value)
+    except Exception as exc:
+        raise _integrity("Narration Response failed public model validation") from exc
+    if request is not None:
+        if response.narration_request_id != request.narration_request_id:
+            raise _integrity("Narration Response request identity differs")
+        if response.narration_request_hash != request.narration_request_hash:
+            raise _integrity("Narration Response request hash differs")
+        if response.locale != request.narration_locale:
+            raise _integrity("Narration Response locale differs")
+    return response
+
+
+def _assert_turn_matches_request(turn: Any, request: NarrationRequest, response: Any) -> Any:
+    try:
+        artifact = TurnNarrationArtifact.from_dict(turn)
+    except Exception as exc:
+        raise _integrity("committed turn failed public model validation") from exc
+    for field in (
+        "story_id",
+        "turn_id",
+        "narration_request_id",
+        "narration_request_hash",
+        "source_request_hash",
+        "campaign_id",
+        "session_id",
+        "accepted_decision_number",
+        "recorded_decision_index",
+        "request_fingerprint_before",
+        "choice_id",
+        "action_type",
+        "action_id",
+        "params",
+        "duration_minutes",
+        "stamina_cost",
+        "event_seq_start",
+        "event_seq_end",
+        "state_hash_before",
+        "state_hash_after",
+        "narration_locale",
+        "voice_id",
+    ):
+        expected = getattr(request, field)
+        actual = getattr(artifact, field)
+        if not _canonical_equal(actual, expected):
+            raise _integrity(f"committed turn field {field} differs from request")
+    if not _canonical_equal(artifact.claims, response.claims) or artifact.prose != response.prose:
+        raise _integrity("committed turn output differs from response")
+    return artifact
+
+
+def _quote_argv(argv: Sequence[str], *, platform_name: str | None = None) -> str:
+    selected_platform = os.name if platform_name is None else platform_name
+    return subprocess.list2cmdline(list(argv)) if selected_platform == "nt" else shlex.join(list(argv))
+
+
 class PlayService:
     """One workspace-bound facade over public Campaign and Story functions."""
 
@@ -556,6 +604,8 @@ class PlayService:
         campaign = self._call_campaign(verify_campaign, campaign_dir, operation="verification")
         _validate_campaign_result(campaign, require_verification=True)
         story = self._call_story(verify_story, story_dir, campaign_dir=campaign_dir, operation="verification")
+        if story.get("valid") is not True:
+            raise _integrity("Story top-level verification proof is incomplete")
         _validate_story_status(story)
         verification = story.get("verification")
         if not isinstance(verification, dict) or verification.get("valid") is not True or verification.get("read_only") is not True:
@@ -588,6 +638,9 @@ class PlayService:
     def _read_status_pair(self, campaign_dir: Path, story_dir: Path, *, validate_request: bool = True) -> dict[str, Any]:
         status_value = self._call_campaign(status_campaign, campaign_dir, operation="status")
         story = self._call_story(status_story, story_dir, campaign_dir=campaign_dir, operation="status")
+        # Validate Story progress before asking Campaign for a current request.
+        # A malformed pending/missing state must never reach next_campaign().
+        _validate_story_status(story)
         if not validate_request:
             return self._compose_status(status_value, story)
         current = self._call_campaign(next_campaign, campaign_dir, operation="status request validation")
@@ -825,10 +878,31 @@ class PlayService:
         request = prepared.get("request")
         if not isinstance(request, dict) or prepared.get("committed") is not False:
             raise _integrity("pending narration request is invalid")
+        request_model = _request_model(request)
+        if request_model.turn_id != pending_id:
+            raise _integrity("pending Narration Request turn identity differs")
+        try:
+            story_model = StoryManifest.from_dict(combined["story_status"]["story"])
+            campaign_model = CampaignManifest.from_dict(combined["campaign_status"]["campaign"])
+        except Exception as exc:
+            raise _integrity("pending Narration Request composition manifests are invalid") from exc
+        if (
+            request_model.story_id != story_model.story_id
+            or request_model.campaign_id != campaign_model.campaign_id
+            or request_model.session_id != campaign_model.session_id
+            or request_model.narration_locale != story_model.initial_narration_locale
+        ):
+            raise _integrity("pending Narration Request composition binding differs")
         response = read_external_json(response_path)
         if not isinstance(response, dict):
             raise PlayError("PLAY_NARRATOR_FAILED", "narrator response must be a JSON object")
-        committed = self._commit_response(campaign_dir, story_dir, response, output_fn=output_fn)
+        committed = self._commit_response(
+            campaign_dir,
+            story_dir,
+            response,
+            request_model=request_model,
+            output_fn=output_fn,
+        )
         return {"ok": True, "result": committed.get("result"), "turn": committed.get("turn")}
 
     def _commit_response(
@@ -837,8 +911,10 @@ class PlayService:
         story_dir: Path,
         response: dict[str, Any],
         *,
+        request_model: NarrationRequest | None = None,
         output_fn: OutputFunction,
     ) -> dict[str, Any]:
+        response_model = _response_model(response, request_model)
         try:
             committed = commit_story(story_dir, campaign_dir=campaign_dir, response=response)
         except StoryError as exc:
@@ -850,21 +926,41 @@ class PlayService:
         if not isinstance(committed, dict) or committed.get("ok") is not True:
             raise PlayError("PLAY_STORY_FAILED", "Story narration commit returned an invalid result")
         turn = committed.get("turn")
-        if not isinstance(turn, dict) or not isinstance(turn.get("prose"), str):
+        if not isinstance(turn, dict):
             raise _integrity("committed turn has no public prose")
-        output_fn(terminal_safe_text(turn["prose"]))
+        if request_model is not None:
+            artifact = _assert_turn_matches_request(turn, request_model, response_model)
+        else:
+            try:
+                artifact = TurnNarrationArtifact.from_dict(turn)
+            except Exception as exc:
+                raise _integrity("committed turn failed public model validation") from exc
+        output_fn(terminal_safe_text(artifact.prose))
         return committed
 
     @staticmethod
     def _manual_pending(request: dict[str, Any], workspace: Path, output_fn: OutputFunction) -> None:
         output_fn("--- NARRATION REQUEST BEGIN ---")
-        output_fn(terminal_safe_text(canonical_json(request)))
+        output_fn(terminal_safe_json(request))
         output_fn("--- NARRATION REQUEST END ---")
         output_fn("Narration pending. Create one Narration Response JSON outside the workspace.")
         output_fn("Response fields: schema_version, narration_request_id, narration_request_hash, locale, claims, prose")
-        workspace_text = terminal_safe_text(str(workspace))
-        output_fn(f"Run: python -m tgn.play narrate --workspace {workspace_text} --response-file <response.json>")
-        output_fn(f"Then run: python -m tgn.play resume --workspace {workspace_text}")
+        response_path = workspace.parent / f"{workspace.name}-narration-response.json"
+        narrate_argv = [
+            sys.executable,
+            "-m",
+            "tgn.play",
+            "narrate",
+            "--workspace",
+            str(workspace),
+            "--response-file",
+            str(response_path),
+        ]
+        resume_argv = [sys.executable, "-m", "tgn.play", "resume", "--workspace", str(workspace)]
+        output_fn("Command argv JSON: " + terminal_safe_json(narrate_argv))
+        output_fn("Safe command: " + terminal_safe_text(_quote_argv(narrate_argv)))
+        output_fn("Resume argv JSON: " + terminal_safe_json(resume_argv))
+        output_fn("Safe resume command: " + terminal_safe_text(_quote_argv(resume_argv)))
 
     def _drain_narration_work(
         self,
@@ -893,11 +989,37 @@ class PlayService:
             request = prepared.get("request")
             if not isinstance(request, dict) or prepared.get("committed") is not False:
                 raise _integrity("narration backlog did not yield one pending request")
+            request_model = _request_model(request)
+            expected_turn_id = pending_id or before_story["next_preparable_turn_id"]
+            if expected_turn_id is None or request_model.turn_id != expected_turn_id:
+                raise _integrity("narration backlog returned a non-oldest request")
+            try:
+                story_model = StoryManifest.from_dict(before_story["story"])
+                campaign_model = CampaignManifest.from_dict(combined["campaign_status"]["campaign"])
+            except Exception as exc:
+                raise _integrity("Narration Request composition manifests are invalid") from exc
+            if (
+                request_model.story_id != story_model.story_id
+                or request_model.campaign_id != campaign_model.campaign_id
+                or request_model.session_id != campaign_model.session_id
+            ):
+                raise _integrity("Narration Request composition binding differs")
+            intended_locale = prepare_locale
+            if pending_id is None and request_model.narration_locale != intended_locale:
+                raise _integrity("new Narration Request locale differs from intended locale")
+            if pending_id is not None and request_model.narration_locale != story_model.initial_narration_locale:
+                raise _integrity("pending Narration Request locale changed")
             if narrator_argv is None:
                 self._manual_pending(request, self.workspace, output_fn)
                 raise PlayError("PLAY_NARRATION_PENDING", "narration response is required before another action")
             response = run_narrator(narrator_argv, request, timeout=narrator_timeout)
-            self._commit_response(campaign_dir, story_dir, response, output_fn=output_fn)
+            self._commit_response(
+                campaign_dir,
+                story_dir,
+                response,
+                request_model=request_model,
+                output_fn=output_fn,
+            )
             after = self._read_status_pair(campaign_dir, story_dir, validate_request=False)
             after_story = after["story_status"]
             if after_story["committed_prefix"] != before_story["committed_prefix"] + 1 or after_story["committed_turn_count"] != before_story["committed_turn_count"] + 1:
@@ -933,9 +1055,10 @@ class PlayService:
                 narrator_timeout=narrator_timeout,
                 output_fn=output_fn,
             )
+            story_status_value = self._call_story(status_story, story_dir, campaign_dir=campaign_dir, operation="status")
+            _validate_story_status(story_status_value)
             current = self._call_campaign(next_campaign, campaign_dir, operation="next")
             _validate_campaign_result(current)
-            story_status_value = self._call_story(status_story, story_dir, campaign_dir=campaign_dir, operation="status")
             composed = self._compose_status(current, story_status_value)
             request, presentation = _validate_request_pair(current)
             if request is None:

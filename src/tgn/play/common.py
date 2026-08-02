@@ -167,6 +167,21 @@ def _reject_untrusted_components(value: Path, *, allow_missing: bool) -> None:
             raise OSError("workspace path contains a symlink or reparse point")
 
 
+def _safe_component_snapshot(value: Path) -> tuple[tuple[int, int, int, int], ...]:
+    """Capture existing path-component identities without resolving them."""
+
+    snapshot: list[tuple[int, int, int, int]] = []
+    for component in _components(value):
+        current = os.lstat(component)
+        if stat.S_ISLNK(current.st_mode) or _is_reparse_point(current):
+            raise OSError("path contains a symlink or reparse point")
+        identity = _file_identity(current)
+        if identity == (0, 0):
+            raise OSError("path component identity is unavailable")
+        snapshot.append((identity[0], identity[1], int(current.st_mode), int(getattr(current, "st_file_attributes", 0))))
+    return tuple(snapshot)
+
+
 def ensure_new_workspace(value: str | Path) -> Path:
     workspace = lexical_absolute(value)
     try:
@@ -234,17 +249,21 @@ def parse_nonnegative_integer(value: Any, field: str) -> int:
 
 
 def read_external_json(path: str | Path, *, max_bytes: int = MAX_NARRATOR_STDOUT) -> Any:
+    if type(max_bytes) is not int or max_bytes <= 0:
+        raise PlayError("INVALID_PLAY_INPUT", "max_bytes must be a positive integer")
     if isinstance(path, str) and path == "-":
         raise PlayError("INVALID_PLAY_INPUT", "response file '-' is only valid on the process stdin boundary")
     source = lexical_absolute(path)
     descriptor: int | None = None
     try:
+        components_before = _safe_component_snapshot(source)
         initial = os.lstat(source)
         if not _is_actual_regular_file(initial):
             raise OSError("response file is not regular")
         flags = os.O_RDONLY
         flags |= getattr(os, "O_BINARY", 0)
         flags |= getattr(os, "O_NOFOLLOW", 0)
+        flags |= getattr(os, "O_NONBLOCK", 0)
         descriptor = os.open(source, flags)
         opened = os.fstat(descriptor)
         if not _same_file_observable(initial, opened):
@@ -255,6 +274,12 @@ def read_external_json(path: str | Path, *, max_bytes: int = MAX_NARRATOR_STDOUT
             after = os.fstat(handle.fileno())
             if not _same_file_observable(opened, after):
                 raise OSError("response file identity changed while reading")
+        components_after = _safe_component_snapshot(source)
+        if components_after != components_before:
+            raise OSError("response file path components changed")
+        final_path = os.lstat(source)
+        if not _same_file_observable(after, final_path):
+            raise OSError("response file path changed after reading")
         if len(payload) > max_bytes:
             raise ValueError("response file is too large")
         return parse_json_document(payload, max_bytes=max_bytes)
@@ -277,10 +302,14 @@ def _file_identity(value: os.stat_result) -> tuple[int, int]:
 
 
 def _same_file_observable(left: os.stat_result, right: os.stat_result) -> bool:
+    left_identity = _file_identity(left)
+    right_identity = _file_identity(right)
     return (
         _is_actual_regular_file(left)
         and _is_actual_regular_file(right)
-        and _file_identity(left) == _file_identity(right)
+        and left_identity != (0, 0)
+        and right_identity != (0, 0)
+        and left_identity == right_identity
         and int(getattr(left, "st_size", -1)) == int(getattr(right, "st_size", -1))
         and int(getattr(left, "st_mtime_ns", -1)) == int(getattr(right, "st_mtime_ns", -1))
     )
@@ -303,6 +332,21 @@ def terminal_safe_text(value: str) -> str:
     return "".join(output)
 
 
+def terminal_safe_json(value: Any) -> str:
+    """Return valid JSON with terminal controls represented as JSON escapes."""
+
+    validate_json_value(value)
+    rendered = canonical_json(value)
+    output: list[str] = []
+    for character in rendered:
+        codepoint = ord(character)
+        if codepoint < 0x20 or codepoint == 0x7F or 0x80 <= codepoint <= 0x9F:
+            output.append(f"\\u{codepoint:04x}")
+        else:
+            output.append(character)
+    return "".join(output)
+
+
 __all__ = [
     "MAX_NARRATOR_STDOUT",
     "MAX_CANONICAL_INTEGER_DIGITS",
@@ -317,6 +361,7 @@ __all__ = [
     "parse_nonnegative_integer",
     "parse_positive_integer",
     "read_external_json",
+    "terminal_safe_json",
     "require_workspace",
     "terminal_safe_text",
     "validate_json_value",
