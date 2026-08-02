@@ -75,6 +75,7 @@ Story root/turns identity、Campaign historical prefix 和 committed turn source
 identity 的完整校验，并在 post-move target identity 不匹配时保留竞争者 target。
 本次 directory fix 还要求 recommit 的 root/turns binding 与已加载 StoryView 的目录 identity 相等。
 PC1 implementation candidate commit：`3a56c8a09dc3b37ebcf622bc4ab7eb42a77e807e`。
+PC1 complete product-proof test correction：`7e8f16c7bf3908abb5424cab9457986f6e162674`。
 PC1 使用 `src/tgn/play/**` 提供 `new`、`resume`、`narrate`、`status`、`verify` 和
 `export`，只组合冻结 Campaign/Story 的公开 service API；不创建 Client 数据库、provider
 adapter 或 Phase 9D/10 功能。PC1 回归结果为 `tests/play 44 passed`、affected 集

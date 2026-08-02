@@ -6462,6 +6462,7 @@ implementation candidate at `3a56c8a09dc3b37ebcf622bc4ab7eb42a77e807e` and is no
 frozen. Phase 9D remains deferred / not started; Phase 10 has not started.
 
 PC1 的第一枚实现提交 message 为 `feat: add thin local playable client`。当前验证结果为
+完整 product-proof test correction 提交为 `7e8f16c7bf3908abb5424cab9457986f6e162674`；
 `tests/play 44 passed`；affected 集 `461 passed, 2 skipped`；full suite `1683 passed,
 2 skipped`；full `src/tgn` coverage `97.08%`；所有指定 warning-as-error 门禁为零
 warning。两个 skip 都是 Windows 上既有的 POSIX FIFO 测试，原因是当前平台不提供 FIFO
