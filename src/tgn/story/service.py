@@ -984,15 +984,24 @@ class StoryService:
             raise StoryError("NARRATION_RESPONSE_INVALID", "response request identity is invalid")
         if number in view.turn_map:
             root_binding, turns_binding = _open_story_publication_bindings(view, "turns")
+            directory_guard = _anchored_story_publication_guard(
+                view,
+                "turns",
+                root_binding,
+                turns_binding,
+            )
             try:
-                root_binding.check()
-                turns_binding.check()
+                directory_guard()
                 _commit_prefix_check(campaign_dir, snapshot, request)
+                directory_guard()
                 existing_payload = _validate_committed_turn_unchanged(
                     view,
                     view.turn_map[number],
                     turns_binding,
                 )
+                directory_guard()
+                _commit_prefix_check(campaign_dir, snapshot, request)
+                directory_guard()
                 artifact = _artifact_from_response(request, response_value)
                 artifact_payload = canonical_bytes(artifact.to_dict())
                 if existing_payload == artifact_payload:
@@ -1002,7 +1011,7 @@ class StoryService:
                         "error_code": "TURN_ALREADY_COMMITTED",
                         "turn": artifact.to_dict(),
                     }
-            except PublicationBoundaryChanged as exc:
+            except (PublicationBoundaryChanged, PublicationRuntime) as exc:
                 raise _story_integrity("Story directory identity changed during recommit") from exc
             finally:
                 turns_binding.close_safely()

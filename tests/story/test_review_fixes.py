@@ -174,6 +174,9 @@ def test_recommit_rejects_turn_directory_replacement_even_with_identical_turn(
     backup = tmp_path / "recommit-turns-original"
     original_load = service_module.load_story_view
     replaced = False
+    loaded_view = original_load(story)
+    old_turns_identity = loaded_view.turns_directory.identity
+    old_turn_identity = next(item for item in loaded_view.files if item.relative_path == "turns/turn-000001.json").identity
 
     def load_and_replace(path: Path):
         nonlocal replaced
@@ -181,7 +184,10 @@ def test_recommit_rejects_turn_directory_replacement_even_with_identical_turn(
         if not replaced:
             turns.rename(backup)
             turns.mkdir()
-            (turns / "turn-000001.json").write_bytes((backup / "turn-000001.json").read_bytes())
+            (backup / "turn-000001.json").rename(turns / "turn-000001.json")
+            replacement_view = original_load(path)
+            assert replacement_view.turns_directory.identity != old_turns_identity
+            assert next(item for item in replacement_view.files if item.relative_path == "turns/turn-000001.json").identity == old_turn_identity
             replaced = True
         return view
 
@@ -192,10 +198,11 @@ def test_recommit_rejects_turn_directory_replacement_even_with_identical_turn(
         assert error.value.code == "STORY_INTEGRITY_MISMATCH"
         assert replaced is True
         assert (turns / "turn-000001.json").exists()
-        assert (backup / "turn-000001.json").exists()
+        assert not (backup / "turn-000001.json").exists()
     finally:
-        if turns.exists():
-            (turns / "turn-000001.json").unlink(missing_ok=True)
+        if replaced and turns.exists():
+            if (turns / "turn-000001.json").exists():
+                (turns / "turn-000001.json").rename(backup / "turn-000001.json")
             turns.rmdir()
         if backup.exists():
             backup.rename(turns)
@@ -215,6 +222,10 @@ def test_recommit_rejects_story_root_replacement(
     backup = tmp_path / "recommit-story-original"
     original_load = service_module.load_story_view
     replaced = False
+    loaded_view = original_load(story)
+    old_root_identity = loaded_view.root_directory.identity
+    old_turns_identity = loaded_view.turns_directory.identity
+    old_turn_identity = next(item for item in loaded_view.files if item.relative_path == "turns/turn-000001.json").identity
 
     def load_and_replace(path: Path):
         nonlocal replaced
@@ -222,15 +233,13 @@ def test_recommit_rejects_story_root_replacement(
         if not replaced:
             story.rename(backup)
             story.mkdir()
-            (story / "requests").mkdir()
-            (story / "turns").mkdir()
-            for relative in (
-                "story.json",
-                "requests/turn-000001.json",
-                "turns/turn-000001.json",
-            ):
-                replacement = story / relative
-                replacement.write_bytes((backup / relative).read_bytes())
+            (backup / "story.json").rename(story / "story.json")
+            (backup / "requests").rename(story / "requests")
+            (backup / "turns").rename(story / "turns")
+            replacement_view = original_load(path)
+            assert replacement_view.root_directory.identity != old_root_identity
+            assert replacement_view.turns_directory.identity == old_turns_identity
+            assert next(item for item in replacement_view.files if item.relative_path == "turns/turn-000001.json").identity == old_turn_identity
             replaced = True
         return view
 
@@ -242,15 +251,68 @@ def test_recommit_rejects_story_root_replacement(
         assert replaced is True
         assert (story / "turns" / "turn-000001.json").exists()
     finally:
-        if story.exists():
-            for relative in (
-                "story.json",
-                "requests/turn-000001.json",
-                "turns/turn-000001.json",
-            ):
-                (story / relative).unlink(missing_ok=True)
-            (story / "requests").rmdir()
-            (story / "turns").rmdir()
+        if replaced and story.exists():
+            (story / "story.json").rename(backup / "story.json")
+            (story / "requests").rename(backup / "requests")
+            (story / "turns").rename(backup / "turns")
+            story.rmdir()
+        if backup.exists():
+            backup.rename(story)
+
+
+def test_recommit_detects_root_replacement_after_bindings_open(
+    story_factory,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign, story, config = story_factory(name="recommit-mid-root-replacement")
+    init_story(story, campaign_dir=campaign, story_id=config["story_id"], initial_narration_locale="en", initial_voice_id="cablecar_survival")
+    _choose(campaign, "DROP")
+    request = prepare_story(story, campaign_dir=campaign)["request"]
+    response = response_for(request)
+    commit_story(story, campaign_dir=campaign, response=response)
+    initial_view = load_story_view(story)
+    old_turns_identity = initial_view.turns_directory.identity
+    old_turn_identity = next(item for item in initial_view.files if item.relative_path == "turns/turn-000001.json").identity
+    old_root_identity = initial_view.root_directory.identity
+    backup = tmp_path / "recommit-mid-root-original"
+    original_prefix_check = service_module._commit_prefix_check
+    state = {"attempted": False, "blocked": False, "detached": False}
+
+    def replace_root_after_binding() -> None:
+        state["attempted"] = True
+        try:
+            story.rename(backup)
+            state["detached"] = True
+            story.mkdir()
+            (backup / "story.json").rename(story / "story.json")
+            (backup / "requests").rename(story / "requests")
+            (backup / "turns").rename(story / "turns")
+            replacement_view = load_story_view(story)
+            assert replacement_view.root_directory.identity != old_root_identity
+            assert replacement_view.turns_directory.identity == old_turns_identity
+            assert next(item for item in replacement_view.files if item.relative_path == "turns/turn-000001.json").identity == old_turn_identity
+        except PermissionError:
+            state["blocked"] = True
+            raise service_module.PublicationBoundaryChanged("Story root replacement blocked")
+
+    def prefix_check_with_root_replacement(campaign_dir, before, current_request):
+        if not state["attempted"]:
+            replace_root_after_binding()
+        return original_prefix_check(campaign_dir, before, current_request)
+
+    monkeypatch.setattr(service_module, "_commit_prefix_check", prefix_check_with_root_replacement)
+    try:
+        with pytest.raises(StoryError) as error:
+            commit_story(story, campaign_dir=campaign, response=response)
+        assert error.value.code == "STORY_INTEGRITY_MISMATCH"
+        assert state["attempted"] is True
+        assert state["blocked"] or state["detached"]
+    finally:
+        if state["detached"] and story.exists():
+            (story / "story.json").rename(backup / "story.json")
+            (story / "requests").rename(backup / "requests")
+            (story / "turns").rename(backup / "turns")
             story.rmdir()
         if backup.exists():
             backup.rename(story)
