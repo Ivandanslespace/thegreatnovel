@@ -219,6 +219,25 @@ def test_draft_failure_reopens_and_recovers(tmp_path) -> None:
         store.close()
 
 
+def test_same_dataclass_response_retries_active_draft_write_idempotently(tmp_path) -> None:
+    store = CampaignStore.create(tmp_path, "demo", {"world": "w"}, _initial())
+    try:
+        store.commit_resolution("req", _resolution(store))
+        response = fallback_response(store.pending_narration())
+        with patch.object(
+            CampaignStore,
+            "_atomic_text",
+            staticmethod(lambda path, content: (_ for _ in ()).throw(OSError("draft fault"))),
+        ), pytest.raises(OSError):
+            store.commit_narration(response)
+        retried = store.commit_narration(response)
+        assert retried["request_id"] == response.request_id
+        assert (store.exports_dir / "novel_draft.md").is_file()
+        assert store.verify()["ok"]
+    finally:
+        store.close()
+
+
 def test_stale_final_manifest_is_rejected(tmp_path) -> None:
     store = CampaignStore.create(tmp_path, "demo", {"world": "w"}, _initial())
     try:

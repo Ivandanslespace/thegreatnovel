@@ -41,6 +41,9 @@ def test_service_full_lifecycle_autosaves_and_exports(tmp_path) -> None:
     assert committed["turn"] == 1
     assert committed["narration_request"]["required_claims"]
     service.narrate("service-frost", fallback=True)
+    draft.unlink()
+    recovered = service.recover_exports("service-frost")
+    assert recovered["verified"]["ok"] is True and draft.is_file()
     resumed = service.resume("service-frost")
     assert resumed["player_view"]["panel"]["turn"] == 1
     assert service.verify("service-frost")["ok"] is True

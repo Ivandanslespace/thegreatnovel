@@ -37,7 +37,9 @@ def hello_payload() -> dict[str, Any]:
                 "novel_draft_autosave",
                 "final_novel_export",
                 "lazy_expansion",
+                "custom_world_compile",
+                "experience_quality_gate",
+                "derived_export_recovery",
             ],
         },
     )
-

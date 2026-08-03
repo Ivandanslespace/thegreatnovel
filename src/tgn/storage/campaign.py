@@ -654,7 +654,7 @@ class CampaignStore:
         pending = self.pending_narration()
         if pending is None:
             # Idempotent replay of an already committed response.
-            candidate = response.to_dict() if hasattr(response, "to_dict") else dict(response)
+            candidate = _plain(response.to_dict() if hasattr(response, "to_dict") else dict(response))
             row = self._db.execute("SELECT response_json FROM narratives WHERE request_id=?", (candidate.get("request_id"),)).fetchone()
             if row and _loads(row[0]) == candidate:
                 # A successful DB commit can be followed by a disk fault.  The
@@ -667,7 +667,7 @@ class CampaignStore:
                         self._write_final_exports()
                 return candidate
             raise CampaignStoreError("no pending narration")
-        candidate = response.to_dict() if hasattr(response, "to_dict") else dict(response)
+        candidate = _plain(response.to_dict() if hasattr(response, "to_dict") else dict(response))
         validated = validate_narration_response(pending, candidate)
         response_dict = _plain(validated.to_dict())
         response_hash = sha256_json(response_dict)
