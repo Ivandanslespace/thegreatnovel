@@ -4,6 +4,7 @@
 > 整理日期：2026-07-31  
 > 文档定位：这不是功能需求清单，而是一份“设计宪法”。  
 > 以后无论新增世界、机制、Prompt、Agent、状态字段，还是审查代码，都应该先问：**它是否符合下面这些价值观？**
+> 当前开发边界、冻结事实、Genesis 合同与 Active Roadmap 统一见 [`DEV_SPEC.md`](DEV_SPEC.md)。
 
 ---
 
@@ -159,6 +160,10 @@ C. 跟踪可疑幸存者
 这意味着：
 
 > 玩家花掉的时间，本质上也是把行动机会让给整个世界。
+
+时间的稀缺对象会随成长改变。已经解决的低层资源获取应逐步被自动化、委托或背景化；
+这不是取消时间成本，而是让玩家把时间花在新的、更稀缺的资源、关系、责任、机会和
+战略冲突上。系统不得为了维持旧循环，强迫已经建立稳定生产能力的玩家重复同一种劳动。
 
 ---
 
@@ -832,7 +837,12 @@ TheGreatNovel 的长期成长不应该只有一条无限向上的数值曲线。
 - **Absolute Power** - 绝对能力
 - **Relative Standing** - 相对于当前竞争群体的位置
 
-绝对能力原则上持续增长。
+Absolute Power **单调不减**。它表示主角已经永久获得的能力上限、策略权限和成长成果；
+后续剧情不能把这些成果回写成从未获得。
+
+伤势、资源短缺、位置、维护、政治压力或环境可以限制主角当前能够调动的
+**Effective Capacity**，也可以让 Relative Standing 回撤，但不能删除已经获得的
+Absolute Power。这样既保留长期爽点，也让时间、风险和世界竞争继续产生约束。
 
 但 Relative Standing 应该周期性重置。
 
@@ -911,7 +921,7 @@ if percentile >= 0.90:
 
 只有当世界结构发生真实变化（新区域开放、资格认证完成、社会地位转变等），才允许自然过渡到更高层级的 cohort。
 
-### 长期成长回撤原则
+### Relative Standing 的回撤原则
 
 Relative Standing 不要求单调上升。主角可以因为失败、伤势、政治冲突、资源损失而短期回撤，但长期成长包络应该具有明显正向漂移。
 
@@ -1667,6 +1677,10 @@ Information Model 应当是世界结构的一部分。
 
 > **自动化的本质之一，是把时间重新交还给玩家。**
 
+被交还的时间不会让长期选择消失，而会改变稀缺性结构：旧资源变得廉价以后，玩家要用
+时间处理更高层的机会窗口、组织责任、关系承诺、维护负担、信息与战略冲突。好的长周期
+玩法不是永久重复同一份生存劳动，而是让“什么值得花时间”随着世界和主角共同变化。
+
 ### V2 补充：Upkeep / 持续代价
 
 强大的长期资产可以伴随长期负担（食物、能源、维护、工资、空间、注意力、政治成本）。
@@ -1744,7 +1758,7 @@ progression_stall_duration
 P25 → P60 → P75 → P90+ → 新 cohort → P25–P35 → P60 → P75 → P90+ → ...
 ```
 
-同时 Absolute Power 长期保持上升。
+同时 Absolute Power 保持单调不减，并在长期出现玩家可感知的上升。
 
 ### V2 补充：Autoplay 也应检查兼容性坍缩
 
@@ -2532,7 +2546,7 @@ Knowledge / Visibility 和秘密、NPC、调查、信息差、Narrator、LLM Pla
 
 Habitat（长期生存承载体）不一定是固定地点。它可能是固定建筑、列车、船、大型生物、飞船、潜艇、移动城市。但不是所有世界都需要 Habitat——它是 optional world structure，不是 Player 强制字段。
 
-ProgressionTrack / ProgressionGate / Progression Attachment 是候选抽象语言，用于避免把 player.level 和三选一当成宇宙统一成长模型。它们是否最终成为 code-level abstraction，要由 MVP_REWRITE_SPEC、实际 vertical slices、第二/第三 WorldPack 验证。
+ProgressionTrack / ProgressionGate / Progression Attachment 是候选抽象语言，用于避免把 player.level 和三选一当成宇宙统一成长模型。它们是否最终成为 code-level abstraction，要由 `DEV_SPEC.md`、实际 vertical slices、第二/第三 WorldPack 验证。
 
 ---
 
@@ -2889,8 +2903,8 @@ Phase 9A–9C 每次只实现一个最小 vertical slice。不得因为外部客
 
 # 51. Genesis Foundation：生成世界，但不生成裁判
 
-Phase 10G0 将前述价值观收束为一个更精确的 Genesis 边界。完整合同见
-[`GENESIS_FOUNDATION.md`](GENESIS_FOUNDATION.md)；本节只记录必须长期保持的价值判断。
+Phase 10G0.1 将前述价值观收束为一个更精确的 Genesis 边界。完整开发合同见
+[`DEV_SPEC.md`](DEV_SPEC.md)；本节只记录必须长期保持的价值判断。
 
 ## 51.1 LLM at the edges 不等于 LLM 只能写 prose
 
@@ -2924,10 +2938,11 @@ Prompt + Seed
 → Campaign-specific WorldPack
 ```
 
-WorldPack 可以是测试用的开发者预制包、官方样例，也可以是由 Prompt 与 Seed 生成后
-封存的本 Campaign 专属包；但开发者预制包只能作为 fixture、官方 sample 或 legacy
-compatibility artifact，不能把 Genesis 用户流程降级成选择通用模块。用户 Campaign
-必须保留 Prompt + Seed lineage，并经过 generation attempt、semantic binding 和 seal。
+WorldPack 可以是测试用的开发者预制包、官方精心设计世界，也可以是由 Prompt 与 Seed
+生成后封存的本 Campaign 专属包。官方手工世界可以是一等游玩入口、回归基准和高质量
+对照组，但必须明确标识为 authored/official，不能冒充 Genesis。Genesis 用户流程不能
+降级成选择通用故事模块；生成的 Campaign 必须保留 Prompt + Seed lineage，并经过
+generation attempt、semantic binding、preflight 和原子 seal。
 动态生成内容不能动态生成新的 Python 规则、Event、Reducer、数据库 schema 或插件。
 
 ## 51.3 Determinism 的对象是已接受事实，不是预写所有内容
@@ -2967,6 +2982,12 @@ World Depth 不是后期 prose polish；它必须最终进入受支持的 State�
 Projection 和 Replay 合同。还要通过主角能力启用/移除的 A/B strategy proof，证明合法
 行动、可达策略或资源/机会代价发生结构差异，而不是只改变数值。若当前引擎没有对应
 运行语义，正确结果是 `UNSUPPORTED` 或明确的 `DEGRADED`，不是让 Narrator 掩盖缺口。
+
+任何以 Genesis 名义发布给用户的 Campaign 至少必须通过开发合同中的
+`STRUCTURAL_DIVERGENCE_V1`；只换 title、labels、premise 或资源名称的包不能用
+`depth_claim=NONE` 绕过反换皮门禁。更高的 `WORLD_DEPTH_L1` 与 `WORLD_DEPTH_L2` 分阶段
+实现：先证明地点图、压力与不可逆机会，再证明 off-screen Actor、多时钟和主角优势 A/B；
+最低结构差异不是可由 prose 或 acknowledgement 取消的产品承诺。
 
 ## 51.6 主题不是运行时开关
 

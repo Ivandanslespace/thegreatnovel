@@ -43,12 +43,14 @@ Playable Client Milestone PC1 — frozen at `pc1-frozen`
 
 Accepted PC1 implementation SHA: `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`。
 `pc1-frozen` is immutable and must never be moved, deleted, or recreated。
-Phase 9C2 remains frozen；Phase 9D deferred / not started；Phase 10A–10E implementation has not started。
+Phase 9C2 remains frozen；Phase 9D deferred / not started；Genesis production implementation has not started。
 
-**Phase 10G0 — Genesis Foundation Architecture Contract — documentation-only direction**
+**Phase 10G0.1 — Genesis Contract Consolidation — documentation-only direction**
 
-当前 `phase-10-genesis-foundation` 分支已建立 Genesis G0 的文档合同，只建立产品、authority、Replay、
-Feature Requirement 和 WorldPack 合同。Phase 10A implementation 尚未开始；当前可玩
+当前 `phase-10-genesis-foundation` 分支已将 Genesis G0.1 收敛为
+[`docs/DESIGN_VALUES.md`](docs/DESIGN_VALUES.md) 与 [`docs/DEV_SPEC.md`](docs/DEV_SPEC.md)：
+前者是产品/设计宪法，后者是冻结边界、Genesis authority、Active Roadmap 与验收合同。
+旧 G0 的 10A–10E 水平路线已由一个端到端 `Phase 10V1` milestone supersede；生产实现尚未开始。当前可玩
 能力仍是已冻结的 `phase75_expedition_v1` bounded/legacy runtime profile，不应把复杂
 Prompt、海洋物理、全民投放、活体玄武或义肢入侵描述为已支持机制。
 
@@ -124,13 +126,12 @@ Story 仍是 derived/non-authoritative artifact；external narrator 是 trusted 
 adapter；process containment 只是 operational cleanup，不是 security sandbox。不存在
 Client database 或 provider framework。
 
-下一方向是 Phase 10 — Genesis Foundation and Campaign-Specific World Compilation：
-先建立 `Prompt + Seed → proposal → support report → blueprint → bound runtime →
-sealed WorldPack` 的可审计文档合同，再由新的 superseding implementation 逐步实现。
-Phase 9D 仍 deferred，且不是 Phase 10A 前置条件。Phase 10A 只允许无副作用的
-Genesis Request、Requirement Proposal、有限 Feature Support Catalog 和确定性
-Feature Requirement Report；不得引入 EffectSystem、AbilityGraph、SkillTree
-mega-framework、generic rule DSL 或 world-specific branching。
+下一方向是 `Phase 10V1 — Genesis Foundation Vertical Slice`：一个 recorded Prompt/Seed
+必须完整经过 Proposal、Coverage Approval、Support Report、Blueprint、真实非 legacy
+runtime pressure、candidate WorldPack、scripted preflight、结构差异门禁、一次原子 seal、
+Campaign、20-turn autoplay、Replay 与 Verify。内部 checkpoint 不能在端到端闭环以前分别
+冻结。Phase 9D 仍 deferred，且不是 Phase 10V1 前置条件；不得引入 EffectSystem、
+AbilityGraph、SkillTree mega-framework、generic rule DSL 或 world-specific theme branching。
 现有 pending Narration Request 的自身 locale 是恢复时的权威值；只有新建 request
 使用一次性 locale override，下一次新 request 回到 Story initial locale。Campaign
 manifest 与 Session 的 campaign/session ID、actor ID、max_decisions 在 Story 初始化前
@@ -236,11 +237,8 @@ python -m tgn.demo  # (TBD in Phase 1)
 
 ## Documentation
 
-- [DESIGN_VALUES.md](docs/DESIGN_VALUES.md) - Core design philosophy
-- [MVP_REWRITE_SPEC.md](docs/MVP_REWRITE_SPEC.md) - Detailed architecture specification
-- [DEFERRED.md](docs/DEFERRED.md) - Features explicitly out of scope
-- [GENESIS_FOUNDATION.md](docs/GENESIS_FOUNDATION.md) - Phase 10 Genesis authority and compilation contract
-- [PHASE1_9_HARDCODING_INVENTORY.md](docs/PHASE1_9_HARDCODING_INVENTORY.md) - Phase 1–9 hardcoding and superseding-boundary audit
+- [DESIGN_VALUES.md](docs/DESIGN_VALUES.md) - 产品与架构设计宪法
+- [DEV_SPEC.md](docs/DEV_SPEC.md) - 当前开发合同、冻结边界、Genesis 路线与验收标准
 
 ## License
 
