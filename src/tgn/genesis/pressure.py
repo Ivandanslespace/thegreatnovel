@@ -204,8 +204,14 @@ class ExclusiveUpgradePressureConfig:
             _validate_int(getattr(self, name), f"$.{name}")
         if self.initial_common_material_count < 10:
             _fail("INVARIANT_VIOLATION", "$.initial_common_material_count", message="fixture must contain ample ordinary material")
-        if self.initial_stamina < max(self.recover_stamina_cost, self.upgrade_stamina_cost, self.stabilize_stamina_cost):
-            _fail("INVARIANT_VIOLATION", "$.initial_stamina", message="initial stamina must cover a legal action")
+        required_growth_stamina = self.recover_stamina_cost + self.upgrade_stamina_cost + self.traverse_stamina_cost
+        required_supply_stamina = self.recover_stamina_cost + self.stabilize_stamina_cost + self.claim_stamina_cost
+        if self.initial_stamina < max(required_growth_stamina, required_supply_stamina):
+            _fail(
+                "INVARIANT_VIOLATION",
+                "$.initial_stamina",
+                message="initial stamina must cover both complete pressure paths",
+            )
         for name in (
             "recover_duration",
             "recover_stamina_cost",
@@ -256,6 +262,14 @@ class ExclusiveUpgradePressureConfig:
     @property
     def hash(self) -> str:
         return _hash_payload(self.to_dict())
+
+    @property
+    def required_growth_stamina(self) -> int:
+        return self.recover_stamina_cost + self.upgrade_stamina_cost + self.traverse_stamina_cost
+
+    @property
+    def required_supply_stamina(self) -> int:
+        return self.recover_stamina_cost + self.stabilize_stamina_cost + self.claim_stamina_cost
 
 
 @dataclass(frozen=True, slots=True)
@@ -502,6 +516,8 @@ def pressure_event_hash(event: ExclusiveUpgradeEvent) -> str:
 
 
 def _check_state_config(state: ExclusiveUpgradePressureState, config: ExclusiveUpgradePressureConfig) -> None:
+    if type(state) is not ExclusiveUpgradePressureState:
+        _fail("INVARIANT_VIOLATION", "$.state", message="pressure state required")
     if type(config) is not ExclusiveUpgradePressureConfig:
         _fail("CONFIG_HASH_MISMATCH", "$.config", message="pressure config required")
     if state.config_hash != config.hash:
@@ -512,40 +528,119 @@ def _check_state_config(state: ExclusiveUpgradePressureState, config: ExclusiveU
         _fail("INVARIANT_VIOLATION", "$.state.growth_object_owner_id", message="owner differs from config")
 
 
+def _expected_pressure_stage_dicts(config: ExclusiveUpgradePressureConfig) -> tuple[tuple[str, dict[str, Any]], ...]:
+    """Return the six exact reachable signatures for this concrete slice."""
+
+    base = {
+        "protagonist_id": config.protagonist_id,
+        "growth_object_id": config.growth_object_id,
+        "growth_object_owner_id": config.growth_object_owner_id,
+        "growth_level": 0,
+        "common_material_count": config.initial_common_material_count,
+        "exclusive_resource_count": 0,
+        "exclusive_resource_source_available": True,
+        "exclusive_resource_spent_on": RESOURCE_SPENT_NONE,
+        "supply_route_stabilized": False,
+        "hazard_traversal_unlocked": False,
+        "supply_cache_claimed": False,
+        "hazard_zone_traversed": False,
+        "stamina": config.initial_stamina,
+        "game_minute": config.initial_game_minute,
+        "decision_seq": 0,
+        "event_seq": 0,
+        "config_hash": config.hash,
+    }
+
+    def stage(name: str, **changes: Any) -> tuple[str, dict[str, Any]]:
+        values = dict(base)
+        values.update(changes)
+        return name, values
+
+    recovered_stamina = config.initial_stamina - config.recover_stamina_cost
+    recovered_minute = config.initial_game_minute + config.recover_duration
+    upgrade_stamina = recovered_stamina - config.upgrade_stamina_cost
+    upgrade_minute = recovered_minute + config.upgrade_duration
+    supply_stamina = recovered_stamina - config.stabilize_stamina_cost
+    supply_minute = recovered_minute + config.stabilize_duration
+    return (
+        stage("INITIAL"),
+        stage(
+            "RESOURCE_RECOVERED",
+            exclusive_resource_count=1,
+            exclusive_resource_source_available=False,
+            stamina=recovered_stamina,
+            game_minute=recovered_minute,
+            decision_seq=1,
+            event_seq=1,
+        ),
+        stage(
+            "UPGRADE_COMMITTED",
+            exclusive_resource_count=0,
+            exclusive_resource_source_available=False,
+            exclusive_resource_spent_on=RESOURCE_SPENT_UPGRADE,
+            growth_level=1,
+            hazard_traversal_unlocked=True,
+            stamina=upgrade_stamina,
+            game_minute=upgrade_minute,
+            decision_seq=2,
+            event_seq=2,
+        ),
+        stage(
+            "UPGRADE_TERMINAL",
+            exclusive_resource_count=0,
+            exclusive_resource_source_available=False,
+            exclusive_resource_spent_on=RESOURCE_SPENT_UPGRADE,
+            growth_level=1,
+            hazard_traversal_unlocked=True,
+            hazard_zone_traversed=True,
+            stamina=upgrade_stamina - config.traverse_stamina_cost,
+            game_minute=upgrade_minute + config.traverse_duration,
+            decision_seq=3,
+            event_seq=3,
+        ),
+        stage(
+            "SUPPLY_COMMITTED",
+            exclusive_resource_count=0,
+            exclusive_resource_source_available=False,
+            exclusive_resource_spent_on=RESOURCE_SPENT_SUPPLY_ROUTE,
+            supply_route_stabilized=True,
+            stamina=supply_stamina,
+            game_minute=supply_minute,
+            decision_seq=2,
+            event_seq=2,
+        ),
+        stage(
+            "SUPPLY_TERMINAL",
+            exclusive_resource_count=0,
+            exclusive_resource_source_available=False,
+            exclusive_resource_spent_on=RESOURCE_SPENT_SUPPLY_ROUTE,
+            supply_route_stabilized=True,
+            supply_cache_claimed=True,
+            common_material_count=config.initial_common_material_count + config.supply_cache_material_reward,
+            stamina=supply_stamina - config.claim_stamina_cost,
+            game_minute=supply_minute + config.claim_duration,
+            decision_seq=3,
+            event_seq=3,
+        ),
+    )
+
+
+def _pressure_stage_name(state: ExclusiveUpgradePressureState, config: ExclusiveUpgradePressureConfig) -> str:
+    actual = state.to_dict()
+    for name, expected in _expected_pressure_stage_dicts(config):
+        if actual == expected:
+            return name
+    _fail(
+        "INVARIANT_VIOLATION",
+        "$.state",
+        message="state is not one of the six exact reachable pressure stages",
+    )
+    raise AssertionError("unreachable")
+
+
 def check_pressure_invariants(state: ExclusiveUpgradePressureState, config: ExclusiveUpgradePressureConfig) -> bool:
-    if type(state) is not ExclusiveUpgradePressureState:
-        _fail("INVARIANT_VIOLATION", "$.state", message="pressure state required")
     _check_state_config(state, config)
-    if state.decision_seq != state.event_seq:
-        _fail("INVARIANT_VIOLATION", "$.state", message="decision and event sequences must agree")
-    if state.exclusive_resource_source_available:
-        if state.exclusive_resource_count != 0 or state.exclusive_resource_spent_on != RESOURCE_SPENT_NONE:
-            _fail("INVARIANT_VIOLATION", "$.state", message="open source cannot coexist with held or spent resource")
-    elif state.exclusive_resource_count == 0 and state.exclusive_resource_spent_on == RESOURCE_SPENT_NONE:
-        _fail(
-            "INVARIANT_VIOLATION",
-            "$.state",
-            message="closed source must have a held resource or a committed branch",
-        )
-    if state.exclusive_resource_spent_on == RESOURCE_SPENT_NONE:
-        if state.growth_level != 0 or state.supply_route_stabilized or state.hazard_traversal_unlocked or state.supply_cache_claimed or state.hazard_zone_traversed:
-            _fail("INVARIANT_VIOLATION", "$.state", message="branch result exists before commitment")
-    if state.exclusive_resource_spent_on == RESOURCE_SPENT_UPGRADE:
-        if state.exclusive_resource_count != 0 or state.growth_level != 1 or not state.hazard_traversal_unlocked:
-            _fail("INVARIANT_VIOLATION", "$.state", message="upgrade branch state is inconsistent")
-        if state.supply_route_stabilized or state.supply_cache_claimed:
-            _fail("INVARIANT_VIOLATION", "$.state", message="upgrade and supply branches cannot coexist")
-    if state.exclusive_resource_spent_on == RESOURCE_SPENT_SUPPLY_ROUTE:
-        if state.exclusive_resource_count != 0 or state.growth_level != 0 or not state.supply_route_stabilized:
-            _fail("INVARIANT_VIOLATION", "$.state", message="supply branch state is inconsistent")
-        if state.hazard_traversal_unlocked or state.hazard_zone_traversed:
-            _fail("INVARIANT_VIOLATION", "$.state", message="supply and upgrade branches cannot coexist")
-    if state.hazard_zone_traversed and not state.hazard_traversal_unlocked:
-        _fail("INVARIANT_VIOLATION", "$.state.hazard_zone_traversed", message="hazard result requires unlock")
-    if state.supply_cache_claimed and not state.supply_route_stabilized:
-        _fail("INVARIANT_VIOLATION", "$.state.supply_cache_claimed", message="cache result requires route")
-    if state.supply_cache_claimed and state.hazard_zone_traversed:
-        _fail("INVARIANT_VIOLATION", "$.state", message="follow-up results are mutually exclusive")
+    _pressure_stage_name(state, config)
     return True
 
 
@@ -824,6 +919,12 @@ def replay_pressure_events(
     events: Sequence[ExclusiveUpgradeEvent],
     config: ExclusiveUpgradePressureConfig,
 ) -> ExclusiveUpgradePressureState:
+    """Replay any valid prefix of this feature-local pressure trace.
+
+    The sequence counters here belong only to this isolated pressure slice;
+    they are not a future Campaign/EventStore global sequencing rule.
+    """
+
     if not isinstance(events, (list, tuple)):
         _fail("INVALID_EVENT_PAYLOAD", "$.events", message="event sequence required")
     if type(initial_state) is not ExclusiveUpgradePressureState:
@@ -835,23 +936,44 @@ def replay_pressure_events(
         if type(event) is not ExclusiveUpgradeEvent:
             _fail("INVALID_EVENT_PAYLOAD", f"$.events[{index}]", message="typed pressure event required")
         current = reduce_pressure_event(current, event, config)
-    # This API verifies a complete pressure trace, not an arbitrary prefix.
-    # Requiring one terminal outcome makes silent tail deletion observable;
-    # middle deletion, insertion, duplication, and reordering are already
-    # rejected by the sequence/hash checks in reduce_pressure_event.
-    if not (current.hazard_zone_traversed or current.supply_cache_claimed):
+    return current
+
+
+def verify_terminal_pressure_trace(
+    initial_state: ExclusiveUpgradePressureState,
+    events: Sequence[ExclusiveUpgradeEvent],
+    config: ExclusiveUpgradePressureConfig,
+    expected_final_state_hash: str,
+) -> ExclusiveUpgradePressureState:
+    """Verify a complete A/B pressure trace and its expected terminal hash."""
+
+    if type(expected_final_state_hash) is not str or _HEX64_RE.fullmatch(expected_final_state_hash) is None:
+        _fail(
+            "STATE_HASH_MISMATCH",
+            "$.expected_final_state_hash",
+            message="expected terminal state hash must be SHA-256 hex",
+        )
+    final_state = replay_pressure_events(initial_state, events, config)
+    terminal_results = int(final_state.hazard_zone_traversed) + int(final_state.supply_cache_claimed)
+    if terminal_results != 1:
         _fail(
             "EVENT_SEQUENCE_MISMATCH",
             "$.events",
-            message="pressure replay must end at a terminal branch result",
+            message="pressure trace is a legal prefix, not a terminal trace",
         )
-    if legal_pressure_actions(current, config.protagonist_id, config):
+    if legal_pressure_actions(final_state, config.protagonist_id, config):
         _fail(
             "INVARIANT_VIOLATION",
             "$.events",
             message="terminal pressure state still exposes legal actions",
         )
-    return current
+    if pressure_state_hash(final_state) != expected_final_state_hash:
+        _fail(
+            "STATE_HASH_MISMATCH",
+            "$.expected_final_state_hash",
+            message="terminal state hash does not match expected hash",
+        )
+    return final_state
 
 
 def project_pressure_observation(
@@ -911,4 +1033,5 @@ __all__ = [
     "reduce_pressure_event",
     "replay_pressure_events",
     "resolve_pressure_action",
+    "verify_terminal_pressure_trace",
 ]

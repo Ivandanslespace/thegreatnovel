@@ -35,6 +35,7 @@ from .pressure import (
     reduce_pressure_event,
     replay_pressure_events,
     resolve_pressure_action,
+    verify_terminal_pressure_trace,
 )
 from .models import (
     ACCEPTANCE_POLICIES,
@@ -116,5 +117,6 @@ __all__ = [
     "reduce_pressure_event",
     "replay_pressure_events",
     "resolve_pressure_action",
+    "verify_terminal_pressure_trace",
     "verify_report",
 ]

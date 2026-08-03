@@ -37,6 +37,7 @@ from tgn.genesis import (
     reduce_pressure_event,
     replay_pressure_events,
     resolve_pressure_action,
+    verify_terminal_pressure_trace,
 )
 
 
@@ -111,6 +112,34 @@ def test_config_and_initial_state_are_strict_and_detached():
     assert error.value.code == "CONFIG_HASH_MISMATCH"
 
 
+def test_config_requires_both_complete_pressure_paths():
+    base = ExclusiveUpgradePressureConfig()
+    maximum_required = max(base.required_growth_stamina, base.required_supply_stamina)
+    exact = replace(base, initial_stamina=maximum_required)
+    assert exact.initial_stamina == maximum_required
+    assert exact.required_growth_stamina == base.required_growth_stamina
+    assert exact.required_supply_stamina == base.required_supply_stamina
+
+    under = base.to_dict()
+    under["initial_stamina"] = maximum_required - 1
+    with pytest.raises(PressureValidationError) as error:
+        ExclusiveUpgradePressureConfig.from_dict(under)
+    assert error.value.code == "INVARIANT_VIOLATION"
+
+    recovery_only = base.to_dict()
+    recovery_only.update(
+        {
+            "initial_stamina": 5,
+            "recover_stamina_cost": 5,
+            "upgrade_stamina_cost": 3,
+            "traverse_stamina_cost": 3,
+        }
+    )
+    with pytest.raises(PressureValidationError) as error:
+        ExclusiveUpgradePressureConfig.from_dict(recovery_only)
+    assert error.value.code == "INVARIANT_VIOLATION"
+
+
 def test_action_strict_schema_and_initial_legality():
     config = ExclusiveUpgradePressureConfig()
     state = initial_pressure_state(config)
@@ -150,7 +179,7 @@ def test_action_strict_schema_and_initial_legality():
     low_stamina = replace(state, stamina=1)
     with pytest.raises(PressureValidationError) as error:
         resolve_pressure_action(low_stamina, _action(low_stamina, RECOVER_EXCLUSIVE_RESOURCE, config), config)
-    assert error.value.code == "INSUFFICIENT_STAMINA"
+    assert error.value.code == "INVARIANT_VIOLATION"
 
 
 def test_recovery_is_single_use_and_does_not_mutate_input():
@@ -337,14 +366,40 @@ def test_removing_exclusive_resource_semantics_changes_legal_actions_and_cost():
     assert error.value.code == "ORDINARY_RESOURCE_FALLBACK_FORBIDDEN"
 
 
-def test_replay_is_deterministic_and_rejects_delete_add_or_reorder():
+def test_replay_accepts_prefixes_and_terminal_verify_rejects_incomplete_or_corrupt_traces():
     config = ExclusiveUpgradePressureConfig()
     final_a, events_a = _policy_a(config)
-    replayed = replay_pressure_events(initial_pressure_state(config), events_a, config)
+    initial = initial_pressure_state(config)
+    replayed_initial = replay_pressure_events(initial, (), config)
+    assert replayed_initial.to_dict() == initial.to_dict()
+
+    recovered = replay_pressure_events(initial, events_a[:1], config)
+    assert recovered.exclusive_resource_count == 1
+    assert recovered.exclusive_resource_source_available is False
+    assert recovered.event_seq == 1
+    assert recovered.event_seq == events_a[0].event_seq
+
+    upgraded = replay_pressure_events(initial, events_a[:2], config)
+    assert upgraded.exclusive_resource_spent_on == RESOURCE_SPENT_UPGRADE
+    assert upgraded.growth_level == 1
+    assert upgraded.hazard_traversal_unlocked is True
+    assert upgraded.hazard_zone_traversed is False
+    assert upgraded.event_seq == 2
+
+    replayed = replay_pressure_events(initial, events_a, config)
     assert pressure_state_hash(replayed) == pressure_state_hash(final_a)
     assert replayed.to_dict() == final_a.to_dict()
+    verified = verify_terminal_pressure_trace(initial, events_a, config, pressure_state_hash(final_a))
+    assert verified.to_dict() == final_a.to_dict()
 
-    corrupted_initial = replace(initial_pressure_state(config), exclusive_resource_source_available=False)
+    final_b, events_b = _policy_b(config)
+    supply_committed = replay_pressure_events(initial, events_b[:2], config)
+    assert supply_committed.exclusive_resource_spent_on == RESOURCE_SPENT_SUPPLY_ROUTE
+    assert supply_committed.supply_route_stabilized is True
+    assert supply_committed.supply_cache_claimed is False
+    assert verify_terminal_pressure_trace(initial, events_b, config, pressure_state_hash(final_b)).to_dict() == final_b.to_dict()
+
+    corrupted_initial = replace(initial, exclusive_resource_source_available=False)
     with pytest.raises(PressureValidationError) as error:
         replay_pressure_events(corrupted_initial, (), config)
     assert error.value.code == "INVARIANT_VIOLATION"
@@ -354,22 +409,46 @@ def test_replay_is_deterministic_and_rejects_delete_add_or_reorder():
     assert [event.to_dict() for event in events_again] == [event.to_dict() for event in events_a]
 
     with pytest.raises(PressureValidationError) as error:
-        replay_pressure_events(initial_pressure_state(config), events_a[1:], config)
+        replay_pressure_events(initial, events_a[1:], config)
+    assert error.value.code == "EVENT_SEQUENCE_MISMATCH"
+
+    tail_prefix = replay_pressure_events(initial, events_a[:-1], config)
+    assert tail_prefix.exclusive_resource_spent_on == RESOURCE_SPENT_UPGRADE
+    with pytest.raises(PressureValidationError) as error:
+        verify_terminal_pressure_trace(initial, events_a[:-1], config, pressure_state_hash(final_a))
     assert error.value.code == "EVENT_SEQUENCE_MISMATCH"
 
     with pytest.raises(PressureValidationError) as error:
-        replay_pressure_events(initial_pressure_state(config), events_a[:-1], config)
+        verify_terminal_pressure_trace(initial, (), config, pressure_state_hash(final_a))
     assert error.value.code == "EVENT_SEQUENCE_MISMATCH"
+    with pytest.raises(PressureValidationError) as error:
+        verify_terminal_pressure_trace(initial, events_a[:1], config, pressure_state_hash(final_a))
+    assert error.value.code == "EVENT_SEQUENCE_MISMATCH"
+    with pytest.raises(PressureValidationError) as error:
+        verify_terminal_pressure_trace(initial, events_a[:2], config, pressure_state_hash(final_a))
+    assert error.value.code == "EVENT_SEQUENCE_MISMATCH"
+
+    with pytest.raises(PressureValidationError) as error:
+        verify_terminal_pressure_trace(initial, events_a, config, "0" * 64)
+    assert error.value.code == "STATE_HASH_MISMATCH"
 
     duplicate = events_a + (events_a[-1],)
     with pytest.raises(PressureValidationError) as error:
-        replay_pressure_events(initial_pressure_state(config), duplicate, config)
+        replay_pressure_events(initial, duplicate, config)
     assert error.value.code in {"EVENT_SEQUENCE_MISMATCH", "DECISION_SEQUENCE_MISMATCH"}
 
     reordered = (events_a[1], events_a[0], events_a[2])
     with pytest.raises(PressureValidationError) as error:
-        replay_pressure_events(initial_pressure_state(config), reordered, config)
+        replay_pressure_events(initial, reordered, config)
     assert error.value.code in {"EVENT_SEQUENCE_MISMATCH", "STATE_HASH_MISMATCH", "EVENT_HASH_MISMATCH"}
+
+
+def test_pressure_sequence_counters_are_local_to_this_trace():
+    # These counters describe only this feature-local pressure trace. They do
+    # not establish a future Campaign/EventStore global decision sequencing rule.
+    _, events = _policy_a(ExclusiveUpgradePressureConfig())
+    assert [event.decision_seq for event in events] == [1, 2, 3]
+    assert [event.event_seq for event in events] == [1, 2, 3]
 
 
 def test_invariants_cover_negative_and_cross_branch_state_corruption():
@@ -406,6 +485,68 @@ def test_invariants_cover_negative_and_cross_branch_state_corruption():
     with pytest.raises(PressureValidationError):
         backward_time = replace(initial, game_minute=-1)
         ExclusiveUpgradePressureState.from_dict(backward_time.to_dict())
+
+
+def test_six_exact_reachable_stages_reject_unreachable_signatures():
+    config = ExclusiveUpgradePressureConfig()
+    initial = initial_pressure_state(config)
+    recovered, _ = _recover(initial, config)
+    upgraded, _ = _apply(recovered, UPGRADE_GROWTH_OBJECT, config)
+    final_a, _ = _policy_a(config)
+    stabilized, _ = _apply(recovered, STABILIZE_SUPPLY_ROUTE, config)
+    final_b, _ = _policy_b(config)
+
+    for stage in (initial, recovered, upgraded, final_a, stabilized, final_b):
+        assert check_pressure_invariants(stage, config) is True
+
+    assert recovered.game_minute == config.initial_game_minute + config.recover_duration
+    assert upgraded.game_minute == recovered.game_minute + config.upgrade_duration
+    assert final_a.game_minute == upgraded.game_minute + config.traverse_duration
+    assert stabilized.game_minute == recovered.game_minute + config.stabilize_duration
+    assert final_b.game_minute == stabilized.game_minute + config.claim_duration
+    assert final_b.common_material_count == config.initial_common_material_count + config.supply_cache_material_reward
+
+    impossible_states = (
+        replace(initial, decision_seq=5, event_seq=5),
+        replace(recovered, game_minute=recovered.game_minute + 1),
+        replace(recovered, common_material_count=recovered.common_material_count + 1),
+        replace(upgraded, common_material_count=upgraded.common_material_count + 1),
+        replace(final_b, common_material_count=final_b.common_material_count - 1),
+        replace(final_b, common_material_count=final_b.common_material_count + config.supply_cache_material_reward),
+        replace(final_a, hazard_zone_traversed=False),
+        replace(recovered, event_seq=2, decision_seq=2),
+    )
+    for impossible in impossible_states:
+        with pytest.raises(PressureValidationError) as error:
+            check_pressure_invariants(impossible, config)
+        assert error.value.code == "INVARIANT_VIOLATION"
+
+
+def test_public_pressure_functions_reject_wrong_object_types_stably():
+    config = ExclusiveUpgradePressureConfig()
+    initial = initial_pressure_state(config)
+    _, event = _recover(initial, config)
+    final_a, events_a = _policy_a(config)
+    calls = (
+        lambda: initial_pressure_state(object()),
+        lambda: pressure_state_hash(object()),
+        lambda: pressure_event_hash(object()),
+        lambda: check_pressure_invariants(object(), config),
+        lambda: legal_pressure_actions(object(), config.protagonist_id, config),
+        lambda: resolve_pressure_action(initial, object(), config),
+        lambda: resolve_pressure_action(object(), _action(initial, RECOVER_EXCLUSIVE_RESOURCE, config), config),
+        lambda: reduce_pressure_event(initial, object(), config),
+        lambda: reduce_pressure_event(object(), event, config),
+        lambda: replay_pressure_events(object(), (), config),
+        lambda: replay_pressure_events(initial, object(), config),
+        lambda: verify_terminal_pressure_trace(initial, events_a, config, object()),
+        lambda: verify_terminal_pressure_trace(object(), events_a, config, pressure_state_hash(final_a)),
+        lambda: project_pressure_observation(object(), config.protagonist_id, config),
+        lambda: project_pressure_observation(initial, object(), config),
+    )
+    for call in calls:
+        with pytest.raises(PressureValidationError):
+            call()
 
 
 def test_observation_is_public_and_action_projection_is_exact():
