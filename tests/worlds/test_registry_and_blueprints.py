@@ -193,6 +193,100 @@ def test_expansion_trigger_is_engine_materialized(world_id: str) -> None:
         assert all(patch["path"] != "world.materialized_expansions" for patch in milestone["patches"])
 
 
+def _iter_blueprint_patches(world: dict):
+    for action in world["actions"]:
+        yield from action["success"]["patches"]
+        yield from action["failure"]["patches"]
+        yield from action["lever"]["extra_patches"]
+    for process in world["processes"]:
+        yield from process["patches"]
+    for milestone in world["milestones"]:
+        yield from milestone["patches"]
+    for expansion in world["expansions"]:
+        yield from expansion["candidate"]["state_patches"]
+        for action in expansion["candidate"]["actions"]:
+            yield from action["success"]["patches"]
+            yield from action["failure"]["patches"]
+            yield from action["lever"]["extra_patches"]
+        for process in expansion["candidate"]["processes"]:
+            yield from process["patches"]
+        for milestone in expansion["candidate"]["milestones"]:
+            yield from milestone["patches"]
+
+
+@pytest.mark.parametrize("world_id", WORLD_IDS)
+def test_add_patches_target_numeric_runtime_values(world_id: str) -> None:
+    world = _world(world_id)
+    for patch in _iter_blueprint_patches(world):
+        if patch["op"] != "add":
+            continue
+        target = _get(world["initial_state"], patch["path"])
+        assert isinstance(target, (int, float)) and not isinstance(target, bool), patch
+
+
+def _real_engine_api():
+    try:
+        from tgn.blueprint import compile_blueprint
+        from tgn.engine import apply_event, initial_state, preview_action, resolve_action
+    except ImportError:
+        pytest.skip("真实 engine 需要 PYTHONPATH 指向主 worktree 的 src")
+    return compile_blueprint, apply_event, initial_state, preview_action, resolve_action
+
+
+@pytest.mark.parametrize(
+    ("world_id", "seed", "route", "relationship", "tier", "expansion", "candidate"),
+    [
+        (
+            "frost_harbor",
+            1,
+            ["accept_debt", "inspect_grid", "trace_fault", "log_cause", "automate_pump", "schedule_crew", "audit_manifest", "rest", "convene_council", "sign_quota", "rest", "map_ice_route"],
+            "become_dispatch_steward",
+            "cross_tier_three",
+            "outer_ice_shelf",
+            "map_ice_route",
+        ),
+        (
+            "gray_court",
+            3,
+            ["rest", "gather_deposition", "verify_chain", "file_motion", "publish_affidavit", "seek_witness", "bind_commitment", "call_alliance", "set_arbitration", "draft_settlement", "audit_registry", "expose_conflict", "audit_registry", "rest", "ratify_concord"],
+            "become_arbitration_setter",
+            "enter_federal_circuit",
+            "federal_concord",
+            "ratify_concord",
+        ),
+    ],
+)
+def test_real_engine_routes_preview_resolve_replay_and_expand(
+    world_id: str,
+    seed: int,
+    route: list[str],
+    relationship: str,
+    tier: str,
+    expansion: str,
+    candidate: str,
+) -> None:
+    compile_blueprint, apply_event, initial_state, preview_action, resolve_action = _real_engine_api()
+    world = _world(world_id)
+    compiled = compile_blueprint(world)
+    state = initial_state(compiled, world_id, seed)
+    for turn, action_id in enumerate(route):
+        before = json.loads(json.dumps(state, ensure_ascii=False))
+        preview = preview_action(compiled, state, action_id, use_lever=True)
+        assert preview.legal, (action_id, preview.reason_code, state)
+        resolution = resolve_action(compiled, state, preview.preview_token, f"e2e-{world_id}-{turn}")
+        replay = before
+        for event in resolution.events:
+            replay = apply_event(replay, event)
+        assert replay == resolution.new_state
+        state = resolution.new_state
+    completed = set(state["world"]["completed_milestones"])
+    assert relationship in completed
+    assert tier in completed
+    assert expansion in state["world"]["materialized_expansions"]
+    assert candidate in state["world"]["active_actions"]
+    assert state["world"]["action_counts"][candidate] == 1
+
+
 def _condition_paths(value: object) -> list[tuple[str, object]]:
     found: list[tuple[str, object]] = []
     if isinstance(value, dict):
