@@ -61,6 +61,30 @@ def test_commit_cas_idempotency_and_pending_gate(tmp_path) -> None:
         store.close()
 
 
+def test_opening_is_a_grounded_turn_zero_event_and_draft_prologue(tmp_path) -> None:
+    store = CampaignStore.create(tmp_path, "demo", {"title": "潮汐卷"}, _initial())
+    facts = (
+        {"text": "潮水正在吞没低层码头。", "visibility": "public", "kind": "premise", "source": "blueprint"},
+        {"text": "你仍没有调度权。", "visibility": "player", "kind": "control_deficit", "source": "blueprint"},
+    )
+    try:
+        opened = store.begin_opening("open-1", facts, {"state": "visible"})
+        assert opened == store.begin_opening("open-1", facts, {"state": "visible"})
+        assert store.get_state()["campaign"]["turn"] == 0
+        assert store.get_events()[0]["event_type"] == "campaign.started"
+        with pytest.raises(CommandConflict):
+            store.begin_opening("open-1", facts[:1], {"state": "visible"})
+        response = fallback_response(store.pending_narration())
+        store.commit_narration(response)
+        draft = (store.exports_dir / "novel_draft.md").read_text(encoding="utf-8")
+        assert "## 序章" in draft and "第 0 回合" not in draft
+        store.commit_resolution("req-1", _resolution(store))
+        store.commit_narration(fallback_response(store.pending_narration()))
+        assert store.verify()["event_count"] == 2
+    finally:
+        store.close()
+
+
 def test_patch_tamper_and_event_tamper_are_detected(tmp_path) -> None:
     store = CampaignStore.create(tmp_path, "demo", {"world": "w"}, _initial())
     try:

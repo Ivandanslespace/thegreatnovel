@@ -378,6 +378,108 @@ class CampaignStore:
         row = self._db.execute("SELECT response_json FROM commands WHERE request_id=?", (request_id,)).fetchone()
         return _loads(row[0]) if row else None
 
+    def begin_opening(
+        self,
+        request_id: str,
+        facts: Iterable[Mapping[str, Any]],
+        player_observation: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Commit the turn-zero world entry before any prose is generated.
+
+        The opening is a real, hash-chained event with no state mutation.  This
+        gives the narrator a grounded prologue while preserving turn zero for
+        the player's first decision.
+        """
+
+        self._ensure_writable()
+        fact_values = [dict(fact) for fact in facts]
+        observation = dict(player_observation or {})
+        command_payload = {"facts": fact_values, "player_observation": observation}
+        payload_hash = sha256_json(command_payload)
+        existing = self._db.execute(
+            "SELECT payload_hash,response_json FROM commands WHERE request_id=?",
+            (request_id,),
+        ).fetchone()
+        if existing:
+            if existing["payload_hash"] != payload_hash:
+                raise CommandConflict("request_id was reused with a different opening")
+            return _loads(existing["response_json"])
+        if self.manifest().get("status") != "ACTIVE":
+            raise CampaignStoreError("opening requires an active campaign")
+        if self.pending_narration() is not None:
+            raise CampaignStoreError("pending narration must be committed before opening")
+        if self._db.execute("SELECT 1 FROM events LIMIT 1").fetchone():
+            raise CampaignStoreError("opening can only be committed before the first event")
+        turn, state_hash, state = self._current()
+        if turn != 0:
+            raise CampaignStoreError("opening requires turn zero")
+        campaign = _campaign_meta(state)
+        committed_facts: list[dict[str, Any]] = []
+        for index, raw_fact in enumerate(fact_values):
+            if "fact_id" in raw_fact:
+                raise IntegrityError("fact_id is assigned by storage")
+            for required in ("text", "visibility", "kind", "source"):
+                if required not in raw_fact:
+                    raise IntegrityError(f"fact requires {required}")
+            visibility = raw_fact["visibility"]
+            if not isinstance(visibility, str) or not (
+                visibility in {"public", "player", "hidden"}
+                or (visibility.startswith("actor:") and visibility[6:].strip())
+            ):
+                raise IntegrityError("invalid fact visibility")
+            committed_facts.append({**raw_fact, "fact_id": f"f-00000001-{index:02d}"})
+        details = {
+            "turn_after": 0,
+            "time_after": int(campaign.get("time_minute", 0)),
+            "tier_after": campaign.get("current_tier", 0),
+            "opening": True,
+        }
+        event = {
+            "seq": 1,
+            "turn": 0,
+            "event_id": "e-00000001",
+            "event_type": "campaign.started",
+            "actor_id": "world",
+            "patches": [],
+            "facts": committed_facts,
+            "details": details,
+            "prev_hash": "genesis",
+            "state_before_hash": state_hash,
+            "state_after_hash": state_hash,
+        }
+        event["event_hash"] = sha256_json(event)
+        request = build_narration_request(
+            self.campaign_dir.name,
+            0,
+            [event],
+            observation,
+            {"opening": True, "locale": self._world_locale()},
+        )
+        request_dict = _plain(request.to_dict())
+        response = {
+            "request_id": request_id,
+            "turn": 0,
+            "state_hash": state_hash,
+            "event_ids": [event["event_id"]],
+            "narration_request": request_dict,
+        }
+        with self._db:
+            self._db.execute(
+                "INSERT INTO events VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    event["seq"], event["turn"], event["event_id"], event["event_type"],
+                    event["actor_id"], _json(event["patches"]), _json(event["facts"]),
+                    _json(event["details"]), event["prev_hash"], event["state_before_hash"],
+                    event["state_after_hash"], event["event_hash"],
+                ),
+            )
+            self._db.execute("INSERT INTO commands VALUES (?,?,?)", (request_id, payload_hash, _json(response)))
+            self._db.execute(
+                "INSERT INTO narration_requests VALUES (?,?,?,'PENDING')",
+                (request.request_id, request.turn, _json(request_dict)),
+            )
+        return response
+
     def _current(self) -> tuple[int, str, dict[str, Any]]:
         row = self._db.execute("SELECT turn,state_hash,state_json FROM snapshot WHERE id=1").fetchone()
         if not row:
@@ -517,15 +619,39 @@ class CampaignStore:
         return _loads((self.exports_dir / "manifest.json").read_text(encoding="utf-8"))
 
     def _narratives(self) -> list[dict[str, Any]]:
-        rows = self._db.execute("SELECT turn,response_json FROM narratives ORDER BY rowid").fetchall()
-        return [{"turn": int(row["turn"]), **_loads(row["response_json"])} for row in rows]
+        rows = self._db.execute(
+            """
+            SELECT n.turn,n.response_json,r.payload_json
+            FROM narratives AS n
+            JOIN narration_requests AS r ON r.request_id=n.request_id
+            ORDER BY n.rowid
+            """
+        ).fetchall()
+        values: list[dict[str, Any]] = []
+        for row in rows:
+            request = _loads(row["payload_json"])
+            values.append({
+                "turn": int(row["turn"]),
+                "context": dict(request.get("context", {})),
+                **_loads(row["response_json"]),
+            })
+        return values
+
+    @staticmethod
+    def _chapter_heading(narrative: Mapping[str, Any]) -> str:
+        context = narrative.get("context", {})
+        if isinstance(context, Mapping) and context.get("opening"):
+            return "## 序章"
+        if isinstance(context, Mapping) and context.get("ending"):
+            return "## 尾声"
+        return f"## 第 {int(narrative['turn'])} 章"
 
     def _refresh_draft(self) -> None:
         self._ensure_exports_dir()
         title = self._world_title()
         lines = [f"# {title}", ""]
         for narrative in self._narratives():
-            lines += [f"## 第 {narrative['turn']} 回合", narrative["prose"], ""]
+            lines += [self._chapter_heading(narrative), narrative["prose"], ""]
         self._atomic_text(self.exports_dir / "novel_draft.md", "\n".join(lines))
 
     @staticmethod
@@ -552,7 +678,7 @@ class CampaignStore:
         narratives = self._narratives()
         novel_lines = [f"# {self._world_title()}", ""]
         for narrative in narratives:
-            novel_lines += [f"## 第 {narrative['turn']} 回合", narrative["prose"], ""]
+            novel_lines += [self._chapter_heading(narrative), narrative["prose"], ""]
         novel = "\n".join(novel_lines)
         history = _json({"campaign_id": self.campaign_dir.name, "events": events, "narratives": narratives})
         event_head = events[-1]["event_hash"] if events else "genesis"
