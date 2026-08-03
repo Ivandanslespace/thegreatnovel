@@ -17,22 +17,29 @@
 - README 中标记为 frozen 的 phase、freeze tag、accepted implementation 和 PC1 冻结范围不得直接改写、移动、删除或重建；未来修复必须经过显式 reopen 或 superseding-phase 流程。
 - 主 Agent 必须根据项目合同和 worker 的验收标准复核结果；worker 的“完成”不能替代主线程验收。
 
-## Genesis 后续长期门禁
+## Genesis 长期边界与阶段切换
 
-Phase 10G0 的一次性 Stage 0–3 文档任务已经由提交
-`9cdadc472cd92ce38e42767a896718fcad61f938` 记录；其七文件 allowlist、禁止写入
-`src/**`/`tests/**` 和“本轮不得实现 Genesis”的规则不得继续阻塞未来明确授权的 coding
-phase。当前权威内容文档只有 `docs/DESIGN_VALUES.md` 与 `docs/DEV_SPEC.md`。
+Phase 10G0（Genesis Foundation Architecture Contract）的 Stage 0–3 文档任务已经由提交
+`9cdadc472cd92ce38e42767a896718fcad61f938` 完成。以下内容只属于该次一次性任务，现已过期，
+不得被套用为后续开发的全局门禁：七文件 allowlist、仅允许文档写入、禁止修改 `src/**` /
+`tests/**`、不得实现 Genesis，以及强制使用 G0 专用的 reviewer 流程。后续阶段应按自己的
+Phase Contract 执行；只要用户或该阶段合同明确授权 coding，就可以在允许范围内修改代码、
+测试、配置和运行时实现。
 
-- 每个后续 phase 必须先从 `docs/DEV_SPEC.md` 建立自包含 Phase Contract，明确产品问题、
-  allowed files、frozen exclusions、完整 vertical slice、验收命令和 non-goals；没有明确
-  coding 授权时，不得从路线图文字自行开始实现。
+当前权威设计/开发文档只有 `docs/DESIGN_VALUES.md` 与 `docs/DEV_SPEC.md`。
+
+- 每个后续 phase 开始前，建立一份自包含 Phase Contract，说明产品问题、允许修改的文件、
+  frozen exclusions、验收命令和 non-goals。它用于界定本阶段工作，不是禁止后续阶段开发的
+  永久模板；Phase Contract 可以直接写在任务描述、PR 说明或阶段计划中，不强制新建文件；
+  没有 coding 授权时，才不得仅凭路线图文字自行实现。
 - `pc1-frozen`、Phase 1–9 freeze tag、accepted implementation、旧 artifact 语义和 PC1
-  文件边界保持不可变。未来修改只能通过显式 reopen 或新的 superseding phase/milestone；
-  不得移动、删除或重建既有 tag。
+  文件边界保持不可变。未来若确需改变这些内容，必须通过显式 reopen 或新的 superseding
+  phase/milestone；不得移动、删除或重建既有 tag。
 - 不得用子代理共识替代真实代码、测试、artifact、hash 与 Git ref 证据；不得把历史
   `devour_evolution` 候选直接恢复为 Genesis 默认合同。
-- 大型只读审计仍优先并行；写入必须隔离或串行。文档合同初稿由主 Agent 整合，随后使用
-  未参与初稿的全新只读 reviewer；未关闭的 BLOCKER 禁止提交。
-- 新 Feature 必须在同一个可验收 vertical slice 内贯穿 State、Action、Event、Reducer、
-  Invariant、Projection、Persistence、Replay 与测试。不得从 future roadmap 预建万能框架。
+- 大型只读审计优先并行，写入操作隔离或串行。仅当某个阶段是文档合同变更，才沿用主 Agent
+  整合与独立 reviewer 的要求；普通 coding phase 以及小型 bugfix/maintenance 不需要重复
+  G0 的文档审查流程。
+- 当阶段新增可玩行为时，优先在该阶段合同规定的范围内交付可验收的 vertical slice，覆盖
+  该行为实际需要的 State、Action、Event、Reducer、Invariant、Projection、Persistence、
+  Replay 或测试边界；不要求每个阶段预先实现所有层，也不得从 future roadmap 预建万能框架。
