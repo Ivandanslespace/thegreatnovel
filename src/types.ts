@@ -14,6 +14,12 @@ export const SCHEMA_VERSION = 2;
 /** Blueprint 数据格式版本（与存档模式版本独立演进）。 */
 export const BLUEPRINT_SCHEMA_VERSION = 1;
 
+/**
+ * 表现层语言代码（V1.1：开局选择语言）。纯表现层元数据，
+ * 不参与任何结算数值与确定性；旧 Blueprint/存档无此字段时按 "zh" 处理。
+ */
+export type Language = 'zh' | 'en' | 'fr' | 'ar';
+
 // ---------------------------------------------------------------------------
 // 条件语言（唯一条件系统，供 requires / gate / trigger / leverage 共用）
 // ---------------------------------------------------------------------------
@@ -111,6 +117,8 @@ export interface BlueprintMeta {
   /** 控制力来源轴（知识/记忆、关系、资源生产、身份法律、时空规则或自定义，宪章 §2）。 */
   controlAxis: string;
   title?: string;
+  /** 表现层语言（可选，缺省 "zh"；可被开局命令 --language 覆盖）。 */
+  language?: Language;
 }
 
 /** 宪章 §12 最小检查七问（校验器检查存在性与非空）。 */
@@ -316,6 +324,11 @@ export interface GameState {
   schemaVersion: number;
   world: string;
   seed: number;
+  /**
+   * 表现层语言（V1.1 起开局时写入）。契约：**字段缺失恒等于 "zh"**——
+   * 旧存档按中文处理，迁移链不回填该字段（零风险），任何代码不得事后改写它。
+   */
+  language?: Language;
   turn: number;
   tier: number;
   assets: Record<string, number>;

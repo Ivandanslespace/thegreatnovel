@@ -12,7 +12,8 @@ import { appendFile, mkdir, readFile, rename, writeFile, readdir, stat } from 'n
 import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { SCHEMA_VERSION } from './types.ts';
-import type { Blueprint, GameState, HistoryEntry } from './types.ts';
+import type { Blueprint, GameState, HistoryEntry, Language } from './types.ts';
+import { DEFAULT_LANGUAGE, isLanguage } from './i18n.ts';
 
 export function savesRoot(base: string): string {
   return path.join(base, 'saves');
@@ -26,13 +27,18 @@ export function sha256(content: string): string {
   return createHash('sha256').update(content, 'utf8').digest('hex');
 }
 
-/** slug（章节文件名用；保留 CJK）。 */
-export function slugify(input: string): string {
+/** slug（章节文件名用）。先 NFKD 分解并去音标（法语 La Marée d'Écho →
+ * la-maree-decho），再仅保留 ASCII 拉丁字符与数字——非拉丁标题如中文/
+ * 阿拉伯文经 slugify 后为空，回退为调用方给的数字编号，保持 ASCII 文件名（V1.1）。 */
+export function slugify(input: string, fallback = 'untitled'): string {
   const ascii = input
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '') // 去掉组合音标（é → e）
+    .replace(/['’‘]/g, '') // 撇号直接省略而非当分隔符（d'Écho → decho）
     .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-')
+    .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
-  return ascii.length > 0 ? ascii : 'untitled';
+  return ascii.length > 0 ? ascii : fallback;
 }
 
 /** 原子写：临时文件名带 pid + 随机后缀，避免并发/残留冲突（minor）。 */
@@ -87,8 +93,9 @@ export function applyMigrations(raw: unknown): { state: GameState; migrated: boo
 // 状态读写
 // ---------------------------------------------------------------------------
 
-/** 开局初始状态（schema v2：history 不在 state 内，开局条目由 CLI 写 jsonl）。 */
-export function initState(blueprint: Blueprint, world: string, seed?: number): GameState {
+/** 开局初始状态（schema v2：history 不在 state 内，开局条目由 CLI 写 jsonl）。
+ * language 缺省取 blueprint.meta.language，再无则默认 zh（V1.1，表现层元数据）。 */
+export function initState(blueprint: Blueprint, world: string, seed?: number, language?: Language): GameState {
   const assets: Record<string, number> = {};
   for (const type of blueprint.assetTypes) {
     assets[type.id] = type.initial ?? 0;
@@ -99,6 +106,7 @@ export function initState(blueprint: Blueprint, world: string, seed?: number): G
     schemaVersion: SCHEMA_VERSION,
     world,
     seed: seed ?? blueprint.meta.seed,
+    language: language ?? (isLanguage(blueprint.meta.language) ? blueprint.meta.language : DEFAULT_LANGUAGE),
     turn: 0,
     tier: 0,
     assets,
@@ -301,6 +309,8 @@ export interface SaveSummary {
   turn: number;
   tier: number;
   ended: boolean;
+  /** 表现层语言；旧存档无此字段时按 zh 报告（V1.1 向后兼容）。 */
+  language: Language;
   /** C2：不匹配/损坏存档报告状态而非隐藏。 */
   status: SaveStatus;
   note?: string;
@@ -323,7 +333,7 @@ export async function listSaves(base: string): Promise<SaveSummary[]> {
     try {
       state = JSON.parse(await readFile(path.join(root, name, 'state.json'), 'utf8')) as Record<string, unknown>;
     } catch {
-      result.push({ world: name, turn: 0, tier: 0, ended: false, status: 'corrupt', note: 'state.json 缺失或无法解析' });
+      result.push({ world: name, turn: 0, tier: 0, ended: false, language: DEFAULT_LANGUAGE, status: 'corrupt', note: 'state.json 缺失或无法解析' });
       continue;
     }
     const version = typeof state.schemaVersion === 'number' ? state.schemaVersion : 0;
@@ -332,6 +342,7 @@ export async function listSaves(base: string): Promise<SaveSummary[]> {
       turn: typeof state.turn === 'number' ? state.turn : 0,
       tier: typeof state.tier === 'number' ? state.tier : 0,
       ended: state.ended !== undefined,
+      language: isLanguage(state.language) ? state.language : DEFAULT_LANGUAGE,
     };
     if (version > SCHEMA_VERSION) {
       result.push({ ...baseSummary, status: 'future-version', note: `schemaVersion=${version} 高于引擎 ${SCHEMA_VERSION}` });

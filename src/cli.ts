@@ -8,6 +8,7 @@ import path from 'node:path';
 import { loadBlueprintFile, validateBlueprint } from './blueprint.ts';
 import { contextFromState, evalCondition } from './conditions.ts';
 import { checkExpansion, materializeFact, validateCandidate } from './expansion.ts';
+import { DEFAULT_LANGUAGE, getEngineStrings, isLanguage, languageOf, SUPPORTED_LANGUAGES } from './i18n.ts';
 import { addChapter } from './chapter.ts';
 import { composeNovel } from './novel.ts';
 import { knownByCategory, playerKnown, unknownFactIds } from './knowledge.ts';
@@ -23,7 +24,7 @@ import {
   verifySave,
   writeManifest,
 } from './save.ts';
-import type { Blueprint, EngineError, GameState, HistoryEntry } from './types.ts';
+import type { Blueprint, EngineError, GameState, HistoryEntry, Language } from './types.ts';
 
 const BASE = process.cwd();
 
@@ -199,12 +200,35 @@ async function cmdNew(flags: Record<string, string>): Promise<void> {
       return;
     }
   }
-  const frozen: Blueprint = { ...blueprint!, meta: { ...blueprint!.meta, seed } };
-  const state = initState(frozen, world, seed);
+  // V1.1：开局选择语言——--language 优先，其次 blueprint.meta.language，再无则默认 zh。
+  // 语言是表现层元数据，不影响任何结算数值与确定性。
+  let language: Language;
+  if (flags.language !== undefined) {
+    if (flags.language === 'true') {
+      outputErr({
+        code: 'BAD_LANGUAGE',
+        message: `--language 缺少值，必须是 ${SUPPORTED_LANGUAGES.join(' / ')} 之一`,
+      });
+      return;
+    }
+    if (!isLanguage(flags.language)) {
+      outputErr({
+        code: 'BAD_LANGUAGE',
+        message: `--language 必须是 ${SUPPORTED_LANGUAGES.join(' / ')} 之一（实际 "${flags.language}"）`,
+      });
+      return;
+    }
+    language = flags.language;
+  } else {
+    language = isLanguage(blueprint!.meta.language) ? blueprint!.meta.language : DEFAULT_LANGUAGE;
+  }
+  // M1：最终解析的 language 回写冻结 Blueprint，state 与冻结副本单一事实源。
+  const frozen: Blueprint = { ...blueprint!, meta: { ...blueprint!.meta, seed, language } };
+  const state = initState(frozen, world, seed, language);
   const opening: HistoryEntry = {
     turn: 0,
     kind: 'system',
-    text: `世界「${frozen.meta.name}」开局。控制轴：${frozen.meta.controlAxis}。`,
+    text: getEngineStrings(language).openingEntry(frozen.meta.name, frozen.meta.controlAxis),
     visible: true,
     source: 'engine',
   };
@@ -218,6 +242,7 @@ async function cmdNew(flags: Record<string, string>): Promise<void> {
   outputOk({
     world,
     seed,
+    language,
     title: frozen.meta.title ?? frozen.meta.name,
     controlAxis: frozen.meta.controlAxis,
     leverage: frozen.leverage.name,
@@ -252,6 +277,7 @@ async function cmdStatus(flags: Record<string, string>): Promise<void> {
     .map(([k]) => k);
   outputOk({
     world,
+    language: languageOf(state),
     title: bp.meta.title ?? bp.meta.name,
     controlAxis: bp.meta.controlAxis,
     seed: state.seed,
@@ -397,7 +423,13 @@ async function cmdEnd(flags: Record<string, string>): Promise<void> {
   if (!state.ended) {
     state.ended = { reason, turn: state.turn };
   }
-  const entry: HistoryEntry = { turn: state.turn, kind: 'ending', text: `终局：${reason}`, visible: true, source: 'player' };
+  const entry: HistoryEntry = {
+    turn: state.turn,
+    kind: 'ending',
+    text: getEngineStrings(languageOf(state)).endingEntry(reason),
+    visible: true,
+    source: 'player',
+  };
   state.historyCount += 1;
   state.historyLastTurn = state.turn;
   // M5：先落盘状态，再追加历史，最后合成小说。
@@ -459,7 +491,7 @@ async function cmdExpand(flags: Record<string, string>): Promise<void> {
   const entry: HistoryEntry = {
     turn: state.turn,
     kind: 'system',
-    text: `Lazy Expansion 物化（规则 ${ruleId}）：新事实「${id}」成为世界事实——${description}`,
+    text: getEngineStrings(languageOf(state)).expansionMaterialized(ruleId, id, description),
     visible: true,
     source: `expansion:${ruleId}`,
   };
@@ -501,7 +533,7 @@ async function cmdList(): Promise<void> {
 const HELP = {
   commands: [
     'validate-blueprint --file <路径>',
-    'new --blueprint <路径> --world <名> [--seed N]',
+    `new --blueprint <路径> --world <名> [--seed N] [--language <${SUPPORTED_LANGUAGES.join('|')}>]`,
     'status [--world <名>]',
     'act --id <行动id> [--world <名>]',
     'observe --scope <主题|laws|all> [--world <名>]',

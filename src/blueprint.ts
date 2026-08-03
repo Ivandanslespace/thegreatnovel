@@ -7,6 +7,7 @@
 import { readFile } from 'node:fs/promises';
 import { BLUEPRINT_SCHEMA_VERSION } from './types.ts';
 import type { Blueprint, Condition, Effect } from './types.ts';
+import { isLanguage, SUPPORTED_LANGUAGES } from './i18n.ts';
 
 export interface BlueprintIssue {
   path: string;
@@ -90,6 +91,10 @@ export function validateBlueprint(input: unknown): ValidationResult {
   if (!meta.prompt?.trim()) issue('meta.prompt', 'EMPTY', '玩家一句话世界描述不能为空');
   if (!meta.controlAxis?.trim()) issue('meta.controlAxis', 'EMPTY', 'controlAxis（控制力来源轴）不能为空（宪章 §2）');
   if (typeof meta.seed !== 'number' || !Number.isFinite(meta.seed)) issue('meta.seed', 'TYPE', 'seed 必须是有限数字');
+  // V1.1：language 可选（缺省按 zh 处理），出现时必须是受支持的语言代码。
+  if (meta.language !== undefined && !isLanguage(meta.language)) {
+    issue('meta.language', 'INVALID_LANGUAGE', `language 必须是 ${SUPPORTED_LANGUAGES.join(' / ')} 之一（实际 ${JSON.stringify(meta.language)}）`);
+  }
 
   // ---- designCheck：宪章 §12 七问必填非空 ----
   if (!isRecord(designCheck)) {

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { cliScript, echoBlueprintPath, tmpBase } from './helpers.ts';
+import { cliScript, echoBlueprintPath, GOLDEN_SEED, GOLDEN_SEQUENCE, tmpBase } from './helpers.ts';
 
 interface CliResult {
   ok: boolean;
@@ -32,16 +32,6 @@ function cli(base: string, ...args: string[]): CliResult {
   return JSON.parse(lines[lines.length - 1]!) as CliResult;
 }
 
-// 探索确认的种子 58 最优序列：20 回合内双跃迁至胜利（tier 1/2 + win）。
-// 注意：rng key 编码与世界 modifier 变化会使序列失效，届时须重新探索并同步本常量。
-const SEQUENCE = [
-  'gather-rumors', 'casual-labor', 'casual-labor', 'casual-labor', 'trade-run',
-  'casual-labor', 'talk-to-elder', 'rest', 'trade-run', 'rest',
-  'talk-to-elder', 'offer-to-archive', 'rest', 'investigate-ledger', 'tidal-contract',
-  'rest', 'investigate-ledger', 'investigate-ledger', 'talk-to-elder',
-];
-const GOLDEN_SEED = 58;
-
 test('e2e：固定种子完整一局至胜利，novel.md 生成且 verify 通过', () => {
   const base = tmpBase();
 
@@ -65,7 +55,7 @@ test('e2e：固定种子完整一局至胜利，novel.md 生成且 verify 通过
   let sawTierUp = false;
   let sawTier2Up = false;
   let final: CliResult | null = null;
-  for (const id of SEQUENCE) {
+  for (const id of GOLDEN_SEQUENCE) {
     const res = cli(base, 'act', '--id', id);
     assert.equal(res.ok, true, `${id} 失败：${JSON.stringify(res.error)}`);
     if (res.data.tierUp && res.data.tier === 1) sawTierUp = true;

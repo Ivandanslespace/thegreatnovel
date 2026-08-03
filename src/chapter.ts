@@ -46,7 +46,8 @@ export async function addChapter(
   await mkdir(dir, { recursive: true });
 
   const index = state.chapterCursor;
-  const slug = slugify(title);
+  // 非拉丁标题（中文/阿拉伯文等）slugify 后为空，回退为数字编号，保持 ASCII 文件名（V1.1）。
+  const slug = slugify(title, String(index).padStart(3, '0'));
   const fileName = `${String(index).padStart(3, '0')}-${slug}.md`;
   const startTurn = state.lastChapterTurn;
   const endTurn = state.turn;

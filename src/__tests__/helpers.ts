@@ -12,6 +12,18 @@ export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)
 export const echoBlueprintPath = path.join(repoRoot, 'worlds', 'echo-harbor.blueprint.json');
 export const cliScript = path.join(repoRoot, 'src', 'cli.ts');
 
+/**
+ * 探索确认的种子 58 最优序列：20 回合内双跃迁至胜利（tier 1/2 + win）。
+ * 注意：rng key 编码与世界 modifier 变化会使序列失效，届时须重新探索并同步本常量。
+ */
+export const GOLDEN_SEED = 58;
+export const GOLDEN_SEQUENCE = [
+  'gather-rumors', 'casual-labor', 'casual-labor', 'casual-labor', 'trade-run',
+  'casual-labor', 'talk-to-elder', 'rest', 'trade-run', 'rest',
+  'talk-to-elder', 'offer-to-archive', 'rest', 'investigate-ledger', 'tidal-contract',
+  'rest', 'investigate-ledger', 'investigate-ledger', 'talk-to-elder',
+];
+
 export function loadEchoBlueprint(): Blueprint {
   return JSON.parse(readFileSync(echoBlueprintPath, 'utf8')) as Blueprint;
 }

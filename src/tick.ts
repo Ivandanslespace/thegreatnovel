@@ -9,6 +9,7 @@
  */
 import type { Blueprint, Consequence, Effect, GameState } from './types.ts';
 import { contextFromState, evalCondition } from './conditions.ts';
+import { getEngineStrings, languageOf } from './i18n.ts';
 import { learnFact } from './knowledge.ts';
 
 /** 应用一组效果到状态；每条效果产生一条后果记录。 */
@@ -20,6 +21,7 @@ export function applyEffects(
   consequences: Consequence[],
   visible: boolean,
 ): void {
+  const t = getEngineStrings(languageOf(state));
   for (const effect of effects) {
     if ('asset' in effect) {
       const before = state.assets[effect.asset] ?? 0;
@@ -29,7 +31,7 @@ export function applyEffects(
       const sign = effect.delta >= 0 ? '+' : '';
       consequences.push({
         kind: 'outcome',
-        text: `${name} ${sign}${effect.delta}（现 ${state.assets[effect.asset]}）`,
+        text: t.assetDelta(name, `${sign}${effect.delta}`, state.assets[effect.asset]!),
         visible,
         source,
       });
@@ -38,7 +40,7 @@ export function applyEffects(
       if (learnFact(state, effect.learnFact)) {
         consequences.push({
           kind: 'outcome',
-          text: `你得知：${fact ? fact.description : effect.learnFact}`,
+          text: t.learnedFact(fact ? fact.description : effect.learnFact),
           visible: true,
           source,
         });
@@ -46,12 +48,12 @@ export function applyEffects(
     } else if ('setFlag' in effect) {
       if (!state.flags[effect.setFlag]) {
         state.flags[effect.setFlag] = true;
-        consequences.push({ kind: 'outcome', text: `世界状态变化：${effect.setFlag}`, visible, source });
+        consequences.push({ kind: 'outcome', text: t.flagSet(effect.setFlag), visible, source });
       }
     } else if ('clearFlag' in effect) {
       if (state.flags[effect.clearFlag]) {
         state.flags[effect.clearFlag] = false;
-        consequences.push({ kind: 'outcome', text: `世界状态变化：${effect.clearFlag} 结束`, visible, source });
+        consequences.push({ kind: 'outcome', text: t.flagCleared(effect.clearFlag), visible, source });
       }
     } else if ('unlockRegion' in effect) {
       if (!state.unlockedRegions.includes(effect.unlockRegion)) {
@@ -59,7 +61,7 @@ export function applyEffects(
         const region = bp.regions.find((r) => r.id === effect.unlockRegion);
         consequences.push({
           kind: 'outcome',
-          text: `新区域可达：${region ? region.name : effect.unlockRegion}`,
+          text: t.regionUnlocked(region ? region.name : effect.unlockRegion),
           visible,
           source,
         });
@@ -74,6 +76,7 @@ export interface TickResult {
 
 /** 维护成本结算（长期资产带责任，宪章 §4.1）。每回合一次（M3：在 worldTick 内结算）。 */
 export function settleMaintenance(bp: Blueprint, state: GameState, consequences: Consequence[]): void {
+  const t = getEngineStrings(languageOf(state));
   for (const type of bp.assetTypes) {
     if (!type.maintenance) continue;
     const held = state.assets[type.id] ?? 0;
@@ -83,7 +86,7 @@ export function settleMaintenance(bp: Blueprint, state: GameState, consequences:
     state.assets[type.maintenance.asset] = (state.assets[type.maintenance.asset] ?? 0) - cost;
     consequences.push({
       kind: 'maintenance',
-      text: `维护「${type.name}」消耗 ${bp.assetTypes.find((a) => a.id === type.maintenance!.asset)?.name ?? type.maintenance.asset} -${cost}`,
+      text: t.maintenance(type.name, bp.assetTypes.find((a) => a.id === type.maintenance!.asset)?.name ?? type.maintenance.asset, cost),
       visible: true,
       source: `maintenance:${type.id}`,
     });

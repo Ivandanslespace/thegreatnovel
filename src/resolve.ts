@@ -19,6 +19,7 @@ import type {
   Resolution,
 } from './types.ts';
 import { contextFromState, evalAll, evalCondition, explainUnmet } from './conditions.ts';
+import { getEngineStrings, languageOf } from './i18n.ts';
 import { deriveRandom, pickWeighted } from './rng.ts';
 import { applyEffects, worldTick } from './tick.ts';
 import { checkExpansion } from './expansion.ts';
@@ -76,16 +77,17 @@ export function finalOutcomeWeights(
 
 /** 阶层门槛判定（可连续跃迁）。返回跃迁后果。 */
 function checkTierGates(bp: Blueprint, state: GameState, consequences: Consequence[]): boolean {
+  const t = getEngineStrings(languageOf(state));
   let tierUp = false;
   for (;;) {
-    const next = bp.tiers.find((t) => t.tier === state.tier + 1);
+    const next = bp.tiers.find((t2) => t2.tier === state.tier + 1);
     if (!next) break;
     if (!evalCondition(next.gate, contextFromState(state))) break;
     state.tier = next.tier;
     tierUp = true;
     consequences.push({
       kind: 'tier',
-      text: `阶层跃迁：${next.name}——${next.description}`,
+      text: t.tierUp(next.name, next.description),
       visible: true,
       source: `tier:${next.tier}`,
     });
@@ -95,7 +97,7 @@ function checkTierGates(bp: Blueprint, state: GameState, consequences: Consequen
         const region = bp.regions.find((r) => r.id === regionId);
         consequences.push({
           kind: 'tier',
-          text: `新区域可达：${region ? region.name : regionId}`,
+          text: t.regionUnlocked(region ? region.name : regionId),
           visible: true,
           source: `tier:${next.tier}`,
         });
@@ -107,13 +109,14 @@ function checkTierGates(bp: Blueprint, state: GameState, consequences: Consequen
 
 function checkEnd(bp: Blueprint, state: GameState, consequences: Consequence[]): void {
   if (state.ended) return;
+  const t = getEngineStrings(languageOf(state));
   const ctx = contextFromState(state);
   if (bp.winLose.win && evalCondition(bp.winLose.win, ctx)) {
-    state.ended = { reason: `胜利：${bp.winLose.description}`, turn: state.turn };
-    consequences.push({ kind: 'system', text: `终局：${bp.winLose.description}`, visible: true, source: 'winLose' });
+    state.ended = { reason: t.winReason(bp.winLose.description), turn: state.turn };
+    consequences.push({ kind: 'system', text: t.endingEntry(bp.winLose.description), visible: true, source: 'winLose' });
   } else if (bp.winLose.lose && evalCondition(bp.winLose.lose, ctx)) {
-    state.ended = { reason: `失败：${bp.winLose.description}`, turn: state.turn };
-    consequences.push({ kind: 'system', text: `终局：${bp.winLose.description}`, visible: true, source: 'winLose' });
+    state.ended = { reason: t.loseReason(bp.winLose.description), turn: state.turn };
+    consequences.push({ kind: 'system', text: t.endingEntry(bp.winLose.description), visible: true, source: 'winLose' });
   }
 }
 
@@ -156,6 +159,8 @@ export function resolveAction(bp: Blueprint, state: GameState, actionId: string)
   }
 
   const consequences: Consequence[] = [];
+  // 引擎结算文案按存档语言生成（V1.1/C1：表现层元数据，不影响结算数值）。
+  const t = getEngineStrings(languageOf(state));
   // 回合归因：后果在产生时记录当前回合（minor）。
   const add = (c: Omit<Consequence, 'atTurn'>) => consequences.push({ ...c, atTurn: state.turn });
   const unlocked: string[] = [];
@@ -166,7 +171,7 @@ export function resolveAction(bp: Blueprint, state: GameState, actionId: string)
       const region = bp.regions.find((r) => r.id === regionId);
       add({
         kind: 'outcome',
-        text: `新区域可达：${region ? region.name : regionId}`,
+        text: t.regionUnlocked(region ? region.name : regionId),
         visible: true,
         source: `action:${actionId}`,
       });
@@ -189,9 +194,9 @@ export function resolveAction(bp: Blueprint, state: GameState, actionId: string)
   for (const [assetId, cost] of Object.entries(action.costs?.assets ?? {})) {
     state.assets[assetId] = (state.assets[assetId] ?? 0) - cost;
     const name = bp.assetTypes.find((a) => a.id === assetId)?.name ?? assetId;
-    add({ kind: 'cost', text: `付出 ${name} -${cost}`, visible: true, source: `action:${actionId}` });
+    add({ kind: 'cost', text: t.paidAsset(name, cost), visible: true, source: `action:${actionId}` });
   }
-  add({ kind: 'cost', text: `付出时间 ${timeCost} 回合`, visible: true, source: `action:${actionId}` });
+  add({ kind: 'cost', text: t.paidTime(timeCost), visible: true, source: `action:${actionId}` });
 
   // ---- 3. 种子抽签（权重已含 4. 杠杆 modifiers）----
   const counter = (state.counters[actionId] ?? 0) + 1;
@@ -211,7 +216,7 @@ export function resolveAction(bp: Blueprint, state: GameState, actionId: string)
     state.leverageUses += 1;
     add({
       kind: 'leverage',
-      text: `杠杆「${bp.leverage.name}」改变了本次抽签的权重分布`,
+      text: t.leverageApplied(bp.leverage.name),
       visible: true,
       source: `leverage:${bp.leverage.id}`,
     });
@@ -220,7 +225,7 @@ export function resolveAction(bp: Blueprint, state: GameState, actionId: string)
   // ---- 5. 结果落地（含知识更新）+ 6. 不可逆标记 ----
   add({
     kind: 'outcome',
-    text: `${action.name}：${outcome.description}`,
+    text: t.outcome(action.name, outcome.description),
     visible: true,
     source: `action:${actionId}`,
   });
@@ -232,14 +237,14 @@ export function resolveAction(bp: Blueprint, state: GameState, actionId: string)
   if (outcome.irreversible) {
     add({
       kind: 'outcome',
-      text: '此结果不可逆（永久后果，可追溯）',
+      text: t.irreversible,
       visible: true,
       source: `action:${actionId}`,
     });
   }
 
   // ---- 7. world tick：时间给世界行动权（宪章 §1.2；维护在每回合 tick 内结算，M3）----
-  for (let t = 0; t < timeCost; t++) {
+  for (let i = 0; i < timeCost; i++) {
     const tick = worldTick(bp, state);
     consequences.push(...tick.consequences);
   }
@@ -253,7 +258,7 @@ export function resolveAction(bp: Blueprint, state: GameState, actionId: string)
   for (const candidate of checkExpansion(bp, state)) {
     add({
       kind: 'system',
-      text: `扩张门槛已触发（${candidate.ruleId}）：${candidate.description}——候选内容须经校验后方可物化`,
+      text: t.expansionTriggered(candidate.ruleId, candidate.description),
       visible: true,
       source: `expansion:${candidate.ruleId}`,
     });

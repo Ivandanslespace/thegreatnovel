@@ -19,14 +19,22 @@
 1. **检查存档**：`npm run cli -- list`
    - 有存档：与玩家确认续局哪一个 → `verify` → `status`，用简短叙事带玩家回到现场
      （"上次你做到了什么、世界正在发生什么"），然后进入回合纪律。
+     **语言恢复**：以 `status` 返回的 `language` 为准恢复该存档的交互语言与
+     章节书写语言（旧存档无此字段时按中文），不再重新询问。
    - 无存档（或玩家要开新世界）：进入下一步。
-2. **请玩家用一句话描述想进入的世界**（题材、气质、主角处境各一句以内即可）。
-3. **起草 World Blueprint**：按第 6 节的起草指引，把声明式 JSON 写到 `temps/<世界名>.blueprint.json`。
+2. **选择语言**：先询问玩家本局用哪种语言书写
+   （中文 / English / Français / العربية，**默认中文**）。
+   - 将结果以语言代码（`zh` / `en` / `fr` / `ar`）写入 Blueprint 的 `meta.language`；
+     开局时也可用 `--language <code>` 覆盖（CLI 优先）。
+   - 此后 **Agent 的玩家交互、章节正文、结局梗概一律使用所选语言书写**；
+     语言是表现层元数据，不影响任何结算数值与确定性。
+3. **请玩家用一句话描述想进入的世界**（题材、气质、主角处境各一句以内即可）。
+4. **起草 World Blueprint**：按第 6 节的起草指引，把声明式 JSON 写到 `temps/<世界名>.blueprint.json`。
    - 参照范例：`worlds/echo-harbor.blueprint.json`（结构范本；**不得照抄其机制换皮**，宪章 §8）。
-4. **校验**：`npm run cli -- validate-blueprint --file temps/<世界名>.blueprint.json`
+5. **校验**：`npm run cli -- validate-blueprint --file temps/<世界名>.blueprint.json`
    - 未通过：按 `error.details` 逐条修正后重新校验，直到通过。**不得绕过校验开局。**
-5. **开局**：`npm run cli -- new --blueprint temps/<世界名>.blueprint.json --world <世界名> [--seed N]`
-6. **呈现开局**：用叙事向玩家呈现宏观规律、势力格局、初始区域与主角杠杆，
+6. **开局**：`npm run cli -- new --blueprint temps/<世界名>.blueprint.json --world <世界名> [--seed N] [--language <zh|en|fr|ar>]`
+7. **呈现开局**：用叙事向玩家呈现宏观规律、势力格局、初始区域与主角杠杆，
    交代控制缺口（玩家现在缺什么、世界凭什么碾压他），然后给出 `status` 的合法行动并请玩家决定。
 
 ## 2. 回合纪律（五步，每个回合必须完整走完）
@@ -91,7 +99,7 @@
 | 命令 | 作用 |
 |---|---|
 | `validate-blueprint --file <路径>` | 校验 World Blueprint，逐条报错 |
-| `new --blueprint <路径> --world <名> [--seed N]` | 校验通过后开局，blueprint 随档冻结 |
+| `new --blueprint <路径> --world <名> [--seed N] [--language <zh\|en\|fr\|ar>]` | 校验通过后开局，blueprint 随档冻结；--language 优先于 blueprint 的 meta.language，缺省 zh |
 | `status [--world <名>]` | 玩家已知状态投影 + legalActions/blockedActions |
 | `act --id <行动id> [--world <名>]` | 结算一个行动（含等待/观察类），返回 consequences |
 | `observe --scope <主题\|laws\|all> [--world <名>]` | 只读观察：已知事实投影 / 规律现状（不花费回合） |
@@ -108,6 +116,8 @@
 `leverage`、`actors`、`facts`、`regions`、`tiers`、`expansion`、`winLose`（可选 `scheduledEvents`）。
 
 - `meta.controlAxis`：这个世界的控制力来源是什么（知识/关系/生产/身份法律/时空规则/自定义）。
+- `meta.language`（可选）：本局表现层语言（`zh` / `en` / `fr` / `ar`，缺省 `zh`）；
+  来自启动协议第 2 步的语言选择，纯表现层，不影响结算。
 - `laws`：3 条左右宏观规律，稳定、可理解、对所有人一致；用 `window` 条件制造开合的机会窗口。
 - `assetTypes`：**世界自定义资产**（禁止默认货币/经验/好感度三件套）；给长期资产配
   `maintenance` 维护成本（宪章 §4.1）。

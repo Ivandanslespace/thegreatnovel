@@ -5,6 +5,7 @@ AI 原生长线成长叙事游戏：**LLM at the edges；deterministic engine at
 - 玩家用一句话描述想进入的世界；Agent（读取 `AGENTS.md`）据此起草 World Blueprint（声明式 JSON）。
 - 引擎是**世界无关的通用原语解释器**：资产/时间/行动/规律/知识事实/势力计划/不可逆/阶层门槛/离屏 tick/受约束扩展，全部由 Blueprint 数据表达。
 - **零运行时依赖**：Node ≥ 24 原生运行 TypeScript（type stripping），测试用内置 `node:test`。
+- **开局选择语言**（`zh` / `en` / `fr` / `ar`，缺省 `zh`）：语言是表现层元数据，只影响小说与结算文案的呈现，不影响任何结算数值与确定性。
 
 ## 最高约束
 
@@ -17,8 +18,8 @@ AI 原生长线成长叙事游戏：**LLM at the edges；deterministic engine at
 # 校验演示世界 Blueprint
 npm run cli -- validate-blueprint --file worlds/echo-harbor.blueprint.json
 
-# 开局（存档写入 saves/<世界名>/）
-npm run cli -- new --blueprint worlds/echo-harbor.blueprint.json --world echo-harbor --seed 42
+# 开局（存档写入 saves/<世界名>/；--language 可选，缺省 zh）
+npm run cli -- new --blueprint worlds/echo-harbor.blueprint.json --world echo-harbor --seed 42 [--language <zh|en|fr|ar>]
 
 # 回合循环
 npm run cli -- status
