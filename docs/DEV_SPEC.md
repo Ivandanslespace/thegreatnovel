@@ -1,141 +1,66 @@
 # TheGreatNovel 开发合同
 
-> 状态：Phase 10G0.1 文档收敛合同；Genesis 生产实现尚未开始。
-> 当前行为基线：`pc1-frozen`。
-> 本合同取代提交 `9cdadc472cd92ce38e42767a896718fcad61f938` 中分散在
-> `MVP_REWRITE_SPEC.md`、`GENESIS_FOUNDATION.md`、`DEFERRED.md` 与
-> `PHASE1_9_HARDCODING_INVENTORY.md` 的当前开发口径；原文仍由 Git 历史保存。
+> 状态：Phase 10V1 尚未完成、尚未 accepted、尚未 frozen；当前 checkpoint 为 V1-R0。
+> 当前行为基线：`pc1-frozen`。本合同只描述当前事实、权威边界、下一步安全实现和验收。
+> 产品体验宪法见 [`DESIGN_VALUES.md`](DESIGN_VALUES.md)；本文不重复其长篇哲学。
 
-本文只回答三件事：
+## 1. Current Facts and Authority
 
-1. 当前已经实现并冻结了什么；
-2. Genesis 和后续功能应当怎样进入真实、可验证的游戏闭环；
-3. 下一阶段允许做什么、以什么证据完成。
+### 1.1 权威顺序
 
-产品为什么这样设计，以 [`DESIGN_VALUES.md`](DESIGN_VALUES.md) 为准。本文不重复设计
-宣言，也不把未来候选结构冒充为当前能力。
-
----
-
-## 1. 文档与事实的权威顺序
-
-不同对象使用不同权威，不能用一份文档覆盖所有事实：
-
-| 要判断的问题 | 第一权威 | 冲突处理 |
+| 问题 | 权威 | 规则 |
 |---|---|---|
-| 当前代码实际上会怎样运行 | frozen tag 指向的代码、测试与 artifact | 文档不得重新解释 frozen 行为 |
-| 产品长期要保护什么 | `DESIGN_VALUES.md` | 新实现与其冲突时，停止并修改设计或显式 supersede |
-| 当前开发阶段应怎样实现与验收 | 本文 | 必须同时服从设计价值与 frozen compatibility |
-| 当前仓库状态摘要 | `README.md` | README 只做索引，不创建新合同 |
-| Agent 调度与改动边界 | `AGENTS.md` | 只约束执行过程，不替代产品/实现合同 |
-| 历史方案和当时的 exact 草案 | Git commit/tag 中的旧文档 | 仅作证据；除非本文显式恢复，否则不是 active roadmap |
+| frozen 行为怎样运行 | frozen code、tests、artifact | 文档不得重新解释已接受事实 |
+| 产品要保护什么 | `DESIGN_VALUES.md` | 冲突时暂停并修改设计或显式 supersede |
+| 当前怎样实现和验收 | 本文与 Phase Contract | 不能越过 frozen compatibility |
+| 仓库入口状态 | `README.md` | 只做短索引，不复制合同 |
+| Agent 执行边界 | `AGENTS.md` | 只约束执行，不替代产品合同 |
+| 历史 exact 方案 | Git ref | 只作证据，不自动恢复为 active |
 
-冲突时遵循以下规则：
+任何新方向必须命名为 superseding phase/milestone；不能原地改写 frozen implementation、
+accepted test、tag 或旧 artifact。reviewer 共识不能替代文件、符号、测试、hash 或 Git
+ref 证据。
 
-- 不得原地改写任何 frozen implementation、accepted test、freeze tag 或旧 artifact 语义；
-- 新方向必须通过明确命名的 superseding phase/milestone 落地；
-- `DESIGN_VALUES.md` 决定未来方向，但不能追溯性改变旧 Campaign 的含义；
-- 本文没有定义的 future feature 不因出现在路线图、Prompt 或 Narrator prose 中而存在；
-- reviewer 共识不是代码事实，必须给出文件、符号、测试、hash 或 Git ref 证据。
+### 1.2 当前实现事实
 
-当前 `docs/` 只保留两份权威内容文档：
+- 当前唯一已发布/可玩的 legacy runtime profile 仍是 `phase75_expedition_v1`，受 PC1
+  compatibility 约束；它是 legacy slice，不是 Genesis 菜单或 Genesis 默认世界。
+- V1-A 至 V1-D 的实验代码与 tests 已存在：Request/Proposal/Approval/Report、bounded
+  Blueprint/Binding/Candidate、旧 pressure proof、static/gameplay preflight 和
+  `STRUCTURAL_DIVERGENCE_V1` proof seam 均可读、可重算、可独立测试。
+- Phase 10V1 尚未完成、未 accepted、未 frozen。没有 formal Generated Genesis Campaign、
+  sealed generated WorldPack、生产 Runtime Expansion、真实 Prompt provider、coverage
+  critic 或自然语言 action interpreter。
+- V1-C/D artifact identity 绑定了旧 exclusive-upgrade pressure。该产品语义已经
+  **superseded**：旧代码、schema、hash、replay、strict parsing、lineage 和 proof 技术
+  可以复用来做历史实验或新 slice 的基础，但旧 pressure candidate/preflight identity
+  不得作为最终 V1 产品验收证据。
+- 没有把任何海洋、玄武、Habitat、载具、peers、全民投放或通用 Capability 宣称为已实现。
 
-- `DESIGN_VALUES.md`：为什么做、不可妥协的体验与架构价值；
-- `DEV_SPEC.md`：怎么做、当前边界、active roadmap 与验收合同。
+### 1.3 冻结边界
 
----
+`pc1-frozen`、Phase 1–9 freeze tag、accepted implementation、`src/tgn/play/**`、
+`tests/play/**` 及旧 artifact 保持不变。历史 tag registry 不在本文复制；需要 exact 内容时
+用 `git show <ref>:<path>`。README 只保留状态、入口和链接。
 
-## 2. 当前实现事实与冻结边界
+## 2. Genesis Pipeline and Authority
 
-### 2.1 当前能力
-
-当前可玩的唯一 runtime profile 仍是 `phase75_expedition_v1`。它是一条经过验证的
-bounded vertical slice，包含固定 base/target、`DROP / SEARCH / EXTRACT`、固定 cost、
-`target_searched`、Day/Night、progression、三个 build、Mara、Knowledge Boundary、
-Projection、Session、Campaign、Story 与 PC1。
-
-它可以换显示标题、premise、locale 和 labels，但不能因此获得新的地点拓扑、海洋物理、
-载具所有权、活体 Habitat、义肢、网络入侵、peers、全民投放或通用 Capability 语义。
-把任意题材映射到这条循环，只会得到换皮世界，不是 Genesis。
-
-当前仓库没有：
-
-- `src/tgn/genesis/**` 或 Genesis Request/Proposal/Report/Blueprint 的生产模型；
-- 第二个结构不同的 runtime profile；
-- Genesis WorldPack compiler、preflight、seal 或 PC2；
-- 真实 LLM provider、Prompt coverage critic 或自然语言 action interpreter；
-- 通用 Habitat、Peer Population、Cybernetic Intrusion、Capability Foundation。
-
-### 2.2 冻结 registry
-
-下表记录 tag 的 peeled commit。Annotated tag object 自身也不得移动、删除或重建。
-
-| boundary | peeled commit |
-|---|---|
-| `phase1-core-v1` | `2bad219e8e12469ca4cf26459fba04dfedb452fc` |
-| `phase2-action-v1` | `421e7c753af880f4450e09bdaaacd70f2c113bb3` |
-| `phase3-expedition-v1` | `31f691ac9dd57f3a8271fee56fb34cf0bc45e78e` |
-| `phase35-watch-v1` | `dc663512394a945afb79e32f7b8ba99cc27d39c7` |
-| `phase-3.7-frozen` | `d578cf2ebd524acae72adc03293fa197666dfa11` |
-| `phase-4-frozen` | `018d80ac969cf25732a0ebd576cca9047b851718` |
-| `phase-5-frozen` | `a1d2c7073df1c2d2ec4252da0b0999de7a023c06` |
-| `phase-6-frozen` | `d019ecdfac2b1a1f57bfac716354a0f751143061` |
-| `phase-7-frozen` | `5786740eea91b0ed3dad21b81f3db0a3acffc7aa` |
-| `phase-7.5-frozen` | `15de80df68de7ca343f9d36bcbbfe1a6333ddac9` |
-| `phase-8-frozen` | `1dbf380b7a0639c941fe114c6ffccf72eddfbaa3` |
-| `phase-9a-frozen` | `a616b1a355d2607840944e270650b26fbd439dcd` |
-| `phase-9b1-frozen` | `a4c79a47dfac88c3f9b39aa8ca50cc6255d48902` |
-| `phase-9b2a-frozen` | `60ebf493ba90114c4f03048558e316ac07118ee2` |
-| `phase-9b2b-frozen` | `218a246add4481088872487e80ac83ad1099171b` |
-| `phase-9c1-frozen` | `9bb739fdb1bd08d4c0c036e7c3d3c0ee5d083f01` |
-| `phase-9c2-frozen` | `40c8a59636a6ee26e0d779228804b4c989753085` |
-| `pc1-frozen` | `17d4098771798e44a078e6a93a94137feb0bd8c0` |
-
-README 中记录的 accepted implementation SHA 与 freeze documentation commit 可能不同；
-二者都保留。PC1 accepted implementation 是
-`96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`，冻结文件边界是
-`src/tgn/play/**` 与 `tests/play/**`。Phase 9C2 accepted implementation 是
-`f9a8a10adb7579fe4e06e462fbbeee47cdf69aea`。未来修复只能显式 reopen，或进入新的
-superseding milestone 并使用新的 implementation SHA 与 freeze tag。
-
-### 2.3 必须保留的 Kernel
-
-以下是跨世界完整性基础，不因 Genesis 方向重写：
-
-- GameState metadata shell 与 DomainEvent provenance；
-- canonical JSON、state/artifact hash 与 corruption detection；
-- SQLite EventStore、Snapshot、Replay、Verify；
-- RecordedDecision 与 choice-id/action legality 边界；
-- Campaign 原子发布与旧 bundle compatibility；
-- Story sidecar、pending/resume、committed-turn immutability、commit-before-print；
-- public/private Observation、Actor Knowledge 与 Player Knowledge 分离；
-- PC1 thin-client boundary 与 deterministic novel export。
-
-保留 Kernel 不表示 Core 当前已经足够通用。新的 runtime feature 必须通过新接缝进入，
-不能继续把所有 gameplay `elif` 堆进 frozen Core。
-
----
-
-## 3. Genesis 产品定义
-
-Genesis 的目标是让玩家用自然语言和 Seed 描述一个世界，系统生成一份 Campaign-specific
-WorldPack；玩家不需要从开发者写好的故事世界菜单中挑选。
+Genesis 的目标是从 Prompt + Seed 得到一个 Campaign-specific WorldPack，而不是从预制
+故事菜单选择世界：
 
 ```text
-Raw Prompt + Seed
+Prompt + Seed
 → Requirement Proposal
-→ Requirement Coverage Approval
-→ Feature Requirement Report
-→ Campaign-specific World Blueprint / World Bible
+→ Coverage Approval
+→ deterministic Feature Report
+→ World Blueprint
 → bounded Runtime Binding
 → candidate WorldPack + candidate Initial State
-→ static validation + scripted gameplay preflight
-→ structural/depth assessment + required acknowledgements
+→ static/gameplay/structural preflight
+→ required acknowledgement
 → one atomic seal and Campaign publication
 → deterministic play + Replay + Story
 ```
-
-核心权威链不变：
 
 ```text
 LLM proposes.
@@ -145,147 +70,61 @@ SQLite remembers.
 The narrator describes committed facts.
 ```
 
-Seed 只决定明确生成合同下的生成路径。模型、provider、template 或服务端版本变化都可能
-改变生成结果；因此 Replay 不重新询问 LLM。实际被接受、canonical serialize、hash 并
-原子封存的 artifact 决定 Campaign 中什么是真的。
+Seed 只决定生成路径；封存的 canonical WorldPack 才决定 Campaign 中什么是真的。Replay
+读取保存 artifact，不重新调用 LLM。`GENERATED_GENESIS` 必须保留 Prompt/Seed lineage；
+`AUTHORED_WORLD` 必须标明 authored/official/fixture/legacy，不得冒充 Genesis。
 
-### 3.1 两条合法产品路线
+### 2.1 三类事实
 
-| route | world source | 必须展示的身份 | 可否称为 Genesis |
-|---|---|---|---|
-| `GENERATED_GENESIS` | Prompt + Seed + accepted lineage | 生成合同、支持/降级、semantic/provenance identity | yes |
-| `AUTHORED_WORLD` | 开发者/作者手工 WorldPack | authored/official/fixture/legacy 来源 | no，除非它本身完整经过 Genesis 流程 |
+- **Authoritative durable fact**：验证、绑定、提交后拥有稳定 ID，可保存、hash、进入
+  WorldPack、State、Event、Replay 或 sealed expansion。
+- **Candidate durable fact**：尚未接受的 Prompt 解释、Blueprint、Binding 或 expansion；
+  可保存在 attempt 中，但不是 GameState、DomainEvent、Campaign 或 Narrator 事实。
+- **Ephemeral texture**：只改变表达，不改变因果；不能创建事实，也不能由 prose 反推事实。
 
-两条路线都必须遵守 State/Event/Replay/Narrator authority。区别只在世界如何产生，不在
-游戏运行时是否可以随意编事实。
+输入隐私与世界可见性是两个轴：`PUBLIC_INPUT`/`PLAYER_PRIVATE_INPUT` 与
+`PUBLIC_WORLD`/`WORLD_HIDDEN`/`ACTOR_SCOPED` 分开。Projection 决定角色可观察事实；
+prose 不能改变 visibility、State 或 Event。
 
----
+## 3. Artifact and Feature Contracts
 
-## 4. 事实、隐私与可见性
+### 3.1 Request、Proposal、Approval、Report
 
-### 4.1 三类事实
+Request 保存 raw Prompt、Seed、locale、约束、ID 和 policy reference；raw Prompt 是不可信
+数据，不能执行命令、读取文件、索要凭据或改变权限。
 
-**Authoritative durable fact**：经过 Python validate/bind/commit，拥有 stable ID，保存并
-可 hash，能够进入 WorldPack、Initial State、Event、Replay 或 sealed expansion。
+Proposal 是结构化候选，不是权威。每项应能追踪 requirement ID、source、normalized intent、
+requirement kind、`STRICT/DEGRADABLE/OPTIONAL` policy、typed constraints 和 candidate feature
+IDs；Proposal 顶层可选 `generation_metadata_hash` 记录生成 provenance，不是每项独立字段。
 
-**Candidate durable fact**：LLM、玩家或工具提出但尚未被接受的世界、人物、秘密、
-requirement、blueprint、binding 或 expansion。它可以作为 attempt 证据保存，但不是
-GameState、DomainEvent、Campaign 或 Narrator 可用事实。
-
-**Ephemeral non-authoritative texture**：气味、光影、停顿、语气等不改变因果链的表达。
-它可以重新生成，但不能创建资源、关系、能力、秘密、Event 或后果。
-
-### 4.2 隐私与世界秘密不能共用一个 `hidden_data`
-
-未来 artifact 必须把两个轴分开：
-
-- **输入隐私轴**：`PUBLIC_INPUT` / `PLAYER_PRIVATE_INPUT`；
-- **世界可见性轴**：`PUBLIC_WORLD` / `WORLD_HIDDEN` / `ACTOR_SCOPED`。
-
-随后由确定性 Projection 产生：
-
-- 玩家当前可观察事实；
-- 某个 Actor 当前已知事实；
-- Narrator 当前允许表达的公开事实。
-
-玩家私有创作意图不自动成为世界隐藏真相；世界隐藏真相也不自动暴露给玩家或 Narrator。
-任何 visibility 变化必须来自合法 Action/Event/Rule，不能来自 prose。
-
----
-
-## 5. Genesis logical artifacts
-
-本节冻结职责和依赖方向，不冻结尚未被真实 vertical slice 证明的最终文件名、数据库表或
-Python package layout。
-
-### 5.1 Genesis Request
-
-保存原始 Prompt、Seed、locale、显式约束、request ID 和 policy reference。它是持久的
-lineage 输入，不是 runtime fact。`raw_prompt` 是不可信数据，不能读取文件、执行命令、
-修改 Catalog、请求凭据、加载模块或改变 Engine 权限。
-
-### 5.2 Requirement Proposal
-
-由 LLM edge 或 recorded fixture 把 Request 提取为结构化候选需求。每项至少能够追踪：
-
-- requirement ID 与 raw source reference；
-- normalized intent 与 requirement kind；
-- `STRICT / DEGRADABLE / OPTIONAL` acceptance policy；
-- exclusivity、ownership、resource 和其他 typed constraints；
-- candidate Content/Runtime Feature IDs；
-- generation metadata reference。
-
-Proposal 非权威。Python 可以验证其结构和安全边界，不能仅靠自身证明它完整理解了
-自然语言。
-
-### 5.3 Requirement Coverage Approval
-
-在 Report/Blueprint 继续之前，系统必须展示可读的核心世界合同摘要，并把以下内容保存为
-有 hash 的 approval：
-
-- 它覆盖哪个 Request 与 Proposal；
-- 哪些语句被解释成 core/strict requirement；
-- 哪些被解释成 degradable/optional；
-- 玩家是确认、修改还是取消；
-- fixture 路径使用哪个 expected approval artifact。
-
-Approval 不证明 runtime support；它只关闭“Proposal 漏掉了 Prompt 核心要求”的边界。
-它是 Feature Requirement evaluator 产生 Report 之前的必要输入。修改 Prompt 解释或
-acceptance policy 必须创建新的 Proposal 和 Approval，不覆盖历史记录。
-
-### 5.4 Feature Requirement Report
-
-确定性 evaluator 根据版本化 Catalog 和已确认的 Coverage Approval 对 Proposal 做支持分类。
-evaluator 是纯函数：
+Coverage Approval 是 Report 前置输入，不证明 runtime support。当前 V1-A schema 保存
+`approval_schema_version`、`approval_id`、`decision`（`CONFIRMED`/`CANCELLED`）、Request/Proposal
+ID 与 hash 绑定、按顺序排列的 `requirement_approvals`（`requirement_id` 与
+`acceptance_policy`）以及 canonical approval hash。这些字段足够关闭当前 coverage gate；
+解释、修改说明或 fixture provenance 如未来需要，必须由新的 phase、schema 和 tests 加入，
+本文不假定它们已经存在。
+evaluator 的纯函数合同是：
 
 ```text
-evaluate(
-    request,
-    proposal,
-    coverage_approval,
-    catalog
-)
-→ canonical FeatureRequirementReport
-  | stable validation error
+evaluate(request, proposal, coverage_approval, catalog)
+→ canonical FeatureRequirementReport | stable validation error
 ```
 
-它不读写文件、SQLite、Campaign、GameState、EventStore 或 Story，不创建 Campaign，不修改
-GameState，不创建 Event，不负责 attempt 生命周期，不解析自然语言，也不调用 LLM 或网络；
-这些属于外层 orchestration 和后续 publication slice。
+evaluator 不读写文件/SQLite/Campaign/GameState/EventStore/Story，不创建 Event，不负责
+attempt 生命周期，不解析自然语言，不调用 LLM 或网络。产生 Report 前必须验证：
 
-在 evaluator 产生 Report 之前，必须先通过 Coverage Approval input gate：
+- approval 为 `CONFIRMED`，且自身通过 strict schema/canonical hash；
+- request ID/hash、proposal ID/hash 与输入完全一致；
+- requirement 集合、顺序/canonical identity 完全一致；
+- 每项 acceptance policy 与被确认 Proposal 完全一致。
 
-- approval decision 必须为 `CONFIRMED`；
-- approval 绑定的 request ID/hash 必须与输入 Request 完全一致；
-- approval 绑定的 proposal ID/hash 必须与输入 Proposal 完全一致；
-- approval 覆盖的 requirement ID 集合必须与 Proposal 完全一致；
-- requirement 顺序必须符合合同；若合同以 canonical identity 定义顺序，则该 canonical
-  identity 也必须符合合同；
-- 每项 `STRICT / DEGRADABLE / OPTIONAL` acceptance policy 必须与被确认的 Proposal 完全一致；
-- approval 自身必须通过 strict schema 和 canonical hash 验证。
+缺失、`CANCELLED`、hash 不匹配、requirement 遗漏/新增、policy 不匹配或 approval 被修改
+时返回 stable validation error，不产生 Report。修改解释或 policy 必须产生新 Proposal 和
+Approval，不覆盖旧 artifact。
 
-approval 缺失、decision 非 `CONFIRMED`（包括 `CANCELLED`）、request/proposal hash 不匹配、
-requirement 遗漏或新增、acceptance policy 不匹配，或 approval 被修改/其 hash 不匹配时，
-返回 stable validation error，不产生 Report。Approval 变化必须创建新的 Proposal/Approval，
-不能覆盖旧 artifact。
-
-规范化 item 至少包含：
-
-```text
-requirement_id
-catalog_layer: CONTENT | RUNTIME
-support_status: SUPPORTED | DEGRADED | UNSUPPORTED | REJECTED
-warnings[]
-reason_code
-bound_feature_ids[]
-accepted_scope
-lost_capabilities[]
-player_visible_effect
-acknowledgement_required
-disposition: BIND | BIND_DEGRADED | OMIT | BLOCK
-```
-
-Report 顶层至少保存：
+Report item 至少保留：requirement ID、catalog layer、support status、warnings、reason、
+bound feature IDs、accepted scope、lost capabilities、visible effect、acknowledgement 和
+disposition。顶层至少保存：
 
 ```text
 source_request_hash
@@ -297,759 +136,325 @@ items[]
 requirements_gate_passed
 ```
 
-状态集合、计数和 UI 分组由 `items[]` 确定性派生，不重复存储。`requirements_gate_passed=true`
-当且仅当同时满足：
-
-1. Coverage Approval 有效且 decision 为 `CONFIRMED`；
-2. 所有 `STRICT` requirement 都是 `SUPPORTED`；
-3. `DEGRADABLE` requirement 只能是 `SUPPORTED`，或采用 Catalog 已定义的真实 `DEGRADED`
-   binding，并已完成所需确认；
-4. `OPTIONAL` 的 unsupported requirement 按合同 `OMIT`；
-5. 不存在 `REJECTED`；
-6. 不存在未解决 warning；
-7. 所有 `bound_feature_ids` 都属于当前 Catalog，并通过对应 layer 验证。
-
-Coverage Approval 只证明 Proposal 的 Prompt 覆盖和 acceptance policy 已获得确认，不证明
-runtime support。Feature evaluator 仍独立判断 `SUPPORTED` / `DEGRADED` / `UNSUPPORTED` /
-`REJECTED`。Report 不输出 `seal_allowed`：这时 Blueprint、Binding、WorldPack、Initial
-State 和 Preflight 仍不存在，最终 seal eligibility 必须由后续所有 gate 汇总。
-
-### 5.5 World Blueprint / World Bible
-
-描述 Campaign 的宏观世界、初始区域、远方约束、public/hidden facts、主角、地点、Actor、
-派系、资源生态、Story Engines、压力与机会。它不是固定章节脚本，也不是 runtime support。
-只有被后续 binding 接受的部分才能进入 WorldPack。
-
-### 5.6 Bound Runtime Configuration
-
-将 Blueprint 需求绑定到已经实现、版本化、可验证的 runtime semantics。它只能引用稳定
-Feature ID 与 contract version；参数必须严格校验。禁止动态 Python、`eval`、表达式、
-任意 DSL、plugin loading、Narrator 补机制和 unknown-field fallback。
-
-### 5.7 Candidate Genesis Bundle
-
-包含 candidate WorldPack、candidate Initial State、lineage hashes、compiler identity 和待跑
-gate。它可以 canonicalize 和计算临时 hash，但仍不是 authority、不是 sealed WorldPack、
-不是正式 Campaign，也不能进入存档列表。
-
-### 5.8 Preflight / Structural / Depth reports
-
-这些是最终 seal 前的机器可读 proof artifacts：
-
-- static schema/reference/security/invariant report；
-- scripted gameplay/replay report；
-- `STRUCTURAL_DIVERGENCE_V1` 或更高 depth assessment；
-- bounded retry/failure report；
-- 必要的 degraded acknowledgement。
-
-它们不能在 seal 后反向修改 WorldPack。若任何 required gate 未通过，只能创建新的 attempt。
-
-### 5.9 Sealed Genesis Bundle 与 WorldPack
-
-`WorldPack` 保存运行语义和静态世界事实；`SealedGenesisBundle` 保存 WorldPack、Initial
-State、完整 lineage、proofs、acknowledgements、compiler identity 与最终 commit record。
-二者都是不可变 artifact。Campaign 同时引用 semantic identity 与 sealed provenance
-identity，Replay 不需要重新调用 Generator。
-
-### 5.10 Initial Authoritative GameState
-
-只能从 candidate WorldPack 确定性 materialize，通过 core/feature invariants 与 preflight，
-随后和 WorldPack 在同一次最终 commit 中成为 authority。不能从 Prompt、Blueprint、prose
-或未来模型重新生成。
-
-### 5.11 Runtime Expansion
-
-见第 10 节。它是绑定父 WorldPack 的 immutable child artifact，不是基础 WorldPack 的
-可变尾部。
-
-### 5.12 Narration artifacts
-
-Narration Request、committed turn、expression/translation version 与 `novel.md` 都是
-derived artifacts。它们描述已提交的公开事实，不进入 gameplay Replay，也不能反向成为
-WorldPack、State 或 Event authority。
-
----
-
-## 6. Feature Catalog 与 Requirement semantics
-
-### 6.1 四层目录
-
-| layer | 用途 | 是否接受玩家 requirement binding |
-|---|---|---|
-| Content Capability | title、premise、labels、locale 与不承载机制的世界表达 | yes |
-| Runtime Semantic Feature | State/Action/Event/Reducer/Invariant/Projection/Replay 的运行语义 | yes |
-| Kernel Guarantee | EventStore、hash、Replay、Verify、atomicity 等前置能力 | no，作为 compiler gate |
-| Legacy Compatibility | 旧 profile、bundle、adapter 与 frozen regression | no，只用于旧包/fixture/迁移 |
-
-目录中不得预注册尚无真实 Feature Contract 的一长串未来 ID。一个合理但未实现的需求可以
-返回稳定 reason code `NO_MATCHING_RUNTIME_CONTRACT`，不需要先发明 placeholder architecture。
-Compiler 可以在内部组合有限、已经实现并验证的 Runtime Feature；禁止的是把开发者写好的
-故事世界/profile 当成玩家的 Genesis 菜单，不是禁止复用真实运行语义。
-
-`SUPPORTED` 只有一个枚举值，但它必须与 `catalog_layer` 一起读：
-
-- Content `SUPPORTED` 只表示可以忠实保存/表达内容；
-- Runtime `SUPPORTED` 才表示完整确定性机制已经存在；
-- Kernel/Legacy 不作为玩家 requirement 的 `SUPPORTED` item。
-
-### 6.2 支持状态
-
-| status | 语义 | binding 行为 |
-|---|---|---|
-| `SUPPORTED` | 在该 catalog layer 内关键意思不丢失，完整路径可验证 | `BIND` |
-| `DEGRADED` | 有真实但更窄的运行语义，并列明损失和玩家可见差异 | 仅 `DEGRADABLE` 且确认后 `BIND_DEGRADED` |
-| `UNSUPPORTED` | 需求合理但没有对应真实合同 | `OPTIONAL` 为 `OMIT`，其他为 `BLOCK` |
-| `REJECTED` | 违反 schema、安全、authority 或可验证性 | 总是 `BLOCK`，确认不能绕过 |
-
-`warnings[]` 用于歧义、冲突、exclusivity 未定义、content/runtime 混淆等。任何 unresolved
-warning 都使 `requirements_gate_passed=false`；解决 warning 必须创建新 Report，不能修改
-旧 hash。
-
-### 6.3 Required、degraded 与 optional
-
-- `STRICT`：`DEGRADED` 与 `UNSUPPORTED` 都阻断；
-- `DEGRADABLE`：只允许采用 Catalog 已明确定义的窄语义，并在继续前确认；
-- `OPTIONAL`：unsupported 时自动 `OMIT`，仍保留 item、reason 与可见影响，不阻断；
-- exclusivity、ownership、唯一主角优势、资源排除、永久扣除等核心规则默认 `STRICT`；
-- acknowledgement 不能把 `UNSUPPORTED` 或 `REJECTED` 改成 `SUPPORTED`。
-
-一般的“能力有代价”不能自动候选 `exclusive_resource`：代价也可能是 stamina、时间、风险
-或机会。只有原需求明确要求排他资源、排除普通材料和永久扣除时，才允许绑定对应的已实现
-合同；没有 exact contract 时必须返回 `NO_MATCHING_RUNTIME_CONTRACT`。
-
-### 6.4 Feature 进入 Catalog 的最低证据
-
-一个 runtime Feature 必须同时回答：
-
-1. stable Feature ID、contract version 与具体产品问题；
-2. authoritative State 在哪里；
-3. legal Action、参数与失败 code；
-4. DomainEvent、Reducer 与 before/after invariants；
-5. public/private/Actor Knowledge Projection；
-6. persistence、Replay、Verify 与 corruption behavior；
-7. scripted/autoplay proof 与 strategy consequence；
-8. 与 frozen profile/bundle 的 compatibility；
-9. 明确 non-goals。
-
-只有 helper、label、roadmap entry、相似字段或 Narrator 描述时，一律不合格。
-
----
-
-## 7. 世界完整度与 anti-reskin gate
-
-### 7.1 三层世界结构
-
-**Macro World — 开局完整**
-
-- 世界规律、历史、文明与地理骨架；
-- 核心派系、主要冲突、长期压力与核心秘密；
-- 主角身份、长期非对称优势和成长方向；
-- Story Engine 的稳定 ID、参与者、目标、风险与演化边界；
-- 远方区域 namespace、事实锚点、约束与 child-seed policy。
-
-**Initial Region — 开局详细可玩**
-
-- entry location、可达地点与合法移动；
-- 当前可交互 Actor、资源、压力、机会与信息边界；
-- 至少一个可重复验证的短期 gameplay loop；
-- 初始 Observation、legal actions、失败路径和 Replay proof。
-
-**Remote Regions — 受约束惰性物化**
-
-- seal 时不要求每条街道、次要 NPC、室内或配方全部存在；
-- 必须先有稳定 namespace、宏观事实、已知连接、约束、预算与 child seed；
-- 物化前是 candidate，物化后通过 child seal/Event 才成为 world truth；
-- 不能因为玩家尚未看到就静默重写。
-
-### 7.2 Depth L0 — `STRUCTURAL_DIVERGENCE_V1`
-
-所有 `GENERATED_GENESIS` Campaign 的最低门禁：
-
-- 与 `phase75_expedition_v1` 相比，至少一个结构维度真实不同：地点拓扑、资源循环、
-  pressure/opportunity、Actor goal、ownership、protagonist advantage 或合法 Action；
-- 差异必须进入 State/Action/Event/Projection/Replay，而非只改 title、label、premise、
-  resource name 或 prose；
-- A/B 移除该新语义后，legal action、reachable strategy 或 resource/opportunity cost 至少
-  一项发生可测变化；
-- scripted preflight 必须完成合同规定的 accepted decisions，不能退化为 WAIT-only；
-- 失败不得降级成仍标为 Genesis 的 legacy reskin。
-
-### 7.3 Depth L1 — `WORLD_DEPTH_L1`
-
-L1 证明世界已经不仅是一个新机制切片：
-
-- 至少一个真实可行走的地点图；第一版目标为至少 3 个相连地点；
-- 至少 1 个会随时间推进的 pressure/opportunity clock；
-- 至少 1 个可错过且不可逆的机会；
-- 20 个有意义回合不进入 WAIT-only 或单一动作坍缩；
-- 上述差异全部进入 State/Event/Projection/Replay。
-
-### 7.4 Depth L2 — `WORLD_DEPTH_L2`
-
-L2 证明玩家看不到的世界也在运行，并且主角优势真实改变策略：
-
-- 至少 2 个拥有独立目标的 Actor；
-- 至少 2 个同时推进的 pressure/opportunity clocks；
-- 至少一个 Actor/世界线程在玩家不在场时确定性推进；
-- 主角长期非对称优势的启用/移除产生 legal action、reachable strategy 或
-  resource/opportunity cost 差异；
-- Rich E2E 的 20–30 回合测试不出现 WAIT-only、单一动作或所有世界同循环坍缩。
-
-不得展示未通过的 depth claim。若 L2 失败但 L1/L0 真实通过，只能在有限重生成结束后
-明确标为相应较低等级；若 L0 也失败，则不创建 Genesis Campaign。
-
-### 7.5 主角优势与成长
-
-每个正式 Genesis 世界都应给主角一个长期非对称成长优势，但不强制都是超能力。它可以
-来自能力、载具、知识、身份、关系、装备、组织权限或环境适配。
-
-`Absolute Power` 指已经永久获得的策略容量，单调不减；`Effective Capacity` 可以因伤势、
-资源、位置、维护或机会暂时受限；`Relative Standing` 会随 cohort 改变和短期回撤。这样
-既保留爽文成长，也让时间、世界竞争和错失机会继续有意义。
-
----
-
-## 8. Hash、lineage 与 identity
-
-### 8.1 `world_semantic_hash`
-
-只表示世界在运行时是什么，至少覆盖：
-
-- semantic schema version；
-- accepted Runtime Feature IDs 与 contract versions；
-- macro facts、initial-region facts、public/hidden world data；
-- remote namespaces、约束与 materialization descriptors；
-- stable IDs、initial-state materialization inputs。
-
-它不包含 provider、model、template、聊天记录或生成时间。两次生成若得到完全相同的
-canonical runtime semantics，可以拥有相同 semantic hash。
-
-### 8.2 `sealed_bundle_hash`
-
-表示这次 Campaign 的完整生成与验收历史，至少覆盖：
-
-- `world_semantic_hash` 与 `initial_state_hash`；
-- Request、Proposal、Coverage Approval、Report、Blueprint、Binding hashes；
-- compiler ID/schema/implementation digest；
-- generation policy 与经过隐私处理的 metadata；
-- preflight、structural/depth reports 与 acknowledgements；
-- seal schema version。
-
-因此“世界语义是否相同”和“这份世界怎样产生”可以分别比较。Generation metadata 不是
-world authority，但属于不可替换的 provenance。
-
-### 8.3 Initial State 与 Event identity
-
-`initial_state_hash` 绑定 `world_semantic_hash`、state schema 与完整 canonical payload。
-Campaign manifest 同时引用 `world_semantic_hash`、`sealed_bundle_hash` 和
-`initial_state_hash`。DomainEvent 继续绑定 before/after state hash、event sequence 与
-Campaign identity。
-
-禁止循环 hash：WorldPack 不嵌入尚未计算的 Initial State hash；Initial State 不反写
-WorldPack。顺序固定为 semantic WorldPack → Initial State → sealed bundle → Campaign commit。
-
----
-
-## 9. Preflight、seal 与原子发布
-
-### 9.1 Preflight 必须在 seal 前
-
-Candidate bundle 至少通过：
-
-- schema、unknown field、reference、stable ID 与 security validation；
-- Feature-local state、legality、invariant 与 initial Observation；
-- 必需资源/路径可达和无零时间循环；
-- scripted gameplay smoke；
-- Event Replay 与 final state hash equality；
-- `STRUCTURAL_DIVERGENCE_V1`，以及被声明的更高 depth gate；
-- Requirement Coverage Approval 与必要 acknowledgements；
-- old bundle/PC1 compatibility regression。
-
-Preflight 使用 candidate hash 绑定输入和输出，但不把 candidate 称为 sealed WorldPack。
-超时不是成功，只能 `FAIL` 或合同明确允许的 bounded degraded result。
-
-### 9.2 唯一 authority transition
+状态集合、计数和 UI 分组由 `items[]` 派生，不重复存储。`requirements_gate_passed=true`
+必须同时满足：Approval 有效且确认；STRICT 全部 SUPPORTED；当前 V1-A 中 DEGRADABLE
+若 UNSUPPORTED 也 BLOCK（当前没有 `DEGRADED` support status；未来引入真实 degraded
+binding 必须由新的 phase、schema 和 tests 明确定义）；OPTIONAL unsupported 按合同 OMIT；
+无 REJECTED；无未解决 warning；所有 bound feature IDs 属于当前 Catalog 并通过 layer 验证。
+Approval 只证明覆盖和 policy 确认，Feature evaluator 独立判断 SUPPORTED/UNSUPPORTED/REJECTED。
+
+### 3.2 Blueprint、Binding、Candidate
+
+Blueprint 描述宏观世界、初始区域、事实锚点、主角、地点、Actor、派系、资源、Story
+Engine、压力和远方约束；它不是脚本，也不是 runtime support。Bound Runtime Configuration
+只能引用已经实现、版本化、可验证的 feature contract；禁止动态 Python、`eval`、任意 DSL、
+plugin loading 和 unknown-field fallback。
+
+Candidate bundle 保存 candidate WorldPack/Initial State、lineage hashes、compiler identity
+和 gates。它可以 canonicalize/hash，但不是 authority、不是 sealed WorldPack、不是 Campaign，
+不能进入存档列表。`Feature Catalog` 不预注册未来 placeholder：合理但未实现的需求返回
+稳定 `NO_MATCHING_RUNTIME_CONTRACT` 或等价结果。
+
+Sealed Genesis Bundle 只有在所有 required gates 通过后才生成；它不可变地保存 WorldPack、
+Initial State、完整 lineage、proofs、acknowledgements、compiler identity 和最终 commit
+record。Campaign 同时引用 semantic identity 与 sealed provenance identity，Replay 不依赖
+重新生成。失败 attempt 可以保留 stable error 供修复；每次修复使用新 attempt ID，禁止
+无限 repair、隐式权限升级和失败后的正式副作用。
+
+### 3.3 Feature Catalog
+
+Catalog 只收录已有真实运行证据的 Feature：
 
 ```text
-candidate artifacts in an attempt workspace
-→ all gates pass
-→ compute final canonical artifacts and hashes
-→ one no-replace atomic Campaign publication
+State → legal Action → DomainEvent → Reducer → Invariant
+→ Observation/Knowledge Projection → Persistence → Replay/Verify
+→ tests/autoplay proof → declared non-goals
+```
+
+当前 V1-A 只有 `SUPPORTED`、`UNSUPPORTED`、`REJECTED` 三种 support status：`SUPPORTED` 必须
+结合 layer 解释并使用 `BIND`；`UNSUPPORTED` 只有 OPTIONAL 才能 `OMIT`，否则 `BLOCK`（包括
+当前的 DEGRADABLE）；`REJECTED` 总是 `BLOCK`；未解决 warning 阻断。`DEGRADED` 不是当前
+枚举；若未来需要真实 degraded binding，必须由新的 phase、schema、tests 和产品验收合同
+共同引入。helper、label、roadmap、prose、相似字段和 partial mapping 都不是 Feature 证据。
+
+## 4. Candidate / Preflight / Publication
+
+### 4.1 Preflight
+
+Preflight 是 seal 前的 proof artifact，至少覆盖 schema/reference/security、Feature-local
+legality/invariant/Observation、资源/路径可达、scripted gameplay、Event Replay/final hash、
+`STRUCTURAL_DIVERGENCE_V1`、Approval/acknowledgement 和 frozen compatibility。任何 required
+gate 失败只能创建新 attempt；不能把 candidate 当 sealed，也不能让 failure 留下正式副作用。
+
+V1-D experimental seam 的三项 resolved gate 是：
+
+```text
+STATIC_PREFLIGHT
+GAMEPLAY_PREFLIGHT
+STRUCTURAL_DIVERGENCE
+```
+
+它们不授权 Runtime Catalog、publication、Campaign 或 WorldPack seal。candidate preflight
+通过不等于 Phase 10V1 通过。
+
+### 4.2 Anti-reskin 与产品 gate
+
+正式 Genesis 最低结构门禁 `STRUCTURAL_DIVERGENCE_V1` 要求与 legacy profile 在地点/资源/
+pressure/Actor goal/ownership/protagonist advantage/legal action 等至少一项真实不同；差异
+必须进入运行事实和 Replay，不能只是 title、label、premise、resource name、cost 或 prose。
+移除新语义后，legal action、reachable strategy、resource/opportunity cost、optimal policy
+或 accepted trace 至少一项必须可测变化。
+
+最终 Genesis 产品证明维度为：
+
+```text
+CONTROL_DEFICIT
+RULE_LEGIBILITY
+PROTAGONIST_LEVERAGE
+ADVANTAGE_ABLATION
+ACCUMULATION
+COMPOUNDING
+RELATIONSHIP_REVERSAL_OR_WORLD_RECOGNITION
+STRATEGY_SPACE_EXPANSION
+DETERMINISTIC_AUTHORITY
+REPLAY_VERIFY
+```
+
+这些是证明维度，不要求建立同名 class 或通用 framework。具体证据来自 bounded Feature
+Contract。旧 exclusive-upgrade pressure 的产品语义和绑定 identity 已 supersede；V1-R1
+必须重新选择一个能证明上述 gate 的 recorded fixture，不能把旧 artifact 换名后继续验收。
+
+### 4.3 唯一 authority transition
+
+```text
+candidate attempt
+→ all required gates pass
+→ canonical artifacts and hashes
+→ no-replace atomic Campaign publication
 → authority exists
 ```
 
-实现可以使用同父级 staging directory、SQLite transaction 或经过证明的等价机制，但必须
-满足：
+正式 namespace 在 commit 前不可见。WorldPack、Initial State、commit record、Campaign、
+empty EventStore 和 Story bootstrap 要么全部可见，要么全部不可见；不能覆盖既有 Campaign；
+crash leftover 只能是非权威 attempt；正式状态没有可加载的 PREPARED Campaign。具体路径、
+平台 primitive 和恢复协议留给实现 phase，不在这里预建 workflow engine。
 
-- 正式 namespace 在 commit 前不可见；
-- WorldPack、Initial State、commit record、Campaign record、empty EventStore 与 Story
-  bootstrap 要么全部可见，要么全部不可见；
-- publication 使用 no-replace，不覆盖竞争者或既有 Campaign；
-- symlink/reparse/path escape、source/target identity 与 canonical bytes 都重新验证；
-- crash leftover 只能作为非权威 attempt，被清理或人工检查，不能自动晋升；
-- 正式状态只有 `COMMITTED/PUBLISHED`，没有可加载的 `PREPARED` Campaign。
+## 5. Replay、Persistence、Story Authority
 
-具体路径、manifest JSON 和平台恢复协议必须由实现 slice 根据真实故障模式冻结；G0.1
-不预先创建通用 workflow engine。
-
-### 9.3 有限重生成
-
-失败可以产生 stable machine-readable errors。每次修复或重生成使用新的 attempt ID，不能
-复用旧 seal/Campaign ID。自动重生成由版本化 policy 控制：
-
-- 初始 Foundation slice 默认 `max_regenerations=0`；
-- 产品启用前可在独立阶段证明最多 1–2 次 bounded regeneration；
-- 重生成后仍失败，只能明确采用真实通过且满足所有 strict requirement 的较低 depth level，
-  或失败/取消；
-- 永远禁止无限 repair loop、隐式权限升级和失败后留下正式副作用。
-
----
-
-## 10. Runtime Expansion 合同
-
-Runtime Expansion 的逻辑权威边界已经确定：
+动态事实只存在于已提交 Initial State、EventStore history 和可验证 Snapshot。所有变化遵循：
 
 ```text
-sealed base WorldPack semantic hash
-+ sealed bundle / Campaign identity
-+ macro World Bible and remote constraints
-+ committed Campaign history
-+ stable expansion namespace and region/entity ID
-+ deterministic child seed
-→ candidate expansion
-→ schema/reference/feature validation
-→ runtime binding
-→ scripted preflight
-→ child semantic/provenance hashes
-→ atomic child activation + Expansion Event
-```
-
-必须满足：
-
-- child artifact immutable，并绑定父 `world_semantic_hash`、Campaign、namespace 和 child seed；
-- 父 WorldPack、父 hash 和已提交 child 都不可覆盖；
-- State 只有在 child artifact 与引用其 hash 的 Expansion Event 成为同一 authority unit 后，
-  才能引用新 entity/location/thread；
-- Campaign 的 expansion manifest 是 append-only，并能从 Event history/child hashes 验证；
-- Replay 读取保存的 child artifact，不重新询问 LLM；
-- 失败没有部分 child、部分 Event 或悬空 State reference；
-- Narrator 不能提交 expansion，也不能把 candidate 写成已发现事实；
-- 具体 quota、最大深度、触发策略和存储 schema 必须在实现 phase 中版本化，但不得改变
-  上述不变量。
-
----
-
-## 11. Runtime authority 与行动合同
-
-### 11.1 单一事实源
-
-Campaign 的动态事实只存在于已提交 Initial State、EventStore history 与可验证 Snapshot。
-YAML、Prompt、World Bible、Narration、UI cache 和 novel export 都不能成为 mutable save。
-
-### 11.2 所有变化经过合法 Action 与 Reducer
-
-```text
-public/private Observation
-→ offered choice/action schema
-→ submitted choice_id + typed params
-→ legality validation
-→ deterministic resolution / RNG draw
+Observation
+→ choice/action + typed params
+→ legality
+→ deterministic resolution
 → DomainEvent(s)
-→ pure reducer
+→ pure Reducer
 → invariants
 → atomic EventStore commit
 → new Observation / Story request
 ```
 
-- 玩家可以表达任意意图，但 Engine 只结算当前合同能表达的行动；
-- 不合法行动不写 Event、不推进时间、不消耗 RNG、不改变 State；
-- 一个 accepted decision 可以产生一个或多个 Event；新 runtime 不得继承“永远单 Event”的
-  legacy 偶然假设；
-- RNG state 属于 authority，随机 draw 必须可 Replay；
-- Reducer 和 invariant 是 anti-forgery boundary，不能由 LLM、Narrator 或客户端绕过。
+非法行动不写 Event、不推进时间、不消耗 RNG、不改变 State。RNG、before/after hash、sequence
+和 Campaign identity 属于 authority；一个 decision 可以有多个 Event。Decision 的 events、
+state、RNG、record 和必要 snapshot 同一事务提交；Story 失败只留下可恢复 pending，不回滚
+已提交 gameplay。
 
-### 11.3 Decision 原子性
-
-一个 decision 的 events、state transition、RNG、decision record 与必要 snapshot 必须在
-同一事务中提交。任一步失败全部回滚。外部 Story 失败不回滚已经提交的 gameplay；它保留
-pending narration request 并允许幂等恢复。
-
----
-
-## 12. Observation、Knowledge、Story 与语言
-
-### 12.1 Knowledge Boundary
+Knowledge 继续分离：
 
 ```text
 World Truth ≠ Actor Knowledge ≠ Player Observation ≠ Narrator Context
 ```
 
-NPC 只能根据自己知道的事实行动；玩家只看到合法 Projection；Narrator 只收到可公开的
-committed facts。秘密、关系意愿、隐藏属性、未来成功概率或其他 Actor 私有信息不能因为
-存在于 WorldPack 就自动泄露。
-
-### 12.2 Story authority
-
-Story sidecar 保存 deterministic Narration Request、pending/resume 与 immutable committed
-turn。正确顺序是：
+Story 顺序固定为：
 
 ```text
-authoritative Event / public result
-→ structured narration brief and claims
+authoritative Event/public result
+→ structured narration brief/claims
 → prose
-→ committed turn
-→ deterministic novel export
+→ immutable committed turn
+→ novel export
 ```
 
-不能解析散文关键词来恢复资源、伤害、关系或能力事实。Narration error 只影响 Story，
-不修改 GameState/EventStore。表达修订必须创建新 version，不覆盖原 committed artifact。
+Narrator 不能提交 expansion、修改 State/Event、解析 prose 反推事实或创造关系；locale 只能
+改变 labels/prose/export，不能改变 stable ID、legal action、Event sequence、state hash 或 Replay。
 
-### 12.3 Locale
+## 6. Constrained Runtime Expansion
 
-- `input_locale` 属于玩家/LLM edge；
-- `content_locale` 属于 WorldPack 显示内容；
-- `narration_locale` 属于 Story 表达。
-
-Locale 不得改变 stable ID、legal action、Event sequence、state hash 或 Replay。不同语言可以
-有不同 prose/labels/export，但必须绑定相同 committed facts。
-
----
-
-## 13. Vertical Slice 开发纪律
-
-### 13.1 一个 Feature 的完整闭环
-
-内部 checkpoint 可以按依赖顺序只完成完整闭环的一部分，并拥有自己的 commit、focused
-tests 与 review。可以先完成 schema/model、runtime semantics、compiler、preflight、
-publication 或 autoplay 中的某一段，但 checkpoint 不得被标记为完整 Feature。
-
-任何新增可玩行为在被宣称为 `complete`、`SUPPORTED`、`accepted implementation`、
-`production ready`、`frozen` 或创建 freeze tag 之前，必须在同一个最终可验收 slice 内完成
-该行为实际需要的完整闭环：
+Expansion 只能从已 sealed 的父 WorldPack、Campaign/history、namespace 和 deterministic child
+seed 产生 candidate child：
 
 ```text
-product requirement
-→ Feature Contract
-→ State
-→ legal Action
-→ Event
-→ Reducer
-→ Invariant
-→ Observation / Knowledge
-→ persistence
-→ Replay / Verify
-→ scripted/autoplay proof
-→ metrics and regression
+candidate child
+→ schema/reference/feature validation
+→ runtime binding
+→ preflight
+→ child hashes
+→ atomic child activation + Expansion Event
 ```
 
-缺任一实际需要的层就不能作上述完成声明。内部 checkpoint 不创建新的永久 spec 文档、
-独立 freeze tag 或 accepted implementation；不得把 checkpoint、helper、schema、label、
-fixture 或局部 cost mapping 冒充为已完成 Feature。具体阶段可以按风险裁剪不适用的层，
-但必须在 Phase Contract 中说明裁剪理由与最终验收证据。
+child immutable，绑定 parent semantic hash、Campaign、namespace、seed；manifest append-only；
+父事实不追溯修改；State 只有在 child artifact 和 Expansion Event 同一 authority unit 后才能
+引用新 entity/location/thread；Replay 不重新问 LLM；失败没有悬空引用；Narrator 不能激活 child。
+未物化的远方 NPC/城市不是“已完整模拟”的事实。
 
-### 13.2 抽象必须由真实需求挣出来
+## 7. Vertical Slice、测试与 review
+
+### 7.1 完整闭环
+
+内部 checkpoint 可以只完成局部闭环并拥有 commit、focused tests、review，但不能被标为
+完整 Feature。新增可玩行为在宣称 `complete`、`SUPPORTED`、`accepted implementation`、
+`production ready`、`frozen` 或创建 freeze tag 前，必须覆盖该行为实际需要的：
 
 ```text
-first concrete vertical slice
-→ second structurally different pressure slice
-→ observe repeated causal structure
-→ extract the smallest shared abstraction
+product requirement → Feature Contract → State → legal Action → Event → Reducer
+→ Invariant → Observation/Knowledge → Persistence → Replay/Verify
+→ scripted/autoplay proof → metrics/regression
 ```
 
-禁止为了未来可能用到而预建：
+不适用的层必须在 Phase Contract 说明理由；helper、schema、fixture、label 或局部 mapping
+不能冒充 vertical slice。
 
-- `UniversalRuleEngine`、`UniversalWorldSchema`、generic effect/ability graph；
-- dynamic handler/plugin/registry/module loader；
-- arbitrary expression evaluator 或 LLM-generated Python；
-- generic entity graph、relationship graph、scheduler、workflow engine；
-- 一次性把 frozen reducer/invariants 全部迁移。
+### 7.2 抽象边界
 
-### 13.3 Test pyramid
+```text
+first concrete slice
+→ second structurally different slice
+→ observe repeated causality
+→ smallest proven abstraction
+```
 
-每个 active slice 至少包含：
+禁止预建 UniversalWorldSchema、GenericGrowth/Economy/Expansion/Effect/Capability framework、
+动态 plugin/registry、任意 DSL、LLM-generated Reducer、entity graph、scheduler 或 workflow
+engine。Feature-local 方案优先；不要把 first slice 偶然结构写进 Engine。
 
-1. unit tests：schema、legality、reducer、invariants、hash；
-2. scenario tests：success、failure、boundary、corruption；
-3. scripted autoplay：happy path、greed/exploit、resource/time pressure、deadlock；
-4. replay/verify：逐 Event 与 final hash 相等；
-5. compatibility：所有相关 frozen tests 和旧 artifact verify；
-6. design signals：choice conflict、strategy divergence、opportunity cost、feature reachability。
+### 7.3 验收与独立 review
 
-LLM Judge 只能提供 soft evaluation，不能覆盖 integrity hard gate。
+每个 active slice 按风险选择 unit/schema/legality/reducer/invariant/hash、scenario/failure/
+corruption、scripted autoplay、Replay/Verify、frozen compatibility 和 design-signal tests。
+通常运行：
 
-### 13.4 Definition of Done
+```text
+python -m pytest tests/genesis -W error -q
+python -m pytest -q
+python -m compileall -q src/tgn/genesis tests/genesis
+git diff --check
+```
 
-- 功能具有明确 scope 与 non-goals；
-- 所有 authority、failure、hash、Replay 与 migration 语义已写清；
-- focused tests、affected tests、full suite 按风险通过；
-- 新代码覆盖率和 warnings 满足该 phase 的验收合同；
-- 至少一个 exploit/negative scenario；
-- 没有修改 frozen code/test/tag/artifact；
-- 独立 reviewer 没有未关闭 BLOCKER；
-- README/本合同只在结果确实发生后更新；
-- commit、implementation SHA 与新 freeze tag 只在所有门禁通过后创建。
+普通 coding phase 不重复 G0 三轮文档 reviewer 流程；但涉及可玩行为、authority boundary、
+State/Event/Reducer、compiler、persistence、Replay/Verify、publication/atomicity、migration、
+安全或 Knowledge Boundary 时，至少一次独立代码/合同 review 必须读取真实 diff、代码、测试
+和 artifact。全部 BLOCKER 必须关闭；MAJOR 必须关闭或有用户明确批准的 defer；review 强度
+与风险匹配。LLM judge 不能覆盖 integrity gate。
 
----
+Definition of Done：scope/non-goals 明确；authority/failure/hash/replay/migration 写清；
+focused/affected/full tests 按风险通过；至少一个 negative/exploit proof；无 frozen code/test/
+tag/artifact 越界；独立 review 无未关闭 BLOCKER；README、implementation SHA、freeze tag 只在
+结果真实发生后更新。
 
-## 14. Active Roadmap
+## 8. Active Roadmap
 
-项目只维护一张 Active Roadmap。不得恢复旧 Phase 10A–10E 为并列 Active Roadmap，也不得
-恢复旧 Historical Phase 11/12 编号、`devour_evolution` 路线或 `MVP_REWRITE_SPEC` 的阶段
-顺序。上述内容都属于历史，不占用当前编号；需要核对时只通过第 17 节的 Git ref 读取。
+项目只维护这一张路线。旧 Phase 10A–10E、Historical Phase 11/12、`devour_evolution` 和
+`MVP_REWRITE_SPEC` 阶段顺序均为历史，不恢复为 active。
 
 ### Phase 10G0.1 — Contract Consolidation
 
-目标：将设计价值与开发合同收敛为两份文档，关闭 G0 的内部矛盾，不修改生产代码、测试、
-配置、tag 或 artifact。
+已完成的文档边界：两份权威文档和一个执行规则文件；不修改生产代码、tests、配置、tag 或
+artifact。
 
 ### Phase 10V1 — Genesis Foundation Vertical Slice
 
-这是一个统一验收 milestone，不是 10A–10E 五个独立冻结阶段，也不要求在一个 Prompt
-或一个 commit 内完成。它可以拆分为多个有序 checkpoint、commit 和 review 任务，但所有
-checkpoint 共同组成同一个 Phase 10V1，不能分别宣称为正式 phase。
+统一验收 milestone，可以分 checkpoint、commit、review，但只有一个最终 accepted implementation
+和 freeze tag；checkpoint 不创建永久 spec、accepted implementation 或独立 tag。当前 Phase
+10V1 未完成、未 accepted、未 frozen。
 
-建议的内部实施顺序如下；这些名称只是 checkpoint，不是新的正式 Phase 编号：
+V1-A 的 Request/Proposal/Approval/Report 合同和技术 checkpoint 继续保留并可复用；旧
+V1-B/C/D 中绑定 exclusive pressure 的产品验收口径标记为 **superseded**。它们的 strict
+parsing、lineage、hash、replay 和 proof 技术可复用，但旧 pressure-bound artifact/proof
+不得作为最终产品证据。
+
+当前顺序：
 
 ```text
-V1-A — Request → Proposal → expected/recorded Coverage Approval → deterministic Feature Report
-V1-B — Chosen Runtime Pressure Slice
-V1-C — Blueprint / Binding / Candidate Artifacts
-V1-D — Static and Gameplay Preflight / Structural Divergence
-V1-E — Atomic Publication / Campaign / Replay
-V1-F — Autoplay / Compatibility / Final Review
+V1-R0 — Constitutional Compression and Conflict Resolution  (本 checkpoint)
+V1-R1 — Recorded Fixture and Protagonist Leverage Selection
+V1-R2 — Bounded Control-Conversion Runtime Slice
+V1-R3 — Blueprint / Binding / Candidate / Preflight Revalidation
+V1-E  — Atomic Publication / Campaign / Replay
+V1-F  — Autoplay / Compatibility / Final Review
 ```
 
-checkpoint 可以有自己的 commit、tests 和 review，但：
+R1 之前不得选定世界题材、资源、战斗、能力、成长载体、主角外挂或 pressure slice。R1 选择
+后，V1 只证明一个 recorded fixture 的微型闭环：
 
-- 不创建新的永久 spec 文档；
-- 不创建独立 freeze tag；
-- 不宣称整个 Phase 10V1 完成；
-- 不建立 accepted implementation。
+```text
+control deficit
+→ legible rule
+→ protagonist leverage
+→ earned persistent result
+→ improved later conversion
+→ observable recognition or relationship reversal
+→ deterministic Campaign / Replay
+```
 
-只有完整 Phase 10V1 闭环全部通过后，才允许确定 accepted implementation SHA、建立
-Phase 10V1 freeze tag，并在 README/DEV_SPEC 中标记完成。
-
-Phase 10V1 的最终统一验收仍必须覆盖：
-
-1. 一个固定、recorded Prompt/Seed fixture；
-2. Proposal + Coverage Approval + deterministic Report；
-3. bounded Blueprint/Binding；
-4. 一个真实、非 legacy、改变策略的最小 runtime pressure slice；
-5. candidate WorldPack/Initial State；
-6. static + gameplay preflight；
-7. `STRUCTURAL_DIVERGENCE_V1`；
-8. 一次原子 seal/Campaign publication；
-9. 至少 20 个 accepted decisions 的 scripted autoplay、Replay 与 Verify；
-10. old PC1/bundle/frozen suite compatibility。
-
-进入 coding 前必须在 phase prompt 中选定唯一 pressure slice。默认建议从海洋/玄武 Prompt
-中只截取“一个既有成长对象的升级明确排除普通材料，并永久消耗专属资源”这一条
-resource/progression 因果链。该默认 slice 只有在满足以下最低反换皮门禁时，才可通过
-`STRUCTURAL_DIVERGENCE_V1`：
-
-1. 仅修改 `resource_id`、resource display name、label、prose、cost 数值、progression
-   gate mapping，或把 `salvage` 重命名为 `energy_crystal`，均不能算结构差异。
-2. 专属资源必须拥有与普通资源不同的真实因果路径，至少满足一项：不同获得 Action、
-   不同地点/机会窗口、不同风险、不同敌人/目标、不同时间约束、不同关系/权限要求；它
-   不得由普通材料 fallback 或自动兑换。
-3. 永久消费必须经过：
-
-   ```text
-   legal Action → DomainEvent → Reducer → Inventory/Progression State → Replay/Verify
-   ```
-
-4. 专属资源必须产生至少一个真实策略差异，例如两个互斥用途、升级与保留资源之间的
-   机会成本、使用后关闭其他机会、获取资源时放弃另一条路线，或资源有无改变合法行动
-   /可达成长路线。
-5. 必须有 A/B 证明：启用专属资源语义与移除专属资源语义相比，至少一项发生可测变化：
-   legal action set、reachable progression、resource/opportunity cost、optimal scripted
-   policy 或 accepted decision trace。
-6. 不得声称已经支持活体玄武、Habitat、载具所有权、海洋物理、全民投放、peers、通用
-   Capability 或通用专属资源 framework。
-7. 该 slice 必须是具体、局部、可复现的因果链，不建立 `GenericResourceSystem`、
-   `UniversalProgressionFramework`、`EffectSystem`、`CapabilityRegistry` 或动态 Feature
-   plugin。
-
-不得顺带扩大产品范围；完整 Xuanwu/Habitat 仍属于后续产品压力 slice。若用户改选义肢入侵，
-也只能选择一个 bounded Action/State/Event 后果链，并接受同等反换皮与完整闭环门禁。
+V1 不得声称完成完整长期阶层循环、任意 Prompt、生产 Lazy Expansion、World Depth L1/L2 或
+通用 Feature framework。
 
 ### Phase 10V2 — Proposal Edge and Coverage Automation
 
-V1 只使用 recorded fixture、手工/预期的 Requirement Proposal、expected/recorded Coverage
-Approval artifact、deterministic evaluator，并且不使用真实 LLM provider；Coverage Approval
-不会延期到 V2。
+V1 继续使用 recorded fixture、手工/expected Proposal、recorded/expected Approval 和
+deterministic evaluator，不使用真实 LLM provider。V2 才能引入 provider-neutral edge、
+recorded/fake adapter、prompt-to-proposal、independent coverage critic、真实用户确认和
+bounded retry。真实网络 provider、credentials、预算、模型路由和 retention 仍需独立批准。
 
-在 V1 已证明完整链路后，V2 才允许引入 provider-neutral proposal edge、recorded/fake
-provider adapter、prompt-to-proposal generation、independent coverage critic、真实用户
-确认流程、bounded proposal retry 与 provider failure isolation。真实网络 provider、API
-credentials、预算、模型路由和隐私 retention 仍需独立批准，不因 V2 名称变化自动进入实现范围，
-也不能混进 V1 的 deterministic evaluator。
+### 后续路线
 
-### Phase 11V1 — World Depth L1 Runtime Slice
+L1/L2、Natural-Language Action Semantics、Capability、产品 pressure slices 和 PC2 只能在
+前一阶段证据完成后进入新的 Phase Contract。它们不是当前实现范围。
 
-以真实 WorldPack 压力实现 LocationGraph、一个 pressure/opportunity clock 与一个不可逆
-机会，并通过 `WORLD_DEPTH_L1`。它必须形成 State/Action/Event/Projection/Replay 的完整
-vertical slice，不建立尚未被 L2 需求证明的通用 Actor/scheduler framework。
+## 9. Superseded seams、Deferred 与历史
 
-### Phase 11E — Rich Generated World E2E / Depth L2
+旧 exclusive-upgrade pressure 仍可用于研究 strict parsing、hash、replay、A/B proof、lineage
+和 preflight 技术；其产品语义、默认资源、永久关闭来源、Upgrade/Supply Route 二选一和
+固定三步 terminal trace 均不是当前 Genesis 默认，也不得写入新的最终验收身份。
 
-在 L1 以后增加至少两个独立 Actor goal、多时钟、off-screen deterministic progression 与
-主角优势 A/B，完成 20–30 回合 Rich E2E 并通过 `WORLD_DEPTH_L2`。
+延后内容包括：通用 combat/expedition/progression/talent/capability/relationship framework、
+第二个以上 profile 的通用 dispatcher、settlement/organization/economy/peer simulation、
+LLM NPC autonomy、real provider、free-form action interpretation、runtime plugin、generic DSL、
+unlimited repair、自动架构修改 Agent、Presentation v2、Story Context v2 和 PC2。
 
-### Phase 12 — Natural-Language Action Semantics
+旧文档与旧候选不复制到当前合同。需要 exact 证据时：
 
-定义 intent proposal、clarification、legality binding、rejection、recording 与 Replay。
-自由文本不能直接成为 Action/Event authority。
+```powershell
+git show <ref>:<path>
+```
 
-### Phase 13 — Capability Foundation
-
-只有至少两个具体 capability slice 证明共享因果结构后，才提取最小公共抽象。禁止先写
-SkillTree、EffectSystem、AbilityGraph mega-framework。
-
-### Phase 14 — Product Pressure Slices
-
-Cybernetic Intrusion、Xuanwu/Habitat、Mass Drop/Peer Population 等按产品优先级分别进入
-bounded vertical slice。已在 10V1 使用的具体 slice 不重复实现，只在第二个真实需求出现后
-评估抽象。
-
-### PC2 — Genesis Player Client
-
-PC1 保持冻结。PC2 只有在 Genesis Campaign 创建、resume/replay、失败清理、支持报告与
-用户确认都已有生产证据后开始，并使用新的文件边界、implementation SHA 与 freeze tag。
-
----
-
-## 15. 当前结构性硬编码与 superseding seams
-
-本表是对 `pc1-frozen` 代码基线的活跃摘要，不要求 G0.1 修改代码：
-
-| pressure | 真实代码证据 | 当前处理 | 未来 seam |
-|---|---|---|---|
-| 单一 WorldGen profile | `worldgen/models.py::MECHANICS_PROFILE`；`compiler.py::compile_worldpack` | 保留 legacy | 新 compiler/schema/profile identity |
-| 固定 base/site/salvage/Mara | `worldgen/compiler.py::materialize_initial_state` | 合法 first slice | 新具体 profile，不在 v1 加主题分支 |
-| 固定 expedition actions/costs | `gameplay/expedition.py` | 保留冻结行为 | feature-local Action contract |
-| Core reducer 认识 gameplay | `core/reducer.py::reduce_event` | 不原地清理 | versioned feature handler seam |
-| Core invariants 认识 phase/build/Mara | `core/invariants.py::check_invariants` | 保留 anti-forgery | feature-local invariant boundary |
-| 两相 Day/Night 假设 | `gameplay/world_phase.py` | 不宣称通用 | 真实 3+ phase 需求后新 contract |
-| 固定 build candidates | `gameplay/build_choice.py` | 不升级成 SkillTree | 具体 capability slice 后再抽象 |
-| Projection 固定 action params | `projection/presenter.py` | 保留 schema v1 | Presentation v2 |
-| Autoplay 直接导入 expedition | `autoplay/runner.py` | 保留当前 regression | versioned autoplay adapter |
-| Session/Campaign 绑定 expedition | `session/service.py`、`campaign/service.py` | 保留 frozen contract | gameplay/artifact adapter v2 |
-| Story reconstruction 绑定 expedition | `story/reconstruction.py` | 保留 deterministic Story | Story Context v2 |
-| Request 不自带 Seed | `worldgen/models.py::WorldGenesisRequest` | 保留 v1 compatibility | new Genesis Request envelope |
-| bundle/compiler identity 固定 | `worldgen/bundle.py`、`projection/bundle.py`、`campaign/verification.py` | 旧 identity 不变 | semantic/provenance v2 contract |
-
-判断原则：常量不等于坏代码。当前 first slice 的常量可以保留；真正的风险是把它们冒充
-宇宙规则，或让 generic layer 继续认识更多世界特例。
-
----
-
-## 16. Deferred 与非目标
-
-### 16.1 在进入对应 active phase 前继续延期
-
-- 通用 combat/expedition/progression/talent/capability/relationship framework；
-- 第二个以上 runtime profile 的通用 dispatcher；
-- large-scale settlement、organization、economy、peer simulation；
-- LLM NPC autonomy、agent planners、vector memory、emotion inference；
-- real provider、credential handling、deep model/persona matrix；
-- free-form action interpretation；
-- Presentation v2、Story Context v2、PC2；
-- runtime feature plugin、generic DSL、dynamic Python；
-- unlimited repair、unbounded retry 或自动架构修改 Agent。
-
-Deferred 表示尚无 active contract，不表示已经规划了某个 class、schema 或 package。
-
-### 16.2 关系与联合成长质量门禁
-
-任何未来关系 feature 除普通 Feature Contract 外，必须同时满足：
-
-- 所有参与者均经过确定性成年 invariant；任何未成年或年龄不明状态都不能进入成人亲密
-  关系/性相关路径；
-- Action 可执行性不能推导 willingness、consent、love、forgiveness 或 moral correctness；
-- consent、拒绝、撤回、压力、依赖与形成历史由 State/Event 明确记录；
-- Actor agency 与 Knowledge Boundary 保持；
-- Narrator 不能创造、升级、洗白或抹除关系事实；
-- deterministic verification、negative scenarios 与独立外部 review 通过。
-
-### 16.3 旧 `devour_evolution` 候选
-
-`archive/phase10a-devour-candidate-2026-08-02` / `mvp-rewrite` 上验证到
-`870284cc653e400603747dd9e14e41fa6df7795a` 的候选只作历史参考。它没有本分支 accepted
-freeze tag，不是 Genesis 默认能力，不能直接恢复。若其因果结构未来重新获得产品需求，
-必须作为新的 bounded slice 重新走 State/Event/Projection/Replay/Review。
-
----
-
-## 17. 历史证据索引
-
-合并文档不删除 Git 历史。需要核对 G0 原始 exact 草案时使用：
+例如：
 
 ```powershell
 git show 9cdadc472cd92ce38e42767a896718fcad61f938:docs/GENESIS_FOUNDATION.md
-git show 9cdadc472cd92ce38e42767a896718fcad61f938:docs/PHASE1_9_HARDCODING_INVENTORY.md
-git show 9cdadc472cd92ce38e42767a896718fcad61f938:docs/MVP_REWRITE_SPEC.md
-git show 9cdadc472cd92ce38e42767a896718fcad61f938:docs/DEFERRED.md
-```
-
-需要核对某个 frozen phase 当时的 exact contract 时，读取对应 tag 的 README、spec、代码与
-测试。例如：
-
-```powershell
-git show phase-9b1-frozen:docs/MVP_REWRITE_SPEC.md
-git show phase-9b2b-frozen:docs/MVP_REWRITE_SPEC.md
-git show phase-9c2-frozen:docs/MVP_REWRITE_SPEC.md
 git show pc1-frozen:README.md
 ```
 
-历史文档用于回答“当时接受了什么”，本文用于回答“下一步允许怎样开发”。不得把历史
-roadmap、示例 schema 或未冻结候选直接复制成当前实现任务。
+历史内容回答“当时接受了什么”，本文回答“下一步允许怎样开发”。
 
----
+## 10. Phase Contract 模板与本轮边界
 
-## 18. 下一阶段开始前必须填写的 Phase Contract
+每个 coding phase 的 Prompt 必须写明：phase/milestone、产品问题和 pressure slice、允许
+文件与 frozen 排除、State/Action/Event/Projection scope、artifact/migration identity、
+success/failure/atomicity、focused/affected/full commands、coverage/warning gates、独立
+review、implementation SHA/freeze plan 和 non-goals。
 
-每个 coding phase 的执行 prompt 必须明确：
+本轮 V1-R0 只压缩本文档与 `DESIGN_VALUES.md`；不选择具体世界或主角杠杆，不修改 src/tests/
+README/AGENTS/config/artifact/tag，不实现 V1-R1 或生产 Runtime Expansion。
 
-```text
-phase / milestone name
-product problem and chosen pressure slice
-allowed files and frozen exclusions
-exact State / Action / Event / Projection scope
-artifact and migration identity
-success, failure and atomicity semantics
-focused / affected / full verification commands
-coverage and warning gates
-independent review plan
-implementation SHA / freeze-tag plan
-explicit non-goals
-```
-
-以下实现细节留给 10V1 phase contract，而不是 G0.1 先猜：
-
-- exact Python package/file layout；
-- exact JSON field limits 与 stable error list；
-- attempt retention/cleanup 路径；
-- Windows/POSIX publication primitive；
-- 第一个 runtime pressure slice 的最终选择；
-- expansion quota、最大深度和成本预算；
-- provider metadata 的隐私/retention policy。
-
-它们是有 owner 的 phase-entry decisions，不是允许实现者自由发挥的永久空白。
-
----
-
-## 19. G0.1 验收边界
-
-本次文档收敛完成的条件：
+## 11. 文档验收边界
 
 - `docs/` 只保留 `DESIGN_VALUES.md` 与 `DEV_SPEC.md`；
-- README 和 AGENTS 只引用这两份权威内容文档；
-- 10A/attempt、seal/preflight、depth/deferred、Catalog/hash、atomicity 矛盾关闭；
-- `src/**`、`tests/**`、配置、artifact、Git tag 与历史不变；
-- `pc1-frozen..HEAD` 的生产代码 diff 为空；
-- Markdown 链接、格式与 `git diff --check` 通过；
-- 未参与初稿的独立 reviewer 重新读取最新文件，且没有未关闭 BLOCKER。
-
-G0.1 通过只表示文档可以指导下一阶段；不表示 Genesis、World Depth、Xuanwu、Intrusion、
-Peer Population、provider 或 PC2 已实现。
+- 本文是当前 authority、artifact、gate、publication、Replay、expansion、testing 和 roadmap
+  的唯一开发合同，设计体验以 `DESIGN_VALUES.md` 为准；
+- 历史 ref 仅作索引，不成为 active contract；
+- 当前提交不修改代码、tests、README、AGENTS、配置、artifact、tag 或 Git history；
+- 没有 formal Generated Genesis Campaign、sealed generated WorldPack、生产 Runtime Expansion、
+  真实 provider，也没有开始 V1-R1；
+- 文档冲突必须由新的 superseding phase 解决，不靠追加永久说明或重复清单。
