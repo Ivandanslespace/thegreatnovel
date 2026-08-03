@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Runtime artifacts belong to the player, not the source tree.
+saves/*
+!saves/.gitkeep
+.tgn/incoming/
+.tgn/tmp/
+
+# Codex transient attachments are never project source.
+.codex-remote-attachments/
+
