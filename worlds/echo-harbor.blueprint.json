@@ -1,0 +1,466 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "name": "echo-harbor",
+    "title": "回声潮港",
+    "prompt": "我想进入一个靠潮汐贸易运转的港口世界，记忆与账目是可以交易的东西",
+    "seed": 20260803,
+    "controlAxis": "知识/记忆"
+  },
+  "designCheck": {
+    "controlGap": "开局主角是无凭据的外来者：没有行会资格，只能打零工，生计余裕每回合流逝，不知道潮汐窗口何时开启、账簿凭什么借出——控制缺口同时是物质（生计）与信息（规律）两层。",
+    "legibleRule": "三条潮汐规律对所有人一致且可观察：退潮窗口（回合3-4、8-9）装卸与小额贸易机会开启；大潮（回合5-6、10-11）货价剧震风险与收益同增；账簿互惠（账簿认因果不认人）。玩家通过观察、请教与打听逐步看懂并改变决定。",
+    "leverageConversion": "回声账簿改变两条转化：1) 退潮/大潮窗口内的抽签权重向主角倾斜（同一次机会对主角可执行性与成功率不同）；2) 解锁独占行动'预知货价窗口'与'锚定一次风险'，把洞察直接兑换为时机信息与风险下限。代价是每次借用消耗因果洞察，洞察必须靠观察/调查挣得。普通人没有多年残账复原训练，读不出潮因链，故难以复制。",
+    "compounding": "洞察→借账簿→更好的窗口判断→更多凭据与洞察→抄录账簿/供奉档案提升档案好感→触及更高层行动（行会谈判、潮汐契约、外锚航线）。阶层1'账簿之客'解锁回声岛与新收入行动；旧成果（洞察、好感、凭据）全部保留为阶层2的起点。",
+    "opportunityCost": "时间是硬约束：打工维持生计就无暇观察；借账簿消耗洞察就推迟阶层门槛积累；预知与锚定互抢洞察储备；行会在回合7对高收入无凭据者抽'潮税'。错过大潮窗口要等5回合。永久损失来自世界因果（生计归零被逐出港），不是系统删除。",
+    "worldFeedback": "三势力的离屏推进都接有机械后果：码头互助会回合4慢工谈判（dock-slowdown 期间零工顺手率下降）；行会回合6挤压外乡人（guild-squeeze 压低小额贸易的顺手权重）并回合7对高收入无凭据者抽潮税；档案守护者在洞察≥3时主动注意到主角。税日回合9扣生计。status 只投影玩家已知事实与可见来源的 flag，秘密（行会底细等）须经行动获得。",
+    "portability": "引擎只解释资产/条件/抽签/窗口/计划表等原语，本世界的'潮汐窗口+账簿'全部是数据。换一个结构不同的世界（如关系杠杆或生产杠杆），只需新 Blueprint，引擎与体验原则不变。"
+  },
+  "laws": [
+    {
+      "id": "law-ebb-flow",
+      "description": "退潮窗口：退潮时货船集中靠泊，装卸与小额贸易的短窗口开启（回合 3–4、8–9）。",
+      "trigger": { "or": [{ "window": { "gte": 3, "lte": 4 } }, { "window": { "gte": 8, "lte": 9 } }] },
+      "effect": [{ "setFlag": "tide-ebb" }]
+    },
+    {
+      "id": "law-spring-tide",
+      "description": "大潮规律：大潮期货价剧震，贸易的风险与收益同时放大（回合 5–6、10–11）。",
+      "trigger": { "or": [{ "window": { "gte": 5, "lte": 6 } }, { "window": { "gte": 10, "lte": 11 } }] },
+      "effect": [{ "setFlag": "tide-spring" }]
+    },
+    {
+      "id": "law-ledger-reciprocity",
+      "description": "账簿互惠律：回声账簿认因果不认人——能拿出因果洞察者才有资格借用，先看一步，再落子。"
+    }
+  ],
+  "assetTypes": [
+    {
+      "id": "insight",
+      "name": "因果洞察",
+      "kind": "knowledge",
+      "description": "从观察、调查与账簿复原中积累的因果线索，是借用回声账簿的唯一凭证。",
+      "initial": 0
+    },
+    {
+      "id": "credential",
+      "name": "潮汐凭据",
+      "kind": "trade-currency",
+      "description": "港口的交易凭据，可换货物、打点与供奉。",
+      "initial": 0
+    },
+    {
+      "id": "margin",
+      "name": "生计余裕",
+      "kind": "subsistence",
+      "description": "食宿与体力的缓冲。每回合自然消耗 1；归零即被债务与饥饿逐出港口。",
+      "initial": 5,
+      "maintenance": { "asset": "margin", "perTurn": 1 }
+    },
+    {
+      "id": "keeper-favor",
+      "name": "档案好感",
+      "kind": "relationship",
+      "description": "档案守护者的信任，决定你能触及多深的账簿。",
+      "initial": 0
+    }
+  ],
+  "actions": [
+    {
+      "id": "gather-rumors",
+      "name": "码头打听",
+      "description": "在码头酒馆与工棚间收集传闻，积累因果洞察。",
+      "tier": 0,
+      "costs": { "time": 1 },
+      "risk": { "seedTag": "rumors" },
+      "outcomes": [
+        { "id": "rumor-fresh", "weight": 3, "description": "听到新鲜的门道。", "effects": [{ "asset": "insight", "delta": 1 }] },
+        { "id": "rumor-deep", "weight": 3, "description": "老装卸工漏出一句关键闲话。", "effects": [{ "asset": "insight", "delta": 2 }, { "learnFact": "fact-dock-gossip" }] },
+        { "id": "rumor-stale", "weight": 3, "description": "都是旧故事，但你仍拼出一点线索。", "effects": [{ "asset": "insight", "delta": 1 }] }
+      ]
+    },
+    {
+      "id": "casual-labor",
+      "name": "零工装卸",
+      "description": "在码头扛货换凭据与饭食。",
+      "tier": 0,
+      "costs": { "time": 1 },
+      "risk": { "seedTag": "labor" },
+      "outcomes": [
+        { "id": "labor-good", "weight": 3, "description": "装卸顺利，工头当场多结了一份。", "effects": [{ "asset": "credential", "delta": 2 }, { "asset": "margin", "delta": 1 }] },
+        { "id": "labor-normal", "weight": 5, "description": "平常的一天。", "effects": [{ "asset": "credential", "delta": 1 }, { "asset": "margin", "delta": 1 }] },
+        { "id": "labor-bad", "weight": 2, "description": "工头克扣，你只够糊口。", "effects": [{ "asset": "credential", "delta": 1 }] }
+      ]
+    },
+    {
+      "id": "rest",
+      "name": "休整观望",
+      "description": "喘口气，补充食物与淡水，顺便看潮。",
+      "tier": 0,
+      "costs": { "time": 1 },
+      "outcomes": [
+        { "id": "rest-ok", "weight": 1, "description": "你恢复了体力。", "effects": [{ "asset": "margin", "delta": 3 }] }
+      ]
+    },
+    {
+      "id": "talk-to-elder",
+      "name": "请教老潮客",
+      "description": "带上一点凭据去请教棚屋里的老潮客。",
+      "tier": 0,
+      "requires": [{ "fact": "fact-dock-gossip" }],
+      "costs": { "time": 1, "assets": { "credential": 1 } },
+      "risk": { "seedTag": "elder" },
+      "outcomes": [
+        { "id": "elder-open", "weight": 3, "description": "老潮客向你讲了大潮的节拍。", "effects": [{ "asset": "insight", "delta": 1 }, { "learnFact": "fact-spring-tide" }] },
+        { "id": "elder-closed", "weight": 1, "description": "老潮客闭门装睡，你白跑一趟。" }
+      ]
+    },
+    {
+      "id": "investigate-ledger",
+      "name": "查访账簿线索",
+      "description": "沿着巷尾传闻查访回声账簿的来历。",
+      "tier": 0,
+      "requires": [{ "fact": "fact-ledger-rumor" }],
+      "costs": { "time": 1, "assets": { "credential": 1 } },
+      "risk": { "seedTag": "ledger-lore" },
+      "outcomes": [
+        { "id": "lore-found", "weight": 3, "description": "你拼出账簿的规矩：认因果，不认人。", "effects": [{ "asset": "insight", "delta": 1 }, { "learnFact": "fact-ledger-nature" }] },
+        { "id": "lore-lost", "weight": 2, "description": "线索断了，知情者避而不谈。" }
+      ]
+    },
+    {
+      "id": "trade-run",
+      "name": "小额贸易",
+      "description": "押上凭据倒卖一单近港货。",
+      "tier": 0,
+      "requires": [{ "fact": "fact-dock-gossip" }],
+      "costs": { "time": 1, "assets": { "credential": 2 } },
+      "risk": { "seedTag": "trade" },
+      "outcomes": [
+        { "id": "trade-good", "weight": 2, "description": "买卖顺利，低买高卖。", "effects": [{ "asset": "credential", "delta": 6 }, { "clearFlag": "forecast-ready" }, { "clearFlag": "risk-anchored" }] },
+        { "id": "trade-flat", "weight": 4, "description": "不赔不赚，只当练手。", "effects": [{ "asset": "credential", "delta": 1 }, { "clearFlag": "forecast-ready" }, { "clearFlag": "risk-anchored" }] },
+        { "id": "trade-bad", "weight": 2, "description": "货受了潮，亏一单。", "effects": [{ "asset": "credential", "delta": -1 }] }
+      ]
+    },
+    {
+      "id": "consult-archive",
+      "name": "借问档案馆",
+      "description": "呈上洞察，请求借用回声账簿的外账。",
+      "tier": 0,
+      "requires": [{ "fact": "fact-ledger-nature" }, { "asset": "insight", "gte": 2 }],
+      "costs": { "time": 1, "assets": { "insight": 2 } },
+      "outcomes": [
+        { "id": "ledger-opened", "weight": 1, "description": "守护者把回声账簿的外账借给了你：你可以先看一步，再落子。", "effects": [{ "setFlag": "ledger-open" }] }
+      ]
+    },
+    {
+      "id": "echo-forecast",
+      "name": "回声账簿：预知货价窗口",
+      "description": "借账簿复盘潮因链，预演下一次货价波动的节拍。",
+      "tier": 0,
+      "leverageOnly": true,
+      "requires": [{ "flag": "ledger-open" }, { "fact": "fact-spring-tide" }],
+      "costs": { "time": 1, "assets": { "insight": 2 } },
+      "outcomes": [
+        { "id": "forecast-ready", "weight": 1, "description": "账簿浮出下一次货价剧震的节拍：你知道最好的出手时机。", "effects": [{ "setFlag": "forecast-ready" }] }
+      ]
+    },
+    {
+      "id": "anchor-risk",
+      "name": "回声账簿：锚定一次风险",
+      "description": "把一段因果钉在账簿上，为下一次冒险留出下限。",
+      "tier": 0,
+      "leverageOnly": true,
+      "requires": [{ "flag": "ledger-open" }],
+      "costs": { "time": 1, "assets": { "insight": 3 } },
+      "outcomes": [
+        { "id": "risk-anchored", "weight": 1, "description": "账簿钉住了一段因果：你的下一次冒险有了锚。", "effects": [{ "setFlag": "risk-anchored" }] }
+      ]
+    },
+    {
+      "id": "echo-scribe",
+      "name": "抄录账簿",
+      "description": "在回声岛抄录账簿残页，训练复原因果的手艺。",
+      "tier": 1,
+      "requires": [{ "flag": "ledger-open" }],
+      "costs": { "time": 1 },
+      "risk": { "seedTag": "scribe" },
+      "outcomes": [
+        { "id": "scribe-deep", "weight": 3, "description": "一页残账被你完整复原，守护者频频点头。", "effects": [{ "asset": "insight", "delta": 2 }, { "asset": "keeper-favor", "delta": 1 }] },
+        { "id": "scribe-shallow", "weight": 2, "description": "字迹漫漶，只复原出半页。", "effects": [{ "asset": "insight", "delta": 1 }] }
+      ]
+    },
+    {
+      "id": "offer-to-archive",
+      "name": "供奉档案",
+      "description": "以凭据供奉档案馆，换取更深的借阅资格。",
+      "tier": 1,
+      "costs": { "time": 1, "assets": { "credential": 3 } },
+      "outcomes": [
+        { "id": "offered", "weight": 1, "description": "守护者把你的名字记进了册页。", "effects": [{ "asset": "keeper-favor", "delta": 1 }, { "asset": "insight", "delta": 1 }] }
+      ]
+    },
+    {
+      "id": "guild-negotiate",
+      "name": "与行会谈判",
+      "description": "以账簿之客的身份与潮商行会谈过路买卖。",
+      "tier": 1,
+      "costs": { "time": 1 },
+      "risk": { "seedTag": "negotiate" },
+      "outcomes": [
+        { "id": "deal", "weight": 2, "description": "谈成一笔过路分成。", "effects": [{ "asset": "credential", "delta": 6 }] },
+        { "id": "stall", "weight": 3, "description": "行会拖延周旋，只挤出一点残利。", "effects": [{ "asset": "credential", "delta": 2 }] },
+        { "id": "rebuff", "weight": 2, "description": "行会头面讥你外乡，你赔了茶钱。" }
+      ]
+    },
+    {
+      "id": "tidal-contract",
+      "name": "潮汐契约",
+      "description": "凭洞察与凭据吃下一份潮汐期货。",
+      "tier": 1,
+      "requires": [{ "fact": "fact-spring-tide" }, { "asset": "insight", "gte": 5 }],
+      "costs": { "time": 1, "assets": { "credential": 4 } },
+      "risk": { "seedTag": "contract" },
+      "outcomes": [
+        { "id": "contract-win", "weight": 3, "description": "潮信如你所料，契约足额兑付。", "effects": [{ "asset": "credential", "delta": 9 }] },
+        { "id": "contract-flat", "weight": 2, "description": "潮信偏了半步，勉强回本。", "effects": [{ "asset": "credential", "delta": 3 }] }
+      ]
+    },
+    {
+      "id": "outer-route",
+      "name": "外锚航线",
+      "description": "押上一笔凭据，走一趟外锚地短线。",
+      "tier": 2,
+      "requires": [{ "asset": "credential", "gte": 6 }],
+      "costs": { "time": 1, "assets": { "credential": 6 } },
+      "risk": { "seedTag": "route" },
+      "outcomes": [
+        { "id": "route-win", "weight": 3, "description": "航线顺畅，外锚地的差价远超近港。", "effects": [{ "asset": "credential", "delta": 14 }, { "asset": "insight", "delta": 1 }] },
+        { "id": "route-flat", "weight": 2, "description": "风信不稳，只赚个船钱。", "effects": [{ "asset": "credential", "delta": 5 }] }
+      ]
+    },
+    {
+      "id": "keeper-rite",
+      "name": "守护者仪典",
+      "description": "以好感换取一场只有账簿之客能参加的仪典。",
+      "tier": 2,
+      "costs": { "time": 1, "assets": { "keeper-favor": 2 } },
+      "outcomes": [
+        { "id": "rite-done", "weight": 1, "description": "仪典上你亲眼看见潮因链的回放。", "effects": [{ "asset": "insight", "delta": 4 }] }
+      ]
+    }
+  ],
+  "leverage": {
+    "id": "echo-ledger",
+    "name": "回声账簿",
+    "description": "从档案馆借出的回声账簿能复盘潮汐与贸易的因果：先看一步，再落子。",
+    "causalChain": ["law-ledger-reciprocity", "law-spring-tide", "law-ebb-flow"],
+    "cost": "每次借用消耗因果洞察（预知 2、锚定 3）；洞察必须靠观察、调查与抄录挣得，账簿不赊账。",
+    "whyExclusive": "账簿认因果不认人。主角有多年复原残账的手艺，读得出普通人看不懂的潮因链；没有这门手艺的人即使捧着账簿也只见乱码。",
+    "exclusiveActions": ["echo-forecast", "anchor-risk"],
+    "modifiers": [
+      {
+        "id": "mod-ebb-advantage",
+        "description": "退潮窗口内，账簿让你提前知道哪个泊位缺人手：零工的顺手率大增。",
+        "action": "casual-labor",
+        "outcome": "labor-good",
+        "when": { "flag": "tide-ebb" },
+        "setWeight": 8
+      },
+      {
+        "id": "mod-spring-edge",
+        "description": "懂大潮规律后，账簿替你滤掉一半杂音：大潮期贸易的顺手率大增。",
+        "action": "trade-run",
+        "outcome": "trade-good",
+        "when": { "and": [{ "flag": "tide-spring" }, { "fact": "fact-spring-tide" }] },
+        "setWeight": 6
+      },
+      {
+        "id": "mod-forecast",
+        "description": "预知落定：下一次出手踩在最好的节拍上。",
+        "action": "trade-run",
+        "outcome": "trade-good",
+        "when": { "flag": "forecast-ready" },
+        "setWeight": 9
+      },
+      {
+        "id": "mod-anchor",
+        "description": "锚已落下：这一次冒险不会亏到底。",
+        "action": "trade-run",
+        "outcome": "trade-bad",
+        "when": { "flag": "risk-anchored" },
+        "setWeight": 0
+      },
+      {
+        "id": "mod-dock-slowdown",
+        "description": "慢工谈判期间，码头节奏慢了下来：零工的顺手机会变少。",
+        "action": "casual-labor",
+        "outcome": "labor-good",
+        "when": { "flag": "dock-slowdown" },
+        "setWeight": 1
+      },
+      {
+        "id": "mod-guild-squeeze",
+        "description": "行会压价期间，外乡人的利差被挤薄：小额贸易更难顺手。",
+        "action": "trade-run",
+        "outcome": "trade-good",
+        "when": { "flag": "guild-squeeze" },
+        "setWeight": 1
+      }
+    ],
+    "enabled": true
+  },
+  "actors": [
+    {
+      "id": "dockhands",
+      "name": "码头互助会",
+      "goals": ["争取更高的装卸工钱", "不让外乡人抢走饭碗，但认肯出力的人"],
+      "resources": { "labor": 120 },
+      "plans": [
+        {
+          "id": "plan-dock-strike",
+          "trigger": { "window": { "gte": 4, "lte": 4 } },
+          "effects": [{ "setFlag": "dock-slowdown" }],
+          "description": "码头互助会发起慢工谈判：全港装卸节奏慢了下来。",
+          "visible": true
+        }
+      ]
+    },
+    {
+      "id": "guild",
+      "name": "潮商行会",
+      "goals": ["垄断大潮差价", "让外乡人永远拿不到行会凭据"],
+      "resources": { "credential": 900 },
+      "plans": [
+        {
+          "id": "plan-guild-squeeze",
+          "trigger": { "window": { "gte": 6, "lte": 6 } },
+          "effects": [{ "setFlag": "guild-squeeze" }],
+          "description": "行会联手压价，外乡人的利差被挤薄。",
+          "visible": true
+        },
+        {
+          "id": "plan-guild-monopoly",
+          "trigger": { "and": [{ "window": { "gte": 7, "lte": 7 } }, { "asset": "credential", "gte": 10 }] },
+          "effects": [{ "asset": "credential", "delta": -2 }],
+          "description": "行会对无凭据的高收入散商强征'潮税'：你的潮汐凭据 -2。",
+          "visible": true
+        }
+      ]
+    },
+    {
+      "id": "keepers",
+      "name": "档案守护者",
+      "goals": ["保存回声账簿的完整", "找到配得上借账簿的人"],
+      "resources": { "archive": 1 },
+      "plans": [
+        {
+          "id": "plan-keeper-notice",
+          "trigger": { "asset": "insight", "gte": 3 },
+          "effects": [{ "asset": "keeper-favor", "delta": 1 }],
+          "description": "档案守护者注意到了你：能呈上因果洞察的人，值得对话。档案好感 +1。",
+          "visible": true
+        }
+      ]
+    }
+  ],
+  "scheduledEvents": [
+    {
+      "id": "ev-tax-day",
+      "trigger": { "window": { "gte": 9, "lte": 9 } },
+      "effects": [{ "asset": "margin", "delta": -1 }],
+      "description": "港务厅征收宿税：生计余裕 -1。",
+      "visible": true
+    }
+  ],
+  "facts": [
+    {
+      "id": "fact-harbor-plight",
+      "description": "你是没有凭据的外来者：只能打零工，生计余裕每天都在流逝，下一顿饭没有保证。",
+      "scope": "player",
+      "category": "harbor"
+    },
+    {
+      "id": "fact-ledger-rumor",
+      "description": "巷间传闻：回声岛的档案馆里有一本账簿，能复盘潮汐与贸易的因果。",
+      "scope": "player",
+      "category": "ledger"
+    },
+    {
+      "id": "fact-dock-gossip",
+      "description": "退潮时货船集中靠泊，全港最缺人手，也是小额贸易的短窗口。",
+      "scope": "hidden",
+      "category": "trade"
+    },
+    {
+      "id": "fact-spring-tide",
+      "description": "大潮期货价剧震：胆大的吃肉，胆小的赔光。节拍可以学会。",
+      "scope": "hidden",
+      "category": "trade"
+    },
+    {
+      "id": "fact-ledger-nature",
+      "description": "账簿认因果不认人：能呈上足够洞察者才可借用，先看一步，再落子。",
+      "scope": "hidden",
+      "category": "ledger"
+    },
+    {
+      "id": "fact-guild-squeeze",
+      "description": "行会的底细：他们靠挤薄外乡人利差维持垄断，最恨有人绕开凭据体系。",
+      "scope": "hidden",
+      "category": "factions"
+    },
+    {
+      "id": "anchor-mist-wharf",
+      "description": "雾锚头：外锚地尽头的雾中码头。（远方锚点，仅名字与层级约束，未物化）",
+      "scope": "hidden",
+      "category": "far",
+      "anchor": { "tier": 2 }
+    },
+    {
+      "id": "anchor-memory-abyss",
+      "description": "记忆渊：据说沉着一整座旧港账目的海渊。（远方锚点，仅名字与层级约束，未物化）",
+      "scope": "hidden",
+      "category": "far",
+      "anchor": { "tier": 3 }
+    }
+  ],
+  "regions": [
+    { "id": "harbor-district", "name": "港区", "description": "泊位、工棚与酒馆交织的初始区域。", "initiallyUnlocked": true },
+    { "id": "echo-island", "name": "回声岛", "description": "档案馆所在的岛，账簿之客方可登岛。", "tier": 1 },
+    { "id": "outer-anchorage", "name": "外锚地", "description": "更远更大的锚地，差价更厚的航线起点。", "tier": 2 }
+  ],
+  "tiers": [
+    {
+      "tier": 1,
+      "name": "账簿之客",
+      "description": "你从打零工的外来者变为档案馆承认的账簿之客，可登回声岛，行会开始正眼看你。",
+      "gate": { "and": [{ "asset": "insight", "gte": 4 }, { "asset": "credential", "gte": 8 }, { "fact": "fact-spring-tide" }] },
+      "unlocks": ["echo-island"]
+    },
+    {
+      "tier": 2,
+      "name": "潮汐制图士候选",
+      "description": "守护者允许你触及外锚地潮图：你从看懂规则的人，变成开始制定条件的人。",
+      "gate": { "and": [{ "asset": "keeper-favor", "gte": 2 }, { "asset": "insight", "gte": 8 }, { "fact": "fact-ledger-nature" }] },
+      "unlocks": ["outer-anchorage"]
+    }
+  ],
+  "expansion": [
+    {
+      "id": "exp-tier2-far",
+      "description": "抵达阶层 2 后，远方锚点（雾锚头、记忆渊）可开始候选物化。",
+      "trigger": { "tier": { "gte": 2 } },
+      "constraints": [
+        "新内容不得与港区、回声岛、外锚地既有事实冲突",
+        "控制力来源必须保持知识/记忆（controlAxis），不得引入战斗掉落等异质循环",
+        "远方锚点必须先成为经验证的候选，再成为世界事实；不得追溯修改既有事实"
+      ]
+    }
+  ],
+  "winLose": {
+    "win": { "and": [{ "tier": { "gte": 2 } }, { "asset": "insight", "gte": 12 }] },
+    "lose": { "asset": "margin", "lte": 0 },
+    "description": "胜利：洞察与地位俱足，成为潮制图士，获得测绘外锚的资格；失败：生计余裕归零，被债务与饥饿逐出港口。"
+  }
+}

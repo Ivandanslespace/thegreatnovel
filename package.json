@@ -1,0 +1,19 @@
+{
+  "name": "tgn-qoder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "TheGreatNovel V1 — AI 原生长线成长叙事游戏（确定性引擎 + Blueprint 数据驱动，零运行时依赖）",
+  "scripts": {
+    "cli": "node src/cli.ts",
+    "test": "node --test \"src/__tests__/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "typescript": "^7.0.2"
+  }
+}

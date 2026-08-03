@@ -1,0 +1,5 @@
+node_modules/
+temps/
+# 易变派生文件不入库（state.prev 备份与校验和随每次落盘重写）
+saves/*/state.prev.json
+saves/*/state.json.sha256
