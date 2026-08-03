@@ -9,9 +9,16 @@
 
 > **V2 修订说明 (2026-07-31)：** 本文档经过增量架构修订。第一 WorldPack 仍可以是缆车求生 Demo，但它的 Base / Expedition / Day-Night / Three-choice 属于第一批 vertical slice 局部实现，不是整个 Engine 的宇宙规则。V2 新增反主题/结构性硬编码原则、反过度抽象原则、Knowledge boundary、Habitat 可选抽象、ProgressionTrack/Gate、Feature Module 责任边界、Compatibility Pressure Test，并更新 Phase 5+ 路线图。原有工程架构内容（EventStore、Replay、Test Pyramid、Autoplay、ExploitAgent 等）完整保留。
 
+> **历史路线说明：** 本文前面的 MVP/Phase 1–9 章节保留为历史、冻结合同或当时的路线记录。当前 Phase 10 活动方向以文档末尾的 “Genesis Foundation and Campaign-Specific World Compilation” superseding section 为准；它建立的是文档合同，Phase 10A–10E implementation 尚未开始。
+
 ---
 
 # 0. 先给结论
+
+> **历史 MVP/legacy first-slice 说明：** 本节的“先只支持一个固定世界包”和缆车求生
+> Demo 是当时的最小内核路线，不是当前 Genesis 用户的 profile/module 选择 API。当前
+> Phase 10G0 的 Campaign-specific WorldPack、Prompt + Seed lineage 和 10A–10E 边界，
+> 以本文末尾的 superseding section 与 `docs/GENESIS_FOUNDATION.md` 为准。
 
 如果现在重新做，我不建议“继续重构当前引擎”。
 
@@ -3414,7 +3421,10 @@ model failure fingerprints
 
 ---
 
-# Phase 11 — Public World Lite
+# Historical Phase 11 — Public World Lite
+
+> **Historical / superseded.** This original roadmap entry is retained for traceability;
+> current Phase 10G0 Genesis does not implement Public World or peer runtime semantics.
 
 加入：
 
@@ -3427,7 +3437,10 @@ regional feed
 
 ---
 
-# Phase 12 — Second WorldPack
+# Historical Phase 12 — Second WorldPack
+
+> **Historical / superseded.** This was an earlier architecture gate; current Genesis uses
+> the Phase 10E proof contract and does not claim a second runtime profile yet.
 
 验证架构是否真的泛化。
 
@@ -3501,7 +3514,10 @@ progression can stop at a meaningful gate and require world interaction
 after progression, new strategy/action becomes viable/legal/meaningful
 ```
 
-First implementation: player progression + habitat progression (two tracks).
+Historical first implementation: player progression + base progression (two tracks). The old
+word “habitat progression” here described a future abstraction pressure, not an accepted Habitat
+runtime; current compiler evidence only has `player` and `base` tracks, and Genesis Catalog
+`runtime.habitat.v1` remains `UNSUPPORTED`.
 
 ProgressionGate minimal: resource X + resource Y → upgrade unlocks.
 
@@ -3836,8 +3852,9 @@ Capability 和结构不同的 WorldPack，不要求 Phase 9B 立刻解决所有�
 
 ##### Phase 9B1 — Bounded World Draft Compilation
 
-**Status:** implementation candidate; this is not a Phase 9B freeze and does not
-create a formal Campaign.
+**Status:** accepted and frozen at `phase-9b1-frozen` (peeled commit
+`a4c79a47dfac88c3f9b39aa8ca50cc6255d48902`); this bounded profile does not create a
+formal Campaign. The earlier candidate wording is retained only as historical context.
 
 **Product question:** Can a strict external World Genesis Request and a repairable
 World Draft become a deterministic, verified compiled artifact without allowing the
@@ -5077,8 +5094,9 @@ authorize Phase 9C work.
 `phase-9c1-frozen` and `phase-9c2-frozen` are immutable and must never be moved,
 deleted, or recreated. Any future fix requires an explicit reopen or superseding-phase
 process. The Playable Client Milestone PC1 is frozen at `pc1-frozen` with accepted
-implementation SHA `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`. Phase 9D is deferred /
-not started; Phase 10 has not started.
+implementation SHA `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`. At this historical snapshot
+Phase 9D was deferred / not started and Phase 10 had not started; the current G0 documentation
+direction is defined in the superseding section at the end of this document.
 
 **PC1 final process/file boundary hardening:**
 `3456178fb42eb6ae8c3debe33653924315e349d0`
@@ -5099,8 +5117,8 @@ models 被用于组合证明；Story progress 的 pending/committed/missing 与 
 `src/tgn/play 97.11%`、`src/tgn/story 96.95%`、`src/tgn/campaign 97.55%`、
 `src/tgn/projection 100%`、full `src/tgn 97.05%`，warning-as-error 为 `0 warnings`。
 真实 WSL/POSIX `tests/play` 为 `101 passed`；两个 skip 仍是 Windows 无法创建 POSIX
-FIFO 的既有 Campaign 测试。Phase 9C2 继续 frozen，Phase 9D deferred/not started，
-Phase 10 not started。
+FIFO 的既有 Campaign 测试。Phase 9C2 继续 frozen，Phase 9D deferred/not started；在这份
+历史验收快照中 Phase 10 implementation 尚未开始。
 
 本轮 PC1 acceptance correction 只收紧 PlayService 的边界组合：existing pending
 Narration Request 保留自身已持久化的 `narration_locale`，恢复时不得重新注入 Story
@@ -5133,7 +5151,8 @@ correction 的回归为 `tests/play 101 passed`、affected `518 passed, 2 skippe
 `src/tgn/campaign 97.55%`、`src/tgn/projection 100%`、full `src/tgn 97.05%`，
 warning-as-error 为零 warning；真实 WSL/POSIX `tests/play` 为 `101 passed`。两个 skip
 仍是 Windows 上既有、无法创建 POSIX FIFO 的 Campaign 测试。PC1 已冻结在
-`pc1-frozen`；Phase 9C2 保持 frozen，Phase 9D deferred，Phase 10 not started。
+`pc1-frozen`；Phase 9C2 保持 frozen，Phase 9D deferred；在这份历史验收快照中 Phase 10
+implementation 尚未开始。
 
 **Phase 9C1 publication source-identity correction commit:** `739a656fc8e7b50a12484049bb0f4598aa0cb1b2`; final
 idempotent source-identity fix: `f5aeba6dd0e02a028dde8c077dd5c68dfbd98159`; loaded Story
@@ -6508,15 +6527,16 @@ Phase 9C2 — frozen at phase-9c2-frozen
 Playable Client Milestone PC1 — frozen at `pc1-frozen`; accepted implementation
 SHA `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`
 Phase 9D  — deferred / not started
-Phase 10  — not started
+Phase 10 implementation  — not started at this historical snapshot
 ~~~
 
 #### Playable Client Milestone PC1 — Thin Local Human and External-Narrator Play Loop
 
 **Status:** Phase 9C2 remains frozen at `phase-9c2-frozen`; Playable Client Milestone
 PC1 is frozen at `pc1-frozen` with accepted implementation SHA
-`96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`. Phase 9D remains deferred / not started;
-Phase 10 has not started.
+`96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`. Phase 9D remains deferred /
+not started; Phase 10 implementation had not started at this historical snapshot. The current
+Phase 10G0 documentation direction appears in the superseding section below.
 
 PC1 的第一枚实现提交 message 为 `feat: add thin local playable client`。当前验证结果为
 完整 product-proof test correction 提交为 `7e8f16c7bf3908abb5424cab9457986f6e162674`；
@@ -6681,10 +6701,9 @@ PC1 coverage hard gates 为 `src/tgn/play >= 95%`、`src/tgn/story >= 95%`、
 Windows POSIX FIFO skips 可以保留。PC1 现已冻结在 `pc1-frozen`；未来修改必须走
 显式 reopen 或 superseding milestone/phase 流程。
 
-下一里程碑方向为 Phase 10：一个由 growth 产生的 Capability 必须成为真实可执行的
-非 basic action。Phase 9D 仍 deferred，且不是 Phase 10 前置条件。Phase 10 不得引入
-EffectSystem、AbilityGraph、SkillTree mega-framework、generic rule DSL 或
-world-specific branching。
+历史路线记录：下一里程碑曾被写作“一个由 growth 产生的 Capability 必须成为真实可执行的
+非 basic action”。该方向现由文档末尾的 Genesis Foundation superseding section 取代；
+Capability Foundation 延后，Phase 9D 仍 deferred，且不是 Phase 10A 前置条件。
 
 #### Phase 9D — Evaluation Matrix（Deferred Phase 9D）
 
@@ -6806,7 +6825,12 @@ LocaleFramework、TranslationDatabase、AgentOrchestratorFramework 或 GenericWo
 
 ---
 
-### Phase 10 — Capability Action Vertical Slice
+### Historical Phase 10 — Capability Action Vertical Slice
+
+> **Historical / superseded direction.** This earlier Capability Action proposal is retained
+> for traceability. The current Phase 10 direction is the Genesis Foundation contract added
+> at the end of this document; Capability Foundation is a later deferred route and is not a
+> prerequisite for Phase 10A.
 
 **Contract:**
 
@@ -6816,7 +6840,7 @@ growth-produced new Capability enters truly executable Action
 source, availability, cost, target, effect, event, state change, observation, replay, autoplay
 ```
 
-Capability source not locked to player.skills — long-term may come from actor, equipment, progression, relationship, team, habitat, environment, world phase. Phase 10 implements one source only.
+Capability source not locked to player.skills — long-term may come from actor, equipment, progression, relationship, team, habitat, environment, world phase. The historical Capability proposal said Phase 10 would implement one source only; that route is superseded by the current Genesis Foundation documentation contract.
 
 Do NOT build: EffectSystem Mega Framework, AbilityGraph, SkillTree framework.
 
@@ -6828,7 +6852,10 @@ Narrator / Guard / Voice Pack already exist as frozen infrastructure (Phase 3.6�
 
 ---
 
-### Phase 11 — Public World Lite
+### Deferred Phase 11 — Public World Lite (post-Genesis)
+
+> **Deferred / superseded for current work.** This V2 roadmap entry remains a future pressure
+> test only; Phase 10G0 does not implement aggregate peers, public feeds or autonomous population.
 
 Content: aggregate population, few external peers, announcement, regional/public feed. Purpose: player feels world externally has other independent participants and group states. Not MMO simulation.
 
@@ -6836,7 +6863,10 @@ Named Actor (Phase 7.5) and Public World peer are different subsystems — do no
 
 ---
 
-### Phase 12 — Second Structurally Different WorldPack
+### Deferred Phase 12 — Second Structurally Different WorldPack (post-Genesis)
+
+> **Deferred / superseded for current work.** The current Phase 10E contract defines the proof
+> gate; no second runtime profile is accepted on this branch.
 
 **Architecture Gate**, not content demo.
 
@@ -8596,3 +8626,194 @@ Phase 0+ = actual execution roadmap
 当前实现应该尽量简单（one player, one enemy, one base, one progression path 都可以）。但命名和 contract 不应该宣称"永远只能一个"。
 
 > **Do not hard-code the first world. Do not pre-build every future world. Prove one causal slice at a time.**
+
+---
+
+# Phase 10 — Genesis Foundation and Campaign-Specific World Compilation
+
+## 10.0 Superseding direction and status
+
+本节是对本文历史 Phase 10 路线的增量 superseding direction，不删除 Phase 1–9、PC1
+或旧 Capability Action 设计的历史记录。完整的 authority matrix、hash/replay matrix、
+Prompt/Seed 语义、支持状态、验收案例和开放问题见
+[`docs/GENESIS_FOUNDATION.md`](GENESIS_FOUNDATION.md)；Phase 1–9 的具体硬编码证据见
+[`docs/PHASE1_9_HARDCODING_INVENTORY.md`](PHASE1_9_HARDCODING_INVENTORY.md)。
+
+当前 `phase-10-genesis-foundation` 的唯一目的，是建立可审计的 Genesis 文档合同。
+Phase 10A implementation 尚未开始；本节不代表 Genesis 已经可用，也不代表任意 Prompt
+已经能够创建正式 Campaign。Stage 0–3 期间不得修改 `src/**`、`tests/**`、配置、冻结
+artifact、freeze tag 或公共 Git 历史。
+
+Phase 9B1 仍是已冻结的 bounded World Draft compilation profile。`phase-9b1-frozen`
+在当前仓库实际解引用到 `a4c79a47dfac88c3f9b39aa8ca50cc6255d48902`，其
+`phase9b-bounded-world-v1` / `phase75_expedition_v1` 语义不得被静默改写。它可以继续
+作为兼容测试 WorldPack，但不是通用 Genesis runtime。
+
+本文之前的“Phase 10 — Capability Action Vertical Slice”保留为历史方向；Genesis
+Foundation 将其 supersede 为当前 Phase 10 的文档路线。Capability Foundation 不被
+删除，而是延期到后续真实产品需求和结构不同 runtime profile 的压力测试之后。旧
+`devour_evolution` 候选所在的本地历史 ref
+`archive/phase10a-devour-candidate-2026-08-02` / `mvp-rewrite` 实际指向
+`870284cc653e400603747dd9e14e41fa6df7795a`，不属于当前分支 accepted implementation，
+不得直接恢复或作为 Genesis 默认能力。
+
+## 10.1 产品定义
+
+Genesis 的最终产品目标是：
+
+```text
+Prompt + Seed
+→ Requirement Proposal
+→ Feature Requirement Report
+→ Campaign-specific World Blueprint
+→ bounded runtime binding
+→ compiled and sealed WorldPack
+→ Initial Authoritative GameState
+→ Preflight
+→ Campaign / Story / Verify
+```
+
+玩家不需要从开发者手写的世界故事模块中选择。每个 Campaign 可以拥有不同的主角、
+地点、派系、NPC、秘密、资源循环和故事发动机；不同 Seed 应能沿不同生成路径产生
+结构差异。无论内容如何变化，实际被接受的结果必须被保存、canonical serialize、hash
+和封存；Campaign 运行和 Replay 不得重新询问 LLM。
+
+Genesis 仍然不能现场发明 Python、Reducer、Event、数据库 schema、任意脚本或插件。
+它可以动态组合已有并审核过的语义，但不能动态生成新的运行时规则。当前 profile 对
+题材只提供 content proposal，不因此获得海洋物理、全民投放、Habitat、玄武成长或
+义肢入侵等未实现机制。
+
+## 10.2 Phase 10A — Genesis Request and Feature Requirement Report
+
+Phase 10A 必须是纯 Python、无网络、无 Campaign 副作用、可独立冻结的最小合同，未来
+只允许包含：
+
+- `GenesisRequest`：`schema_version`、`request_id`、`raw_prompt`、`genesis_seed`、
+  `content_locale`、显式约束和可选 generation policy reference；
+- `RequirementProposal`：内容、runtime mechanic、protagonist、world rule、progression、
+  public-system、exclusivity、resource/economy、narrative/worldbuilding 等候选类别；
+- 严格 schema validation、canonical serialization 和稳定 error code；
+- 版本化且有限的语义 Feature Support Catalog；
+- 确定性 Feature Requirement evaluator；
+- `Feature Requirement Report`，至少包含 required/supported/degraded/unsupported/
+  rejected/binding warnings、catalog version、source request 和 proposal binding；
+- 两个验收 Prompt 的结构化 fixture。
+
+Phase 10A 不允许：真实 LLM provider、网络调用、自然语言关键词解析、Campaign 创建、
+GameState 修改、DomainEvent、Reducer、World Blueprint、WorldPack compiler、runtime
+profile、Capability 实现、`devour_evolution`、自动 repair 或 PC2。
+
+Requirement Proposal 来自外部 LLM edge。Phase 10A 的确定性代码只能评估已经提交的
+结构化 Proposal，不能证明它完整覆盖原始 Prompt；覆盖率需要未来独立 critic、人工确认
+ 或 PC2 用户确认。主题文字可以被提议，不等于对应运行机制 SUPPORTED。
+
+输入/输出的 exact typed contract 以 [`GENESIS_FOUNDATION.md`](GENESIS_FOUNDATION.md)
+第 15.1 节为唯一来源：unknown field、错误 type、越界值、重复 ID、malformed Feature ID
+和 prompt injection 都 fail closed。`GenesisRequest` 必须自带 `request_id`、`raw_prompt`、
+`genesis_seed`、`content_locale`、typed constraints 和 policy reference；Proposal item
+必须有 requirement kind、source reference、required/optional、exclusivity、constraints
+和 candidate semantic Feature IDs；每个 requirement 在 Report 中只有一个 status。纯函数
+evaluator 只在内存中返回 canonical Report，不写 SQLite、Campaign、GameState、EventStore、
+Story 或文件。`generation_attempt_id` 与 `campaign_id` 分离；没有完整 seal record 的
+attempt 不能在崩溃恢复时晋升为正式 Campaign。
+
+## 10.3 Phase 10B — World Blueprint / World Bible Contracts
+
+Phase 10B 定义 Campaign-specific 世界设计候选，包括 public world bible、hidden truth、
+protagonist、locations、actors、factions、resources、initial habitat/base、Story Engines、
+pressure clocks、opportunity windows、initial region、future expansion constraints 和
+requested capability concepts。
+
+它必须验证 stable IDs、引用、public/hidden separation、内部一致性、requirement traceability
+和 no unsupported runtime claim；不得直接创建 Campaign、修改 GameState、生成任意运行时代码、
+把 Blueprint 当成已支持机制、预写固定章节或一次性生成所有远方区域。
+
+最小 Blueprint 只要求 `schema_version`、`blueprint_id`、三个 source hashes、
+`public_world`、`hidden_world`、`protagonist`、`initial_region` 和 `requirement_links`。
+actors、factions、resources、habitats、Story Engines、clocks 与 expansion policy 是可选
+candidate sections；字段出现不自动产生 runtime support，也不能把远方扩展偷偷带入 10B。
+
+## 10.4 Phase 10C — Bounded Runtime Binding and World Compiler
+
+Phase 10C 才能将已验证的 Blueprint 绑定到已实现的 Feature Contract，并生成新的
+Campaign-specific WorldPack。它必须使用新的 compiler identity、版本化 schema、明确的
+SUPPORTED/DEGRADED binding、unsupported-required 阻断、canonical artifacts、hash、initial
+state binding、旧 bundle 兼容和 verify path。
+
+WorldPack 的第一版必须是 immutable sealed base artifact，保存 Prompt/Seed lineage、accepted
+Blueprint binding、feature contract versions、public/hidden separation、stable IDs 和
+`{compiler_id, compiler_schema_version, compiler_implementation_digest}` identity。accepted
+SHA 只能是 metadata；runtime expansion 若未来实现，只能是绑定 parent hash 的独立 immutable
+child artifact，不能覆盖 base。它不能依赖未来重新生成、Narrator prose、模型内部推理或聊天记录。
+`phase9b-bounded-world-v1` 的含义必须保持不变；新 Genesis compiler 不能复用旧 identity
+来静默改义。
+
+Phase 10C 禁止动态生成代码、动态模块加载、arbitrary patch engine、generic rules DSL、
+通用 plugin manager 或让 Narrator 补齐缺失机制。
+
+## 10.5 Phase 10D — Fast Static Analysis and Scripted Preflight
+
+Phase 10D 在 Campaign 创建前做 schema/reference 检查、静态可玩性检查、确定性短程试玩，
+并可选择一次性质量评审。machine-readable output 必须逐项包含 check id、severity、
+status、reason code、metrics 和输入 hash。schema/reference、初始合法行动、必需资源、
+核心 invariant 和短程 Replay 是 hard gates；策略差异、WAIT exhaustion、时钟/NPC/Story
+Engine 推进若被声明启用，就升级为对应 Feature 的 hard gate。FAIL 或 hard timeout 阻止
+Campaign，不能用 prose 或无限 repair 掩盖。
+
+方向性预算为：schema validation 通常低于 1 秒，static analysis 秒级，scripted preflight
+目标数秒；Genesis 总流程目标 P50 约 20 秒、P95 不超过 60 秒、hard timeout 约 90 秒。
+超时必须失败或显式降级，不得无限自动 repair；深度 1000-seed 或多模型认证属于 CI，
+不是玩家开局前的默认路径。
+
+## 10.6 Phase 10E — Genesis-to-Campaign End-to-End Proof
+
+Phase 10E 需要证明完整链路：
+
+```text
+Prompt + Seed
+→ Proposal
+→ Feature Report
+→ Blueprint
+→ Runtime Binding
+→ sealed WorldPack
+→ Initial GameState
+→ Preflight
+→ Campaign
+→ Story
+→ Verify
+```
+
+必须证明失败生成不创建正式 Campaign，成功 WorldPack 被封存，Campaign 不需要重新调用
+LLM，Story 不成为 authority，Replay 独立于 Generator，两个结构不同的 Prompt 不只是
+label 换皮，UNSUPPORTED 机制不会被 Narrator 伪装，旧 PC1 与旧 bundle 仍可验证。
+
+固定验收还包括：同一 Prompt 的不同 Seed 必须比较 generation-path digest 和至少一个
+structural canonical field，collision 必须记录；结构不同的 Prompt 必须比较拓扑、资源、
+压力、NPC 或策略差异。启用 World Depth 的包必须通过 3 个地点、2 个独立 actor goal、
+2 个并行时钟、1 个可错过不可逆机会、off-screen progression、主角能力 A/B 策略差异和
+20 个 meaningful turns 非 WAIT-only gate；否则撤销 depth claim 或以 DEGRADED + acknowledgement
+封存。
+
+Phase 10E 不承诺任意 Prompt 任意机制、完整全民投放社会、完整玄武成长、完整义肢入侵、
+无限世界或通用插件生态。
+
+## 10.7 冻结兼容与未来 superseding boundaries
+
+Phase 1–9 的可信 Kernel（canonical JSON/hash、EventStore、Snapshot、Replay、Verify、
+RecordedDecision、Campaign publication、Story persistence 和 commit-before-print）继续
+保留。`phase75_expedition_v1`、固定 base/target、DROP/SEARCH/EXTRACT、Day/Night、Mara、
+固定三选一和当前 Projection schema 作为 legacy/first-slice profile 保留，不自动提升为
+通用世界规则。
+
+Core reducer/invariants、Autoplay、Session、Campaign、Story reconstruction 对 expedition
+的直接依赖，single WorldGen profile、labels-only draft、Genesis seed 不在 request，以及
+固定 presentation action schema，均记录为未来 superseding boundary；本轮不重构。未来边界
+应按真实需求逐个建立 versioned runtime adapter、feature-local validation/reducer seam、
+WorldGen v2、Projection/Story v2 或 PC2，而不是预先建设万能框架。
+
+## 10.8 本节验收状态
+
+本分支只完成文档合同，不宣称 Genesis、Phase 10A、10B、10C、10D 或 10E 已实现，不报告
+未经本轮执行的测试数字，不修改 `src/**` 或 `tests/**`，不创建 freeze tag，也不合并旧
+devour 候选。任何后续实现都必须从本节和 `GENESIS_FOUNDATION.md` 的边界出发，并经过
+新的实现、验证和独立复审。

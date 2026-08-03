@@ -2884,3 +2884,99 @@ Phase 9A–9C 每次只实现一个最小 vertical slice。不得因为外部客
 `AgentOrchestratorFramework`、`GenericWorkflowEngine`、通用 World Schema 或动态
 插件框架。Phase 9D 的 multi-model matrix 是后续评估路线，不是 Phase 9A–9C 的
 前置条件。真实 WorldPack 和实际会话压力决定下一步抽象。
+
+---
+
+# 51. Genesis Foundation：生成世界，但不生成裁判
+
+Phase 10G0 将前述价值观收束为一个更精确的 Genesis 边界。完整合同见
+[`GENESIS_FOUNDATION.md`](GENESIS_FOUNDATION.md)；本节只记录必须长期保持的价值判断。
+
+## 51.1 LLM at the edges 不等于 LLM 只能写 prose
+
+LLM 可以在边缘提出世界、人物、地点、资源生态、机会、故事线程、主角背景和结构化
+行动候选。它可以把玩家的自然语言意图整理成 `Requirement Proposal`、`World Blueprint`
+或 `Narration Artifact`。但“能够提出结构”不等于“结构已经成为事实”。
+
+确定性中心负责验证 schema、判断当前 Feature Contract 是否真实存在、绑定受支持的
+运行语义、建立初始状态、验证行动、结算后果、持久化事件并完成 Replay/Verify。LLM
+不能成为 Engine、EventStore、GameState、DomainEvent 或 WorldPack 的事实裁判。
+
+```text
+LLM proposes.
+Python validates and binds.
+The deterministic runtime decides.
+SQLite remembers.
+The narrator describes committed facts.
+```
+
+## 51.2 Campaign-specific WorldPack 是产品目标，不是预制世界菜单
+
+玩家不应只能从开发者手写的 `ocean_world.py`、`cyberpunk_world.py` 等模块中选择。
+目标管线是：
+
+```text
+Prompt + Seed
+→ structured requirements
+→ Campaign-specific World Blueprint
+→ supported semantic binding
+→ validation and sealing
+→ Campaign-specific WorldPack
+```
+
+WorldPack 可以是测试用的开发者预制包、官方样例，也可以是由 Prompt 与 Seed 生成后
+封存的本 Campaign 专属包；但开发者预制包只能作为 fixture、官方 sample 或 legacy
+compatibility artifact，不能把 Genesis 用户流程降级成选择通用模块。用户 Campaign
+必须保留 Prompt + Seed lineage，并经过 generation attempt、semantic binding 和 seal。
+动态生成内容不能动态生成新的 Python 规则、Event、Reducer、数据库 schema 或插件。
+
+## 51.3 Determinism 的对象是已接受事实，不是预写所有内容
+
+Determinism 要求已接受的持久事实、合法行动、事件结算、保存 artifact 和 Replay 可
+重现；不要求开发者预先写完所有世界内容。LLM API 的 `seed`、temperature 或 provider
+采样参数不能跨模型、模板、工具、推理实现和服务端版本保证字节级相同。
+
+因此必须坚持：
+
+> Seed determines the generation path. The sealed WorldPack determines what the world actually is.
+
+Seed 是生成路径输入；真正被接受、canonical serialize、hash 并封存的 WorldPack
+才是 Campaign 的历史事实。Replay 读取封存 artifact，不重新询问 LLM。
+
+## 51.4 Durable facts 与 ephemeral texture 必须分离
+
+生成结果明确区分以下三类；未来增加类别必须先扩展 Genesis authority matrix、hash/replay
+规则和 failure boundary：
+
+- `authoritative durable facts`：稳定 ID、可 canonical serialize、被保存和 hash，能进入
+  State/Event/Replay 的已接受事实；
+- `candidate durable facts`：LLM 提出的候选，在验证和封存前不是 GameState、DomainEvent
+  或 Campaign 事实；
+- `ephemeral non-authoritative texture`：只改变感官、语气和氛围，不改变因果链的表达细节。
+
+Narrator 可以生成第三类内容，但不能把候选事实或未支持机制写成已发生的世界事实，
+也不能从 prose 反向恢复 State、Event、秘密、资源、能力或人物关系。
+
+## 51.5 World Depth 是一级产品标准
+
+Genesis 不能只更换标题、资源名、基地名和 NPC 名。真正的 World Depth 要求结构上
+存在差异：地点拓扑、资源循环、生存压力、主角策略优势、NPC 目标、派系关系、隐藏
+真相、Story Engine、压力/机会时钟，以及玩家不行动时世界如何继续变化。
+
+World Depth 不是后期 prose polish；它必须最终进入受支持的 State、Event、Rule、
+Projection 和 Replay 合同。还要通过主角能力启用/移除的 A/B strategy proof，证明合法
+行动、可达策略或资源/机会代价发生结构差异，而不是只改变数值。若当前引擎没有对应
+运行语义，正确结果是 `UNSUPPORTED` 或明确的 `DEGRADED`，不是让 Narrator 掩盖缺口。
+
+## 51.6 主题不是运行时开关
+
+不得把 `"海洋"`、`"玄武"`、`"朋克"` 等词作为 Python 分支条件。Feature Catalog
+描述的是 `LocationGraph`、`Travel`、`Habitat`、`ProgressionTrack`、`PressureClock`
+或 `NetworkAccess` 等运行语义，而不是小说题材菜单。每个新 Feature 仍需自己的状态、
+合法行动、Event、Reducer、Invariant、Projection、测试和 Replay 证明。
+
+## 51.7 安全与失败边界
+
+玩家 Prompt 是不可信数据，不是系统指令。它不能读取文件、执行命令、修改规则、绕过
+支持目录、获得隐藏权限或改写冻结合同。失败的 generation attempt 可以保存错误报告
+供修复，但不能创建正式 Campaign、污染 GameState 或让 Narrator 提前使用候选事实。

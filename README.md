@@ -43,7 +43,19 @@ Playable Client Milestone PC1 — frozen at `pc1-frozen`
 
 Accepted PC1 implementation SHA: `96ffe3eefa9ea6558e3f9105f0a5a47838e3a1ce`。
 `pc1-frozen` is immutable and must never be moved, deleted, or recreated。
-Phase 9C2 remains frozen；Phase 9D deferred / not started；Phase 10 has not started。
+Phase 9C2 remains frozen；Phase 9D deferred / not started；Phase 10A–10E implementation has not started。
+
+**Phase 10G0 — Genesis Foundation Architecture Contract — documentation-only direction**
+
+当前 `phase-10-genesis-foundation` 分支已建立 Genesis G0 的文档合同，只建立产品、authority、Replay、
+Feature Requirement 和 WorldPack 合同。Phase 10A implementation 尚未开始；当前可玩
+能力仍是已冻结的 `phase75_expedition_v1` bounded/legacy runtime profile，不应把复杂
+Prompt、海洋物理、全民投放、活体玄武或义肢入侵描述为已支持机制。
+
+旧的 `devour_evolution` Phase 10A 候选只存在于历史的
+`archive/phase10a-devour-candidate-2026-08-02` / `mvp-rewrite`（当前验证到
+`870284cc653e400603747dd9e14e41fa6df7795a`），不属于本分支的 accepted implementation，
+也不是 Genesis 的默认能力。它只能作为未来 Capability Foundation 的历史参考。
 
 Playable Client Milestone PC1 是 Phase 9C2 之上的薄本地产品整合层，现已冻结在
 `pc1-frozen`。它只通过 Campaign 与 Story 的公开 service
@@ -112,10 +124,13 @@ Story 仍是 derived/non-authoritative artifact；external narrator 是 trusted 
 adapter；process containment 只是 operational cleanup，不是 security sandbox。不存在
 Client database 或 provider framework。
 
-下一里程碑方向为 Phase 10：让一个由 growth 产生的 Capability 成为真实可执行的
-非 basic action。Phase 9D 仍 deferred，且不是 Phase 10 前置条件。Phase 10 不得引入
-EffectSystem、AbilityGraph、SkillTree mega-framework、generic rule DSL 或
-world-specific branching。
+下一方向是 Phase 10 — Genesis Foundation and Campaign-Specific World Compilation：
+先建立 `Prompt + Seed → proposal → support report → blueprint → bound runtime →
+sealed WorldPack` 的可审计文档合同，再由新的 superseding implementation 逐步实现。
+Phase 9D 仍 deferred，且不是 Phase 10A 前置条件。Phase 10A 只允许无副作用的
+Genesis Request、Requirement Proposal、有限 Feature Support Catalog 和确定性
+Feature Requirement Report；不得引入 EffectSystem、AbilityGraph、SkillTree
+mega-framework、generic rule DSL 或 world-specific branching。
 现有 pending Narration Request 的自身 locale 是恢复时的权威值；只有新建 request
 使用一次性 locale override，下一次新 request 回到 Story initial locale。Campaign
 manifest 与 Session 的 campaign/session ID、actor ID、max_decisions 在 Story 初始化前
@@ -224,6 +239,8 @@ python -m tgn.demo  # (TBD in Phase 1)
 - [DESIGN_VALUES.md](docs/DESIGN_VALUES.md) - Core design philosophy
 - [MVP_REWRITE_SPEC.md](docs/MVP_REWRITE_SPEC.md) - Detailed architecture specification
 - [DEFERRED.md](docs/DEFERRED.md) - Features explicitly out of scope
+- [GENESIS_FOUNDATION.md](docs/GENESIS_FOUNDATION.md) - Phase 10 Genesis authority and compilation contract
+- [PHASE1_9_HARDCODING_INVENTORY.md](docs/PHASE1_9_HARDCODING_INVENTORY.md) - Phase 1–9 hardcoding and superseding-boundary audit
 
 ## License
 
