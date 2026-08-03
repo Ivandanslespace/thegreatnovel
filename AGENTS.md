@@ -40,6 +40,36 @@ Phase Contract 执行；只要用户或该阶段合同明确授权 coding，就�
 - 大型只读审计优先并行，写入操作隔离或串行。仅当某个阶段是文档合同变更，才沿用主 Agent
   整合与独立 reviewer 的要求；普通 coding phase 以及小型 bugfix/maintenance 不需要重复
   G0 的文档审查流程。
-- 当阶段新增可玩行为时，优先在该阶段合同规定的范围内交付可验收的 vertical slice，覆盖
-  该行为实际需要的 State、Action、Event、Reducer、Invariant、Projection、Persistence、
-  Replay 或测试边界；不要求每个阶段预先实现所有层，也不得从 future roadmap 预建万能框架。
+- 内部 checkpoint 可以只完成完整闭环的一部分，例如 schema/model、runtime semantics、
+  compiler、preflight、publication 或 autoplay；checkpoint 可以有自己的 commit、tests
+  和 review，但不得被称为完整 Feature 或完成整个 milestone。
+- 任何新增可玩行为在被宣称为 `complete`、`SUPPORTED`、`accepted implementation`、
+  `production ready`、`frozen` 或创建 freeze tag 之前，必须完成该行为实际需要的完整闭环：
+  `State → legal Action → DomainEvent → Reducer → Invariant → Observation / Knowledge
+  Projection → Persistence → Replay / Verify → tests / autoplay proof`。不得把中间
+  checkpoint、helper、schema、label、fixture 或局部 cost mapping 冒充为已完成 Feature。
+- 普通 coding phase 必须至少有一次与风险匹配的独立代码/合同 review，但不需要重复 G0
+  专用的三轮全新文档 reviewer 流程。新增可玩行为、authority boundary、State/Event/
+  Reducer、compiler、persistence、Replay/Verify、publication/atomicity、migration、安全
+  或 Knowledge Boundary 时，review 强度至少覆盖真实 diff、代码、测试和 artifact。reviewer
+  不能只相信主 Agent 报告；BLOCKER 必须关闭，MAJOR 必须关闭或有用户批准的 defer 理由。
+  小型低风险维护或纯拼写修复可以由 Phase Contract 规定更轻的独立 review 强度。
+- 不得从 future roadmap 预建万能框架；新 Feature 应在本阶段合同规定的范围内形成可验收
+  vertical slice，覆盖该行为实际需要的边界，而不是机械要求每个阶段预先实现所有层。
+
+## 文档治理
+
+- `docs/` 默认只保留两份权威内容文档：`docs/DESIGN_VALUES.md` 与
+  `docs/DEV_SPEC.md`。
+- Agent 默认不得自行新增 `docs/*.md`、phase spec、architecture note、decision record、
+  hardcoding inventory、review report、deferred list、migration plan 或临时设计说明。
+- 每个 Phase Contract 优先写在用户任务 Prompt、PR description、issue、commit plan 或
+  Agent 最终报告中；一次性阶段不自动创建永久文档。
+- 只有用户明确批准，Agent 才可以新增第三份永久内容文档。若现有两份文档确实无法容纳，
+  必须先停止并向用户说明原因、长期 owner、与现有文档的权威关系，以及如何防止重复和冲突。
+- 长期产品价值变化时修改 `docs/DESIGN_VALUES.md`；当前实现边界、冻结 registry、
+  Active Roadmap 或 Phase 验收合同变化时修改 `docs/DEV_SPEC.md`。
+- README 只维护简短状态、入口和链接，不复制完整合同正文。
+- 历史规范和旧 Phase Contract 只通过 `git show <ref>:<path>`、GitHub fetch 或仓库外临时
+  目录读取；不得为了阅读历史而恢复到当前工作树。
+- 临时审计结果、review findings 和一次性报告不自动沉淀为新文档。

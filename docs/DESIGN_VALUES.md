@@ -6,6 +6,12 @@
 > 以后无论新增世界、机制、Prompt、Agent、状态字段，还是审查代码，都应该先问：**它是否符合下面这些价值观？**
 > 当前开发边界、冻结事实、Genesis 合同与 Active Roadmap 统一见 [`DEV_SPEC.md`](DEV_SPEC.md)。
 
+读取规则：普通 coding、bugfix 或局部 review 不要求每次完整读取本文；至少读取一句话定义、
+最短核心原则、与当前 Feature 直接相关的章节，以及 `DEV_SPEC.md` 中的当前阶段合同。只有
+架构级、产品级、跨 Feature、authority、Knowledge、WorldGen、Replay 或长期路线变更，才
+要求完整读取本文。减少上下文负担不等于跳过设计价值；当前实现范围、冻结边界、Active
+Roadmap 和验收命令始终以 `DEV_SPEC.md` 为权威。
+
 ---
 
 # 0. 一句话定义
@@ -2692,7 +2698,12 @@ Narrative
 
 ---
 
-# 50. Phase 8 之后：External Client、Compiled World 与语言无关叙事
+# 50. Historical Product Context after Phase 8 — External Client、Compiled World 与语言无关叙事
+
+本节保留 Phase 8 之后形成的外部客户端、compiled world、transport、authority 与语言边界
+等历史产品背景。这里的旧 Phase 顺序、里程碑描述和当时实现判断不再是 Active Roadmap；
+当前阶段编号、实现顺序、验收条件和 freeze 计划只以 `DEV_SPEC.md` 为权威。本节仍可作为
+transport、authority 和 locale 设计价值的参考。
 
 Phase 8 冻结以后，TheGreatNovel 的下一个产品方向不是让 Engine 直接连接某个
 LLM Provider，而是让外部客户端能够编排一个仍由确定性 Engine 守护的完整会话：
@@ -2992,9 +3003,16 @@ Projection 和 Replay 合同。还要通过主角能力启用/移除的 A/B stra
 ## 51.6 主题不是运行时开关
 
 不得把 `"海洋"`、`"玄武"`、`"朋克"` 等词作为 Python 分支条件。Feature Catalog
-描述的是 `LocationGraph`、`Travel`、`Habitat`、`ProgressionTrack`、`PressureClock`
-或 `NetworkAccess` 等运行语义，而不是小说题材菜单。每个新 Feature 仍需自己的状态、
-合法行动、Event、Reducer、Invariant、Projection、测试和 Replay 证明。
+中的 `LocationGraph`、`Travel`、`Habitat`、`ProgressionTrack`、`PressureClock` 或
+`NetworkAccess` 只是可能出现的 runtime semantic 类别示例，不代表当前 Catalog 已经
+预注册了对应 Feature ID，也不代表这些 Feature 当前已经实现。实际 Feature Catalog 只
+收录已经拥有明确 State、legal Action、Event、Reducer、Invariant、Projection、Persistence、
+Replay/Verify、tests 和真实 vertical slice 证据的 Feature。
+
+对尚未实现但合理的需求，系统应返回稳定的 `NO_MATCHING_RUNTIME_CONTRACT` 或等价结果，
+不得为了返回 `UNSUPPORTED` 而提前创建 placeholder Feature、class、schema、registry 或
+package。每个真正进入 Catalog 的 Feature 仍需自己的完整运行合同；“主题不是运行时开关”
+不意味着未来语义可以先以目录条目占位。
 
 ## 51.7 安全与失败边界
 

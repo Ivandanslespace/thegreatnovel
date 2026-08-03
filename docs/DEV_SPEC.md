@@ -668,7 +668,13 @@ Locale 不得改变 stable ID、legal action、Event sequence、state hash 或 R
 
 ### 13.1 一个 Feature 的完整闭环
 
-任何新机制必须在同一个可验收 slice 内完成：
+内部 checkpoint 可以按依赖顺序只完成完整闭环的一部分，并拥有自己的 commit、focused
+tests 与 review。可以先完成 schema/model、runtime semantics、compiler、preflight、
+publication 或 autoplay 中的某一段，但 checkpoint 不得被标记为完整 Feature。
+
+任何新增可玩行为在被宣称为 `complete`、`SUPPORTED`、`accepted implementation`、
+`production ready`、`frozen` 或创建 freeze tag 之前，必须在同一个最终可验收 slice 内完成
+该行为实际需要的完整闭环：
 
 ```text
 product requirement
@@ -685,8 +691,10 @@ product requirement
 → metrics and regression
 ```
 
-缺任一层就不能标 `SUPPORTED`。多个内部 checkpoint 可以按顺序开发，但在完整闭环前不
-建立 accepted implementation 或 freeze tag。
+缺任一实际需要的层就不能作上述完成声明。内部 checkpoint 不创建新的永久 spec 文档、
+独立 freeze tag 或 accepted implementation；不得把 checkpoint、helper、schema、label、
+fixture 或局部 cost mapping 冒充为已完成 Feature。具体阶段可以按风险裁剪不适用的层，
+但必须在 Phase Contract 中说明裁剪理由与最终验收证据。
 
 ### 13.2 抽象必须由真实需求挣出来
 
@@ -734,8 +742,9 @@ LLM Judge 只能提供 soft evaluation，不能覆盖 integrity hard gate。
 
 ## 14. Active Roadmap
 
-项目只维护一张 Active Roadmap。旧文档中的 Historical Phase 11/12、旧
-`devour_evolution` Phase 10A 候选和原始 MVP 0–6 编号都属于历史，不占用当前编号。
+项目只维护一张 Active Roadmap。不得恢复旧 Phase 10A–10E 为并列 Active Roadmap，也不得
+恢复旧 Historical Phase 11/12 编号、`devour_evolution` 路线或 `MVP_REWRITE_SPEC` 的阶段
+顺序。上述内容都属于历史，不占用当前编号；需要核对时只通过第 17 节的 Git ref 读取。
 
 ### Phase 10G0.1 — Contract Consolidation
 
@@ -744,8 +753,32 @@ LLM Judge 只能提供 soft evaluation，不能覆盖 integrity hard gate。
 
 ### Phase 10V1 — Genesis Foundation Vertical Slice
 
-这是下一项可接受实现，不是 10A–10E 五个独立冻结阶段。内部 checkpoint 可以依次实现，
-但必须作为一个 work item 完成：
+这是一个统一验收 milestone，不是 10A–10E 五个独立冻结阶段，也不要求在一个 Prompt
+或一个 commit 内完成。它可以拆分为多个有序 checkpoint、commit 和 review 任务，但所有
+checkpoint 共同组成同一个 Phase 10V1，不能分别宣称为正式 phase。
+
+建议的内部实施顺序如下；这些名称只是 checkpoint，不是新的正式 Phase 编号：
+
+```text
+V1-A — Request / Proposal / Coverage Approval / Report
+V1-B — Chosen Runtime Pressure Slice
+V1-C — Blueprint / Binding / Candidate Artifacts
+V1-D — Static and Gameplay Preflight / Structural Divergence
+V1-E — Atomic Publication / Campaign / Replay
+V1-F — Autoplay / Compatibility / Final Review
+```
+
+checkpoint 可以有自己的 commit、tests 和 review，但：
+
+- 不创建新的永久 spec 文档；
+- 不创建独立 freeze tag；
+- 不宣称整个 Phase 10V1 完成；
+- 不建立 accepted implementation。
+
+只有完整 Phase 10V1 闭环全部通过后，才允许确定 accepted implementation SHA、建立
+Phase 10V1 freeze tag，并在 README/DEV_SPEC 中标记完成。
+
+Phase 10V1 的最终统一验收仍必须覆盖：
 
 1. 一个固定、recorded Prompt/Seed fixture；
 2. Proposal + Coverage Approval + deterministic Report；
@@ -760,15 +793,45 @@ LLM Judge 只能提供 soft evaluation，不能覆盖 integrity hard gate。
 
 进入 coding 前必须在 phase prompt 中选定唯一 pressure slice。默认建议从海洋/玄武 Prompt
 中只截取“一个既有成长对象的升级明确排除普通材料，并永久消耗专属资源”这一条
-resource/progression 因果链；不得顺带声称已经支持活体 Habitat、所有权、海洋物理、全民
-peers、通用载具或通用 Capability framework。完整 Xuanwu/Habitat 仍属于后续产品压力
-slice。若用户改选义肢入侵，也只能选择一个 bounded Action/State/Event 后果链。
+resource/progression 因果链。该默认 slice 只有在满足以下最低反换皮门禁时，才可通过
+`STRUCTURAL_DIVERGENCE_V1`：
 
-### Phase 10V2 — Proposal Edge and Coverage
+1. 仅修改 `resource_id`、resource display name、label、prose、cost 数值、progression
+   gate mapping，或把 `salvage` 重命名为 `energy_crystal`，均不能算结构差异。
+2. 专属资源必须拥有与普通资源不同的真实因果路径，至少满足一项：不同获得 Action、
+   不同地点/机会窗口、不同风险、不同敌人/目标、不同时间约束、不同关系/权限要求；它
+   不得由普通材料 fallback 或自动兑换。
+3. 永久消费必须经过：
 
-在 V1 已证明完整链路后，引入 provider-neutral proposal edge、recorded/fake provider、
-coverage critic/用户确认与有限失败策略。真实网络 provider、凭据和预算需要独立批准，
-不能混进 deterministic evaluator。
+   ```text
+   legal Action → DomainEvent → Reducer → Inventory/Progression State → Replay/Verify
+   ```
+
+4. 专属资源必须产生至少一个真实策略差异，例如两个互斥用途、升级与保留资源之间的
+   机会成本、使用后关闭其他机会、获取资源时放弃另一条路线，或资源有无改变合法行动
+   /可达成长路线。
+5. 必须有 A/B 证明：启用专属资源语义与移除专属资源语义相比，至少一项发生可测变化：
+   legal action set、reachable progression、resource/opportunity cost、optimal scripted
+   policy 或 accepted decision trace。
+6. 不得声称已经支持活体玄武、Habitat、载具所有权、海洋物理、全民投放、peers、通用
+   Capability 或通用专属资源 framework。
+7. 该 slice 必须是具体、局部、可复现的因果链，不建立 `GenericResourceSystem`、
+   `UniversalProgressionFramework`、`EffectSystem`、`CapabilityRegistry` 或动态 Feature
+   plugin。
+
+不得顺带扩大产品范围；完整 Xuanwu/Habitat 仍属于后续产品压力 slice。若用户改选义肢入侵，
+也只能选择一个 bounded Action/State/Event 后果链，并接受同等反换皮与完整闭环门禁。
+
+### Phase 10V2 — Proposal Edge and Coverage Automation
+
+V1 只使用 recorded fixture、手工/预期的 Requirement Proposal、expected Coverage Approval
+artifact、deterministic evaluator，并且不使用真实 LLM provider。
+
+在 V1 已证明完整链路后，V2 才允许引入 provider-neutral proposal edge、recorded/fake
+provider adapter、prompt-to-proposal generation、independent coverage critic、真实用户
+确认流程、bounded proposal retry 与 provider failure isolation。真实网络 provider、API
+credentials、预算、模型路由和隐私 retention 仍需独立批准，不因 V2 名称变化自动进入实现范围，
+也不能混进 V1 的 deterministic evaluator。
 
 ### Phase 11V1 — World Depth L1 Runtime Slice
 
