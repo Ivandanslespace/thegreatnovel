@@ -169,7 +169,8 @@ def fallback_response(request: NarrationRequest | Mapping[str, Any]) -> Narratio
     if not lines and isinstance(req.get("context"), Mapping) and req["context"].get("ending"):
         prose = "故事暂歇于已经提交的历史；没有未发生的胜利。"
     else:
-        prose = "。".join(lines) + ("。" if lines else "这一回合没有新的可叙述事实。")
+        rendered = [line if line.endswith(("。", "！", "？", "!", "?")) else line + "。" for line in lines]
+        prose = "\n\n".join(rendered) if rendered else "这一回合没有新的可叙述事实。"
     return NarrationResponse(
         schema_version=str(req["schema_version"]),
         request_id=str(req["request_id"]),

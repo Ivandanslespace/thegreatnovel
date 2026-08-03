@@ -17,6 +17,15 @@ def test_request_hash_and_fallback_are_deterministic() -> None:
     assert validate_narration_response(request, result).prose == "门已打开。"
 
 
+def test_fallback_does_not_duplicate_existing_terminal_punctuation() -> None:
+    request = build_narration_request(
+        "demo",
+        1,
+        [{"event_id": "e-1", "facts": [{"fact_id": "f-1", "text": "潮水已经转向。", "visibility": "public", "kind": "time", "source": "engine"}]}],
+    )
+    assert fallback_response(request).prose == "潮水已经转向。"
+
+
 def test_strict_claims_reject_extra_or_altered_fact() -> None:
     request = _request()
     response = fallback_response(request).to_dict()
