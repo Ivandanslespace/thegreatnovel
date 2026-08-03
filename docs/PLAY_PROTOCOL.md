@@ -36,10 +36,16 @@ python scripts/tgn.py compile-world --file C:\absolute\candidate.world.json
 只有 `experience_gate.passed=true` 才能进入路线验收。Codex 还要为候选世界设计一条包含恢复余量的完整路线，并运行：
 
 ```powershell
-python scripts/tgn.py audit-world --file C:\absolute\candidate.world.json --seed 1 --route observe,verify,produce,reverse,tier_up,expand_action
+python scripts/tgn.py audit-world --file C:\absolute\candidate.world.json --prompt "玩家原句" --campaign campaign-id --seed 1 --route observe,verify,produce,reverse,tier_up,expand_action
 ```
 
-`passed=true` 要求真实引擎逐步确认关系反转、阶层跃迁、更大世界 materialize，并执行至少一个扩展行动。之后才能 `start --blueprint-file`。门禁无法自动证明文学质量或反换皮，因此返回的 `semantic_review_required` 也必须由 Codex 完成。
+`passed=true` 要求真实引擎逐步确认关系反转、阶层跃迁、更大世界 materialize，并执行至少一个扩展行动。正式启动必须再次提交同一证书：
+
+```powershell
+python scripts/tgn.py start --prompt "玩家原句" --blueprint-file C:\absolute\candidate.world.json --audit-seed 1 --audit-route observe,verify,produce,reverse,tier_up,expand_action --campaign campaign-id
+```
+
+服务层会使用同一 prompt、Campaign ID、seed 和路线重新执行，并把 blueprint hash、route、audit seed 和四项 checks 写入隐藏的 Campaign 元数据；这些字段在审计和正式 Campaign 的初始状态中完全相同，因此确定性 RNG 也相同。对外只返回 certificate hash 和 checks，不返回 seed。缺少证书、seed 不一致或 hash/路线验收失败会直接拒绝开局。门禁无法自动证明文学质量或反换皮，因此返回的 `semantic_review_required` 也必须由 Codex 完成。
 
 ## 行动协议
 

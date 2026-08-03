@@ -30,6 +30,8 @@ def _parser() -> argparse.ArgumentParser:
     audit_world.add_argument("--file", required=True)
     audit_world.add_argument("--route", required=True, help="comma-separated action ids")
     audit_world.add_argument("--seed", type=int, default=1)
+    audit_world.add_argument("--prompt", default="")
+    audit_world.add_argument("--campaign")
 
     start = commands.add_parser("start", help="create a campaign and commit its grounded opening")
     start.add_argument("--prompt", default="")
@@ -37,6 +39,8 @@ def _parser() -> argparse.ArgumentParser:
     start.add_argument("--world")
     start.add_argument("--blueprint-file")
     start.add_argument("--seed", type=int)
+    start.add_argument("--audit-route", help="comma-separated route certificate for a custom blueprint")
+    start.add_argument("--audit-seed", type=int, default=1)
 
     commands.add_parser("list", help="list durable campaigns")
     resume = commands.add_parser("resume", help="resume a campaign or the latest active one")
@@ -114,14 +118,23 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         data = service.compile_world_file(args.file)
     elif args.command == "audit-world":
         route = [item.strip() for item in args.route.split(",") if item.strip()]
-        data = service.audit_world_file(args.file, route, seed=args.seed)
+        data = service.audit_world_file(
+            args.file,
+            route,
+            seed=args.seed,
+            prompt=args.prompt,
+            campaign_id=args.campaign,
+        )
     elif args.command == "start":
+        audit_route = [item.strip() for item in (args.audit_route or "").split(",") if item.strip()]
         data = service.start(
             args.prompt,
             campaign_id=args.campaign,
             world_id=args.world,
             blueprint_file=args.blueprint_file,
             seed=args.seed,
+            audit_route=audit_route,
+            audit_seed=args.audit_seed,
         )
     elif args.command == "list":
         data = {"campaigns": service.list_campaigns()}

@@ -22,8 +22,8 @@
 3. 若没有可恢复存档，且玩家尚未描述世界，只问一句：“请用一句话描述你想进入的世界。”不要先替玩家决定题材。
 4. 玩家说“开始游戏：<一句话>”时直接进入世界构建流程。
 5. 玩家明确选择内置世界时，可用 `--world frost_harbor` 或 `--world gray_court`。其他描述必须生成独立候选蓝图到 `.tgn/incoming/<campaign>.world.json`，按 `docs/WORLD_BLUEPRINT.md` 构造，运行 `python scripts/tgn.py compile-world --file <绝对路径>`；未通过编译、完整体验门禁和反换皮复核时不得开局，也不得声称已经生成独特世界。
-6. 为候选蓝图设计一条包含恢复余量的路线，再运行 `python scripts/tgn.py audit-world --file <绝对路径> --seed <整数> --route <逗号分隔action IDs>`。只有 `passed=true`，且关系反转、阶层跃迁、更大世界 materialize 和扩展行动四项均为 true，才能开始正式 Campaign；一次成功路线是可达性证书，不代表玩家必胜。
-7. 蓝图通过后运行 `python scripts/tgn.py start --prompt <玩家原句> --blueprint-file <绝对路径> --campaign <稳定ID>`。开局本身会先提交 turn-0 事实，返回 pending narration。
+6. 先确定稳定 Campaign ID，再为候选蓝图设计一条包含恢复余量的路线，运行 `python scripts/tgn.py audit-world --file <绝对路径> --prompt <玩家原句> --campaign <稳定ID> --seed <整数> --route <逗号分隔action IDs>`。只有 `passed=true`，且关系反转、阶层跃迁、更大世界 materialize 和扩展行动四项均为 true，才能开始正式 Campaign；一次成功路线是可达性证书，不代表玩家偏离路线后仍必胜。
+7. 蓝图通过后运行 `python scripts/tgn.py start --prompt <玩家原句> --blueprint-file <绝对路径> --audit-seed <同一整数> --audit-route <同一组逗号分隔action IDs> --campaign <稳定ID>`。服务层会重新执行并把路线证书绑定进 Campaign；缺失或失败的证书会拒绝启动。开局本身会先提交 turn-0 事实，返回 pending narration。
 
 ## 每回合顺序
 

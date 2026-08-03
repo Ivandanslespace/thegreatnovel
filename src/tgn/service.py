@@ -16,10 +16,12 @@ from typing import Any, Mapping
 from .blueprint import compile_blueprint
 from .contracts import EventDraft
 from .engine import initial_state, legal_actions, preview_action, resolve_action
+from .hashing import sha256_json
 from .projection import project_player_view
 from .storage import CampaignStore, CampaignStoreError
 from .story import NarrationResponse, fallback_response
 from .worlds import (
+    ExperienceGateError,
     choose_world_for_prompt,
     list_worlds,
     load_world,
@@ -30,6 +32,12 @@ from .worlds import (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SAVES_ROOT = PROJECT_ROOT / "saves"
 _ID_PARTS = re.compile(r"[^A-Za-z0-9_-]+")
+_AUDIT_CHECKS = {
+    "relationship_reversal": True,
+    "tier_ascent": True,
+    "larger_world_materialized": True,
+    "expansion_action_executed": True,
+}
 
 
 def _campaign_id(world_id: str, prompt: str) -> str:
@@ -42,6 +50,15 @@ def _campaign_id(world_id: str, prompt: str) -> str:
 def _seed_for(campaign_id: str, prompt: str, blueprint_hash: str) -> int:
     material = f"{campaign_id}\n{prompt}\n{blueprint_hash}".encode("utf-8")
     return int.from_bytes(hashlib.sha256(material).digest()[:8], "big")
+
+
+def _route_certificate(blueprint_hash: str, seed: int, route: list[str] | tuple[str, ...]) -> dict[str, Any]:
+    return {
+        "blueprint_hash": blueprint_hash,
+        "audit_seed": int(seed),
+        "route": list(route),
+        "checks": dict(_AUDIT_CHECKS),
+    }
 
 
 def _opening_facts(world: Mapping[str, Any], state: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
@@ -148,6 +165,8 @@ class GameService:
         route: list[str] | tuple[str, ...],
         *,
         seed: int = 1,
+        prompt: str = "",
+        campaign_id: str | None = None,
     ) -> dict[str, Any]:
         """Execute a proposed growth route without creating a Campaign."""
 
@@ -156,7 +175,13 @@ class GameService:
         selection = choose_world_for_prompt(None, blueprint_file=path)
         world = compile_blueprint(selection["blueprint"])
         gate = require_experience_ready(world)
-        state = initial_state(world, str(world["id"]), seed)
+        cid = campaign_id or str(world["id"])
+        certificate = _route_certificate(world["blueprint_hash"], seed, route)
+        state = initial_state(world, cid, seed)
+        state["campaign"]["world_prompt"] = str(prompt).strip()
+        # The certificate is part of the sealed initial state in both audit
+        # and real start, so RNG and every preview see byte-identical metadata.
+        state["campaign"]["route_certificate"] = certificate
         steps: list[dict[str, Any]] = []
         for turn, action_id in enumerate(route, 1):
             preview = preview_action(world, state, action_id)
@@ -217,6 +242,8 @@ class GameService:
         world_id: str | None = None,
         blueprint_file: str | Path | None = None,
         seed: int | None = None,
+        audit_route: list[str] | tuple[str, ...] | None = None,
+        audit_seed: int = 1,
     ) -> dict[str, Any]:
         text = str(prompt).strip()
         if world_id and blueprint_file:
@@ -234,9 +261,56 @@ class GameService:
         compiled = compile_blueprint(selection["blueprint"])
         gate = require_experience_ready(compiled)
         cid = campaign_id or _campaign_id(str(compiled["id"]), text)
-        actual_seed = seed if seed is not None else _seed_for(cid, text, compiled["blueprint_hash"])
+        route_audit: dict[str, Any] | None = None
+        if blueprint_file is not None:
+            if not audit_route:
+                raise ExperienceGateError({
+                    "passed": False,
+                    "world_id": compiled["id"],
+                    "issues": [{
+                        "severity": "error",
+                        "code": "missing_route_certificate",
+                        "message": "custom blueprint start requires audit_route and audit_seed",
+                    }],
+                    "warnings": [],
+                })
+            if seed is not None and seed != audit_seed:
+                raise ExperienceGateError({
+                    "passed": False,
+                    "world_id": compiled["id"],
+                    "issues": [{
+                        "severity": "error",
+                        "code": "audit_seed_mismatch",
+                        "message": "custom campaign seed must equal its audited route seed",
+                    }],
+                    "warnings": [],
+                })
+            route_audit = self.audit_world_file(
+                blueprint_file,
+                audit_route,
+                seed=audit_seed,
+                prompt=text,
+                campaign_id=cid,
+            )
+            if route_audit.get("blueprint_hash") != compiled["blueprint_hash"] or not route_audit.get("passed"):
+                raise ExperienceGateError({
+                    "passed": False,
+                    "world_id": compiled["id"],
+                    "issues": [{
+                        "severity": "error",
+                        "code": "route_certificate_failed",
+                        "message": "custom blueprint route did not prove every required growth transition",
+                    }],
+                    "audit": route_audit,
+                    "warnings": [],
+                })
+        actual_seed = audit_seed if blueprint_file is not None else (seed if seed is not None else _seed_for(cid, text, compiled["blueprint_hash"]))
         state = initial_state(compiled, cid, actual_seed)
         state["campaign"]["world_prompt"] = text
+        if route_audit is not None:
+            state["campaign"]["route_certificate"] = _route_certificate(
+                route_audit["blueprint_hash"], audit_seed, audit_route or ()
+            )
         store = CampaignStore.create(self.saves_root, cid, compiled, state)
         try:
             facts = _opening_facts(compiled, state)
@@ -253,6 +327,12 @@ class GameService:
                 "selection_reasons": selection["selection_reasons"],
                 "fit_warning": selection.get("fit_warning"),
                 "experience_gate": gate,
+                "route_certificate": {
+                    "verified": route_audit is not None,
+                    "blueprint_hash": route_audit["blueprint_hash"] if route_audit else None,
+                    "certificate_hash": sha256_json(state["campaign"]["route_certificate"]) if route_audit else None,
+                    "checks": dict(route_audit["checks"]) if route_audit else {},
+                } if route_audit else None,
                 "player_view": _compact_player_view(observation),
                 "pending_narration": _public_narration_request(opening["narration_request"]),
                 "novel_draft": str((store.exports_dir / "novel_draft.md").resolve()),

@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 
 from tgn.service import GameService
-from tgn.storage import CampaignStoreError
+from tgn.storage import CampaignStore, CampaignStoreError
+from tgn.worlds import ExperienceGateError
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -138,7 +139,7 @@ def test_cli_route_audit_is_a_real_reachability_certificate(tmp_path) -> None:
         "--file",
         str(ROOT / "worlds" / "frost_harbor.json"),
         "--seed",
-        "1",
+        "3",
         "--route",
         route,
     )
@@ -157,3 +158,51 @@ def test_cli_route_audit_is_a_real_reachability_certificate(tmp_path) -> None:
     )
     assert code == 0 and failed["data"]["passed"] is False
     assert failed["data"]["reason_code"] in {"expansion_inactive", "not_visible"}
+
+
+def test_custom_start_reexecutes_exact_certificate_and_never_returns_seed(tmp_path) -> None:
+    prompt = "custom prompt changes hash"
+    campaign_id = "certified-custom"
+    route = (
+        "accept_debt", "inspect_grid", "trace_fault", "log_cause",
+        "automate_pump", "schedule_crew", "audit_manifest", "rest",
+        "convene_council", "sign_quota", "rest", "map_ice_route",
+    )
+    blueprint = ROOT / "worlds" / "frost_harbor.json"
+    service = GameService(tmp_path)
+    with pytest.raises(ExperienceGateError):
+        service.start(prompt, campaign_id=campaign_id, blueprint_file=blueprint)
+    with pytest.raises(ExperienceGateError):
+        service.start(
+            prompt,
+            campaign_id=campaign_id,
+            blueprint_file=blueprint,
+            seed=99,
+            audit_seed=2,
+            audit_route=route,
+        )
+
+    started = service.start(
+        prompt,
+        campaign_id=campaign_id,
+        blueprint_file=blueprint,
+        audit_seed=2,
+        audit_route=route,
+    )
+    certificate = started["route_certificate"]
+    assert certificate["verified"] is True and all(certificate["checks"].values())
+    assert "seed" not in json.dumps(certificate, ensure_ascii=False).lower()
+    service.narrate(campaign_id, fallback=True)
+    for turn, action_id in enumerate(route, 1):
+        assert service.preview(campaign_id, action_id)["legal"] is True
+        service.act_by_id(campaign_id, action_id, f"cert-turn-{turn}", expected_turn=turn - 1)
+        service.narrate(campaign_id, fallback=True)
+
+    state = service.state(campaign_id)
+    assert state["player_view"]["panel"]["current_tier"] == 3
+    store = CampaignStore.open(tmp_path, campaign_id)
+    try:
+        hidden = store.get_state()["campaign"]["route_certificate"]
+        assert hidden["audit_seed"] == 2 and hidden["route"] == list(route)
+    finally:
+        store.close()
