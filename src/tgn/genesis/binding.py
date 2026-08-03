@@ -1,4 +1,4 @@
-"""Candidate Runtime Binding assessment for Genesis V1-C.1.
+"""Candidate Runtime Binding assessment for bounded Genesis V1-C.2.
 
 This module records what a concrete candidate pressure contract *could* bind
 without claiming that the Runtime Catalog supports it.  In particular,
@@ -27,6 +27,11 @@ from .blueprint import (
 )
 from .catalog import FeatureSupportCatalog
 from .evaluator import verify_report
+from .foundation import (
+    FOUNDATION_FEATURE_ID,
+    FOUNDATION_REQUIREMENT_IDS,
+    validate_foundation_blueprint_facts,
+)
 from .models import (
     FeatureRequirementReport,
     GenesisRequest,
@@ -293,6 +298,10 @@ def build_runtime_binding_assessment(
         if type(value) is not expected:
             _fail("INVALID_TYPE", f"$.{name}", expected=expected.__name__, actual=value, error_cls=BindingValidationError)
     _verify_v1a_lineage(request, proposal, coverage_approval, report, catalog, blueprint)
+    try:
+        validate_foundation_blueprint_facts(blueprint)
+    except ArtifactValidationError as exc:
+        _fail(exc.code, exc.path, message=str(exc), error_cls=BindingValidationError)
     item_by_id = {item.requirement_id: item for item in report.items}
     requirement_by_id = {item.requirement_id: item for item in proposal.requirements}
     if set(item_by_id) != set(requirement_by_id):
@@ -338,6 +347,23 @@ def build_runtime_binding_assessment(
                 _fail("PRESSURE_SELECTION_MISMATCH", f"$.items.{requirement.requirement_id}", message="selected pressure requirement is not an honest unsupported candidate match", error_cls=BindingValidationError)
             result.append(CandidateBindingItem(requirement.requirement_id, "CANDIDATE_RUNTIME_MATCH", selection.feature_id, "REPORT_SUPPORT_PENDING"))
             continue
+        if requirement.requirement_id in FOUNDATION_REQUIREMENT_IDS:
+            if (
+                requirement.catalog_layer != "RUNTIME"
+                or item.catalog_layer != "RUNTIME"
+                or item.support_status != "UNSUPPORTED"
+                or item.disposition != "BLOCK"
+                or item.reason_code != "NO_MATCHING_RUNTIME_CONTRACT"
+                or item.bound_feature_ids
+            ):
+                _fail(
+                    "FOUNDATION_SELECTION_MISMATCH",
+                    f"$.items.{requirement.requirement_id}",
+                    message="selected foundation requirement is not an honest unsupported candidate match",
+                    error_cls=BindingValidationError,
+                )
+            result.append(CandidateBindingItem(requirement.requirement_id, "CANDIDATE_RUNTIME_MATCH", FOUNDATION_FEATURE_ID, "REPORT_SUPPORT_PENDING"))
+            continue
         if requirement.acceptance_policy == "OPTIONAL" and item.support_status == "UNSUPPORTED" and item.disposition == "OMIT":
             result.append(CandidateBindingItem(requirement.requirement_id, "OMITTED_OPTIONAL", None, "OPTIONAL_REQUIREMENT_OMITTED"))
             continue
@@ -364,7 +390,7 @@ def verify_runtime_binding_assessment(
     blueprint: WorldBlueprint,
     assessment: RuntimeBindingAssessment,
 ) -> RuntimeBindingAssessment:
-    """Recompute and verify a persisted V1-C.1 binding assessment.
+    """Recompute and verify a persisted bounded V1-C.2 binding assessment.
 
     Parsing an assessment is intentionally not an integrity proof.  This
     boundary re-verifies the Approval-bound Report, Blueprint lineage, and

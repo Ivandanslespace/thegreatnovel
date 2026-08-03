@@ -54,6 +54,14 @@ PRESSURE_REQUIREMENT_IDS = (
     "req.resource",
     "req.deduction",
 )
+FOUNDATION_REQUIREMENT_IDS = (
+    "req.mass_drop",
+    "req.peers",
+    "req.vehicle",
+    "req.ownership",
+    "req.creature",
+    "req.other_vehicles",
+)
 RECORDED_REQUIREMENT_IDS = (
     "req.ocean",
     "req.mass_drop",
@@ -114,6 +122,10 @@ _ERROR_CODES = frozenset(
         "CANDIDATE_HASH_MISMATCH",
         "INVALID_FACT_TIER",
         "INVALID_VISIBILITY",
+        "FOUNDATION_SELECTION_MISMATCH",
+        "FOUNDATION_CONFIG_MISMATCH",
+        "FOUNDATION_HASH_MISMATCH",
+        "FOUNDATION_REQUIREMENT_MISMATCH",
     }
 )
 
@@ -679,6 +691,7 @@ __all__ = [
     "BlueprintRequirementFact",
     "BlueprintValidationError",
     "CANDIDATE_DURABLE",
+    "FOUNDATION_REQUIREMENT_IDS",
     "RECORDED_FACT_KINDS",
     "RECORDED_REQUIREMENT_IDS",
     "PRESSURE_REQUIREMENT_IDS",

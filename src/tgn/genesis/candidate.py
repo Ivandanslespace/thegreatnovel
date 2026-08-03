@@ -1,4 +1,4 @@
-"""Blocked candidate artifacts and pure compiler seam for Genesis V1-C.1."""
+"""Blocked candidate artifacts and pure compiler seam for bounded Genesis V1-C.2."""
 
 from __future__ import annotations
 
@@ -29,6 +29,11 @@ from .blueprint import (
 )
 from .catalog import FeatureSupportCatalog
 from .evaluator import verify_report
+from .foundation import (
+    FoundationCandidateComponent,
+    build_foundation_candidate,
+    verify_foundation_candidate,
+)
 from .models import (
     FeatureRequirementReport,
     GenesisRequest,
@@ -48,7 +53,7 @@ from .pressure import (
 
 
 CANDIDATE_PRESSURE_SCHEMA_VERSION = 1
-CANDIDATE_DRAFT_SCHEMA_VERSION = 1
+CANDIDATE_DRAFT_SCHEMA_VERSION = 2
 CANDIDATE_SEMANTIC_SCHEMA_VERSION = 1
 CANDIDATE_ATTEMPT_SCHEMA_VERSION = 1
 CANDIDATE_COMPILER_ID = "genesis.v1c_candidate_compiler"
@@ -270,6 +275,7 @@ class CandidateWorldDraft:
     _candidate_facts_json: str = field(repr=False, compare=True)
     _pressure_component_json: str = field(repr=False, compare=True)
     _initial_component_json: str = field(repr=False, compare=True)
+    _foundation_component_json: str = field(repr=False, compare=True)
     world_semantic_candidate_hash: str
 
     def __init__(
@@ -281,6 +287,7 @@ class CandidateWorldDraft:
         candidate_facts: Sequence[Any],
         pressure_component: CandidatePressureComponent,
         candidate_initial_component: CandidateInitialComponent,
+        foundation_component: FoundationCandidateComponent,
         world_semantic_candidate_hash: str | None = None,
     ) -> None:
         from .blueprint import BlueprintRequirementFact
@@ -304,17 +311,29 @@ class CandidateWorldDraft:
             _fail("INVALID_TYPE", "$.pressure_component", expected="CandidatePressureComponent", actual=pressure_component, error_cls=CandidateValidationError)
         if type(candidate_initial_component) is not CandidateInitialComponent:
             _fail("INVALID_TYPE", "$.candidate_initial_component", expected="CandidateInitialComponent", actual=candidate_initial_component, error_cls=CandidateValidationError)
+        if type(foundation_component) is not FoundationCandidateComponent:
+            _fail("INVALID_TYPE", "$.foundation_component", expected="FoundationCandidateComponent", actual=foundation_component, error_cls=CandidateValidationError)
         if pressure_component.feature_id != candidate_initial_component.feature_id or pressure_component.contract_version != candidate_initial_component.contract_version:
             _fail("PRESSURE_CONFIG_MISMATCH", "$.candidate_initial_component", message="candidate initial component must use the pressure component contract", error_cls=CandidateValidationError)
         if pressure_component.initial_state.to_dict() != candidate_initial_component.initial_state.to_dict():
             _fail("PRESSURE_CONFIG_MISMATCH", "$.candidate_initial_component.initial_state", message="candidate initial state must match the pressure component state", error_cls=CandidateValidationError)
         if pressure_component.initial_state_hash != candidate_initial_component.state_hash:
             _fail("CANDIDATE_HASH_MISMATCH", "$.candidate_initial_component.state_hash", message="pressure and candidate initial state hashes must agree", error_cls=CandidateValidationError)
+        if (
+            foundation_component.pressure_feature_id != pressure_component.feature_id
+            or foundation_component.pressure_contract_version != pressure_component.contract_version
+            or foundation_component.pressure_protagonist_id != pressure_component.pressure_config.protagonist_id
+            or foundation_component.pressure_growth_object_id != pressure_component.pressure_config.growth_object_id
+            or foundation_component.pressure_growth_object_owner_id != pressure_component.pressure_config.growth_object_owner_id
+            or foundation_component.pressure_exclusive_resource_id != pressure_component.pressure_config.exclusive_resource_id
+        ):
+            _fail("FOUNDATION_CONFIG_MISMATCH", "$.foundation_component", message="foundation/pressure identity linkage differs", error_cls=CandidateValidationError)
         if pressure_component.candidate_binding_assessment_hash != binding_assessment_hash:
             _fail("BINDING_HASH_MISMATCH", "$.pressure_component.candidate_binding_assessment_hash", message="pressure component must bind the draft assessment", error_cls=CandidateValidationError)
         object.__setattr__(self, "_candidate_facts_json", _canonical_payload([item.to_dict() for item in candidate_facts], error_cls=CandidateValidationError))
         object.__setattr__(self, "_pressure_component_json", _canonical_payload(pressure_component.to_dict(), error_cls=CandidateValidationError))
         object.__setattr__(self, "_initial_component_json", _canonical_payload(candidate_initial_component.to_dict(), error_cls=CandidateValidationError))
+        object.__setattr__(self, "_foundation_component_json", _canonical_payload(foundation_component.to_dict(), error_cls=CandidateValidationError))
         computed_semantic_hash = self._compute_semantic_hash()
         if world_semantic_candidate_hash is not None and world_semantic_candidate_hash != computed_semantic_hash:
             _fail("CANDIDATE_HASH_MISMATCH", "$.world_semantic_candidate_hash", message="candidate semantic hash does not match draft payload", error_cls=CandidateValidationError)
@@ -325,6 +344,7 @@ class CandidateWorldDraft:
 
         pressure_component = self.pressure_component
         initial_component = self.candidate_initial_component
+        foundation_component = self.foundation_component
         return {
             "candidate_semantic_schema_version": CANDIDATE_SEMANTIC_SCHEMA_VERSION,
             "candidate_facts": [
@@ -345,6 +365,7 @@ class CandidateWorldDraft:
             "pressure_contract_version": pressure_component.contract_version,
             "pressure_config": pressure_component.pressure_config.to_dict(),
             "initial_state": initial_component.initial_state.to_dict(),
+            "foundation_component": foundation_component.semantic_payload(),
         }
 
     def _compute_semantic_hash(self) -> str:
@@ -360,6 +381,7 @@ class CandidateWorldDraft:
                 "candidate_facts": json.loads(self._candidate_facts_json),
                 "pressure_component": json.loads(self._pressure_component_json),
                 "candidate_initial_component": json.loads(self._initial_component_json),
+                "foundation_component": json.loads(self._foundation_component_json),
                 "world_semantic_candidate_hash": self.world_semantic_candidate_hash,
             },
             error_cls=CandidateValidationError,
@@ -383,6 +405,10 @@ class CandidateWorldDraft:
         return CandidateInitialComponent.from_dict(json.loads(self._initial_component_json))
 
     @property
+    def foundation_component(self) -> FoundationCandidateComponent:
+        return FoundationCandidateComponent.from_dict(json.loads(self._foundation_component_json))
+
+    @property
     def hash(self) -> str:
         return self._compute_artifact_hash()
 
@@ -395,6 +421,7 @@ class CandidateWorldDraft:
             "candidate_facts": [item.to_dict() for item in self.candidate_facts],
             "pressure_component": self.pressure_component.to_dict(),
             "candidate_initial_component": self.candidate_initial_component.to_dict(),
+            "foundation_component": self.foundation_component.to_dict(),
             "world_semantic_candidate_hash": self.world_semantic_candidate_hash,
         }
 
@@ -412,10 +439,16 @@ class CandidateWorldDraft:
             "candidate_facts",
             "pressure_component",
             "candidate_initial_component",
+            "foundation_component",
             "world_semantic_candidate_hash",
         }
         _check_exact_fields(data, allowed, "$", error_cls=CandidateValidationError)
-        if not isinstance(data["candidate_facts"], list) or not isinstance(data["pressure_component"], Mapping) or not isinstance(data["candidate_initial_component"], Mapping):
+        if (
+            not isinstance(data["candidate_facts"], list)
+            or not isinstance(data["pressure_component"], Mapping)
+            or not isinstance(data["candidate_initial_component"], Mapping)
+            or not isinstance(data["foundation_component"], Mapping)
+        ):
             _fail("INVALID_TYPE", "$.candidate_facts", expected="typed candidate payloads", actual=data, error_cls=CandidateValidationError)
         return cls(
             draft_schema_version=data["draft_schema_version"],
@@ -425,6 +458,7 @@ class CandidateWorldDraft:
             candidate_facts=[BlueprintRequirementFact.from_dict(item) for item in data["candidate_facts"]],
             pressure_component=CandidatePressureComponent.from_dict(data["pressure_component"]),
             candidate_initial_component=CandidateInitialComponent.from_dict(data["candidate_initial_component"]),
+            foundation_component=FoundationCandidateComponent.from_dict(data["foundation_component"]),
             world_semantic_candidate_hash=data["world_semantic_candidate_hash"],
         )
 
@@ -609,6 +643,10 @@ def compile_candidate_artifacts(
         _fail(exc.code, exc.path, message=str(exc), error_cls=CandidateValidationError)
     _validate_pressure_selection_config(blueprint, pressure_config)
     try:
+        foundation_component = build_foundation_candidate(blueprint, pressure_config)
+    except ValueError as exc:
+        _fail("FOUNDATION_REQUIREMENT_MISMATCH", "$.foundation_component", message="foundation candidate cannot be built from the recorded Blueprint", error_cls=CandidateValidationError)
+    try:
         initial_state = initial_pressure_state(pressure_config)
         check_pressure_invariants(initial_state, pressure_config)
     except ValueError as exc:
@@ -634,6 +672,7 @@ def compile_candidate_artifacts(
         candidate_facts=blueprint.facts,
         pressure_component=pressure_component,
         candidate_initial_component=initial_component,
+        foundation_component=foundation_component,
     )
     attempt = CandidateGenesisAttempt(
         attempt_schema_version=CANDIDATE_ATTEMPT_SCHEMA_VERSION,
@@ -650,7 +689,7 @@ def compile_candidate_artifacts(
         compiler_id=CANDIDATE_COMPILER_ID,
         compiler_contract_version=CANDIDATE_COMPILER_CONTRACT_VERSION,
         required_pending_gates=PENDING_GATES,
-        # V1-C.1 is a detached candidate seam.  The canonical compiler never
+        # V1-C.2 is a detached candidate seam.  The canonical compiler never
         # emits a materialization-ready status, even if a future fixture were
         # to report all current requirements as supported.
         attempt_status="BLOCKED_REQUIREMENTS",
@@ -670,7 +709,7 @@ def verify_candidate_artifacts(
     draft: CandidateWorldDraft,
     attempt: CandidateGenesisAttempt,
 ) -> tuple[RuntimeBindingAssessment, CandidateWorldDraft, CandidateGenesisAttempt]:
-    """Recompute and verify the complete persisted V1-C.1 artifact tuple."""
+    """Recompute and verify the complete persisted bounded V1-C.2 artifact tuple."""
 
     for name, value, expected in (
         ("request", request, GenesisRequest),
@@ -708,6 +747,10 @@ def verify_candidate_artifacts(
         blueprint,
         assessment,
     )
+    try:
+        verify_foundation_candidate(blueprint, pressure_config, draft.foundation_component)
+    except ValueError as exc:
+        _fail("FOUNDATION_HASH_MISMATCH", "$.draft.foundation_component", message="persisted foundation candidate failed deterministic recomputation", error_cls=CandidateValidationError)
     expected_draft, expected_attempt = compile_candidate_artifacts(
         request,
         proposal,

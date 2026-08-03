@@ -27,6 +27,11 @@ from tgn.genesis import (
     PENDING_GATES,
     PRESSURE_CONTRACT_VERSION,
     PRESSURE_FEATURE_ID,
+    FOUNDATION_FEATURE_ID,
+    FOUNDATION_REQUIREMENT_IDS,
+    FoundationCandidateComponent,
+    build_foundation_candidate,
+    verify_foundation_candidate,
     Requirement,
     RequirementApproval,
     RequirementConstraint,
@@ -131,16 +136,28 @@ def _fixture() -> tuple[GenesisRequest, RequirementProposal, RequirementCoverage
         "PERMANENT_CONSUMPTION",
         "PEER_VEHICLE_CLASS",
     ]
-    facts = [
-        BlueprintRequirementFact(
-            item.requirement_id,
-            item.source_reference,
-            item.normalized_intent,
-            fact_kinds[index],
-            typed_constraints=item.typed_constraints,
+    foundation_identity = {
+        "req.mass_drop": (("system.public_mass_drop",), ("cohort.initial",)),
+        "req.peers": (("cohort.initial",), ("actor.protagonist", "actor.peer.1", "actor.peer.2")),
+        "req.vehicle": (("cohort.initial",), ("vehicle.protagonist", "vehicle.peer.1", "vehicle.peer.2")),
+        "req.ownership": (("actor.protagonist", "actor.peer.1", "actor.peer.2"), ("vehicle.protagonist", "vehicle.peer.1", "vehicle.peer.2")),
+        "req.creature": (("actor.protagonist",), ("vehicle.protagonist",)),
+        "req.other_vehicles": (("actor.peer.1", "actor.peer.2"), ("vehicle.peer.1", "vehicle.peer.2")),
+    }
+    facts = []
+    for index, item in enumerate(requirements):
+        subjects, objects = foundation_identity.get(item.requirement_id, ((), ()))
+        facts.append(
+            BlueprintRequirementFact(
+                item.requirement_id,
+                item.source_reference,
+                item.normalized_intent,
+                fact_kinds[index],
+                subject_ids=subjects,
+                object_ids=objects,
+                typed_constraints=item.typed_constraints,
+            )
         )
-        for index, item in enumerate(requirements)
-    ]
     blueprint = WorldBlueprint(
         1,
         "blueprint-ocean-771305",
@@ -212,10 +229,10 @@ def test_recorded_fixture_builds_only_candidate_and_blocked_artifacts():
     assert [fact.requirement_id for fact in blueprint.facts] == [item.requirement_id for item in proposal.requirements]
     assert {fact.durability_tier for fact in blueprint.facts} == BLUEPRINT_DURABILITY_TIERS
     assert assessment.status_counts == {
-        "CANDIDATE_RUNTIME_MATCH": 4,
+        "CANDIDATE_RUNTIME_MATCH": 10,
         "CONTENT_ACCEPTED": 1,
         "OMITTED_OPTIONAL": 0,
-        "UNBOUND_BLOCKING": 6,
+        "UNBOUND_BLOCKING": 0,
     }
     assert assessment.binding_gate_passed is False
     assert report.requirements_gate_passed is False
@@ -514,7 +531,7 @@ def test_candidate_artifact_verifier_rejects_cross_artifact_and_recomputed_forge
             request, proposal, approval, report, DEFAULT_CATALOG, blueprint_b, pressure_config,
             assessment_b, draft, attempt,
         )
-    assert error.value.code == "CANDIDATE_HASH_MISMATCH"
+    assert error.value.code == "FOUNDATION_HASH_MISMATCH"
 
     changed_config = replace(pressure_config, upgrade_stamina_cost=pressure_config.upgrade_stamina_cost + 1)
     draft_config_b, attempt_config_b = compile_candidate_artifacts(
@@ -543,6 +560,7 @@ def test_candidate_artifact_verifier_rejects_cross_artifact_and_recomputed_forge
         candidate_facts=draft.candidate_facts,
         pressure_component=altered_pressure,
         candidate_initial_component=draft.candidate_initial_component,
+        foundation_component=draft.foundation_component,
     )
     with pytest.raises(CandidateValidationError) as error:
         verify_candidate_artifacts(
@@ -567,6 +585,7 @@ def test_candidate_artifact_verifier_rejects_cross_artifact_and_recomputed_forge
         candidate_facts=draft.candidate_facts,
         pressure_component=altered_assessment_pressure,
         candidate_initial_component=draft.candidate_initial_component,
+        foundation_component=draft.foundation_component,
     )
     with pytest.raises(CandidateValidationError) as error:
         verify_candidate_artifacts(
@@ -585,6 +604,7 @@ def test_candidate_artifact_verifier_rejects_cross_artifact_and_recomputed_forge
         candidate_facts=reordered_facts,
         pressure_component=draft.pressure_component,
         candidate_initial_component=draft.candidate_initial_component,
+        foundation_component=draft.foundation_component,
     )
     with pytest.raises(CandidateValidationError) as error:
         verify_candidate_artifacts(
@@ -601,6 +621,7 @@ def test_candidate_artifact_verifier_rejects_cross_artifact_and_recomputed_forge
         candidate_facts=list(draft.candidate_facts)[:-1],
         pressure_component=draft.pressure_component,
         candidate_initial_component=draft.candidate_initial_component,
+        foundation_component=draft.foundation_component,
     )
     with pytest.raises(CandidateValidationError) as error:
         verify_candidate_artifacts(
@@ -619,6 +640,7 @@ def test_candidate_artifact_verifier_rejects_cross_artifact_and_recomputed_forge
         candidate_facts=[BlueprintRequirementFact.from_dict(replaced_fact_data), *draft.candidate_facts[1:]],
         pressure_component=draft.pressure_component,
         candidate_initial_component=draft.candidate_initial_component,
+        foundation_component=draft.foundation_component,
     )
     with pytest.raises(CandidateValidationError) as error:
         verify_candidate_artifacts(
