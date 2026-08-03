@@ -152,6 +152,13 @@ def validate_narration_response(
     for fact_id, claim in actual.items():
         if claim != required[fact_id]:
             raise NarrationError(f"claim {fact_id} differs from the committed fact")
+        # Structured claims remain useful for machine verification, but prose
+        # may not silently invent or omit the committed facts.  Requiring the
+        # original fact text is a deliberately modest semantic boundary:
+        # connective, literary language remains free around grounded text.
+        text = required[fact_id].get("text")
+        if not isinstance(text, str) or text not in resp.prose:
+            raise NarrationError(f"prose does not contain required fact text {fact_id}")
     return resp
 
 
