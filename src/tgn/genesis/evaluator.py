@@ -148,6 +148,8 @@ def _item_for_requirement(requirement: Requirement, catalog: FeatureSupportCatal
         disposition = "BIND"
         accepted_scope = {"feature_ids": list(bound_ids), "intent": requirement.normalized_intent}
         lost_capabilities: tuple[str, ...] = ()
+        if requirement.catalog_layer == "CONTENT":
+            effect = "expression only; no runtime mechanic"
     elif status == "REJECTED":
         disposition = "BLOCK"
         accepted_scope = {}
@@ -227,6 +229,7 @@ def evaluate(
         source_proposal_hash=proposal.hash,
         source_approval_hash=coverage_approval.hash,
         catalog_version=catalog.version,
+        source_catalog_hash=catalog.hash,
         items=items,
         requirements_gate_passed=_gate_passes(items, catalog),
     )

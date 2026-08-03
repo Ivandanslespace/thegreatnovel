@@ -22,18 +22,26 @@ from tgn.genesis import (
     RequirementCoverageApproval,
     RequirementProposal,
     RequirementReportItem,
+    REPORT_REASON_CODES,
     evaluate,
     verify_report,
 )
+
+
+OCEAN_PROMPT = """全民投放海洋世界。
+只有主角的初始载具是活体玄武；
+其他投放者拥有不同类型的普通载具。
+玄武升级不消耗木材、金属等普通建造材料，
+只消耗会被永久扣除的专属资源“能量晶石”。"""
 
 
 def _request(constraints: list[str] | None = None) -> GenesisRequest:
     return GenesisRequest(
         schema_version=1,
         request_id="request-ocean-771305",
-        raw_prompt="An ocean genesis prompt with a living creature and a dedicated resource.",
+        raw_prompt=OCEAN_PROMPT,
         genesis_seed=771305,
-        content_locale="en-US",
+        content_locale="zh-CN",
         explicit_constraints=constraints or ["recorded-fixture"],
         generation_policy_reference="policy.genesis.v1",
     )
@@ -46,18 +54,20 @@ def _requirement(
     layer: str,
     candidates: list[str],
     *,
+    source_reference: str = "prompt:line-1",
+    requirement_kind: str | None = None,
+    typed_constraints: list[RequirementConstraint] | None = None,
     warnings: list[str] | None = None,
 ) -> Requirement:
-    kind = "CONTENT_EXPRESSION" if layer == "CONTENT" else "RUNTIME_SEMANTIC"
-    normalized_intent = "world_premise" if layer == "CONTENT" else intent
+    kind = requirement_kind or ("CONTENT_EXPRESSION" if layer == "CONTENT" else "RUNTIME_MECHANIC")
     return Requirement(
         requirement_id=requirement_id,
-        source_reference=f"prompt:{requirement_id}",
-        normalized_intent=normalized_intent,
+        source_reference=source_reference,
+        normalized_intent=intent,
         requirement_kind=kind,
         acceptance_policy=policy,
         catalog_layer=layer,
-        typed_constraints=[RequirementConstraint("constraint.fixture", "BOOLEAN", True, True)],
+        typed_constraints=typed_constraints or [RequirementConstraint("constraint.fixture", "EQUALS", True, True)],
         candidate_feature_ids=candidates,
         warnings=warnings or [],
     )
@@ -103,11 +113,11 @@ def test_request_and_nested_values_are_canonical_and_detached():
     requirement = Requirement(
         "req.one",
         "prompt:1",
-        "world_premise",
+        "全民投放海洋世界的公开题材与审美前提",
         "CONTENT_EXPRESSION",
         "STRICT",
         "CONTENT",
-        [RequirementConstraint("constraint.labels", "STRING_LIST", typed, True)],
+        [RequirementConstraint("constraint.labels", "ONE_OF", typed, True)],
         ["content.world_premise.v1"],
     )
     typed.append("mutated")
@@ -128,16 +138,62 @@ def test_strict_schema_and_bounds_reject_unknown_or_invalid_values():
         GenesisRequest.from_dict(data)
     assert error.value.code == "INVALID_TYPE"
 
+
+def test_constraint_kinds_are_semantic_and_values_are_small_scalars():
+    valid = [
+        RequirementConstraint("constraint.equals", "EQUALS", "玄武", True),
+        RequirementConstraint("constraint.excludes", "EXCLUDES", ["木材", "金属"], True),
+        RequirementConstraint("constraint.ownership", "OWNERSHIP", "主角", True),
+        RequirementConstraint("constraint.cost", "RESOURCE_COST", "能量晶石", True),
+    ]
+    assert {item.constraint_kind for item in valid} == {"EQUALS", "EXCLUDES", "OWNERSHIP", "RESOURCE_COST"}
+    assert valid[1].value == ("木材", "金属")
+
+    with pytest.raises(GenesisValidationError):
+        RequirementConstraint("constraint.unknown", "STRING", "not semantic", True)
+    with pytest.raises(GenesisValidationError):
+        RequirementConstraint("constraint.float", "EQUALS", 1.5, True)
+    with pytest.raises(GenesisValidationError):
+        RequirementConstraint("constraint.mapping", "EQUALS", {"nested": True}, True)
+    with pytest.raises(GenesisValidationError):
+        RequirementConstraint("constraint.nested", "ONE_OF", [["nested"]], True)
+    with pytest.raises(GenesisValidationError):
+        RequirementConstraint("constraint.too_many", "ONE_OF", list(range(9)), True)
+
+    constraints = [
+        RequirementConstraint("constraint.duplicate", "EQUALS", "a", True),
+        RequirementConstraint("constraint.duplicate", "EQUALS", "b", True),
+    ]
+    with pytest.raises(GenesisValidationError) as error:
+        Requirement(
+            "req.duplicate_constraints",
+            "prompt:line-1",
+            "语义摘要",
+            "RUNTIME_MECHANIC",
+            "STRICT",
+            "RUNTIME",
+            constraints,
+            [],
+        )
+    assert error.value.code == "DUPLICATE_ID"
+
+    source = ["木材", "金属"]
+    constraint = RequirementConstraint("constraint.snapshot", "EXCLUDES", source, True)
+    source.append("玻璃")
+    exported = constraint.to_dict()
+    exported["value"].append("混入")
+    assert constraint.value == ("木材", "金属")
+
     with pytest.raises(GenesisValidationError) as error:
         GenesisRequest(1, "request-a", "bad\x00prompt", 1, "en-US", [], "policy")
     assert error.value.code == "INVALID_VALUE"
 
     with pytest.raises(GenesisValidationError):
-        RequirementConstraint("constraint.bad", "STRING", {"nested": True}, True)
+        RequirementConstraint("constraint.bad", "EQUALS", {"nested": True}, True)
     with pytest.raises(GenesisValidationError):
-        RequirementConstraint("constraint.bad", "INTEGER", 1.5, True)
+        RequirementConstraint("constraint.bad", "EQUALS", 1.5, True)
 
-    malformed = _requirement("req.schema", "schema", "STRICT", "RUNTIME", []).to_dict()
+    malformed = _requirement("req.schema", "schema rule", "STRICT", "RUNTIME", []).to_dict()
     malformed["typed_constraints"] = {}
     with pytest.raises(GenesisValidationError) as error:
         Requirement.from_dict(malformed)
@@ -257,6 +313,7 @@ def test_report_requires_cross_artifact_verification_before_reuse():
         report.source_proposal_hash,
         report.source_approval_hash,
         report.catalog_version,
+        report.source_catalog_hash,
         [report.items[0]],
         True,
     )
@@ -283,6 +340,7 @@ def test_report_requires_cross_artifact_verification_before_reuse():
         report.source_proposal_hash,
         report.source_approval_hash,
         report.catalog_version,
+        report.source_catalog_hash,
         [fake_binding_item, *report.items[1:]],
         False,
     )
@@ -292,13 +350,35 @@ def test_report_requires_cross_artifact_verification_before_reuse():
 
 
 def test_content_and_runtime_requirement_kinds_cannot_be_crossed():
-    constraint = [RequirementConstraint("constraint.kind", "STRING", "value", True)]
+    constraint = [RequirementConstraint("constraint.kind", "EQUALS", "value", True)]
+    with pytest.raises(GenesisValidationError):
+        Requirement(
+            "req.enum_intent",
+            "prompt:line-1",
+            "world_premise",
+            "CONTENT_EXPRESSION",
+            "STRICT",
+            "CONTENT",
+            constraint,
+            ["content.world_premise.v1"],
+        )
+    with pytest.raises(GenesisValidationError):
+        Requirement(
+            "req.runtime_constraint_in_content",
+            "prompt:line-4",
+            "玄武升级排除木材和金属普通材料",
+            "CONTENT_EXPRESSION",
+            "STRICT",
+            "CONTENT",
+            [RequirementConstraint("constraint.excludes", "EXCLUDES", ["木材", "金属"], True)],
+            ["content.world_premise.v1"],
+        )
     with pytest.raises(GenesisValidationError):
         Requirement(
             "req.mechanism",
             "prompt:1",
-            "permanent deduction",
-            "RUNTIME_SEMANTIC",
+            "玄武升级永久扣除专属资源",
+            "RUNTIME_MECHANIC",
             "STRICT",
             "CONTENT",
             constraint,
@@ -308,8 +388,8 @@ def test_content_and_runtime_requirement_kinds_cannot_be_crossed():
         Requirement(
             "req.runtime_content_id",
             "prompt:1",
-            "world_premise",
-            "RUNTIME_SEMANTIC",
+            "全民投放海洋世界的公开题材与审美前提",
+            "CONTENT_EXPRESSION",
             "OPTIONAL",
             "RUNTIME",
             constraint,
@@ -319,7 +399,7 @@ def test_content_and_runtime_requirement_kinds_cannot_be_crossed():
         Requirement(
             "req.alternatives",
             "prompt:1",
-            "premise",
+            "公开海洋题材",
             "CONTENT_EXPRESSION",
             "STRICT",
             "CONTENT",
@@ -330,8 +410,8 @@ def test_content_and_runtime_requirement_kinds_cannot_be_crossed():
         Requirement(
             "req.misclassified",
             "prompt:1",
-            "permanent_deduction",
-            "CONTENT_EXPRESSION",
+            "玄武升级永久扣除专属资源",
+            "RUNTIME_MECHANIC",
             "STRICT",
             "CONTENT",
             constraint,
@@ -348,6 +428,56 @@ def test_only_the_canonical_catalog_identity_is_accepted():
     with pytest.raises(GenesisValidationError) as error:
         evaluate(request, proposal, approval, custom_catalog)
     assert error.value.code == "CATALOG_IDENTITY_MISMATCH"
+
+
+def test_report_persists_catalog_hash_and_rejects_tampering_or_missing_lineage():
+    request, proposal, approval = _artifacts()
+    report = evaluate(request, proposal, approval, DEFAULT_CATALOG)
+    assert report.source_catalog_hash == DEFAULT_CATALOG.hash
+    exported = report.to_dict()
+    assert FeatureRequirementReport.from_dict(exported).hash == report.hash
+
+    missing = dict(exported)
+    missing.pop("source_catalog_hash")
+    with pytest.raises(GenesisValidationError) as error:
+        FeatureRequirementReport.from_dict(missing)
+    assert error.value.code == "MISSING_FIELD"
+
+    tampered = dict(exported)
+    tampered["source_catalog_hash"] = "0" * 64
+    tampered_report = FeatureRequirementReport.from_dict(tampered)
+    with pytest.raises(GenesisValidationError) as error:
+        verify_report(request, proposal, approval, DEFAULT_CATALOG, tampered_report)
+    assert error.value.code == "REPORT_MISMATCH"
+
+
+def test_unknown_validation_code_is_not_silently_rewritten():
+    with pytest.raises(ValueError, match="Unknown Genesis validation error code"):
+        GenesisValidationError("NOT_A_REAL_ERROR_CODE")
+
+
+def test_report_reason_code_is_a_finite_enum():
+    assert REPORT_REASON_CODES == {
+        "SUPPORTED",
+        "NO_MATCHING_RUNTIME_CONTRACT",
+        "UNKNOWN_FEATURE_ID",
+        "CATALOG_LAYER_MISMATCH",
+        "UNRESOLVED_WARNING",
+    }
+    with pytest.raises(GenesisValidationError):
+        RequirementReportItem(
+            "req.bad_reason",
+            "CONTENT",
+            "SUPPORTED",
+            [],
+            "NOT_A_REASON",
+            ["content.world_premise.v1"],
+            {},
+            [],
+            "bad reason",
+            False,
+            "BIND",
+        )
 
 
 def test_degradable_unsupported_is_blocked_and_warning_blocks_gate():
@@ -385,27 +515,128 @@ def test_layer_and_unknown_feature_results_never_create_placeholder_support():
     assert report.items[0].reason_code == "UNKNOWN_FEATURE_ID"
 
 
-def test_fixture_covers_ocean_prompt_without_runtime_artifacts():
-    names = [
-        ("req.ocean", "ocean content", "STRICT", "CONTENT", ["content.world_premise.v1"]),
-        ("req.mass_drop", "mass drop", "STRICT", "RUNTIME", ["runtime.mass_drop"]),
-        ("req.peers", "peers", "OPTIONAL", "RUNTIME", ["runtime.peers"]),
-        ("req.vehicle", "vehicle entity", "STRICT", "RUNTIME", ["runtime.vehicle"]),
-        ("req.ownership", "vehicle ownership", "STRICT", "RUNTIME", ["runtime.ownership"]),
-        ("req.creature", "unique living creature", "STRICT", "RUNTIME", ["runtime.creature"]),
-        ("req.progression", "progression object", "STRICT", "RUNTIME", ["runtime.progression_object"]),
-        ("req.exclusion", "normal-material exclusion", "STRICT", "RUNTIME", ["runtime.material_exclusion"]),
-        ("req.resource", "exclusive resource", "STRICT", "RUNTIME", ["runtime.resource"]),
-        ("req.deduction", "permanent deduction", "STRICT", "RUNTIME", ["runtime.deduction"]),
-        ("req.other_vehicles", "other ordinary vehicles", "OPTIONAL", "RUNTIME", ["runtime.other_vehicles"]),
+def test_exact_recorded_ocean_xuanwu_fixture_preserves_prompt_lineage():
+    requirements = [
+        _requirement(
+            "req.ocean",
+            "全民投放海洋世界的公开题材与审美前提",
+            "STRICT",
+            "CONTENT",
+            ["content.world_premise.v1"],
+            source_reference="prompt:line-1",
+            requirement_kind="CONTENT_EXPRESSION",
+            typed_constraints=[RequirementConstraint("constraint.ocean", "EQUALS", "海洋世界", True)],
+        ),
+        _requirement(
+            "req.mass_drop",
+            "全民投放的公开系统机制",
+            "STRICT",
+            "RUNTIME",
+            ["runtime.mass_drop"],
+            source_reference="prompt:line-1",
+            requirement_kind="PUBLIC_SYSTEM",
+        ),
+        _requirement(
+            "req.peers",
+            "其他投放者作为可区分的同场实体",
+            "STRICT",
+            "RUNTIME",
+            ["runtime.peers"],
+            source_reference="prompt:line-3",
+            requirement_kind="ENTITY_MODEL",
+        ),
+        _requirement(
+            "req.vehicle",
+            "投放者拥有载具实体",
+            "STRICT",
+            "RUNTIME",
+            ["runtime.vehicle"],
+            source_reference="prompt:line-2,line-3",
+            requirement_kind="ENTITY_MODEL",
+        ),
+        _requirement(
+            "req.ownership",
+            "载具所有权绑定到对应投放者",
+            "STRICT",
+            "RUNTIME",
+            ["runtime.ownership"],
+            source_reference="prompt:line-2,line-3",
+            requirement_kind="EXCLUSIVITY",
+            typed_constraints=[RequirementConstraint("constraint.owner", "OWNERSHIP", "对应投放者", True)],
+        ),
+        _requirement(
+            "req.creature",
+            "主角独有活体玄武作为初始载具",
+            "STRICT",
+            "RUNTIME",
+            ["runtime.living_xuanwu"],
+            source_reference="prompt:line-2",
+            requirement_kind="PROTAGONIST_CONSTRAINT",
+        ),
+        _requirement(
+            "req.progression",
+            "玄武作为可升级的成长对象",
+            "STRICT",
+            "RUNTIME",
+            ["runtime.progression_object"],
+            source_reference="prompt:line-4",
+            requirement_kind="PROGRESSION_RULE",
+        ),
+        _requirement(
+            "req.exclusion",
+            "玄武升级排除木材和金属普通材料",
+            "STRICT",
+            "RUNTIME",
+            ["runtime.material_exclusion"],
+            source_reference="prompt:line-4",
+            requirement_kind="PROGRESSION_RULE",
+            typed_constraints=[RequirementConstraint("constraint.excludes", "EXCLUDES", ["木材", "金属"], True)],
+        ),
+        _requirement(
+            "req.resource",
+            "升级消耗专属资源能量晶石",
+            "STRICT",
+            "RUNTIME",
+            ["runtime.energy_crystal"],
+            source_reference="prompt:line-5",
+            requirement_kind="RESOURCE_ECONOMY",
+            typed_constraints=[RequirementConstraint("constraint.resource", "RESOURCE_COST", "能量晶石", True)],
+        ),
+        _requirement(
+            "req.deduction",
+            "能量晶石在升级时被永久扣除",
+            "STRICT",
+            "RUNTIME",
+            ["runtime.permanent_deduction"],
+            source_reference="prompt:line-5",
+            requirement_kind="RESOURCE_ECONOMY",
+            typed_constraints=[RequirementConstraint("constraint.deduction", "LIMIT", "永久扣除", True)],
+        ),
+        _requirement(
+            "req.other_vehicles",
+            "其他投放者拥有普通载具",
+            "STRICT",
+            "RUNTIME",
+            ["runtime.other_vehicles"],
+            source_reference="prompt:line-3",
+            requirement_kind="EXCLUSIVITY",
+        ),
     ]
-    requirements = [_requirement(*item) for item in names]
     request, proposal, approval = _artifacts(requirements)
+    assert request.raw_prompt == OCEAN_PROMPT
+    assert request.genesis_seed == 771305
+    assert all(item.source_reference.startswith("prompt:line-") for item in proposal.requirements)
     report = evaluate(request, proposal, approval, DEFAULT_CATALOG)
     supported = {item.requirement_id for item in report.items if item.support_status == "SUPPORTED"}
     assert supported == {"req.ocean"}
     assert all(item.catalog_layer != "RUNTIME" or not item.bound_feature_ids for item in report.items)
+    assert report.items[0].player_visible_effect == "expression only; no runtime mechanic"
+    assert report.items[0].accepted_scope["intent"] == "全民投放海洋世界的公开题材与审美前提"
+    assert proposal.requirements[7].normalized_intent == "玄武升级排除木材和金属普通材料"
+    assert proposal.requirements[8].normalized_intent == "升级消耗专属资源能量晶石"
+    assert all(item.disposition == "BLOCK" for item in report.items[1:])
     assert report.requirements_gate_passed is False
+    assert verify_report(request, proposal, approval, DEFAULT_CATALOG, report) == report
 
 
 def test_repeated_evaluation_is_deterministic_and_report_has_only_derived_items():
@@ -417,6 +648,9 @@ def test_repeated_evaluation_is_deterministic_and_report_has_only_derived_items(
     exported = copy.deepcopy(first.to_dict())
     exported["items"].reverse()
     assert [item.requirement_id for item in first.items] == ["req.ocean", "req.xuanwu", "req.optional"]
+    scope = first.items[0].accepted_scope
+    scope["intent"] = "外部突变"
+    assert first.items[0].accepted_scope["intent"] == "ocean setting"
     assert FeatureRequirementReport.from_dict(first.to_dict()).hash == first.hash
 
 
@@ -463,8 +697,8 @@ def test_report_item_and_gate_invariants_reject_forged_success():
         "BLOCK",
     )
     with pytest.raises(GenesisValidationError):
-        FeatureRequirementReport(1, "0" * 64, "1" * 64, "2" * 64, "v1", [blocked_item], True)
-    report = FeatureRequirementReport(1, "0" * 64, "1" * 64, "2" * 64, "v1", [supported_item], True)
+        FeatureRequirementReport(1, "0" * 64, "1" * 64, "2" * 64, "v1", "3" * 64, [blocked_item], True)
+    report = FeatureRequirementReport(1, "0" * 64, "1" * 64, "2" * 64, "v1", "3" * 64, [supported_item], True)
     assert report.requirements_gate_passed is True
 
 

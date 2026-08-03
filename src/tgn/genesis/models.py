@@ -35,10 +35,30 @@ REPORT_SCHEMA_VERSION = 1
 
 ACCEPTANCE_POLICIES = frozenset({"STRICT", "DEGRADABLE", "OPTIONAL"})
 CATALOG_LAYERS = frozenset({"CONTENT", "RUNTIME", "KERNEL", "LEGACY"})
-REQUIREMENT_KINDS = frozenset({"CONTENT_EXPRESSION", "RUNTIME_SEMANTIC"})
-CONTENT_INTENT_IDS = frozenset({"world_premise"})
+REQUIREMENT_KINDS = frozenset(
+    {
+        "CONTENT_EXPRESSION",
+        "WORLD_RULE",
+        "RUNTIME_MECHANIC",
+        "PROTAGONIST_CONSTRAINT",
+        "PROGRESSION_RULE",
+        "RESOURCE_ECONOMY",
+        "PUBLIC_SYSTEM",
+        "EXCLUSIVITY",
+        "ENTITY_MODEL",
+    }
+)
 CONSTRAINT_KINDS = frozenset(
-    {"STRING", "INTEGER", "BOOLEAN", "STRING_LIST", "INTEGER_LIST", "BOOLEAN_LIST"}
+    {"EQUALS", "ONE_OF", "EXCLUDES", "REQUIRES", "OWNERSHIP", "RESOURCE_COST", "LIMIT"}
+)
+REPORT_REASON_CODES = frozenset(
+    {
+        "SUPPORTED",
+        "NO_MATCHING_RUNTIME_CONTRACT",
+        "UNKNOWN_FEATURE_ID",
+        "CATALOG_LAYER_MISMATCH",
+        "UNRESOLVED_WARNING",
+    }
 )
 SUPPORT_STATUSES = frozenset({"SUPPORTED", "UNSUPPORTED", "REJECTED"})
 DISPOSITIONS = frozenset({"BIND", "OMIT", "BLOCK"})
@@ -84,8 +104,8 @@ class GenesisValidationError(ValueError):
         actual: str | None = None,
         message: str | None = None,
     ) -> None:
-        if code not in ERROR_CODES:
-            code = "INVALID_VALUE"
+        if type(code) is not str or code not in ERROR_CODES:
+            raise ValueError(f"Unknown Genesis validation error code: {code}")
         self.code = code
         self.path = path
         self.expected = expected
@@ -177,6 +197,15 @@ def _validate_id(value: Any, path: str) -> str:
     value = _validate_text(value, path, max_length=128)
     if _ID_RE.fullmatch(value) is None:
         _fail("INVALID_ID", path, expected="lower-case stable identifier", actual=value)
+    return value
+
+
+def _validate_intent_summary(value: Any, path: str) -> str:
+    """Keep normalized intent as an auditable summary, not a machine ID."""
+
+    value = _validate_text(value, path)
+    if _ID_RE.fullmatch(value) is not None:
+        _fail("INVALID_VALUE", path, expected="human-readable semantic summary", actual=value)
     return value
 
 
@@ -389,33 +418,25 @@ class GenesisRequest:
         return cls(**dict(data))
 
 
-def _normalize_constraint_value(value: Any, kind: str, path: str) -> str | int | bool | tuple[str | int | bool, ...]:
-    """Validate the deliberately small V1-A constraint value domain."""
+def _normalize_constraint_value(value: Any, path: str) -> str | int | bool | tuple[str | int | bool, ...]:
+    """Validate a scalar or one-level scalar array for a semantic constraint."""
 
-    scalar_types: dict[str, type] = {
-        "STRING": str,
-        "INTEGER": int,
-        "BOOLEAN": bool,
-    }
-    if kind in scalar_types:
-        expected_type = scalar_types[kind]
-        if type(value) is not expected_type:
-            _fail("INVALID_TYPE", path, expected=kind.lower(), actual=value)
-        if expected_type is str:
-            _validate_text(value, path, allow_empty=True)
-        return value
+    def normalize_scalar(item: Any, item_path: str) -> str | int | bool:
+        if type(item) is str:
+            return _validate_text(item, item_path, allow_empty=True)
+        if type(item) is int or type(item) is bool:
+            return item
+        _fail("INVALID_TYPE", item_path, expected="string|integer|boolean", actual=item)
+        raise AssertionError("unreachable")
 
-    if kind not in {"STRING_LIST", "INTEGER_LIST", "BOOLEAN_LIST"}:
-        _fail("INVALID_VALUE", path, expected="known constraint kind", actual=kind)
-    if not isinstance(value, (list, tuple)):
-        _fail("INVALID_TYPE", path, expected="scalar array", actual=value)
-    if len(value) > 16:
-        _fail("INVALID_VALUE", path, expected="array length <= 16", actual=value)
-    item_kind = kind.removesuffix("_LIST")
-    return tuple(
-        _normalize_constraint_value(item, item_kind, f"{path}[{index}]")
-        for index, item in enumerate(value)
-    )
+    if type(value) in {str, int, bool}:
+        return normalize_scalar(value, path)
+    if isinstance(value, (list, tuple)):
+        if len(value) > 8:
+            _fail("INVALID_VALUE", path, expected="array length <= 8", actual=value)
+        return tuple(normalize_scalar(item, f"{path}[{index}]") for index, item in enumerate(value))
+    _fail("INVALID_TYPE", path, expected="string|integer|boolean|scalar array", actual=value)
+    raise AssertionError("unreachable")
 
 
 @dataclass(frozen=True, slots=True)
@@ -428,10 +449,10 @@ class RequirementConstraint:
     def __post_init__(self) -> None:
         _validate_id(self.constraint_id, "$.constraint_id")
         if type(self.constraint_kind) is not str or self.constraint_kind not in CONSTRAINT_KINDS:
-            _fail("INVALID_VALUE", "$.constraint_kind", expected="known scalar constraint kind", actual=self.constraint_kind)
+            _fail("INVALID_VALUE", "$.constraint_kind", expected="known semantic constraint kind", actual=self.constraint_kind)
         if type(self.required) is not bool:
             _fail("INVALID_TYPE", "$.required", expected="boolean", actual=self.required)
-        normalized = _normalize_constraint_value(self.value, self.constraint_kind, "$.value")
+        normalized = _normalize_constraint_value(self.value, "$.value")
         object.__setattr__(self, "value", normalized)
 
     def to_dict(self) -> dict[str, Any]:
@@ -480,12 +501,12 @@ class Requirement:
     ) -> None:
         object.__setattr__(self, "requirement_id", _validate_id(requirement_id, "$.requirement_id"))
         object.__setattr__(self, "source_reference", _validate_text(source_reference, "$.source_reference"))
-        object.__setattr__(self, "normalized_intent", _validate_text(normalized_intent, "$.normalized_intent"))
+        object.__setattr__(self, "normalized_intent", _validate_intent_summary(normalized_intent, "$.normalized_intent"))
         if type(requirement_kind) is not str or requirement_kind not in REQUIREMENT_KINDS:
             _fail(
                 "INVALID_VALUE",
                 "$.requirement_kind",
-                expected="CONTENT_EXPRESSION|RUNTIME_SEMANTIC",
+                expected="a finite requirement kind",
                 actual=requirement_kind,
             )
         object.__setattr__(self, "requirement_kind", requirement_kind)
@@ -494,26 +515,19 @@ class Requirement:
         object.__setattr__(self, "acceptance_policy", acceptance_policy)
         if type(catalog_layer) is not str or catalog_layer not in {"CONTENT", "RUNTIME"}:
             _fail("INVALID_VALUE", "$.catalog_layer", expected="CONTENT|RUNTIME", actual=catalog_layer)
-        expected_kind = "CONTENT_EXPRESSION" if catalog_layer == "CONTENT" else "RUNTIME_SEMANTIC"
-        if requirement_kind != expected_kind:
+        if catalog_layer == "CONTENT" and requirement_kind != "CONTENT_EXPRESSION":
             _fail(
                 "INVALID_VALUE",
                 "$.requirement_kind",
-                expected=f"{expected_kind} for {catalog_layer}",
+                expected="CONTENT_EXPRESSION for CONTENT",
                 actual=requirement_kind,
             )
-        if catalog_layer == "CONTENT" and normalized_intent not in CONTENT_INTENT_IDS:
+        if catalog_layer == "RUNTIME" and requirement_kind == "CONTENT_EXPRESSION":
             _fail(
                 "INVALID_VALUE",
-                "$.normalized_intent",
-                expected="a registered non-causal Content intent ID",
-                actual=normalized_intent,
-            )
-        if catalog_layer == "RUNTIME" and normalized_intent in CONTENT_INTENT_IDS:
-            _fail(
-                "INVALID_VALUE",
-                "$.normalized_intent",
-                message="Content intent IDs cannot be used for Runtime requirements",
+                "$.requirement_kind",
+                expected="a runtime requirement kind for RUNTIME",
+                actual=requirement_kind,
             )
         object.__setattr__(self, "catalog_layer", catalog_layer)
         if not isinstance(typed_constraints, (list, tuple)):
@@ -522,6 +536,15 @@ class Requirement:
             _fail("INVALID_VALUE", "$.typed_constraints", expected="array length <= 32", actual=typed_constraints)
         if any(type(item) is not RequirementConstraint for item in typed_constraints):
             _fail("INVALID_TYPE", "$.typed_constraints", expected="RequirementConstraint objects", actual=typed_constraints)
+        if catalog_layer == "CONTENT" and any(
+            item.constraint_kind not in {"EQUALS", "ONE_OF"} for item in typed_constraints
+        ):
+            _fail(
+                "INVALID_VALUE",
+                "$.typed_constraints",
+                expected="EQUALS|ONE_OF for non-causal Content expression",
+                actual=typed_constraints,
+            )
         constraint_ids = tuple(item.constraint_id for item in typed_constraints)
         if len(constraint_ids) != len(set(constraint_ids)):
             _fail("DUPLICATE_ID", "$.typed_constraints", message="duplicate constraint identifier")
@@ -861,7 +884,9 @@ class RequirementReportItem:
         object.__setattr__(self, "support_status", support_status)
         normalized_warnings = _normalize_string_array(warnings, "$.warnings", max_length=MAX_WARNINGS)
         object.__setattr__(self, "_warnings_json", _canonical_json(list(normalized_warnings)))
-        object.__setattr__(self, "reason_code", _validate_text(reason_code, "$.reason_code", max_length=128))
+        if type(reason_code) is not str or reason_code not in REPORT_REASON_CODES:
+            _fail("INVALID_VALUE", "$.reason_code", expected="a finite report reason code", actual=reason_code)
+        object.__setattr__(self, "reason_code", reason_code)
         normalized_bound_ids = _normalize_unique_ids(
             bound_feature_ids,
             "$.bound_feature_ids",
@@ -946,6 +971,7 @@ class FeatureRequirementReport:
     source_proposal_hash: str
     source_approval_hash: str
     catalog_version: str
+    source_catalog_hash: str
     _items_json: str = field(repr=False, compare=True)
     requirements_gate_passed: bool
 
@@ -956,6 +982,7 @@ class FeatureRequirementReport:
         source_proposal_hash: str,
         source_approval_hash: str,
         catalog_version: str,
+        source_catalog_hash: str,
         items: Sequence[RequirementReportItem],
         requirements_gate_passed: bool,
     ) -> None:
@@ -966,6 +993,7 @@ class FeatureRequirementReport:
         object.__setattr__(self, "source_proposal_hash", _validate_hash(source_proposal_hash, "$.source_proposal_hash"))
         object.__setattr__(self, "source_approval_hash", _validate_hash(source_approval_hash, "$.source_approval_hash"))
         object.__setattr__(self, "catalog_version", _validate_text(catalog_version, "$.catalog_version", max_length=128))
+        object.__setattr__(self, "source_catalog_hash", _validate_hash(source_catalog_hash, "$.source_catalog_hash"))
         if not isinstance(items, (list, tuple)):
             _fail("INVALID_TYPE", "$.items", expected="array", actual=items)
         if not items:
@@ -1008,6 +1036,7 @@ class FeatureRequirementReport:
             "source_proposal_hash": self.source_proposal_hash,
             "source_approval_hash": self.source_approval_hash,
             "catalog_version": self.catalog_version,
+            "source_catalog_hash": self.source_catalog_hash,
             "items": [item.to_dict() for item in self.items],
             "requirements_gate_passed": self.requirements_gate_passed,
         }
@@ -1026,6 +1055,7 @@ class FeatureRequirementReport:
             "source_proposal_hash",
             "source_approval_hash",
             "catalog_version",
+            "source_catalog_hash",
             "items",
             "requirements_gate_passed",
         }
@@ -1038,6 +1068,7 @@ class FeatureRequirementReport:
             source_proposal_hash=data["source_proposal_hash"],
             source_approval_hash=data["source_approval_hash"],
             catalog_version=data["catalog_version"],
+            source_catalog_hash=data["source_catalog_hash"],
             items=[RequirementReportItem.from_dict(item) for item in data["items"]],
             requirements_gate_passed=data["requirements_gate_passed"],
         )
@@ -1047,7 +1078,6 @@ __all__ = [
     "ACCEPTANCE_POLICIES",
     "APPROVAL_DECISIONS",
     "CATALOG_LAYERS",
-    "CONTENT_INTENT_IDS",
     "CONSTRAINT_KINDS",
     "DISPOSITIONS",
     "ERROR_CODES",
@@ -1061,6 +1091,7 @@ __all__ = [
     "RequirementProposal",
     "RequirementReportItem",
     "REPORT_SCHEMA_VERSION",
+    "REPORT_REASON_CODES",
     "REQUIREMENT_KINDS",
     "SUPPORT_STATUSES",
 ]

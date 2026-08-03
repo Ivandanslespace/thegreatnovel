@@ -97,7 +97,7 @@ class FeatureSupportCatalog:
                 CatalogFeature(
                     "content.world_premise.v1",
                     "CONTENT",
-                    evidence=("non-causal public premise and aesthetic expression",),
+                    evidence=("expression only; no runtime mechanic",),
                 ),
                 CatalogFeature(
                     "kernel.canonical_identity",
@@ -127,8 +127,8 @@ class FeatureSupportCatalog:
 
     @property
     def hash(self) -> str:
-        # Catalog identity is useful for deterministic tests, but the Report
-        # intentionally stores only the version as required by the contract.
+        # The hash is the canonical identity paired with the catalog version in
+        # every V1-A Report lineage.
         from hashlib import sha256
 
         return sha256(_canonical_json(self.to_dict()).encode("utf-8")).hexdigest()
