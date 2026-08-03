@@ -87,8 +87,20 @@ def test_repository_launcher_is_json_only_and_recovers_pending_turn(tmp_path) ->
     assert code == 0 and started["data"]["pending_narration"]["turn"] == 0
     code, blocked = _cli(tmp_path, "actions", "--campaign", "cli-frost")
     assert code == 2 and blocked["error"]["code"] == "CAMPAIGN_CONFLICT"
-    code, narrated = _cli(tmp_path, "narrate", "--campaign", "cli-frost", "--fallback")
+    claims = started["data"]["pending_narration"]["required_claims"]
+    prose = "盐雾压低了灯火。\n\n" + "\n\n".join(claim["text"] for claim in claims) + "\n\n真正的选择才刚刚开始。"
+    prose_file = tmp_path / "opening.md"
+    prose_file.write_text(prose, encoding="utf-8")
+    code, narrated = _cli(
+        tmp_path,
+        "narrate",
+        "--campaign",
+        "cli-frost",
+        "--prose-file",
+        str(prose_file),
+    )
     assert code == 0 and Path(narrated["data"]["novel_draft"]).is_file()
+    assert narrated["data"]["narration"]["prose"] == prose
     code, resumed = _cli(tmp_path, "resume", "--campaign", "cli-frost")
     assert code == 0 and resumed["data"]["pending_narration"] is None
 
