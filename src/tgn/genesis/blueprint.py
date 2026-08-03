@@ -235,10 +235,13 @@ def _normalize_texts(value: Any, path: str, *, error_cls: type[ArtifactValidatio
 
 
 def _check_exact_fields(data: Mapping[str, Any], allowed: set[str], path: str, *, error_cls: type[ArtifactValidationError]) -> None:
-    unknown = sorted(set(data) - allowed)
+    if any(type(key) is not str for key in data):
+        _fail("INVALID_TYPE", path, expected="string keys", actual=data, error_cls=error_cls)
+    keys = set(data)
+    unknown = sorted(keys - allowed)
     if unknown:
         _fail("UNKNOWN_FIELD", f"{path}.{unknown[0]}", message="field is not part of this artifact", error_cls=error_cls)
-    missing = sorted(allowed - set(data))
+    missing = sorted(allowed - keys)
     if missing:
         _fail("MISSING_FIELD", f"{path}.{missing[0]}", message="required field is missing", error_cls=error_cls)
 
@@ -350,6 +353,9 @@ class BlueprintRequirementFact:
         _check_exact_fields(data, allowed, "$", error_cls=BlueprintValidationError)
         if not isinstance(data["typed_constraints"], list):
             _fail("INVALID_TYPE", "$.typed_constraints", expected="array", actual=data["typed_constraints"], error_cls=BlueprintValidationError)
+        for index, constraint in enumerate(data["typed_constraints"]):
+            if isinstance(constraint, Mapping) and any(type(key) is not str for key in constraint):
+                _fail("INVALID_TYPE", f"$.typed_constraints[{index}]", expected="string keys", actual=constraint, error_cls=BlueprintValidationError)
         try:
             constraints = [RequirementConstraint.from_dict(item) for item in data["typed_constraints"]]
         except GenesisValidationError as exc:
@@ -631,6 +637,12 @@ def validate_blueprint_lineage(
     )
     if actual_ids != expected_ids:
         _fail("LINEAGE_MISMATCH", "$.blueprint", message="Blueprint lineage does not match supplied V1-A artifacts", error_cls=error_cls)
+    if blueprint.genesis_seed != request.genesis_seed:
+        _fail("LINEAGE_MISMATCH", "$.blueprint.genesis_seed", message="Blueprint genesis seed differs from Request", error_cls=error_cls)
+    if blueprint.content_locale != request.content_locale:
+        _fail("LINEAGE_MISMATCH", "$.blueprint.content_locale", message="Blueprint content locale differs from Request", error_cls=error_cls)
+    if blueprint.generation_policy_reference != request.generation_policy_reference:
+        _fail("LINEAGE_MISMATCH", "$.blueprint.generation_policy_reference", message="Blueprint generation policy differs from Request", error_cls=error_cls)
     requirements = proposal.requirements
     facts = blueprint.facts
     requirement_ids = tuple(item.requirement_id for item in requirements)

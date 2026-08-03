@@ -27,6 +27,7 @@ from .binding import (
     assess_runtime_bindings,
     build_binding_assessment,
     build_runtime_binding_assessment,
+    verify_runtime_binding_assessment,
 )
 from .candidate import (
     CANDIDATE_ATTEMPT_SCHEMA_VERSION,
@@ -35,6 +36,7 @@ from .candidate import (
     CANDIDATE_COMPILER_ID,
     CANDIDATE_DRAFT_SCHEMA_VERSION,
     CANDIDATE_PRESSURE_SCHEMA_VERSION,
+    CANDIDATE_SEMANTIC_SCHEMA_VERSION,
     CandidateGenesisAttempt,
     CandidateInitialComponent,
     CandidatePressureComponent,
@@ -45,6 +47,7 @@ from .candidate import (
     compile_candidate_artifacts,
     compile_candidate_attempt,
     require_materializable_candidate,
+    verify_candidate_artifacts,
 )
 from .pressure import (
     CLAIM_SUPPLY_CACHE,
@@ -185,12 +188,14 @@ __all__ = [
     "assess_runtime_bindings",
     "build_binding_assessment",
     "build_runtime_binding_assessment",
+    "verify_runtime_binding_assessment",
     "CANDIDATE_ATTEMPT_SCHEMA_VERSION",
     "CANDIDATE_ATTEMPT_STATUSES",
     "CANDIDATE_COMPILER_CONTRACT_VERSION",
     "CANDIDATE_COMPILER_ID",
     "CANDIDATE_DRAFT_SCHEMA_VERSION",
     "CANDIDATE_PRESSURE_SCHEMA_VERSION",
+    "CANDIDATE_SEMANTIC_SCHEMA_VERSION",
     "CandidateGenesisAttempt",
     "CandidateInitialComponent",
     "CandidatePressureComponent",
@@ -201,4 +206,5 @@ __all__ = [
     "compile_candidate_artifacts",
     "compile_candidate_attempt",
     "require_materializable_candidate",
+    "verify_candidate_artifacts",
 ]

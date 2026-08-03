@@ -301,24 +301,47 @@ def build_runtime_binding_assessment(
     result: list[CandidateBindingItem] = []
     for requirement in proposal.requirements:
         item = item_by_id[requirement.requirement_id]
-        if requirement.catalog_layer == "CONTENT" and item.support_status == "SUPPORTED" and item.disposition == "BIND" and item.bound_feature_ids:
-            result.append(CandidateBindingItem(requirement.requirement_id, "CONTENT_ACCEPTED", item.bound_feature_ids[0], "CONTENT_REPORT_SUPPORTED"))
+        # Report warnings and rejections are always handled first.  Neither
+        # can be laundered into a candidate binding by a plausible feature ID.
+        if item.warnings:
+            result.append(CandidateBindingItem(requirement.requirement_id, "UNBOUND_BLOCKING", None, "REPORT_ITEM_WARNING"))
+            continue
+        if item.support_status == "REJECTED":
+            result.append(CandidateBindingItem(requirement.requirement_id, "UNBOUND_BLOCKING", None, "REPORT_ITEM_REJECTED"))
+            continue
+        if requirement.catalog_layer == "CONTENT":
+            feature = catalog.get(item.bound_feature_ids[0]) if len(item.bound_feature_ids) == 1 else None
+            if (
+                item.support_status == "SUPPORTED"
+                and item.catalog_layer == "CONTENT"
+                and item.disposition == "BIND"
+                and item.reason_code == "SUPPORTED"
+                and len(item.bound_feature_ids) == 1
+                and feature is not None
+                and feature.layer == "CONTENT"
+                and feature.player_bindable
+                and feature.supported
+            ):
+                result.append(CandidateBindingItem(requirement.requirement_id, "CONTENT_ACCEPTED", feature.feature_id, "CONTENT_REPORT_SUPPORTED"))
+            else:
+                result.append(CandidateBindingItem(requirement.requirement_id, "UNBOUND_BLOCKING", None, "LINEAGE_MISMATCH"))
             continue
         if requirement.requirement_id in PRESSURE_REQUIREMENT_IDS:
-            if requirement.catalog_layer != "RUNTIME" or item.support_status != "UNSUPPORTED" or item.disposition != "BLOCK" or item.warnings:
+            if (
+                requirement.catalog_layer != "RUNTIME"
+                or item.catalog_layer != "RUNTIME"
+                or item.support_status != "UNSUPPORTED"
+                or item.disposition != "BLOCK"
+                or item.reason_code != "NO_MATCHING_RUNTIME_CONTRACT"
+                or item.bound_feature_ids
+            ):
                 _fail("PRESSURE_SELECTION_MISMATCH", f"$.items.{requirement.requirement_id}", message="selected pressure requirement is not an honest unsupported candidate match", error_cls=BindingValidationError)
             result.append(CandidateBindingItem(requirement.requirement_id, "CANDIDATE_RUNTIME_MATCH", selection.feature_id, "REPORT_SUPPORT_PENDING"))
             continue
         if requirement.acceptance_policy == "OPTIONAL" and item.support_status == "UNSUPPORTED" and item.disposition == "OMIT":
             result.append(CandidateBindingItem(requirement.requirement_id, "OMITTED_OPTIONAL", None, "OPTIONAL_REQUIREMENT_OMITTED"))
             continue
-        if item.warnings:
-            reason = "REPORT_ITEM_WARNING"
-        elif item.support_status == "REJECTED":
-            reason = "REPORT_ITEM_REJECTED"
-        else:
-            reason = "NO_MATCHING_RUNTIME_CONTRACT"
-        result.append(CandidateBindingItem(requirement.requirement_id, "UNBOUND_BLOCKING", None, reason))
+        result.append(CandidateBindingItem(requirement.requirement_id, "UNBOUND_BLOCKING", None, "NO_MATCHING_RUNTIME_CONTRACT"))
     return RuntimeBindingAssessment(
         assessment_schema_version=BINDING_SCHEMA_VERSION,
         source_request_hash=request.hash,
@@ -330,6 +353,64 @@ def build_runtime_binding_assessment(
         blueprint_hash=blueprint.hash,
         items=result,
     )
+
+
+def verify_runtime_binding_assessment(
+    request: GenesisRequest,
+    proposal: RequirementProposal,
+    coverage_approval: RequirementCoverageApproval,
+    report: FeatureRequirementReport,
+    catalog: FeatureSupportCatalog,
+    blueprint: WorldBlueprint,
+    assessment: RuntimeBindingAssessment,
+) -> RuntimeBindingAssessment:
+    """Recompute and verify a persisted V1-C.1 binding assessment.
+
+    Parsing an assessment is intentionally not an integrity proof.  This
+    boundary re-verifies the Approval-bound Report, Blueprint lineage, and
+    every derived item before returning the deterministic assessment.
+    """
+
+    for name, value, expected in (
+        ("request", request, GenesisRequest),
+        ("proposal", proposal, RequirementProposal),
+        ("coverage_approval", coverage_approval, RequirementCoverageApproval),
+        ("report", report, FeatureRequirementReport),
+        ("catalog", catalog, FeatureSupportCatalog),
+        ("blueprint", blueprint, WorldBlueprint),
+        ("assessment", assessment, RuntimeBindingAssessment),
+    ):
+        if type(value) is not expected:
+            _fail("INVALID_TYPE", f"$.{name}", expected=expected.__name__, actual=value, error_cls=BindingValidationError)
+    try:
+        verify_report(request, proposal, coverage_approval, catalog, report)
+    except (GenesisValidationError, ValueError) as exc:
+        _fail("REPORT_NOT_VERIFIED", "$.report", message="V1-A Report failed deterministic re-verification", error_cls=BindingValidationError)
+    try:
+        validate_blueprint_lineage(
+            blueprint,
+            request,
+            proposal,
+            coverage_approval,
+            report,
+            catalog,
+            error_cls=BindingValidationError,
+        )
+    except ArtifactValidationError:
+        raise
+    expected = build_runtime_binding_assessment(request, proposal, coverage_approval, report, catalog, blueprint)
+    try:
+        assessment_matches = assessment.hash == expected.hash and assessment.to_dict() == expected.to_dict()
+    except (ArtifactValidationError, TypeError, ValueError):
+        assessment_matches = False
+    if not assessment_matches:
+        _fail(
+            "BINDING_HASH_MISMATCH",
+            "$.assessment",
+            message="persisted RuntimeBindingAssessment differs from deterministic recomputation",
+            error_cls=BindingValidationError,
+        )
+    return expected
 
 
 # Explicit aliases keep the seam discoverable without creating a registry.
@@ -347,4 +428,5 @@ __all__ = [
     "assess_runtime_bindings",
     "build_binding_assessment",
     "build_runtime_binding_assessment",
+    "verify_runtime_binding_assessment",
 ]
