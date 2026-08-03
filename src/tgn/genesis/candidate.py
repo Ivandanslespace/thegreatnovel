@@ -54,10 +54,10 @@ from .pressure import (
 
 CANDIDATE_PRESSURE_SCHEMA_VERSION = 1
 CANDIDATE_DRAFT_SCHEMA_VERSION = 2
-CANDIDATE_SEMANTIC_SCHEMA_VERSION = 1
+CANDIDATE_SEMANTIC_SCHEMA_VERSION = 2
 CANDIDATE_ATTEMPT_SCHEMA_VERSION = 1
 CANDIDATE_COMPILER_ID = "genesis.v1c_candidate_compiler"
-CANDIDATE_COMPILER_CONTRACT_VERSION = 1
+CANDIDATE_COMPILER_CONTRACT_VERSION = 2
 CANDIDATE_ATTEMPT_STATUSES = frozenset({"BLOCKED_REQUIREMENTS", "READY_FOR_FUTURE_PREFLIGHT"})
 PENDING_GATES = (
     "REQUIREMENTS_GATE",
@@ -345,22 +345,23 @@ class CandidateWorldDraft:
         pressure_component = self.pressure_component
         initial_component = self.candidate_initial_component
         foundation_component = self.foundation_component
+        candidate_fact_semantics = [
+            {
+                "fact_kind": fact.fact_kind,
+                "visibility": fact.visibility,
+                "subject_ids": list(fact.subject_ids),
+                "object_ids": list(fact.object_ids),
+                "labels": list(fact.labels),
+                "typed_constraints": [constraint.to_dict() for constraint in fact.typed_constraints],
+            }
+            for fact in self.candidate_facts
+        ]
+        candidate_fact_semantics.sort(
+            key=lambda value: _canonical_payload(value, error_cls=CandidateValidationError)
+        )
         return {
             "candidate_semantic_schema_version": CANDIDATE_SEMANTIC_SCHEMA_VERSION,
-            "candidate_facts": [
-                {
-                    "requirement_id": fact.requirement_id,
-                    "normalized_intent": fact.normalized_intent,
-                    "fact_kind": fact.fact_kind,
-                    "durability_tier": fact.durability_tier,
-                    "visibility": fact.visibility,
-                    "subject_ids": list(fact.subject_ids),
-                    "object_ids": list(fact.object_ids),
-                    "labels": list(fact.labels),
-                    "typed_constraints": [constraint.to_dict() for constraint in fact.typed_constraints],
-                }
-                for fact in self.candidate_facts
-            ],
+            "candidate_facts": candidate_fact_semantics,
             "pressure_feature_id": pressure_component.feature_id,
             "pressure_contract_version": pressure_component.contract_version,
             "pressure_config": pressure_component.pressure_config.to_dict(),
@@ -643,7 +644,7 @@ def compile_candidate_artifacts(
         _fail(exc.code, exc.path, message=str(exc), error_cls=CandidateValidationError)
     _validate_pressure_selection_config(blueprint, pressure_config)
     try:
-        foundation_component = build_foundation_candidate(blueprint, pressure_config)
+        foundation_component = build_foundation_candidate(proposal, blueprint, pressure_config)
     except ValueError as exc:
         _fail("FOUNDATION_REQUIREMENT_MISMATCH", "$.foundation_component", message="foundation candidate cannot be built from the recorded Blueprint", error_cls=CandidateValidationError)
     try:
@@ -748,7 +749,7 @@ def verify_candidate_artifacts(
         assessment,
     )
     try:
-        verify_foundation_candidate(blueprint, pressure_config, draft.foundation_component)
+        verify_foundation_candidate(proposal, blueprint, pressure_config, draft.foundation_component)
     except ValueError as exc:
         _fail("FOUNDATION_HASH_MISMATCH", "$.draft.foundation_component", message="persisted foundation candidate failed deterministic recomputation", error_cls=CandidateValidationError)
     expected_draft, expected_attempt = compile_candidate_artifacts(

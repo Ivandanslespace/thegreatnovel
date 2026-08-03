@@ -90,16 +90,44 @@ def _fixture() -> tuple[GenesisRequest, RequirementProposal, RequirementCoverage
     )
     requirements = [
         _requirement("req.ocean", "全民投放海洋世界的公开题材与审美前提", "STRICT", "CONTENT", ["content.world_premise.v1"], source_reference="prompt:line-1", requirement_kind="CONTENT_EXPRESSION", typed_constraints=[RequirementConstraint("constraint.ocean", "EQUALS", "海洋世界", True)]),
-        _requirement("req.mass_drop", "全民投放的公开系统机制", "STRICT", "RUNTIME", ["runtime.mass_drop"], source_reference="prompt:line-1", requirement_kind="PUBLIC_SYSTEM"),
-        _requirement("req.peers", "其他投放者作为可区分的同场实体", "STRICT", "RUNTIME", ["runtime.peers"], source_reference="prompt:line-3", requirement_kind="ENTITY_MODEL"),
-        _requirement("req.vehicle", "投放者拥有载具实体", "STRICT", "RUNTIME", ["runtime.vehicle"], source_reference="prompt:line-2,line-3", requirement_kind="ENTITY_MODEL"),
-        _requirement("req.ownership", "载具所有权绑定到对应投放者", "STRICT", "RUNTIME", ["runtime.ownership"], source_reference="prompt:line-2,line-3", requirement_kind="EXCLUSIVITY", typed_constraints=[RequirementConstraint("constraint.owner", "OWNERSHIP", "对应投放者", True)]),
-        _requirement("req.creature", "主角独有活体玄武作为初始载具", "STRICT", "RUNTIME", ["runtime.living_xuanwu"], source_reference="prompt:line-2", requirement_kind="PROTAGONIST_CONSTRAINT"),
+        _requirement("req.mass_drop", "全民投放的公开系统机制", "STRICT", "RUNTIME", ["runtime.mass_drop"], source_reference="prompt:line-1", requirement_kind="PUBLIC_SYSTEM", typed_constraints=[
+            RequirementConstraint("constraint.launch_system", "EQUALS", "system.public_mass_drop", True),
+            RequirementConstraint("constraint.initial_cohort", "EQUALS", "cohort.initial", True),
+            RequirementConstraint("constraint.cohort_scope", "EQUALS", "bounded_initial_cohort", True),
+        ]),
+        _requirement("req.peers", "其他投放者作为可区分的同场实体", "STRICT", "RUNTIME", ["runtime.peers"], source_reference="prompt:line-3", requirement_kind="ENTITY_MODEL", typed_constraints=[
+            RequirementConstraint("constraint.cohort", "EQUALS", "cohort.initial", True),
+            RequirementConstraint("constraint.actor_ids", "EQUALS", ("actor.protagonist", "actor.peer.1", "actor.peer.2"), True),
+            RequirementConstraint("constraint.role_map", "EQUALS", ("actor.protagonist=PROTAGONIST", "actor.peer.1=PEER", "actor.peer.2=PEER"), True),
+        ]),
+        _requirement("req.vehicle", "投放者拥有载具实体", "STRICT", "RUNTIME", ["runtime.vehicle"], source_reference="prompt:line-2,line-3", requirement_kind="ENTITY_MODEL", typed_constraints=[
+            RequirementConstraint("constraint.cohort", "EQUALS", "cohort.initial", True),
+            RequirementConstraint("constraint.vehicle_ids", "EQUALS", ("vehicle.protagonist", "vehicle.peer.1", "vehicle.peer.2"), True),
+        ]),
+        _requirement("req.ownership", "载具所有权绑定到对应投放者", "STRICT", "RUNTIME", ["runtime.ownership"], source_reference="prompt:line-2,line-3", requirement_kind="EXCLUSIVITY", typed_constraints=[
+            RequirementConstraint("constraint.actor_vehicle_pairs", "OWNERSHIP", ("actor.protagonist->vehicle.protagonist", "actor.peer.1->vehicle.peer.1", "actor.peer.2->vehicle.peer.2"), True),
+            RequirementConstraint("constraint.bijective", "EQUALS", True, True),
+        ]),
+        _requirement("req.creature", "主角独有活体玄武作为初始载具", "STRICT", "RUNTIME", ["runtime.living_xuanwu"], source_reference="prompt:line-2", requirement_kind="PROTAGONIST_CONSTRAINT", typed_constraints=[
+            RequirementConstraint("constraint.owner", "EQUALS", "actor.protagonist", True),
+            RequirementConstraint("constraint.vehicle", "EQUALS", "vehicle.protagonist", True),
+            RequirementConstraint("constraint.vehicle_kind", "EQUALS", "vehicle.kind.living_xuanwu", True),
+            RequirementConstraint("constraint.living", "EQUALS", True, True),
+            RequirementConstraint("constraint.growth_object", "EQUALS", True, True),
+            RequirementConstraint("constraint.unique_in_cohort", "EQUALS", True, True),
+        ]),
         _requirement("req.progression", "玄武作为可升级的成长对象", "STRICT", "RUNTIME", ["runtime.progression_object"], source_reference="prompt:line-4", requirement_kind="PROGRESSION_RULE"),
         _requirement("req.exclusion", "玄武升级排除木材和金属普通材料", "STRICT", "RUNTIME", ["runtime.material_exclusion"], source_reference="prompt:line-4", requirement_kind="PROGRESSION_RULE", typed_constraints=[RequirementConstraint("constraint.excludes", "EXCLUDES", ["木材", "金属"], True)]),
         _requirement("req.resource", "升级消耗专属资源能量晶石", "STRICT", "RUNTIME", ["runtime.energy_crystal"], source_reference="prompt:line-5", requirement_kind="RESOURCE_ECONOMY", typed_constraints=[RequirementConstraint("constraint.resource", "RESOURCE_COST", "能量晶石", True)]),
         _requirement("req.deduction", "能量晶石在升级时被永久扣除", "STRICT", "RUNTIME", ["runtime.permanent_deduction"], source_reference="prompt:line-5", requirement_kind="RESOURCE_ECONOMY", typed_constraints=[RequirementConstraint("constraint.deduction", "LIMIT", "永久扣除", True)]),
-        _requirement("req.other_vehicles", "其他投放者拥有普通载具", "STRICT", "RUNTIME", ["runtime.other_vehicles"], source_reference="prompt:line-3", requirement_kind="EXCLUSIVITY"),
+        _requirement("req.other_vehicles", "其他投放者拥有普通载具", "STRICT", "RUNTIME", ["runtime.other_vehicles"], source_reference="prompt:line-3", requirement_kind="EXCLUSIVITY", typed_constraints=[
+            RequirementConstraint("constraint.vehicle_ids", "EQUALS", ("vehicle.peer.1", "vehicle.peer.2"), True),
+            RequirementConstraint("constraint.owner_ids", "EQUALS", ("actor.peer.1", "actor.peer.2"), True),
+            RequirementConstraint("constraint.vehicle_kinds", "EQUALS", ("vehicle.kind.peer_skiff", "vehicle.kind.peer_submersible"), True),
+            RequirementConstraint("constraint.living", "EQUALS", False, True),
+            RequirementConstraint("constraint.growth_object", "EQUALS", False, True),
+            RequirementConstraint("constraint.distinct_ordinary_kinds", "EQUALS", True, True),
+        ]),
     ]
     proposal = RequirementProposal(1, "proposal-ocean-771305", request.request_id, request.hash, requirements)
     approval = RequirementCoverageApproval(
@@ -189,6 +217,8 @@ def _variant_fixture(
     *,
     warnings: list[str] | None = None,
     candidate_feature_ids: list[str] | None = None,
+    typed_constraints: list[RequirementConstraint] | None = None,
+    requirement_kind: str | None = None,
 ) -> tuple[GenesisRequest, RequirementProposal, RequirementCoverageApproval, FeatureRequirementReport, WorldBlueprint, ExclusiveUpgradePressureConfig]:
     """Rebuild the recorded fixture through V1-A so the Report remains valid."""
 
@@ -199,6 +229,10 @@ def _variant_fixture(
         target["warnings"] = warnings
     if candidate_feature_ids is not None:
         target["candidate_feature_ids"] = candidate_feature_ids
+    if typed_constraints is not None:
+        target["typed_constraints"] = [constraint.to_dict() for constraint in typed_constraints]
+    if requirement_kind is not None:
+        target["requirement_kind"] = requirement_kind
     proposal = RequirementProposal.from_dict(proposal_data)
     approval = RequirementCoverageApproval(
         1,
@@ -215,6 +249,9 @@ def _variant_fixture(
     blueprint_data["source_proposal_hash"] = proposal.hash
     blueprint_data["source_approval_hash"] = approval.hash
     blueprint_data["source_report_hash"] = report.hash
+    if typed_constraints is not None:
+        blueprint_target = next(item for item in blueprint_data["facts"] if item["requirement_id"] == requirement_id)
+        blueprint_target["typed_constraints"] = [constraint.to_dict() for constraint in typed_constraints]
     blueprint = WorldBlueprint.from_dict(blueprint_data)
     return request, proposal, approval, report, blueprint, pressure_config
 
@@ -361,7 +398,7 @@ def test_candidate_lineage_and_gate_identity_are_not_mutable_shortcuts():
             "0" * 64,
             "1" * 64,
             "genesis.v1c_candidate_compiler",
-            1,
+            2,
             (),
             "READY_FOR_FUTURE_PREFLIGHT",
         )

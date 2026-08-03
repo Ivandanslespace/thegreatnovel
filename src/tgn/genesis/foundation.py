@@ -30,6 +30,7 @@ from .pressure import (
     PRESSURE_FEATURE_ID,
     ExclusiveUpgradePressureConfig,
 )
+from .models import RequirementConstraint, RequirementProposal
 
 
 FOUNDATION_SCHEMA_VERSION = 1
@@ -48,6 +49,141 @@ FOUNDATION_ORDINARY_VEHICLE_KINDS = (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class _FoundationRequirementContract:
+    """The finite typed contract for one recorded Foundation requirement."""
+
+    requirement_id: str
+    requirement_kind: str
+    candidate_feature_ids: tuple[str, ...]
+    fact_kind: str
+    subject_ids: tuple[str, ...]
+    object_ids: tuple[str, ...]
+    typed_constraints: tuple[RequirementConstraint, ...]
+    acceptance_policy: str = "STRICT"
+    catalog_layer: str = "RUNTIME"
+
+
+def _constraint(
+    constraint_id: str,
+    constraint_kind: str,
+    value: str | bool | tuple[str, ...],
+) -> RequirementConstraint:
+    return RequirementConstraint(constraint_id, constraint_kind, value, True)
+
+
+_FOUNDATION_MASS_DROP_CONTRACT = _FoundationRequirementContract(
+    "req.mass_drop",
+    "PUBLIC_SYSTEM",
+    ("runtime.mass_drop",),
+    "PUBLIC_SYSTEM",
+    (FOUNDATION_LAUNCH_SYSTEM_ID,),
+    (FOUNDATION_INITIAL_COHORT_ID,),
+    (
+        _constraint("constraint.launch_system", "EQUALS", FOUNDATION_LAUNCH_SYSTEM_ID),
+        _constraint("constraint.initial_cohort", "EQUALS", FOUNDATION_INITIAL_COHORT_ID),
+        _constraint("constraint.cohort_scope", "EQUALS", "bounded_initial_cohort"),
+    ),
+)
+_FOUNDATION_PEERS_CONTRACT = _FoundationRequirementContract(
+    "req.peers",
+    "ENTITY_MODEL",
+    ("runtime.peers",),
+    "ACTOR_ENTITY",
+    (FOUNDATION_INITIAL_COHORT_ID,),
+    (FOUNDATION_PROTAGONIST_ACTOR_ID, *FOUNDATION_PEER_ACTOR_IDS),
+    (
+        _constraint("constraint.cohort", "EQUALS", FOUNDATION_INITIAL_COHORT_ID),
+        _constraint(
+            "constraint.actor_ids",
+            "EQUALS",
+            (FOUNDATION_PROTAGONIST_ACTOR_ID, *FOUNDATION_PEER_ACTOR_IDS),
+        ),
+        _constraint(
+            "constraint.role_map",
+            "EQUALS",
+            ("actor.protagonist=PROTAGONIST", "actor.peer.1=PEER", "actor.peer.2=PEER"),
+        ),
+    ),
+)
+_FOUNDATION_VEHICLE_CONTRACT = _FoundationRequirementContract(
+    "req.vehicle",
+    "ENTITY_MODEL",
+    ("runtime.vehicle",),
+    "VEHICLE_ENTITY",
+    (FOUNDATION_INITIAL_COHORT_ID,),
+    (FOUNDATION_PROTAGONIST_VEHICLE_ID, *FOUNDATION_PEER_VEHICLE_IDS),
+    (
+        _constraint("constraint.cohort", "EQUALS", FOUNDATION_INITIAL_COHORT_ID),
+        _constraint(
+            "constraint.vehicle_ids",
+            "EQUALS",
+            (FOUNDATION_PROTAGONIST_VEHICLE_ID, *FOUNDATION_PEER_VEHICLE_IDS),
+        ),
+    ),
+)
+_FOUNDATION_OWNERSHIP_CONTRACT = _FoundationRequirementContract(
+    "req.ownership",
+    "EXCLUSIVITY",
+    ("runtime.ownership",),
+    "OWNERSHIP",
+    (FOUNDATION_PROTAGONIST_ACTOR_ID, *FOUNDATION_PEER_ACTOR_IDS),
+    (FOUNDATION_PROTAGONIST_VEHICLE_ID, *FOUNDATION_PEER_VEHICLE_IDS),
+    (
+        _constraint(
+            "constraint.actor_vehicle_pairs",
+            "OWNERSHIP",
+            (
+                "actor.protagonist->vehicle.protagonist",
+                "actor.peer.1->vehicle.peer.1",
+                "actor.peer.2->vehicle.peer.2",
+            ),
+        ),
+        _constraint("constraint.bijective", "EQUALS", True),
+    ),
+)
+_FOUNDATION_CREATURE_CONTRACT = _FoundationRequirementContract(
+    "req.creature",
+    "PROTAGONIST_CONSTRAINT",
+    ("runtime.living_xuanwu",),
+    "PROTAGONIST_IDENTITY",
+    (FOUNDATION_PROTAGONIST_ACTOR_ID,),
+    (FOUNDATION_PROTAGONIST_VEHICLE_ID,),
+    (
+        _constraint("constraint.owner", "EQUALS", FOUNDATION_PROTAGONIST_ACTOR_ID),
+        _constraint("constraint.vehicle", "EQUALS", FOUNDATION_PROTAGONIST_VEHICLE_ID),
+        _constraint("constraint.vehicle_kind", "EQUALS", FOUNDATION_LIVING_XUANWU_KIND),
+        _constraint("constraint.living", "EQUALS", True),
+        _constraint("constraint.growth_object", "EQUALS", True),
+        _constraint("constraint.unique_in_cohort", "EQUALS", True),
+    ),
+)
+_FOUNDATION_OTHER_VEHICLES_CONTRACT = _FoundationRequirementContract(
+    "req.other_vehicles",
+    "EXCLUSIVITY",
+    ("runtime.other_vehicles",),
+    "PEER_VEHICLE_CLASS",
+    FOUNDATION_PEER_ACTOR_IDS,
+    FOUNDATION_PEER_VEHICLE_IDS,
+    (
+        _constraint("constraint.vehicle_ids", "EQUALS", FOUNDATION_PEER_VEHICLE_IDS),
+        _constraint("constraint.owner_ids", "EQUALS", FOUNDATION_PEER_ACTOR_IDS),
+        _constraint("constraint.vehicle_kinds", "EQUALS", FOUNDATION_ORDINARY_VEHICLE_KINDS),
+        _constraint("constraint.living", "EQUALS", False),
+        _constraint("constraint.growth_object", "EQUALS", False),
+        _constraint("constraint.distinct_ordinary_kinds", "EQUALS", True),
+    ),
+)
+_FOUNDATION_CONTRACTS = (
+    _FOUNDATION_MASS_DROP_CONTRACT,
+    _FOUNDATION_PEERS_CONTRACT,
+    _FOUNDATION_VEHICLE_CONTRACT,
+    _FOUNDATION_OWNERSHIP_CONTRACT,
+    _FOUNDATION_CREATURE_CONTRACT,
+    _FOUNDATION_OTHER_VEHICLES_CONTRACT,
+)
+
+
 class FoundationValidationError(ArtifactValidationError):
     """Stable validation error for the bounded foundation candidate."""
 
@@ -62,58 +198,60 @@ def _check_bool(value: Any, path: str) -> bool:
     return value
 
 
-def _check_foundation_facts(blueprint: WorldBlueprint) -> None:
+def _check_foundation_facts(proposal: RequirementProposal, blueprint: WorldBlueprint) -> None:
+    if type(proposal) is not RequirementProposal:
+        _foundation_fail("INVALID_TYPE", "$.proposal", message="RequirementProposal required", actual=proposal)
     if type(blueprint) is not WorldBlueprint:
         _foundation_fail("INVALID_TYPE", "$.blueprint", message="WorldBlueprint required", actual=blueprint)
+    proposal_foundation_ids = tuple(
+        requirement.requirement_id
+        for requirement in proposal.requirements
+        if requirement.requirement_id in FOUNDATION_REQUIREMENT_IDS
+    )
+    if proposal_foundation_ids != FOUNDATION_REQUIREMENT_IDS:
+        _foundation_fail(
+            "FOUNDATION_REQUIREMENT_MISMATCH",
+            "$.proposal.requirements",
+            message="Proposal Foundation requirements do not match the finite recorded contract",
+        )
     facts = {fact.requirement_id: fact for fact in blueprint.facts}
-    expected = {
-        "req.mass_drop": ("PUBLIC_SYSTEM", (FOUNDATION_LAUNCH_SYSTEM_ID,), (FOUNDATION_INITIAL_COHORT_ID,)),
-        "req.peers": (
-            "ACTOR_ENTITY",
-            (FOUNDATION_INITIAL_COHORT_ID,),
-            (FOUNDATION_PROTAGONIST_ACTOR_ID, *FOUNDATION_PEER_ACTOR_IDS),
-        ),
-        "req.vehicle": (
-            "VEHICLE_ENTITY",
-            (FOUNDATION_INITIAL_COHORT_ID,),
-            (FOUNDATION_PROTAGONIST_VEHICLE_ID, *FOUNDATION_PEER_VEHICLE_IDS),
-        ),
-        "req.ownership": (
-            "OWNERSHIP",
-            (FOUNDATION_PROTAGONIST_ACTOR_ID, *FOUNDATION_PEER_ACTOR_IDS),
-            (FOUNDATION_PROTAGONIST_VEHICLE_ID, *FOUNDATION_PEER_VEHICLE_IDS),
-        ),
-        "req.creature": (
-            "PROTAGONIST_IDENTITY",
-            (FOUNDATION_PROTAGONIST_ACTOR_ID,),
-            (FOUNDATION_PROTAGONIST_VEHICLE_ID,),
-        ),
-        "req.other_vehicles": (
-            "PEER_VEHICLE_CLASS",
-            FOUNDATION_PEER_ACTOR_IDS,
-            FOUNDATION_PEER_VEHICLE_IDS,
-        ),
-    }
-    for requirement_id in FOUNDATION_REQUIREMENT_IDS:
-        fact = facts.get(requirement_id)
+    requirement_by_id = {requirement.requirement_id: requirement for requirement in proposal.requirements}
+    fact_foundation_ids = tuple(
+        fact.requirement_id for fact in blueprint.facts if fact.requirement_id in FOUNDATION_REQUIREMENT_IDS
+    )
+    if fact_foundation_ids != FOUNDATION_REQUIREMENT_IDS:
+        _foundation_fail(
+            "FOUNDATION_REQUIREMENT_MISMATCH",
+            "$.blueprint.facts",
+            message="Blueprint Foundation facts do not match the finite recorded contract",
+        )
+    for contract in _FOUNDATION_CONTRACTS:
+        requirement = requirement_by_id.get(contract.requirement_id)
+        fact = facts.get(contract.requirement_id)
         if fact is None:
             _foundation_fail(
                 "FOUNDATION_REQUIREMENT_MISMATCH",
-                f"$.blueprint.facts.{requirement_id}",
+                f"$.blueprint.facts.{contract.requirement_id}",
                 message="required foundation fact is missing",
             )
-        fact_kind, subject_ids, object_ids = expected[requirement_id]
         if (
-            fact.fact_kind != fact_kind
+            requirement is None
+            or requirement.acceptance_policy != contract.acceptance_policy
+            or requirement.catalog_layer != contract.catalog_layer
+            or requirement.requirement_kind != contract.requirement_kind
+            or requirement.candidate_feature_ids != contract.candidate_feature_ids
+            or requirement.typed_constraints != contract.typed_constraints
+            or fact.fact_kind != contract.fact_kind
             or fact.durability_tier != CANDIDATE_DURABLE
             or fact.visibility != "PUBLIC_WORLD"
-            or fact.subject_ids != subject_ids
-            or fact.object_ids != object_ids
+            or fact.subject_ids != contract.subject_ids
+            or fact.object_ids != contract.object_ids
+            or fact.typed_constraints != contract.typed_constraints
         ):
             _foundation_fail(
                 "FOUNDATION_REQUIREMENT_MISMATCH",
-                f"$.blueprint.facts.{requirement_id}",
-                message="foundation fact kind and stable subject/object identity differ from the recorded contract",
+                f"$.proposal.requirements.{contract.requirement_id}",
+                message="Foundation requirement and typed Blueprint fact differ from the recorded contract",
             )
 
 
@@ -259,6 +397,10 @@ class FoundationCandidateComponent:
             _foundation_fail("INVALID_TYPE", "$.vehicles", message="FoundationVehicleCandidate objects required")
         actor_by_id = {item.actor_id: item for item in actors}
         vehicle_by_id = {item.vehicle_id: item for item in vehicles}
+        if tuple(item.actor_id for item in actors) != (FOUNDATION_PROTAGONIST_ACTOR_ID, *FOUNDATION_PEER_ACTOR_IDS):
+            _foundation_fail("FOUNDATION_REQUIREMENT_MISMATCH", "$.actors", message="actor order is part of the recorded canonical contract")
+        if tuple(item.vehicle_id for item in vehicles) != (FOUNDATION_PROTAGONIST_VEHICLE_ID, *FOUNDATION_PEER_VEHICLE_IDS):
+            _foundation_fail("FOUNDATION_REQUIREMENT_MISMATCH", "$.vehicles", message="vehicle order is part of the recorded canonical contract")
         if set(actor_by_id) != {FOUNDATION_PROTAGONIST_ACTOR_ID, *FOUNDATION_PEER_ACTOR_IDS}:
             _foundation_fail("FOUNDATION_REQUIREMENT_MISMATCH", "$.actors", message="actor identities are not the recorded cohort")
         if set(vehicle_by_id) != {FOUNDATION_PROTAGONIST_VEHICLE_ID, *FOUNDATION_PEER_VEHICLE_IDS}:
@@ -293,9 +435,10 @@ class FoundationCandidateComponent:
         peer_kinds = tuple(vehicle.vehicle_kind for vehicle in peer_vehicles)
         if (
             len(set(peer_kinds)) != 2
+            or peer_kinds != FOUNDATION_ORDINARY_VEHICLE_KINDS
             or any(kind == FOUNDATION_LIVING_XUANWU_KIND or not kind.startswith("vehicle.kind.") for kind in peer_kinds)
         ):
-            _foundation_fail("FOUNDATION_REQUIREMENT_MISMATCH", "$.vehicles", message="peer vehicle kinds must be distinct ordinary stable kinds")
+            _foundation_fail("FOUNDATION_REQUIREMENT_MISMATCH", "$.vehicles", message="peer vehicle kinds must match the recorded ordinary vehicle contract")
         if sum(vehicle.living for vehicle in vehicles) != 1 or sum(vehicle.growth_object for vehicle in vehicles) != 1:
             _foundation_fail("FOUNDATION_REQUIREMENT_MISMATCH", "$.vehicles", message="exactly one living and growth vehicle is required")
         if not isinstance(source_requirement_ids, (list, tuple)) or any(type(item) is not str for item in source_requirement_ids):
@@ -409,16 +552,19 @@ class FoundationCandidateComponent:
 
 
 def build_foundation_candidate(
+    proposal: RequirementProposal,
     blueprint: WorldBlueprint,
     pressure_config: ExclusiveUpgradePressureConfig,
 ) -> FoundationCandidateComponent:
-    """Build the one recorded cohort/vehicle candidate from typed Blueprint facts."""
+    """Build the one recorded cohort/vehicle candidate from Proposal and Blueprint semantics."""
 
+    if type(proposal) is not RequirementProposal:
+        _foundation_fail("INVALID_TYPE", "$.proposal", message="RequirementProposal required", actual=proposal)
     if type(blueprint) is not WorldBlueprint:
         _foundation_fail("INVALID_TYPE", "$.blueprint", message="WorldBlueprint required", actual=blueprint)
     if type(pressure_config) is not ExclusiveUpgradePressureConfig:
         _foundation_fail("INVALID_TYPE", "$.pressure_config", message="ExclusiveUpgradePressureConfig required", actual=pressure_config)
-    _check_foundation_facts(blueprint)
+    _check_foundation_facts(proposal, blueprint)
     actors = (
         FoundationActorCandidate(FOUNDATION_PROTAGONIST_ACTOR_ID, "PROTAGONIST", FOUNDATION_INITIAL_COHORT_ID, FOUNDATION_PROTAGONIST_VEHICLE_ID),
         FoundationActorCandidate(FOUNDATION_PEER_ACTOR_IDS[0], "PEER", FOUNDATION_INITIAL_COHORT_ID, FOUNDATION_PEER_VEHICLE_IDS[0]),
@@ -450,20 +596,23 @@ def build_foundation_candidate(
     )
 
 
-def validate_foundation_blueprint_facts(blueprint: WorldBlueprint) -> None:
-    """Validate the six typed Blueprint facts without producing a component."""
+def validate_foundation_blueprint_facts(proposal: RequirementProposal, blueprint: WorldBlueprint) -> None:
+    """Validate the six typed Proposal/Blueprint facts without producing a component."""
 
-    _check_foundation_facts(blueprint)
+    _check_foundation_facts(proposal, blueprint)
 
 
 def verify_foundation_candidate(
+    proposal: RequirementProposal,
     blueprint: WorldBlueprint,
     pressure_config: ExclusiveUpgradePressureConfig,
     component: FoundationCandidateComponent,
 ) -> FoundationCandidateComponent:
+    if type(proposal) is not RequirementProposal:
+        _foundation_fail("INVALID_TYPE", "$.proposal", message="RequirementProposal required", actual=proposal)
     if type(component) is not FoundationCandidateComponent:
         _foundation_fail("INVALID_TYPE", "$.component", message="FoundationCandidateComponent required", actual=component)
-    expected = build_foundation_candidate(blueprint, pressure_config)
+    expected = build_foundation_candidate(proposal, blueprint, pressure_config)
     if component.to_dict() != expected.to_dict() or component.hash != expected.hash:
         _foundation_fail("FOUNDATION_HASH_MISMATCH", "$.component", message="persisted foundation component differs from deterministic recompilation")
     return expected

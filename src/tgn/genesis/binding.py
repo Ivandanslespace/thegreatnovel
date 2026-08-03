@@ -299,7 +299,7 @@ def build_runtime_binding_assessment(
             _fail("INVALID_TYPE", f"$.{name}", expected=expected.__name__, actual=value, error_cls=BindingValidationError)
     _verify_v1a_lineage(request, proposal, coverage_approval, report, catalog, blueprint)
     try:
-        validate_foundation_blueprint_facts(blueprint)
+        validate_foundation_blueprint_facts(proposal, blueprint)
     except ArtifactValidationError as exc:
         _fail(exc.code, exc.path, message=str(exc), error_cls=BindingValidationError)
     item_by_id = {item.requirement_id: item for item in report.items}
