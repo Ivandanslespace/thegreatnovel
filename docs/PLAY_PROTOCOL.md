@@ -33,7 +33,13 @@ Codex 每次任务只在启动时读取项目 `AGENTS.md`。更新主持规则�
 python scripts/tgn.py compile-world --file C:\absolute\candidate.world.json
 ```
 
-只有 `experience_gate.passed=true` 才能 `start --blueprint-file`。门禁无法自动证明文学质量或反换皮，因此返回的 `semantic_review_required` 也必须由 Codex完成。
+只有 `experience_gate.passed=true` 才能进入路线验收。Codex 还要为候选世界设计一条包含恢复余量的完整路线，并运行：
+
+```powershell
+python scripts/tgn.py audit-world --file C:\absolute\candidate.world.json --seed 1 --route observe,verify,produce,reverse,tier_up,expand_action
+```
+
+`passed=true` 要求真实引擎逐步确认关系反转、阶层跃迁、更大世界 materialize，并执行至少一个扩展行动。之后才能 `start --blueprint-file`。门禁无法自动证明文学质量或反换皮，因此返回的 `semantic_review_required` 也必须由 Codex 完成。
 
 ## 行动协议
 

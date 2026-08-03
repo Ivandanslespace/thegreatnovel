@@ -39,6 +39,7 @@ def hello_payload() -> dict[str, Any]:
                 "lazy_expansion",
                 "custom_world_compile",
                 "experience_quality_gate",
+                "route_reachability_audit",
                 "derived_export_recovery",
             ],
         },

@@ -26,6 +26,10 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("worlds", help="list reviewed built-in worlds")
     compile_world = commands.add_parser("compile-world", help="compile and quality-gate a custom blueprint")
     compile_world.add_argument("--file", required=True)
+    audit_world = commands.add_parser("audit-world", help="prove a complete route through a candidate world")
+    audit_world.add_argument("--file", required=True)
+    audit_world.add_argument("--route", required=True, help="comma-separated action ids")
+    audit_world.add_argument("--seed", type=int, default=1)
 
     start = commands.add_parser("start", help="create a campaign and commit its grounded opening")
     start.add_argument("--prompt", default="")
@@ -108,6 +112,9 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         data: Any = {"worlds": service.available_worlds()}
     elif args.command == "compile-world":
         data = service.compile_world_file(args.file)
+    elif args.command == "audit-world":
+        route = [item.strip() for item in args.route.split(",") if item.strip()]
+        data = service.audit_world_file(args.file, route, seed=args.seed)
     elif args.command == "start":
         data = service.start(
             args.prompt,

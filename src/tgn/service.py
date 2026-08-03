@@ -142,6 +142,73 @@ class GameService:
             "fit_warning": selection["fit_warning"],
         }
 
+    def audit_world_file(
+        self,
+        path: str | Path,
+        route: list[str] | tuple[str, ...],
+        *,
+        seed: int = 1,
+    ) -> dict[str, Any]:
+        """Execute a proposed growth route without creating a Campaign."""
+
+        if not route:
+            raise ValueError("audit route must contain at least one action")
+        selection = choose_world_for_prompt(None, blueprint_file=path)
+        world = compile_blueprint(selection["blueprint"])
+        gate = require_experience_ready(world)
+        state = initial_state(world, str(world["id"]), seed)
+        steps: list[dict[str, Any]] = []
+        for turn, action_id in enumerate(route, 1):
+            preview = preview_action(world, state, action_id)
+            if not preview.legal:
+                return {
+                    "passed": False,
+                    "world_id": world["id"],
+                    "blueprint_hash": world["blueprint_hash"],
+                    "experience_gate": gate,
+                    "failed_step": turn,
+                    "action_id": action_id,
+                    "reason_code": preview.reason_code,
+                    "legal_actions": [action["id"] for action in legal_actions(world, state)],
+                    "steps": steps,
+                    "checks": {},
+                }
+            resolution = resolve_action(world, state, preview.preview_token, f"audit-{turn}")
+            action_event = resolution.events[0]
+            state = resolution.new_state
+            steps.append({
+                "turn": turn,
+                "action_id": action_id,
+                "success": bool(action_event.details.get("success")),
+                "time_minute": state["campaign"]["time_minute"],
+                "current_tier": state["campaign"]["current_tier"],
+                "milestones": list(state["world"].get("completed_milestones", ())),
+                "expansions": list(state["world"].get("materialized_expansions", ())),
+            })
+        cycle = world["cycle"]
+        completed = set(state["world"].get("completed_milestones", ()))
+        materialized = set(state["world"].get("materialized_expansions", ()))
+        expansion = next(item for item in world["expansions"] if item["id"] == cycle["larger_world_expansion"])
+        candidate_action_ids = [item["id"] for item in expansion["candidate"]["actions"]]
+        action_counts = state["world"].get("action_counts", {})
+        checks = {
+            "relationship_reversal": cycle["relationship_reversal_milestone"] in completed,
+            "tier_ascent": cycle["tier_ascent_milestone"] in completed,
+            "larger_world_materialized": cycle["larger_world_expansion"] in materialized,
+            "expansion_action_executed": any(action_counts.get(action_id, 0) > 0 for action_id in candidate_action_ids),
+        }
+        return {
+            "passed": all(checks.values()),
+            "world_id": world["id"],
+            "title": world["title"],
+            "blueprint_hash": world["blueprint_hash"],
+            "experience_gate": gate,
+            "route": list(route),
+            "steps": steps,
+            "checks": checks,
+            "final_player_view": _compact_player_view(project_player_view(world, state)),
+        }
+
     def start(
         self,
         prompt: str,

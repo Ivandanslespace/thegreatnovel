@@ -125,3 +125,35 @@ def test_cli_reports_custom_world_quality_failures_as_structured_json(tmp_path) 
     assert code == 2
     assert payload["error"]["code"] == "WORLD_REJECTED"
     assert any(issue["code"] == "insufficient_actions" for issue in payload["error"]["details"]["issues"])
+
+
+def test_cli_route_audit_is_a_real_reachability_certificate(tmp_path) -> None:
+    route = (
+        "accept_debt,inspect_grid,trace_fault,log_cause,automate_pump,"
+        "schedule_crew,audit_manifest,rest,convene_council,sign_quota,rest,map_ice_route"
+    )
+    code, payload = _cli(
+        tmp_path,
+        "audit-world",
+        "--file",
+        str(ROOT / "worlds" / "frost_harbor.json"),
+        "--seed",
+        "1",
+        "--route",
+        route,
+    )
+    assert code == 0 and payload["data"]["passed"] is True
+    assert all(payload["data"]["checks"].values())
+
+    code, failed = _cli(
+        tmp_path,
+        "audit-world",
+        "--file",
+        str(ROOT / "worlds" / "frost_harbor.json"),
+        "--seed",
+        "1",
+        "--route",
+        "map_ice_route",
+    )
+    assert code == 0 and failed["data"]["passed"] is False
+    assert failed["data"]["reason_code"] in {"expansion_inactive", "not_visible"}
