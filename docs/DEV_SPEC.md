@@ -230,19 +230,46 @@ Proposal 非权威。Python 可以验证其结构和安全边界，不能仅靠�
 - fixture 路径使用哪个 expected approval artifact。
 
 Approval 不证明 runtime support；它只关闭“Proposal 漏掉了 Prompt 核心要求”的边界。
-修改必须创建新 Proposal/Approval，不覆盖历史记录。
+它是 Feature Requirement evaluator 产生 Report 之前的必要输入。修改 Prompt 解释或
+acceptance policy 必须创建新的 Proposal 和 Approval，不覆盖历史记录。
 
 ### 5.4 Feature Requirement Report
 
-确定性 evaluator 根据版本化 Catalog 对 Proposal 做支持分类。evaluator 是纯函数：
+确定性 evaluator 根据版本化 Catalog 和已确认的 Coverage Approval 对 Proposal 做支持分类。
+evaluator 是纯函数：
 
 ```text
-evaluate(request, proposal, catalog)
-→ canonical FeatureRequirementReport | stable validation error
+evaluate(
+    request,
+    proposal,
+    coverage_approval,
+    catalog
+)
+→ canonical FeatureRequirementReport
+  | stable validation error
 ```
 
-它不读写文件、SQLite、Campaign、GameState、EventStore 或 Story，也不负责 attempt 生命周期；
-这些属于外层 orchestration 和后续 publication slice。规范化 item 至少包含：
+它不读写文件、SQLite、Campaign、GameState、EventStore 或 Story，不创建 Campaign，不修改
+GameState，不创建 Event，不负责 attempt 生命周期，不解析自然语言，也不调用 LLM 或网络；
+这些属于外层 orchestration 和后续 publication slice。
+
+在 evaluator 产生 Report 之前，必须先通过 Coverage Approval input gate：
+
+- approval decision 必须为 `CONFIRMED`；
+- approval 绑定的 request ID/hash 必须与输入 Request 完全一致；
+- approval 绑定的 proposal ID/hash 必须与输入 Proposal 完全一致；
+- approval 覆盖的 requirement ID 集合必须与 Proposal 完全一致；
+- requirement 顺序必须符合合同；若合同以 canonical identity 定义顺序，则该 canonical
+  identity 也必须符合合同；
+- 每项 `STRICT / DEGRADABLE / OPTIONAL` acceptance policy 必须与被确认的 Proposal 完全一致；
+- approval 自身必须通过 strict schema 和 canonical hash 验证。
+
+approval 缺失、decision 非 `CONFIRMED`（包括 `CANCELLED`）、request/proposal hash 不匹配、
+requirement 遗漏或新增、acceptance policy 不匹配，或 approval 被修改/其 hash 不匹配时，
+返回 stable validation error，不产生 Report。Approval 变化必须创建新的 Proposal/Approval，
+不能覆盖旧 artifact。
+
+规范化 item 至少包含：
 
 ```text
 requirement_id
@@ -258,10 +285,34 @@ acknowledgement_required
 disposition: BIND | BIND_DEGRADED | OMIT | BLOCK
 ```
 
-Report 顶层只需保存 source hashes、catalog/report versions、`items[]` 与
-`requirements_gate_passed`。状态集合、计数和 UI 分组由 `items[]` 确定性派生，不重复保存。
-Report 不输出 `seal_allowed`：这时 Blueprint、Binding、WorldPack、Initial State 和
-Preflight 仍不存在，最终 seal eligibility 必须由后续所有 gate 汇总。
+Report 顶层至少保存：
+
+```text
+source_request_hash
+source_proposal_hash
+source_approval_hash
+catalog_version
+report_version
+items[]
+requirements_gate_passed
+```
+
+状态集合、计数和 UI 分组由 `items[]` 确定性派生，不重复存储。`requirements_gate_passed=true`
+当且仅当同时满足：
+
+1. Coverage Approval 有效且 decision 为 `CONFIRMED`；
+2. 所有 `STRICT` requirement 都是 `SUPPORTED`；
+3. `DEGRADABLE` requirement 只能是 `SUPPORTED`，或采用 Catalog 已定义的真实 `DEGRADED`
+   binding，并已完成所需确认；
+4. `OPTIONAL` 的 unsupported requirement 按合同 `OMIT`；
+5. 不存在 `REJECTED`；
+6. 不存在未解决 warning；
+7. 所有 `bound_feature_ids` 都属于当前 Catalog，并通过对应 layer 验证。
+
+Coverage Approval 只证明 Proposal 的 Prompt 覆盖和 acceptance policy 已获得确认，不证明
+runtime support。Feature evaluator 仍独立判断 `SUPPORTED` / `DEGRADED` / `UNSUPPORTED` /
+`REJECTED`。Report 不输出 `seal_allowed`：这时 Blueprint、Binding、WorldPack、Initial
+State 和 Preflight 仍不存在，最终 seal eligibility 必须由后续所有 gate 汇总。
 
 ### 5.5 World Blueprint / World Bible
 
@@ -760,7 +811,7 @@ checkpoint 共同组成同一个 Phase 10V1，不能分别宣称为正式 phase�
 建议的内部实施顺序如下；这些名称只是 checkpoint，不是新的正式 Phase 编号：
 
 ```text
-V1-A — Request / Proposal / Coverage Approval / Report
+V1-A — Request → Proposal → expected/recorded Coverage Approval → deterministic Feature Report
 V1-B — Chosen Runtime Pressure Slice
 V1-C — Blueprint / Binding / Candidate Artifacts
 V1-D — Static and Gameplay Preflight / Structural Divergence
@@ -824,8 +875,9 @@ resource/progression 因果链。该默认 slice 只有在满足以下最低反�
 
 ### Phase 10V2 — Proposal Edge and Coverage Automation
 
-V1 只使用 recorded fixture、手工/预期的 Requirement Proposal、expected Coverage Approval
-artifact、deterministic evaluator，并且不使用真实 LLM provider。
+V1 只使用 recorded fixture、手工/预期的 Requirement Proposal、expected/recorded Coverage
+Approval artifact、deterministic evaluator，并且不使用真实 LLM provider；Coverage Approval
+不会延期到 V2。
 
 在 V1 已证明完整链路后，V2 才允许引入 provider-neutral proposal edge、recorded/fake
 provider adapter、prompt-to-proposal generation、independent coverage critic、真实用户
