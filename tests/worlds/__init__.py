@@ -1,0 +1,1 @@
+"""World blueprint acceptance tests."""
