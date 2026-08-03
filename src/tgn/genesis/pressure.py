@@ -129,6 +129,8 @@ def _validate_bool(value: Any, path: str) -> bool:
 def _strict_fields(data: Mapping[str, Any], allowed: set[str], path: str = "$") -> None:
     if not isinstance(data, Mapping):
         _fail("INVALID_ACTION", path, message="object required")
+    if any(type(key) is not str for key in data):
+        _fail("INVALID_ACTION", path, message="object keys must be strings")
     unknown = [key for key in data if key not in allowed]
     if unknown:
         unknown_key = min(unknown, key=lambda key: repr(key))

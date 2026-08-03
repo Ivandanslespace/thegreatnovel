@@ -140,6 +140,24 @@ def test_config_requires_both_complete_pressure_paths():
     assert error.value.code == "INVARIANT_VIOLATION"
 
 
+def test_all_schema_decoders_reject_non_string_keys_stably():
+    config = ExclusiveUpgradePressureConfig()
+    initial = initial_pressure_state(config)
+    _, event = _recover(initial, config)
+    decoders_and_payloads = (
+        (ExclusiveUpgradePressureConfig.from_dict, config.to_dict()),
+        (ExclusiveUpgradePressureState.from_dict, initial.to_dict()),
+        (ExclusiveUpgradeAction.from_dict, _action(initial, RECOVER_EXCLUSIVE_RESOURCE, config).to_dict()),
+        (ExclusiveUpgradeEvent.from_dict, event.to_dict()),
+    )
+    for decoder, payload in decoders_and_payloads:
+        malformed = dict(payload)
+        malformed[("tuple-key",)] = "invalid"
+        with pytest.raises(PressureValidationError) as error:
+            decoder(malformed)
+        assert error.value.code == "INVALID_ACTION"
+
+
 def test_action_strict_schema_and_initial_legality():
     config = ExclusiveUpgradePressureConfig()
     state = initial_pressure_state(config)
