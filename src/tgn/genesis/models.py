@@ -24,6 +24,9 @@ MAX_REQUIREMENTS = 128
 MAX_CANDIDATE_FEATURES = 64
 MAX_WARNINGS = 64
 MAX_CONSTRAINTS = 128
+MAX_JSON_DEPTH = 32
+MAX_JSON_OBJECT_KEYS = 128
+MAX_JSON_ARRAY_LENGTH = 128
 
 REQUEST_SCHEMA_VERSION = 1
 PROPOSAL_SCHEMA_VERSION = 1
@@ -32,6 +35,11 @@ REPORT_SCHEMA_VERSION = 1
 
 ACCEPTANCE_POLICIES = frozenset({"STRICT", "DEGRADABLE", "OPTIONAL"})
 CATALOG_LAYERS = frozenset({"CONTENT", "RUNTIME", "KERNEL", "LEGACY"})
+REQUIREMENT_KINDS = frozenset({"CONTENT_EXPRESSION", "RUNTIME_SEMANTIC"})
+CONTENT_INTENT_IDS = frozenset({"world_premise"})
+CONSTRAINT_KINDS = frozenset(
+    {"STRING", "INTEGER", "BOOLEAN", "STRING_LIST", "INTEGER_LIST", "BOOLEAN_LIST"}
+)
 SUPPORT_STATUSES = frozenset({"SUPPORTED", "UNSUPPORTED", "REJECTED"})
 DISPOSITIONS = frozenset({"BIND", "OMIT", "BLOCK"})
 APPROVAL_DECISIONS = frozenset({"CONFIRMED", "CANCELLED"})
@@ -52,9 +60,11 @@ ERROR_CODES = frozenset(
         "ACCEPTANCE_POLICY_MISMATCH",
         "APPROVAL_NOT_CONFIRMED",
         "CATALOG_LAYER_MISMATCH",
+        "CATALOG_IDENTITY_MISMATCH",
         "UNKNOWN_FEATURE_ID",
         "NO_MATCHING_RUNTIME_CONTRACT",
         "UNRESOLVED_WARNING",
+        "REPORT_MISMATCH",
     }
 )
 
@@ -193,9 +203,13 @@ def _check_exact_fields(
         _fail("MISSING_FIELD", f"{path}.{missing[0]}", message="required field is missing")
 
 
-def _json_value(value: Any, path: str = "$") -> Any:
+def _json_value(value: Any, path: str = "$", *, _depth: int = 0, _seen: set[int] | None = None) -> Any:
     """Validate a finite, UTF-8-safe JSON value and return it unchanged."""
 
+    if _depth > MAX_JSON_DEPTH:
+        _fail("INVALID_VALUE", path, expected=f"JSON depth <= {MAX_JSON_DEPTH}", actual=value)
+    if _seen is None:
+        _seen = set()
     if value is None or isinstance(value, (str, bool, int)):
         if isinstance(value, str):
             _validate_text(value, path, allow_empty=True)
@@ -205,16 +219,36 @@ def _json_value(value: Any, path: str = "$") -> Any:
             _fail("INVALID_VALUE", path, message="non-finite numbers are not allowed")
         return value
     if isinstance(value, Mapping):
+        identity = id(value)
+        if identity in _seen:
+            _fail("INVALID_VALUE", path, message="cyclic JSON value is not allowed")
+        _seen.add(identity)
+        if len(value) > MAX_JSON_OBJECT_KEYS:
+            _seen.remove(identity)
+            _fail("INVALID_VALUE", path, expected=f"object keys <= {MAX_JSON_OBJECT_KEYS}", actual=value)
+        normalized: dict[str, Any] = {}
         for key, child in value.items():
             if type(key) is not str:
+                _seen.remove(identity)
                 _fail("INVALID_TYPE", f"{path}.<key>", expected="string", actual=key)
             _validate_text(key, f"{path}.<key>", allow_empty=True)
-            _json_value(child, f"{path}.{key}")
-        return dict(value)
+            normalized[key] = _json_value(child, f"{path}.{key}", _depth=_depth + 1, _seen=_seen)
+        _seen.remove(identity)
+        return normalized
     if isinstance(value, (list, tuple)):
-        if len(value) > MAX_CONSTRAINTS:
-            _fail("INVALID_VALUE", path, expected=f"array length <= {MAX_CONSTRAINTS}", actual=value)
-        return [_json_value(child, f"{path}[{index}]") for index, child in enumerate(value)]
+        identity = id(value)
+        if identity in _seen:
+            _fail("INVALID_VALUE", path, message="cyclic JSON value is not allowed")
+        _seen.add(identity)
+        if len(value) > MAX_JSON_ARRAY_LENGTH:
+            _seen.remove(identity)
+            _fail("INVALID_VALUE", path, expected=f"array length <= {MAX_JSON_ARRAY_LENGTH}", actual=value)
+        normalized = [
+            _json_value(child, f"{path}[{index}]", _depth=_depth + 1, _seen=_seen)
+            for index, child in enumerate(value)
+        ]
+        _seen.remove(identity)
+        return normalized
     _fail("INVALID_TYPE", path, expected="JSON value", actual=value)
     return None
 
@@ -355,6 +389,69 @@ class GenesisRequest:
         return cls(**dict(data))
 
 
+def _normalize_constraint_value(value: Any, kind: str, path: str) -> str | int | bool | tuple[str | int | bool, ...]:
+    """Validate the deliberately small V1-A constraint value domain."""
+
+    scalar_types: dict[str, type] = {
+        "STRING": str,
+        "INTEGER": int,
+        "BOOLEAN": bool,
+    }
+    if kind in scalar_types:
+        expected_type = scalar_types[kind]
+        if type(value) is not expected_type:
+            _fail("INVALID_TYPE", path, expected=kind.lower(), actual=value)
+        if expected_type is str:
+            _validate_text(value, path, allow_empty=True)
+        return value
+
+    if kind not in {"STRING_LIST", "INTEGER_LIST", "BOOLEAN_LIST"}:
+        _fail("INVALID_VALUE", path, expected="known constraint kind", actual=kind)
+    if not isinstance(value, (list, tuple)):
+        _fail("INVALID_TYPE", path, expected="scalar array", actual=value)
+    if len(value) > 16:
+        _fail("INVALID_VALUE", path, expected="array length <= 16", actual=value)
+    item_kind = kind.removesuffix("_LIST")
+    return tuple(
+        _normalize_constraint_value(item, item_kind, f"{path}[{index}]")
+        for index, item in enumerate(value)
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class RequirementConstraint:
+    constraint_id: str
+    constraint_kind: str
+    value: str | int | bool | tuple[str | int | bool, ...]
+    required: bool
+
+    def __post_init__(self) -> None:
+        _validate_id(self.constraint_id, "$.constraint_id")
+        if type(self.constraint_kind) is not str or self.constraint_kind not in CONSTRAINT_KINDS:
+            _fail("INVALID_VALUE", "$.constraint_kind", expected="known scalar constraint kind", actual=self.constraint_kind)
+        if type(self.required) is not bool:
+            _fail("INVALID_TYPE", "$.required", expected="boolean", actual=self.required)
+        normalized = _normalize_constraint_value(self.value, self.constraint_kind, "$.value")
+        object.__setattr__(self, "value", normalized)
+
+    def to_dict(self) -> dict[str, Any]:
+        value: Any = list(self.value) if isinstance(self.value, tuple) else self.value
+        return {
+            "constraint_id": self.constraint_id,
+            "constraint_kind": self.constraint_kind,
+            "value": value,
+            "required": self.required,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "RequirementConstraint":
+        if not isinstance(data, Mapping):
+            _fail("INVALID_TYPE", "$", expected="object", actual=data)
+        allowed = {"constraint_id", "constraint_kind", "value", "required"}
+        _check_exact_fields(data, allowed, allowed, "$")
+        return cls(**dict(data))
+
+
 @dataclass(frozen=True, slots=True, init=False)
 class Requirement:
     requirement_id: str
@@ -376,7 +473,7 @@ class Requirement:
         requirement_kind: str,
         acceptance_policy: str,
         catalog_layer: str,
-        typed_constraints: Mapping[str, Any],
+        typed_constraints: Sequence[RequirementConstraint],
         candidate_feature_ids: Sequence[str],
         notes: str = "",
         warnings: Sequence[str] = (),
@@ -384,20 +481,62 @@ class Requirement:
         object.__setattr__(self, "requirement_id", _validate_id(requirement_id, "$.requirement_id"))
         object.__setattr__(self, "source_reference", _validate_text(source_reference, "$.source_reference"))
         object.__setattr__(self, "normalized_intent", _validate_text(normalized_intent, "$.normalized_intent"))
-        object.__setattr__(self, "requirement_kind", _validate_text(requirement_kind, "$.requirement_kind"))
+        if type(requirement_kind) is not str or requirement_kind not in REQUIREMENT_KINDS:
+            _fail(
+                "INVALID_VALUE",
+                "$.requirement_kind",
+                expected="CONTENT_EXPRESSION|RUNTIME_SEMANTIC",
+                actual=requirement_kind,
+            )
+        object.__setattr__(self, "requirement_kind", requirement_kind)
         if type(acceptance_policy) is not str or acceptance_policy not in ACCEPTANCE_POLICIES:
             _fail("INVALID_VALUE", "$.acceptance_policy", expected="STRICT|DEGRADABLE|OPTIONAL", actual=acceptance_policy)
         object.__setattr__(self, "acceptance_policy", acceptance_policy)
         if type(catalog_layer) is not str or catalog_layer not in {"CONTENT", "RUNTIME"}:
             _fail("INVALID_VALUE", "$.catalog_layer", expected="CONTENT|RUNTIME", actual=catalog_layer)
+        expected_kind = "CONTENT_EXPRESSION" if catalog_layer == "CONTENT" else "RUNTIME_SEMANTIC"
+        if requirement_kind != expected_kind:
+            _fail(
+                "INVALID_VALUE",
+                "$.requirement_kind",
+                expected=f"{expected_kind} for {catalog_layer}",
+                actual=requirement_kind,
+            )
+        if catalog_layer == "CONTENT" and normalized_intent not in CONTENT_INTENT_IDS:
+            _fail(
+                "INVALID_VALUE",
+                "$.normalized_intent",
+                expected="a registered non-causal Content intent ID",
+                actual=normalized_intent,
+            )
+        if catalog_layer == "RUNTIME" and normalized_intent in CONTENT_INTENT_IDS:
+            _fail(
+                "INVALID_VALUE",
+                "$.normalized_intent",
+                message="Content intent IDs cannot be used for Runtime requirements",
+            )
         object.__setattr__(self, "catalog_layer", catalog_layer)
-        if not isinstance(typed_constraints, Mapping):
-            _fail("INVALID_TYPE", "$.typed_constraints", expected="object", actual=typed_constraints)
-        object.__setattr__(self, "_typed_constraints_json", _canonical_json(dict(typed_constraints)))
+        if not isinstance(typed_constraints, (list, tuple)):
+            _fail("INVALID_TYPE", "$.typed_constraints", expected="array of RequirementConstraint", actual=typed_constraints)
+        if len(typed_constraints) > 32:
+            _fail("INVALID_VALUE", "$.typed_constraints", expected="array length <= 32", actual=typed_constraints)
+        if any(type(item) is not RequirementConstraint for item in typed_constraints):
+            _fail("INVALID_TYPE", "$.typed_constraints", expected="RequirementConstraint objects", actual=typed_constraints)
+        constraint_ids = tuple(item.constraint_id for item in typed_constraints)
+        if len(constraint_ids) != len(set(constraint_ids)):
+            _fail("DUPLICATE_ID", "$.typed_constraints", message="duplicate constraint identifier")
+        object.__setattr__(self, "_typed_constraints_json", _canonical_json([item.to_dict() for item in typed_constraints]))
+        normalized_candidates = _normalize_unique_ids(
+            candidate_feature_ids,
+            "$.candidate_feature_ids",
+            max_length=MAX_CANDIDATE_FEATURES,
+        )
+        if len(normalized_candidates) > 1:
+            _fail("INVALID_VALUE", "$.candidate_feature_ids", expected="at most one candidate Feature ID", actual=normalized_candidates)
         object.__setattr__(
             self,
             "candidate_feature_ids",
-            _normalize_unique_ids(candidate_feature_ids, "$.candidate_feature_ids", max_length=MAX_CANDIDATE_FEATURES),
+            normalized_candidates,
         )
         object.__setattr__(self, "notes", _validate_text(notes, "$.notes", allow_empty=True))
         normalized_warnings = _normalize_string_array(
@@ -409,8 +548,8 @@ class Requirement:
         object.__setattr__(self, "_warnings_json", _canonical_json(list(normalized_warnings)))
 
     @property
-    def typed_constraints(self) -> dict[str, Any]:
-        return dict(_load_snapshot(self._typed_constraints_json))
+    def typed_constraints(self) -> tuple[RequirementConstraint, ...]:
+        return tuple(RequirementConstraint.from_dict(item) for item in _load_snapshot(self._typed_constraints_json))
 
     @property
     def warnings(self) -> tuple[str, ...]:
@@ -424,7 +563,7 @@ class Requirement:
             "requirement_kind": self.requirement_kind,
             "acceptance_policy": self.acceptance_policy,
             "catalog_layer": self.catalog_layer,
-            "typed_constraints": self.typed_constraints,
+            "typed_constraints": [item.to_dict() for item in self.typed_constraints],
             "candidate_feature_ids": list(self.candidate_feature_ids),
             "notes": self.notes,
             "warnings": list(self.warnings),
@@ -448,6 +587,8 @@ class Requirement:
         }
         required = allowed - {"notes", "warnings"}
         _check_exact_fields(data, allowed, required, "$")
+        if not isinstance(data["typed_constraints"], list):
+            _fail("INVALID_TYPE", "$.typed_constraints", expected="array", actual=data["typed_constraints"])
         return cls(
             requirement_id=data["requirement_id"],
             source_reference=data["source_reference"],
@@ -455,7 +596,7 @@ class Requirement:
             requirement_kind=data["requirement_kind"],
             acceptance_policy=data["acceptance_policy"],
             catalog_layer=data["catalog_layer"],
-            typed_constraints=data["typed_constraints"],
+            typed_constraints=[RequirementConstraint.from_dict(item) for item in data["typed_constraints"]],
             candidate_feature_ids=data["candidate_feature_ids"],
             notes=data.get("notes", ""),
             warnings=data.get("warnings", ()),
@@ -492,7 +633,7 @@ class RequirementProposal:
             _fail("INVALID_VALUE", "$.requirements", expected="non-empty array", actual=requirements)
         if len(requirements) > MAX_REQUIREMENTS:
             _fail("INVALID_VALUE", "$.requirements", expected=f"array length <= {MAX_REQUIREMENTS}", actual=requirements)
-        if any(not isinstance(item, Requirement) for item in requirements):
+        if any(type(item) is not Requirement for item in requirements):
             _fail("INVALID_TYPE", "$.requirements", expected="Requirement objects", actual=requirements)
         ids = tuple(item.requirement_id for item in requirements)
         if len(ids) != len(set(ids)):
@@ -612,7 +753,7 @@ class RequirementCoverageApproval:
             _fail("INVALID_VALUE", "$.requirement_approvals", expected="non-empty array", actual=requirement_approvals)
         if len(requirement_approvals) > MAX_REQUIREMENTS:
             _fail("INVALID_VALUE", "$.requirement_approvals", expected=f"array length <= {MAX_REQUIREMENTS}", actual=requirement_approvals)
-        if any(not isinstance(item, RequirementApproval) for item in requirement_approvals):
+        if any(type(item) is not RequirementApproval for item in requirement_approvals):
             _fail("INVALID_TYPE", "$.requirement_approvals", expected="RequirementApproval objects", actual=requirement_approvals)
         ids = tuple(item.requirement_id for item in requirement_approvals)
         if len(ids) != len(set(ids)):
@@ -829,7 +970,7 @@ class FeatureRequirementReport:
             _fail("INVALID_TYPE", "$.items", expected="array", actual=items)
         if not items:
             _fail("INVALID_VALUE", "$.items", expected="non-empty array", actual=items)
-        if any(not isinstance(item, RequirementReportItem) for item in items):
+        if any(type(item) is not RequirementReportItem for item in items):
             _fail("INVALID_TYPE", "$.items", expected="RequirementReportItem objects", actual=items)
         ids = [item.requirement_id for item in items]
         if len(ids) != len(set(ids)):
@@ -906,6 +1047,8 @@ __all__ = [
     "ACCEPTANCE_POLICIES",
     "APPROVAL_DECISIONS",
     "CATALOG_LAYERS",
+    "CONTENT_INTENT_IDS",
+    "CONSTRAINT_KINDS",
     "DISPOSITIONS",
     "ERROR_CODES",
     "FeatureRequirementReport",
@@ -913,9 +1056,11 @@ __all__ = [
     "GenesisValidationError",
     "Requirement",
     "RequirementApproval",
+    "RequirementConstraint",
     "RequirementCoverageApproval",
     "RequirementProposal",
     "RequirementReportItem",
     "REPORT_SCHEMA_VERSION",
+    "REQUIREMENT_KINDS",
     "SUPPORT_STATUSES",
 ]

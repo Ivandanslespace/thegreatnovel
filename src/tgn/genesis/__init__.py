@@ -1,11 +1,13 @@
 """Public V1-A Genesis requirement-evaluation boundary."""
 
 from .catalog import CATALOG_VERSION, DEFAULT_CATALOG, REAL_RUNTIME_FEATURE_IDS, CatalogFeature, FeatureSupportCatalog
-from .evaluator import evaluate
+from .evaluator import evaluate, verify_report
 from .models import (
     ACCEPTANCE_POLICIES,
     APPROVAL_DECISIONS,
     CATALOG_LAYERS,
+    CONTENT_INTENT_IDS,
+    CONSTRAINT_KINDS,
     DISPOSITIONS,
     ERROR_CODES,
     FeatureRequirementReport,
@@ -13,10 +15,12 @@ from .models import (
     GenesisValidationError,
     Requirement,
     RequirementApproval,
+    RequirementConstraint,
     RequirementCoverageApproval,
     RequirementProposal,
     RequirementReportItem,
     REPORT_SCHEMA_VERSION,
+    REQUIREMENT_KINDS,
     SUPPORT_STATUSES,
 )
 
@@ -25,6 +29,8 @@ __all__ = [
     "APPROVAL_DECISIONS",
     "CATALOG_LAYERS",
     "CATALOG_VERSION",
+    "CONTENT_INTENT_IDS",
+    "CONSTRAINT_KINDS",
     "DISPOSITIONS",
     "DEFAULT_CATALOG",
     "ERROR_CODES",
@@ -35,11 +41,14 @@ __all__ = [
     "GenesisValidationError",
     "Requirement",
     "RequirementApproval",
+    "RequirementConstraint",
     "RequirementCoverageApproval",
     "RequirementProposal",
     "RequirementReportItem",
     "REAL_RUNTIME_FEATURE_IDS",
     "REPORT_SCHEMA_VERSION",
+    "REQUIREMENT_KINDS",
     "SUPPORT_STATUSES",
     "evaluate",
+    "verify_report",
 ]

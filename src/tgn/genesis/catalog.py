@@ -21,18 +21,6 @@ CATALOG_VERSION = "genesis-catalog-v1"
 # empty makes it impossible for a caller to turn free-text evidence into a
 # fake Runtime contract through a custom catalog.
 REAL_RUNTIME_FEATURE_IDS = frozenset()
-FORBIDDEN_PLACEHOLDER_TERMS = frozenset(
-    {
-        "locationgraph",
-        "habitat",
-        "intrusion",
-        "peerpopulation",
-        "xuanwu",
-        "massdrop",
-        "capability",
-        "placeholder",
-    }
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,16 +36,17 @@ class CatalogFeature:
         if type(self.layer) is not str or self.layer not in CATALOG_LAYERS:
             _fail("INVALID_VALUE", "$.layer", expected="CONTENT|RUNTIME|KERNEL|LEGACY", actual=self.layer)
         if self.layer in {"CONTENT", "RUNTIME"}:
-            folded = self.feature_id.replace("_", "").replace("-", "").lower()
-            if any(term in folded for term in FORBIDDEN_PLACEHOLDER_TERMS):
-                _fail("INVALID_VALUE", "$.feature_id", message="placeholder/future feature IDs are not catalog members")
             if not self.evidence:
                 _fail("INVALID_VALUE", "$.evidence", expected="non-empty evidence for player-facing binding", actual=self.evidence)
         if self.layer == "RUNTIME" and self.feature_id not in REAL_RUNTIME_FEATURE_IDS:
             _fail("INVALID_VALUE", "$.feature_id", message="V1-A has no registered Runtime Feature contract")
         _validate_text(self.contract_version, "$.contract_version", max_length=32)
-        if not isinstance(self.evidence, (list, tuple)) or any(type(item) is not str or not item for item in self.evidence):
+        if not isinstance(self.evidence, (list, tuple)):
             _fail("INVALID_TYPE", "$.evidence", expected="tuple of non-empty strings", actual=self.evidence)
+        if len(self.evidence) > 64:
+            _fail("INVALID_VALUE", "$.evidence", expected="array length <= 64", actual=self.evidence)
+        for index, item in enumerate(self.evidence):
+            _validate_text(item, f"$.evidence[{index}]", max_length=8192)
         object.__setattr__(self, "evidence", tuple(self.evidence))
         if type(self.supported) is not bool:
             _fail("INVALID_TYPE", "$.supported", expected="boolean", actual=self.supported)
@@ -85,11 +74,11 @@ class FeatureSupportCatalog:
         _validate_text(self.version, "$.version", max_length=128)
         if not isinstance(self.features, (list, tuple)):
             _fail("INVALID_TYPE", "$.features", expected="tuple of CatalogFeature", actual=self.features)
-        object.__setattr__(self, "features", tuple(self.features))
         if not self.features:
             _fail("INVALID_VALUE", "$.features", expected="non-empty finite catalog", actual=self.features)
-        if any(not isinstance(item, CatalogFeature) for item in self.features):
+        if any(type(item) is not CatalogFeature for item in self.features):
             _fail("INVALID_TYPE", "$.features", expected="CatalogFeature objects", actual=self.features)
+        object.__setattr__(self, "features", tuple(sorted(self.features, key=lambda item: item.feature_id)))
         ids = [item.feature_id for item in self.features]
         if len(ids) != len(set(ids)):
             _fail("DUPLICATE_ID", "$.features", message="duplicate feature identifier")
@@ -106,19 +95,9 @@ class FeatureSupportCatalog:
             version=CATALOG_VERSION,
             features=(
                 CatalogFeature(
-                    "content.ocean_setting",
+                    "content.world_premise.v1",
                     "CONTENT",
-                    evidence=("content constraint is represented by a versioned setting binding",),
-                ),
-                CatalogFeature(
-                    "content.progression_scope",
-                    "CONTENT",
-                    evidence=("progression prose scope is represented as content metadata",),
-                ),
-                CatalogFeature(
-                    "content.material_exclusion",
-                    "CONTENT",
-                    evidence=("material exclusion is represented as an explicit content constraint",),
+                    evidence=("non-causal public premise and aesthetic expression",),
                 ),
                 CatalogFeature(
                     "kernel.canonical_identity",

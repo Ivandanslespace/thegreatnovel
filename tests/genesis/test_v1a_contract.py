@@ -13,13 +13,17 @@ from tgn.genesis import (
     DEFAULT_CATALOG,
     CatalogFeature,
     FeatureRequirementReport,
+    FeatureSupportCatalog,
     GenesisRequest,
     GenesisValidationError,
     Requirement,
     RequirementApproval,
+    RequirementConstraint,
     RequirementCoverageApproval,
     RequirementProposal,
+    RequirementReportItem,
     evaluate,
+    verify_report,
 )
 
 
@@ -44,14 +48,16 @@ def _requirement(
     *,
     warnings: list[str] | None = None,
 ) -> Requirement:
+    kind = "CONTENT_EXPRESSION" if layer == "CONTENT" else "RUNTIME_SEMANTIC"
+    normalized_intent = "world_premise" if layer == "CONTENT" else intent
     return Requirement(
         requirement_id=requirement_id,
         source_reference=f"prompt:{requirement_id}",
-        normalized_intent=intent,
-        requirement_kind="fixture",
+        normalized_intent=normalized_intent,
+        requirement_kind=kind,
         acceptance_policy=policy,
         catalog_layer=layer,
-        typed_constraints={"fixture": True},
+        typed_constraints=[RequirementConstraint("constraint.fixture", "BOOLEAN", True, True)],
         candidate_feature_ids=candidates,
         warnings=warnings or [],
     )
@@ -60,7 +66,7 @@ def _requirement(
 def _artifacts(requirements: list[Requirement] | None = None, *, decision: str = "CONFIRMED"):
     request = _request()
     requirements = requirements or [
-        _requirement("req.ocean", "ocean setting", "STRICT", "CONTENT", ["content.ocean_setting"]),
+        _requirement("req.ocean", "ocean setting", "STRICT", "CONTENT", ["content.world_premise.v1"]),
         _requirement("req.xuanwu", "living creature runtime", "STRICT", "RUNTIME", ["runtime.xuanwu"]),
         _requirement("req.optional", "optional peers", "OPTIONAL", "RUNTIME", ["runtime.peers"]),
     ]
@@ -93,12 +99,19 @@ def test_request_and_nested_values_are_canonical_and_detached():
     exported["explicit_constraints"].append("changed")
     assert request.explicit_constraints == ("a", "b")
 
-    typed = {"nested": {"number": 1}}
+    typed = ["one", "two"]
     requirement = Requirement(
-        "req.one", "prompt:1", "intent", "kind", "STRICT", "CONTENT", typed, ["content.ocean_setting"]
+        "req.one",
+        "prompt:1",
+        "world_premise",
+        "CONTENT_EXPRESSION",
+        "STRICT",
+        "CONTENT",
+        [RequirementConstraint("constraint.labels", "STRING_LIST", typed, True)],
+        ["content.world_premise.v1"],
     )
-    typed["nested"]["number"] = 99
-    assert requirement.typed_constraints == {"nested": {"number": 1}}
+    typed.append("mutated")
+    assert requirement.typed_constraints[0].value == ("one", "two")
     assert requirement == Requirement.from_dict(requirement.to_dict())
 
 
@@ -118,6 +131,17 @@ def test_strict_schema_and_bounds_reject_unknown_or_invalid_values():
     with pytest.raises(GenesisValidationError) as error:
         GenesisRequest(1, "request-a", "bad\x00prompt", 1, "en-US", [], "policy")
     assert error.value.code == "INVALID_VALUE"
+
+    with pytest.raises(GenesisValidationError):
+        RequirementConstraint("constraint.bad", "STRING", {"nested": True}, True)
+    with pytest.raises(GenesisValidationError):
+        RequirementConstraint("constraint.bad", "INTEGER", 1.5, True)
+
+    malformed = _requirement("req.schema", "schema", "STRICT", "RUNTIME", []).to_dict()
+    malformed["typed_constraints"] = {}
+    with pytest.raises(GenesisValidationError) as error:
+        Requirement.from_dict(malformed)
+    assert error.value.code == "INVALID_TYPE"
 
 
 def test_hash_is_stable_for_mapping_order_and_changes_for_identity_content():
@@ -163,7 +187,7 @@ def test_cross_artifact_hash_and_requirement_policy_mismatch_are_stable_errors()
     assert error.value.code == "REQUEST_HASH_MISMATCH"
 
     changed = [
-        _requirement("req.ocean", "ocean setting", "OPTIONAL", "CONTENT", ["content.ocean_setting"]),
+        _requirement("req.ocean", "ocean setting", "OPTIONAL", "CONTENT", ["content.world_premise.v1"]),
         _requirement("req.xuanwu", "living creature runtime", "STRICT", "RUNTIME", ["runtime.xuanwu"]),
         _requirement("req.optional", "optional peers", "OPTIONAL", "RUNTIME", ["runtime.peers"]),
     ]
@@ -222,6 +246,110 @@ def test_evaluator_distinguishes_content_support_from_runtime_no_match():
     assert "status_counts" not in report.to_dict()
 
 
+def test_report_requires_cross_artifact_verification_before_reuse():
+    request, proposal, approval = _artifacts()
+    report = evaluate(request, proposal, approval, DEFAULT_CATALOG)
+    assert verify_report(request, proposal, approval, DEFAULT_CATALOG, report) == report
+
+    forged = FeatureRequirementReport(
+        1,
+        report.source_request_hash,
+        report.source_proposal_hash,
+        report.source_approval_hash,
+        report.catalog_version,
+        [report.items[0]],
+        True,
+    )
+    with pytest.raises(GenesisValidationError) as error:
+        verify_report(request, proposal, approval, DEFAULT_CATALOG, forged)
+    assert error.value.code == "REPORT_MISMATCH"
+
+    fake_binding_item = RequirementReportItem(
+        report.items[0].requirement_id,
+        "CONTENT",
+        "SUPPORTED",
+        [],
+        "SUPPORTED",
+        ["content.not_in_catalog"],
+        {},
+        [],
+        "fake binding",
+        False,
+        "BIND",
+    )
+    fake_binding_report = FeatureRequirementReport(
+        1,
+        report.source_request_hash,
+        report.source_proposal_hash,
+        report.source_approval_hash,
+        report.catalog_version,
+        [fake_binding_item, *report.items[1:]],
+        False,
+    )
+    with pytest.raises(GenesisValidationError) as error:
+        verify_report(request, proposal, approval, DEFAULT_CATALOG, fake_binding_report)
+    assert error.value.code == "REPORT_MISMATCH"
+
+
+def test_content_and_runtime_requirement_kinds_cannot_be_crossed():
+    constraint = [RequirementConstraint("constraint.kind", "STRING", "value", True)]
+    with pytest.raises(GenesisValidationError):
+        Requirement(
+            "req.mechanism",
+            "prompt:1",
+            "permanent deduction",
+            "RUNTIME_SEMANTIC",
+            "STRICT",
+            "CONTENT",
+            constraint,
+            ["content.world_premise.v1"],
+        )
+    with pytest.raises(GenesisValidationError):
+        Requirement(
+            "req.runtime_content_id",
+            "prompt:1",
+            "world_premise",
+            "RUNTIME_SEMANTIC",
+            "OPTIONAL",
+            "RUNTIME",
+            constraint,
+            [],
+        )
+    with pytest.raises(GenesisValidationError):
+        Requirement(
+            "req.alternatives",
+            "prompt:1",
+            "premise",
+            "CONTENT_EXPRESSION",
+            "STRICT",
+            "CONTENT",
+            constraint,
+            ["content.world_premise.v1", "content.other"],
+        )
+    with pytest.raises(GenesisValidationError):
+        Requirement(
+            "req.misclassified",
+            "prompt:1",
+            "permanent_deduction",
+            "CONTENT_EXPRESSION",
+            "STRICT",
+            "CONTENT",
+            constraint,
+            ["content.world_premise.v1"],
+        )
+
+
+def test_only_the_canonical_catalog_identity_is_accepted():
+    custom_catalog = FeatureSupportCatalog.from_features(
+        DEFAULT_CATALOG.version,
+        DEFAULT_CATALOG.entries[:-1],
+    )
+    request, proposal, approval = _artifacts()
+    with pytest.raises(GenesisValidationError) as error:
+        evaluate(request, proposal, approval, custom_catalog)
+    assert error.value.code == "CATALOG_IDENTITY_MISMATCH"
+
+
 def test_degradable_unsupported_is_blocked_and_warning_blocks_gate():
     requirements = [
         _requirement("req.degradable", "dedicated resource runtime", "DEGRADABLE", "RUNTIME", ["runtime.resource"]),
@@ -233,7 +361,7 @@ def test_degradable_unsupported_is_blocked_and_warning_blocks_gate():
     assert report.requirements_gate_passed is False
 
     requirements = [
-        _requirement("req.content", "ocean setting", "STRICT", "CONTENT", ["content.ocean_setting"], warnings=["manual confirmation pending"]),
+        _requirement("req.content", "ocean setting", "STRICT", "CONTENT", ["content.world_premise.v1"], warnings=["manual confirmation pending"]),
     ]
     request, proposal, approval = _artifacts(requirements)
     report = evaluate(request, proposal, approval, DEFAULT_CATALOG)
@@ -259,14 +387,14 @@ def test_layer_and_unknown_feature_results_never_create_placeholder_support():
 
 def test_fixture_covers_ocean_prompt_without_runtime_artifacts():
     names = [
-        ("req.ocean", "ocean content", "STRICT", "CONTENT", ["content.ocean_setting"]),
+        ("req.ocean", "ocean content", "STRICT", "CONTENT", ["content.world_premise.v1"]),
         ("req.mass_drop", "mass drop", "STRICT", "RUNTIME", ["runtime.mass_drop"]),
         ("req.peers", "peers", "OPTIONAL", "RUNTIME", ["runtime.peers"]),
         ("req.vehicle", "vehicle entity", "STRICT", "RUNTIME", ["runtime.vehicle"]),
         ("req.ownership", "vehicle ownership", "STRICT", "RUNTIME", ["runtime.ownership"]),
         ("req.creature", "unique living creature", "STRICT", "RUNTIME", ["runtime.creature"]),
-        ("req.progression", "progression object", "STRICT", "CONTENT", ["content.progression_scope"]),
-        ("req.exclusion", "normal-material exclusion", "STRICT", "CONTENT", ["content.material_exclusion"]),
+        ("req.progression", "progression object", "STRICT", "RUNTIME", ["runtime.progression_object"]),
+        ("req.exclusion", "normal-material exclusion", "STRICT", "RUNTIME", ["runtime.material_exclusion"]),
         ("req.resource", "exclusive resource", "STRICT", "RUNTIME", ["runtime.resource"]),
         ("req.deduction", "permanent deduction", "STRICT", "RUNTIME", ["runtime.deduction"]),
         ("req.other_vehicles", "other ordinary vehicles", "OPTIONAL", "RUNTIME", ["runtime.other_vehicles"]),
@@ -275,7 +403,7 @@ def test_fixture_covers_ocean_prompt_without_runtime_artifacts():
     request, proposal, approval = _artifacts(requirements)
     report = evaluate(request, proposal, approval, DEFAULT_CATALOG)
     supported = {item.requirement_id for item in report.items if item.support_status == "SUPPORTED"}
-    assert supported == {"req.ocean", "req.progression", "req.exclusion"}
+    assert supported == {"req.ocean"}
     assert all(item.catalog_layer != "RUNTIME" or not item.bound_feature_ids for item in report.items)
     assert report.requirements_gate_passed is False
 
@@ -293,8 +421,6 @@ def test_repeated_evaluation_is_deterministic_and_report_has_only_derived_items(
 
 
 def test_report_item_and_gate_invariants_reject_forged_success():
-    from tgn.genesis import RequirementReportItem
-
     with pytest.raises(GenesisValidationError):
         RequirementReportItem(
             "req.forged",
@@ -316,7 +442,7 @@ def test_report_item_and_gate_invariants_reject_forged_success():
         "SUPPORTED",
         [],
         "SUPPORTED",
-        ["content.ocean_setting"],
+        ["content.world_premise.v1"],
         {},
         [],
         "supported",
@@ -358,7 +484,49 @@ def test_evaluator_has_no_file_database_network_or_process_side_effects(monkeypa
     assert proposal.to_dict() == before
 
 
-def test_catalog_rejects_future_placeholder_and_supports_only_finite_members():
+def test_json_snapshots_reject_depth_and_cycles_with_stable_errors():
+    deep: dict[str, object] = {}
+    cursor = deep
+    for _ in range(40):
+        child: dict[str, object] = {}
+        cursor["child"] = child
+        cursor = child
+    with pytest.raises(GenesisValidationError) as error:
+        RequirementReportItem(
+            "req.deep",
+            "CONTENT",
+            "SUPPORTED",
+            [],
+            "SUPPORTED",
+            ["content.world_premise.v1"],
+            deep,
+            [],
+            "deep",
+            False,
+            "BIND",
+        )
+    assert error.value.code == "INVALID_VALUE"
+
+    cyclic: dict[str, object] = {}
+    cyclic["self"] = cyclic
+    with pytest.raises(GenesisValidationError) as error:
+        RequirementReportItem(
+            "req.cycle",
+            "CONTENT",
+            "SUPPORTED",
+            [],
+            "SUPPORTED",
+            ["content.world_premise.v1"],
+            cyclic,
+            [],
+            "cycle",
+            False,
+            "BIND",
+        )
+    assert error.value.code == "INVALID_VALUE"
+
+
+def test_catalog_rejects_unregistered_runtime_and_supports_only_finite_members():
     with pytest.raises(GenesisValidationError):
         CatalogFeature("runtime.xuanwu", "RUNTIME", evidence=("fake",))
     with pytest.raises(GenesisValidationError):

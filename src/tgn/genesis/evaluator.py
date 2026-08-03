@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .catalog import FeatureSupportCatalog
+from .catalog import CATALOG_VERSION, DEFAULT_CATALOG, FeatureSupportCatalog
 from .models import (
     FeatureRequirementReport,
     GenesisRequest,
@@ -20,13 +20,13 @@ def _check_artifact_types(
     coverage_approval: RequirementCoverageApproval,
     catalog: FeatureSupportCatalog,
 ) -> None:
-    if not isinstance(request, GenesisRequest):
+    if type(request) is not GenesisRequest:
         _fail("INVALID_TYPE", "$.request", expected="GenesisRequest", actual=request)
-    if not isinstance(proposal, RequirementProposal):
+    if type(proposal) is not RequirementProposal:
         _fail("INVALID_TYPE", "$.proposal", expected="RequirementProposal", actual=proposal)
-    if not isinstance(coverage_approval, RequirementCoverageApproval):
+    if type(coverage_approval) is not RequirementCoverageApproval:
         _fail("INVALID_TYPE", "$.coverage_approval", expected="RequirementCoverageApproval", actual=coverage_approval)
-    if not isinstance(catalog, FeatureSupportCatalog):
+    if type(catalog) is not FeatureSupportCatalog:
         _fail("INVALID_TYPE", "$.catalog", expected="FeatureSupportCatalog", actual=catalog)
 
 
@@ -38,6 +38,15 @@ def _validate_approval_hash(approval: RequirementCoverageApproval) -> None:
 
     if approval.hash != _hash_payload(expected):
         _fail("APPROVAL_HASH_MISMATCH", "$.coverage_approval.approval_hash", message="approval canonical hash does not match payload")
+
+
+def _validate_catalog_identity(catalog: FeatureSupportCatalog) -> None:
+    if catalog.version != CATALOG_VERSION or catalog.hash != DEFAULT_CATALOG.hash:
+        _fail(
+            "CATALOG_IDENTITY_MISMATCH",
+            "$.catalog",
+            message="V1-A accepts only the canonical versioned Feature Support Catalog",
+        )
 
 
 def _validate_cross_artifacts(
@@ -207,6 +216,7 @@ def evaluate(
             message="Coverage Approval must be CONFIRMED before a Report is produced",
         )
     _validate_cross_artifacts(request, proposal, coverage_approval)
+    _validate_catalog_identity(catalog)
 
     # Preserve Proposal canonical order.  No status counters or UI groupings
     # are stored; those remain deterministic projections from items[].
@@ -222,4 +232,25 @@ def evaluate(
     )
 
 
-__all__ = ["evaluate"]
+def verify_report(
+    request: GenesisRequest,
+    proposal: RequirementProposal,
+    coverage_approval: RequirementCoverageApproval,
+    catalog: FeatureSupportCatalog,
+    report: FeatureRequirementReport,
+) -> FeatureRequirementReport:
+    """Recompute and verify a persisted Report before any later phase uses it."""
+
+    if type(report) is not FeatureRequirementReport:
+        _fail("INVALID_TYPE", "$.report", expected="FeatureRequirementReport", actual=report)
+    expected = evaluate(request, proposal, coverage_approval, catalog)
+    if report.hash != expected.hash or report.to_dict() != expected.to_dict():
+        _fail(
+            "REPORT_MISMATCH",
+            "$.report",
+            message="persisted Report differs from deterministic evaluation of its source artifacts",
+        )
+    return report
+
+
+__all__ = ["evaluate", "verify_report"]
