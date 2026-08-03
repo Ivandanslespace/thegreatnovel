@@ -26,6 +26,48 @@ STATUSES = {"ACTIVE", "STOPPING", "STOPPED"}
 _ALLOWED_BUSINESS_ROOTS = {"player", "actors", "world", "opportunities", "unlocks", "metrics"}
 
 
+def _validate_business_state(state: Mapping[str, Any], campaign_id: str | None = None) -> None:
+    """Validate the durable JSON state before it can enter the event chain."""
+    if not isinstance(state, Mapping):
+        raise IntegrityError("initial state must be an object")
+    roots = set(state)
+    missing = _ALLOWED_BUSINESS_ROOTS - roots
+    if missing:
+        raise IntegrityError(f"state is missing business roots: {sorted(missing)}")
+    for root in ("player", "actors", "world", "opportunities", "metrics"):
+        if not isinstance(state.get(root), Mapping):
+            raise IntegrityError(f"state.{root} must be an object")
+    if not isinstance(state.get("unlocks"), list):
+        raise IntegrityError("state.unlocks must be an array")
+    campaign = state.get("campaign")
+    if not isinstance(campaign, Mapping):
+        raise IntegrityError("state.campaign metadata is required")
+    if campaign_id is not None and campaign.get("campaign_id") != campaign_id:
+        raise IntegrityError("state campaign_id does not match campaign identity")
+    for key in ("campaign_id",):
+        if not isinstance(campaign.get(key), str) or not campaign[key]:
+            raise IntegrityError(f"campaign.{key} must be a non-empty string")
+    for key in ("turn", "time_minute", "current_tier"):
+        value = campaign.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise IntegrityError(f"campaign.{key} must be a non-negative integer")
+    if "status" in campaign and not isinstance(campaign["status"], str):
+        raise IntegrityError("campaign.status must be a string")
+
+
+def _validate_fact(fact: Mapping[str, Any], *, assigned: bool = False) -> None:
+    if not isinstance(fact, Mapping):
+        raise IntegrityError("fact must be an object")
+    if assigned and "fact_id" in fact:
+        raise IntegrityError("fact_id is assigned by storage")
+    for key in ("text", "visibility", "kind", "source"):
+        if key not in fact or not isinstance(fact[key], str) or not fact[key].strip():
+            raise IntegrityError(f"fact.{key} must be a non-empty string")
+    visibility = fact["visibility"]
+    if not (visibility in {"public", "player", "hidden"} or (visibility.startswith("actor:") and visibility[6:].strip())):
+        raise IntegrityError("invalid fact visibility")
+
+
 class CampaignStoreError(RuntimeError):
     pass
 
@@ -219,18 +261,21 @@ class CampaignStore:
             store = cls(campaign_dir, db)
             store._configure()
             world = _plain(compiled_world)
+            if not isinstance(world, Mapping):
+                raise IntegrityError("compiled_world must be an object")
+            if not isinstance(initial_state, Mapping):
+                raise IntegrityError("initial_state must be an object")
             state = copy.deepcopy(dict(initial_state))
             if "turn" in state:
                 raise IntegrityError("root state.turn is unsupported; use state.campaign.turn")
-            campaign = state.setdefault("campaign", {})
+            campaign = state.get("campaign")
             if not isinstance(campaign, dict):
                 raise IntegrityError("initial state campaign must be an object")
             campaign.setdefault("turn", 0)
             campaign.setdefault("time_minute", 0)
             campaign.setdefault("current_tier", 0)
             state["campaign"] = campaign
-            if not isinstance(state.get("world"), dict):
-                raise IntegrityError("initial state world must be an object")
+            _validate_business_state(state, campaign_id)
             state["world"].setdefault("minute", campaign["time_minute"])
             manifest = {
                 "schema_version": SCHEMA_VERSION,
@@ -272,7 +317,12 @@ class CampaignStore:
         try:
             store._validate_manifest()
             store.verify()
-        except Exception:
+        except Exception as exc:
+            # A committed narration is authoritative; a failed derived draft
+            # write is recoverable from that DB record after reopening.
+            if isinstance(exc, IntegrityError) and any(token in str(exc) for token in ("novel draft missing", "novel draft is stale")):
+                store._read_only = False
+                return store
             store._read_only = True
             db.close()
             raise
@@ -340,6 +390,29 @@ class CampaignStore:
         if self._read_only:
             raise ReadOnlyCampaignError("campaign is read-only after integrity failure")
 
+    def _canonical_player_observation(self, state: Mapping[str, Any], events: Iterable[Any]) -> Any:
+        """Return the engine projection when the compiled world supports it.
+
+        Tiny storage-only fixtures may intentionally use a non-engine blueprint;
+        those are still checked for object-ness, while real compiled worlds are
+        compared byte-for-byte with ``project_player_view``.
+        """
+        world = self.get_compiled_world()
+        if "actions" not in world:
+            return None
+        try:
+            from tgn.projection import project_player_view
+            return _plain(project_player_view(world, state, events))
+        except Exception as exc:
+            raise IntegrityError(f"cannot compute canonical player projection: {exc}") from exc
+
+    def _check_player_observation(self, state: Mapping[str, Any], events: Iterable[Any], supplied: Any) -> None:
+        if not isinstance(supplied, Mapping):
+            raise IntegrityError("player_observation must be an object")
+        canonical = self._canonical_player_observation(state, events)
+        if canonical is not None and _plain(supplied) != canonical:
+            raise IntegrityError("player_observation does not match canonical player projection")
+
     def manifest(self) -> dict[str, Any]:
         row = self._db.execute("SELECT value FROM manifest WHERE key='manifest'").fetchone()
         return _loads(row[0]) if row else {}
@@ -392,8 +465,17 @@ class CampaignStore:
         """
 
         self._ensure_writable()
-        fact_values = [dict(fact) for fact in facts]
-        observation = dict(player_observation or {})
+        fact_values = []
+        for fact in facts:
+            if not isinstance(fact, Mapping):
+                raise IntegrityError("fact must be an object")
+            fact_values.append(dict(fact))
+        if player_observation is None:
+            observation = {}
+        elif isinstance(player_observation, Mapping):
+            observation = dict(player_observation)
+        else:
+            raise IntegrityError("player_observation must be an object")
         command_payload = {"facts": fact_values, "player_observation": observation}
         payload_hash = sha256_json(command_payload)
         existing = self._db.execute(
@@ -416,17 +498,7 @@ class CampaignStore:
         campaign = _campaign_meta(state)
         committed_facts: list[dict[str, Any]] = []
         for index, raw_fact in enumerate(fact_values):
-            if "fact_id" in raw_fact:
-                raise IntegrityError("fact_id is assigned by storage")
-            for required in ("text", "visibility", "kind", "source"):
-                if required not in raw_fact:
-                    raise IntegrityError(f"fact requires {required}")
-            visibility = raw_fact["visibility"]
-            if not isinstance(visibility, str) or not (
-                visibility in {"public", "player", "hidden"}
-                or (visibility.startswith("actor:") and visibility[6:].strip())
-            ):
-                raise IntegrityError("invalid fact visibility")
+            _validate_fact(raw_fact, assigned=True)
             committed_facts.append({**raw_fact, "fact_id": f"f-00000001-{index:02d}"})
         details = {
             "turn_after": 0,
@@ -448,6 +520,8 @@ class CampaignStore:
             "state_after_hash": state_hash,
         }
         event["event_hash"] = sha256_json(event)
+        projection_event = {**event, "facts": [{k: v for k, v in fact.items() if k != "fact_id"} for fact in committed_facts]}
+        self._check_player_observation(state, [projection_event], observation)
         request = build_narration_request(
             self.campaign_dir.name,
             0,
@@ -499,9 +573,12 @@ class CampaignStore:
             if existing["payload_hash"] != payload_hash:
                 raise CommandConflict("request_id was reused with a different payload")
             return _loads(existing["response_json"])
+        if self.manifest().get("status") != "ACTIVE":
+            raise CampaignStoreError("new resolutions require an active campaign")
         if self.pending_narration() is not None:
             raise CampaignStoreError("pending narration must be committed before the next turn")
         current_turn, current_hash, current_state = self._current()
+        _validate_business_state(current_state, self.campaign_dir.name)
         if resolution.expected_turn != current_turn or resolution.expected_state_hash != current_hash:
             raise CampaignStoreError("stale resolution")
         if not resolution.events:
@@ -515,6 +592,12 @@ class CampaignStore:
         for draft in resolution.events:
             if not isinstance(draft, EventDraft):
                 draft = EventDraft(**dict(draft))
+            if not isinstance(draft.event_type, str) or not draft.event_type.strip():
+                raise IntegrityError("event_type must be a non-empty string")
+            if not isinstance(draft.actor_id, str) or not draft.actor_id.strip():
+                raise IntegrityError("actor_id must be a non-empty string")
+            if not isinstance(draft.details, Mapping):
+                raise IntegrityError("event details must be an object")
             seq += 1
             before_hash = _state_hash(state)
             details = _plain(draft.details)
@@ -523,15 +606,10 @@ class CampaignStore:
             event_id = f"e-{seq:08d}"
             facts = []
             for index, raw_fact in enumerate(draft.facts):
+                if not isinstance(raw_fact, Mapping):
+                    raise IntegrityError("fact must be an object")
                 fact = dict(raw_fact)
-                if "fact_id" in fact:
-                    raise IntegrityError("fact_id is assigned by storage")
-                for required in ("text", "visibility", "kind", "source"):
-                    if required not in fact:
-                        raise IntegrityError(f"fact requires {required}")
-                visibility = fact["visibility"]
-                if not isinstance(visibility, str) or not (visibility in {"public", "player", "hidden"} or (visibility.startswith("actor:") and len(visibility) > 6 and visibility[6:].strip())):
-                    raise IntegrityError("invalid fact visibility")
+                _validate_fact(fact, assigned=True)
                 fact["fact_id"] = f"f-{seq:08d}-{index:02d}"
                 facts.append(fact)
             after_hash = _state_hash(next_state)
@@ -548,11 +626,15 @@ class CampaignStore:
         expected_new_state = copy.deepcopy(_plain(resolution.new_state))
         if state != expected_new_state:
             raise IntegrityError("resolution new_state does not match replayed patches")
+        _validate_business_state(state, self.campaign_dir.name)
         new_hash = _state_hash(state)
-        from tgn.story.narration import build_narration_request
-        request = build_narration_request(self.campaign_dir.name, current_turn + 1, events, resolution.player_observation, {"action_id": resolution.action_id, "locale": self._world_locale()})
+        final_turn = int(state["campaign"]["turn"])
+        # The engine projection is computed from draft facts before storage
+        # assigns durable fact_ids; use that same input for deterministic CAS.
+        self._check_player_observation(state, resolution.events, resolution.player_observation)
+        request = build_narration_request(self.campaign_dir.name, final_turn, events, resolution.player_observation, {"action_id": resolution.action_id, "locale": self._world_locale()})
         request_dict = _plain(request.to_dict())
-        response = {"request_id": request_id, "action_id": resolution.action_id, "turn": current_turn + 1, "state_hash": new_hash, "event_ids": [event["event_id"] for event in events], "narration_request": request_dict}
+        response = {"request_id": request_id, "action_id": resolution.action_id, "turn": final_turn, "state_hash": new_hash, "event_ids": [event["event_id"] for event in events], "narration_request": request_dict}
         try:
             with self._db:
                 for event in events:
@@ -560,7 +642,7 @@ class CampaignStore:
                         "INSERT INTO events VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                         (event["seq"], event["turn"], event["event_id"], event["event_type"], event["actor_id"], _json(event["patches"]), _json(event["facts"]), _json(event["details"]), event["prev_hash"], event["state_before_hash"], event["state_after_hash"], event["event_hash"]),
                     )
-                self._db.execute("UPDATE snapshot SET turn=?,state_hash=?,state_json=? WHERE id=1", (current_turn + 1, new_hash, _json(state)))
+                self._db.execute("UPDATE snapshot SET turn=?,state_hash=?,state_json=? WHERE id=1", (final_turn, new_hash, _json(state)))
                 self._db.execute("INSERT INTO commands VALUES (?,?,?)", (request_id, payload_hash, _json(response)))
                 self._db.execute("INSERT INTO narration_requests VALUES (?,?,?,'PENDING')", (request.request_id, request.turn, _json(request_dict)))
             return response
@@ -575,10 +657,14 @@ class CampaignStore:
             candidate = response.to_dict() if hasattr(response, "to_dict") else dict(response)
             row = self._db.execute("SELECT response_json FROM narratives WHERE request_id=?", (candidate.get("request_id"),)).fetchone()
             if row and _loads(row[0]) == candidate:
-                if self.manifest().get("status") == "STOPPED":
-                    self._write_final_exports()
-                elif self.manifest().get("status") == "STOPPING":
-                    self.export_final()
+                # A successful DB commit can be followed by a disk fault.  The
+                # same response is therefore also the recovery token.
+                self._refresh_draft()
+                if self.manifest().get("status") in {"STOPPING", "STOPPED"}:
+                    if self.manifest().get("status") == "STOPPING":
+                        self.export_final()
+                    else:
+                        self._write_final_exports()
                 return candidate
             raise CampaignStoreError("no pending narration")
         candidate = response.to_dict() if hasattr(response, "to_dict") else dict(response)
@@ -604,6 +690,18 @@ class CampaignStore:
             with self._db:
                 self._db.execute("UPDATE manifest SET value=? WHERE key='manifest'", (_json(manifest),))
         return response_dict
+
+    def recover_exports(self) -> dict[str, Any]:
+        """Rebuild derived draft/final files after an interrupted disk write."""
+        self._ensure_writable()
+        if self._db.execute("SELECT 1 FROM narratives LIMIT 1").fetchone():
+            self._refresh_draft()
+        if self.manifest().get("status") == "STOPPING":
+            return self.export_final()
+        if self.manifest().get("status") == "STOPPED":
+            self._write_final_exports()
+            return _loads((self.exports_dir / "manifest.json").read_text(encoding="utf-8"))
+        return {"status": self.manifest().get("status"), "draft": bool(self._db.execute("SELECT 1 FROM narratives LIMIT 1").fetchone())}
 
     def export_final(self) -> dict[str, Any]:
         """Rebuild final artifacts from the immutable DB, idempotently."""
@@ -652,7 +750,10 @@ class CampaignStore:
         lines = [f"# {title}", ""]
         for narrative in self._narratives():
             lines += [self._chapter_heading(narrative), narrative["prose"], ""]
-        self._atomic_text(self.exports_dir / "novel_draft.md", "\n".join(lines))
+        content = "\n".join(lines)
+        self._atomic_text(self.exports_dir / "novel_draft.md", content)
+        with self._db:
+            self._db.execute("INSERT OR REPLACE INTO exports VALUES (?,?,datetime('now'))", ("novel_draft.md", sha256_text(content)))
 
     @staticmethod
     def _atomic_text(path: Path, content: str) -> None:
@@ -716,8 +817,8 @@ class CampaignStore:
                 raise CommandConflict("request_id was reused with a different ending reason")
             return existing
         manifest = self.manifest()
-        if manifest.get("status") == "STOPPED":
-            raise CampaignStoreError("campaign already stopped")
+        if manifest.get("status") != "ACTIVE":
+            raise CampaignStoreError("ending can only begin from an active campaign")
         pending = self.pending_narration()
         if pending is not None:
             raise CampaignStoreError("pending narration must be committed before ending")
@@ -755,11 +856,31 @@ class CampaignStore:
             if not initial_row:
                 raise IntegrityError("initial state missing")
             state = _loads(initial_row[0])
+            _validate_business_state(state, self.campaign_dir.name)
             if _state_hash(state) != self.manifest().get("initial_state_hash"):
                 raise IntegrityError("initial state hash mismatch")
+            status = self.manifest().get("status")
+            if status not in STATUSES:
+                raise IntegrityError("invalid campaign status")
+            events = self.get_events()
+            ending_events = [event for event in events if event["event_type"] == "campaign.ending_requested"]
+            pending_rows = self._db.execute("SELECT request_id,status FROM narration_requests WHERE status='PENDING'").fetchall()
+            if status == "ACTIVE" and ending_events:
+                raise IntegrityError("active campaign contains an ending event")
+            if status == "STOPPING" and len(ending_events) != 1:
+                raise IntegrityError("stopping campaign must contain exactly one ending event")
+            if status == "STOPPED":
+                if len(ending_events) != 1 or pending_rows:
+                    raise IntegrityError("stopped campaign has invalid ending/pending state")
+            if status == "STOPPING" and len(pending_rows) > 1:
+                raise IntegrityError("stopping campaign has multiple pending narrations")
             previous = "genesis"
             previous_state_hash = _state_hash(state)
-            for event in self.get_events():
+            for event in events:
+                if not isinstance(event["event_type"], str) or not event["event_type"].strip() or not isinstance(event["actor_id"], str) or not event["actor_id"].strip():
+                    raise IntegrityError(f"event identity types invalid at {event.get('event_id')}")
+                for fact in event.get("facts", ()):
+                    _validate_fact(fact, assigned=False)
                 if event["prev_hash"] != previous or event["state_before_hash"] != previous_state_hash:
                     raise IntegrityError(f"event chain mismatch at {event['event_id']}")
                 replay = _apply_event_state(state, event["patches"], event["details"])
@@ -771,13 +892,18 @@ class CampaignStore:
             snapshot = self._current()
             if snapshot[0] != _campaign_meta(state).get("turn") or snapshot[1] != _state_hash(state) or snapshot[2] != state:
                 raise IntegrityError("snapshot does not match event replay")
+            event_map = {event["event_id"]: event for event in events}
             for row in self._db.execute("SELECT request_id,payload_json,status FROM narration_requests").fetchall():
+                if row["status"] not in {"PENDING", "COMMITTED"}:
+                    raise IntegrityError("invalid narration request status")
                 request = _loads(row["payload_json"])
                 if request["request_hash"] != sha256_json({k: request[k] for k in request if k != "request_hash"}):
                     raise IntegrityError("narration request hash mismatch")
-                event_map = {event["event_id"]: event for event in self.get_events()}
                 if any(event_id not in event_map for event_id in request.get("event_ids", ())):
                     raise IntegrityError("narration references an unknown event")
+                referenced = [event_map[event_id] for event_id in request.get("event_ids", ())]
+                if referenced and int(request.get("turn", -1)) != max(int(event["turn"]) for event in referenced):
+                    raise IntegrityError("narration turn does not match final replay turn")
                 visible_facts = {
                     str(fact["fact_id"]): fact
                     for event_id in request.get("event_ids", ())
@@ -795,17 +921,46 @@ class CampaignStore:
                     if narrative["response_hash"] != sha256_json(narrative_value):
                         raise IntegrityError("narrative response hash mismatch")
                     validate_narration_response(request, narrative_value)
+                elif narrative:
+                    raise IntegrityError("pending narration already has a committed response")
+            committed_count = self._db.execute("SELECT COUNT(*) FROM narratives").fetchone()[0]
+            if committed_count and not (self.exports_dir / "novel_draft.md").is_file():
+                raise IntegrityError("novel draft missing for committed narration")
+            if committed_count:
+                draft_lines = [f"# {self._world_title()}", ""]
+                for narrative in self._narratives():
+                    draft_lines += [self._chapter_heading(narrative), narrative["prose"], ""]
+                draft_hash = sha256_text("\n".join(draft_lines))
+                draft_path = self.exports_dir / "novel_draft.md"
+                if sha256_text(draft_path.read_text(encoding="utf-8")) != draft_hash:
+                    raise IntegrityError("novel draft is stale")
             for export in self._db.execute("SELECT name,content_hash FROM exports").fetchall():
                 artifact = self.exports_dir / export["name"]
                 if not artifact.is_file() or sha256_text(artifact.read_text(encoding="utf-8")) != export["content_hash"]:
                     raise IntegrityError(f"export artifact hash mismatch: {export['name']}")
             final_manifest_path = self.exports_dir / "manifest.json"
-            if self.manifest().get("status") == "STOPPED":
+            if status in {"STOPPING", "STOPPED"} and final_manifest_path.is_file():
+                export_manifest = _loads(final_manifest_path.read_text(encoding="utf-8"))
+                event_head = events[-1]["event_hash"] if events else "genesis"
+                expected_range = [events[0]["seq"], events[-1]["seq"]] if events else []
+                expected = {
+                    "campaign_id": self.campaign_dir.name,
+                    "source_event_range": expected_range,
+                    "source_event_count": len(events),
+                    "blueprint_hash": self.manifest()["blueprint_hash"],
+                    "event_head": event_head,
+                    "final_ready": True,
+                }
+                if any(export_manifest.get(key) != value for key, value in expected.items()):
+                    raise IntegrityError("final export manifest is stale")
+            if status == "STOPPED":
                 if not final_manifest_path.is_file():
                     raise IntegrityError("stopped campaign has no export manifest")
                 export_manifest = _loads(final_manifest_path.read_text(encoding="utf-8"))
                 novel_path = self.exports_dir / "novel.md"
                 history_path = self.exports_dir / "history.json"
+                if not novel_path.is_file() or not history_path.is_file() or not export_manifest.get("final_ready"):
+                    raise IntegrityError("stopped campaign has incomplete final exports")
                 if export_manifest.get("novel_hash") != sha256_text(novel_path.read_text(encoding="utf-8")) or export_manifest.get("history_hash") != sha256_text(history_path.read_text(encoding="utf-8")):
                     raise IntegrityError("final export content hash mismatch")
             return {"ok": True, "event_count": len(self.get_events()), "state_hash": snapshot[1], "status": self.manifest().get("status")}
