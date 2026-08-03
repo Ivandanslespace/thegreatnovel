@@ -436,6 +436,22 @@ class GameService:
         finally:
             store.close()
 
+    def recover_exports(self, campaign_id: str) -> dict[str, Any]:
+        store = CampaignStore.open(self.saves_root, campaign_id)
+        try:
+            recovered = store.recover_exports()
+            verified = store.verify()
+            return {
+                "campaign_id": campaign_id,
+                "status": store.manifest()["status"],
+                "recovered": recovered,
+                "verified": verified,
+                "novel_draft": str((store.exports_dir / "novel_draft.md").resolve()),
+                "final_novel": str((store.exports_dir / "novel.md").resolve()) if (store.exports_dir / "novel.md").is_file() else None,
+            }
+        finally:
+            store.close()
+
     def export_final(self, campaign_id: str) -> dict[str, Any]:
         store = CampaignStore.open(self.saves_root, campaign_id)
         try:

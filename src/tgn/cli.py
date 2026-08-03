@@ -38,7 +38,7 @@ def _parser() -> argparse.ArgumentParser:
     resume = commands.add_parser("resume", help="resume a campaign or the latest active one")
     resume.add_argument("--campaign")
 
-    for name in ("state", "actions", "pending", "verify", "export"):
+    for name in ("state", "actions", "pending", "verify", "recover", "export"):
         sub = commands.add_parser(name)
         sub.add_argument("--campaign", required=True)
 
@@ -145,6 +145,8 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         data = service.end(args.campaign, args.request_id, args.reason)
     elif args.command == "verify":
         data = service.verify(args.campaign)
+    elif args.command == "recover":
+        data = service.recover_exports(args.campaign)
     elif args.command == "export":
         data = service.export_final(args.campaign)
     else:  # argparse prevents this branch.
