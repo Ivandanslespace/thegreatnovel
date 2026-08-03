@@ -46,7 +46,8 @@ def _player_state(state: Mapping[str, Any]) -> dict[str, Any]:
     campaign = state.get("campaign", {})
     actor_source = state.get("actors", {})
     actors = []
-    for key, raw in actor_source.items() if isinstance(actor_source, Mapping) else ():
+    actor_items = sorted(actor_source.items(), key=lambda item: str(item[0])) if isinstance(actor_source, Mapping) else ()
+    for key, raw in actor_items:
         if not isinstance(raw, Mapping):
             continue
         actor = {field: deepcopy(raw[field]) for field in ("id", "name", "role", "location", "trust", "dependence", "fear", "debt") if field in raw}

@@ -150,6 +150,16 @@ def test_projection_whitelists_campaign_actor_and_world(compiled):
     assert projected["world"]["public_note"] == "visible" and "process_last_run" not in projected["world"] and "action_counts" not in projected["world"]
 
 
+def test_projection_actor_order_is_canonical(compiled):
+    state = initial_state(compiled, "campaign", 1)
+    state["actors"] = {
+        "zeta": {"name": "后录入"},
+        "alpha": {"name": "先排序"},
+    }
+    actors = project_player_view(compiled, state)["player_observation"]["state"]["actors"]
+    assert [actor["id"] for actor in actors] == ["alpha", "zeta"]
+
+
 def test_lever_ablation_changes_legal_actions(compiled):
     state = initial_state(compiled, "campaign", 1)
     assert "work" in {a["id"] for a in legal_actions(compiled, state)}

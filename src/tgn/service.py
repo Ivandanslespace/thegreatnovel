@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .blueprint import compile_blueprint
+from .contracts import EventDraft
 from .engine import initial_state, legal_actions, preview_action, resolve_action
 from .projection import project_player_view
 from .storage import CampaignStore, CampaignStoreError
@@ -64,6 +65,21 @@ def _opening_facts(world: Mapping[str, Any], state: Mapping[str, Any]) -> tuple[
             "source": source,
         },
     )
+
+
+def _opening_observation(
+    world: Mapping[str, Any],
+    state: Mapping[str, Any],
+    facts: tuple[dict[str, Any], ...],
+) -> dict[str, Any]:
+    draft = EventDraft(
+        event_type="campaign.started",
+        actor_id="world",
+        patches=(),
+        facts=facts,
+        details={"turn_after": 0, "time_after": 0, "opening": True},
+    )
+    return project_player_view(world, state, (draft,))
 
 
 def _compact_player_view(view: Mapping[str, Any]) -> dict[str, Any]:
@@ -156,10 +172,11 @@ class GameService:
         state["campaign"]["world_prompt"] = text
         store = CampaignStore.create(self.saves_root, cid, compiled, state)
         try:
-            observation = project_player_view(compiled, state)
+            facts = _opening_facts(compiled, state)
+            observation = _opening_observation(compiled, state, facts)
             opening = store.begin_opening(
                 f"start-{cid}",
-                _opening_facts(compiled, state),
+                facts,
                 observation,
             )
             return {
@@ -223,10 +240,11 @@ class GameService:
             state = store.get_state()
             pending = store.pending_narration()
             if not store.get_events() and store.manifest().get("status") == "ACTIVE":
+                facts = _opening_facts(world, state)
                 opening = store.begin_opening(
                     f"start-{cid}",
-                    _opening_facts(world, state),
-                    project_player_view(world, state),
+                    facts,
+                    _opening_observation(world, state, facts),
                 )
                 pending = opening["narration_request"]
             return self._campaign_view(store, world, state, pending=pending)
