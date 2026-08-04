@@ -1,0 +1,5 @@
+[
+  {
+    "_comment": "悬念清单。每条：{id, hook 问题描述, importance 重要度 0-1, born_chapter 埋设章, reminder_count 被提醒次数, visibility 读者可见度 0-1, progress 推进度 0-1, status open/advanced/resolved}。公式见 CONSTITUTION.md 2.3。"
+  }
+]

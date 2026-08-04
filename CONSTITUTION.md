@@ -262,7 +262,8 @@ RiskCredibility = 实际代价兑现率 × 失败后果清晰度 × 敌人有效
 1. **inspirations/ 只读**：该目录存放待续写原文素材，任何工具、脚本或代理不得
    修改其中任何文件。
 2. **产出目录**：续写产出统一放 `projects/<book-slug>/` 下，固定三件套：
-   `contracts/`（章节合同）、`prompts/`（提示词）、`chapters/`（成稿）。
+   `contracts/`（章节合同）、`prompts/`（提示词）、`chapters/`（成稿）；
+   另可含 `reports/`（机器生成的分析报告）。
 3. **临时文件**：一切临时文件进 `temps/`，收尾阶段必须清理，不得遗留在根目录。
 4. **LLM 环节可插拔**：默认导出提示词供外部 LLM（如 ChatGPT 桌面端）使用；
    API 调用仅为可选适配层，非硬依赖。

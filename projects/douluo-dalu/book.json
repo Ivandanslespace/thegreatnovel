@@ -1,0 +1,59 @@
+{
+  "_comment": {
+    "说明": "作者台账。analyze/plan 只依据这里填写的事实计算，不会猜测。",
+    "pressure": "读者压力六分项，各 0-100（CONSTITUTION.md 2.1）：survival_threat 生存威胁 / resource_scarcity 资源匮乏 / time_pressure 时间压力 / uncertainty 信息不确定性 / social_conflict 人际冲突 / recent_failure 失败累积。",
+    "resources": "核心资源台账。gap=当前缺口 0-100；blocked_count=因缺它而被阻塞的决策次数；next_tier_goal=下一阶段资源目标；perceptibility=读者可感知程度 0-100；setup_chapters=已铺垫章数。",
+    "progress_components": "最近一章的进展六维 0-100（2.4）：permanent_growth / world_change / relationship_change / intel_change / goal_advance / new_gameplay。",
+    "risk_factors": "风险可信度五维 0-1（2.6）：cost_realized_rate 实际代价兑现率 / failure_clarity 失败后果清晰度 / enemy_effectiveness 敌人有效性 / info_incompleteness 主角信息不完整度 / protection_limitedness 保护机制有限度。",
+    "payoff_cooldowns": "六冷却组（3.1）：last_major_chapter 为该组最近一次大爽点章号。",
+    "budget_10ch": "最近 10 章爽点消费记录（3.2），由 record 命令自动追加。",
+    "llm_api": "可选。填写 {base_url, api_key, model} 启用 API 适配层，否则手动粘贴提示词。"
+  },
+  "title": "斗罗大陆",
+  "slug": "douluo-dalu",
+  "source_path": "inspirations/斗罗大陆.txt",
+  "source_name": "斗罗大陆.txt",
+  "encoding": "gb18030",
+  "sha256": "bfa77f748f3556c582035bd0db7d27e3ad20ad73daf91d877545fbb054931c46",
+  "total_chapters": 379,
+  "current_chapter": 379,
+  "next_write_chapter": 380,
+  "pressure": {},
+  "resources": [],
+  "progress_components": {},
+  "risk_factors": {},
+  "payoff_cooldowns": [
+    {
+      "group": "resource",
+      "last_major_chapter": 0,
+      "recommended_cooldown": 40
+    },
+    {
+      "group": "combat",
+      "last_major_chapter": 0,
+      "recommended_cooldown": 12
+    },
+    {
+      "group": "cognition",
+      "last_major_chapter": 0,
+      "recommended_cooldown": 10
+    },
+    {
+      "group": "social",
+      "last_major_chapter": 0,
+      "recommended_cooldown": 15
+    },
+    {
+      "group": "world",
+      "last_major_chapter": 0,
+      "recommended_cooldown": 45
+    },
+    {
+      "group": "emotion",
+      "last_major_chapter": 0,
+      "recommended_cooldown": 15
+    }
+  ],
+  "budget_10ch": [],
+  "llm_api": null
+}

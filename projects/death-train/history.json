@@ -1,0 +1,7 @@
+{
+  "_comment": "由 record 命令自动维护：payoff_events 爽点事件（chapter/group/subtype/intensity/score）；pressure_history 每章压力总分；recent_structures 结构标签（用于重复疲劳 2.5）；hook_events 悬念新增/推进/兑现事件（用于 2.3 平衡检查）。",
+  "payoff_events": [],
+  "pressure_history": [],
+  "recent_structures": [],
+  "hook_events": []
+}
