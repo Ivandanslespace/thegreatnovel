@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Novel Metrics"
+  short_description: "Audit metric provenance, missing inputs, and evidence"
+  default_prompt: "Use -novel-metrics to review a frozen metric run and its evidence."

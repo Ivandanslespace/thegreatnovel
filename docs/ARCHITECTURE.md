@@ -144,4 +144,4 @@ workspace/<book_id>/
 
 ## V1 有意不做
 
-Web/API、云数据库、向量数据库、LangChain、递归多代理、运行时 API Key、自动发布、无批准 retcon，以及对真实读者留存的伪精确预测均不在 V1 内。
+云数据库、向量数据库、LangChain、递归多代理、运行时 API Key、自动发布、无批准 retcon，以及对真实读者留存的伪精确预测仍不在范围内。Phase E 仅增加绑定本机的 FastAPI Author Workbench；Phase F 通过本地文件交接让 Windows Codex 桌面端手动执行，Web 不启动模型进程。

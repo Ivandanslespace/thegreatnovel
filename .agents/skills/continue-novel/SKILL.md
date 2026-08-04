@@ -9,7 +9,7 @@ description: 严格依据 Novel_Authoring_System_Constitution_V2.md，在本项�
 
 1. 项目根必须包含 `Novel_Authoring_System_Constitution_V2.md`、`AGENTS.md`、`pyproject.toml` 和 `book/`。规范只认 V2 文件；根 `CONSTITUTION.md` 与本系统无关。
 2. `book/` 永久只读。任何 task、output、草稿、正史续章、报告和导出只能进入 `workspace/<book_id>/`。
-3. Python 不调用远程模型。Codex 只读取 `agent_tasks/<task_id>/input.md` 与 `schema.json`，并写对应 `agent_outputs/<task_id>/output.json`。
+3. Python 不调用远程模型。Web 只创建 `workflow_handoffs` 本地文件交接；用户在 Windows Codex 桌面端手动使用 `$process-novel-handoff`，不使用 Codex CLI、`codex exec`、API Key 或 Responses API。
 4. 未通过十项校验不得批准；未在当前请求中明确说“批准写入正史”不得运行 `novel approve`。
 5. 不直接编辑 SQLite，不把 INFERENCE、CANDIDATE 或 PROSE_ONLY 静默升级为 CANON。
 6. 一个合同最多保留初稿加两轮修订；每轮产生新 draft，不覆盖旧草稿。
@@ -58,6 +58,8 @@ $BookId = "<book-id>"
 & $Novel features rebuild --book-id $BookId --edition-id <edition-id>
 & $Novel rhythm diagnose --book-id $BookId --edition-id <edition-id>
 & $Novel hooks diagnose --book-id $BookId --edition-id <edition-id>
+& $Novel segments rebuild --book-id $BookId --edition-id <edition-id>
+& $Novel metrics rebuild --book-id $BookId --edition-id <edition-id>
 ```
 
 根据边界包、当前投影和已保存指标证据，准备 `workspace/<book_id>/metric_inputs.json`，再运行：
@@ -67,6 +69,8 @@ $BookId = "<book-id>"
 ```
 
 指标只用于诊断和解释，不得绕过 Canon、Timeline、Knowledge、Character、Economy/Power、Author 与 Style 硬门。
+
+缺失 component 必须在 `review-novel-metrics` Skill 下以 AUTHOR_INPUT/UNKNOWN 处理；不得填 0 或 50。
 
 Boundary Packet 中的 `rhythm_features`、`rhythm_diagnostics` 与 `hook_diagnostics` 必须随候选任务传递。
 `same_function_streak`、标题/首尾重复和高压连续只产生建议或 WARNING；`HOLD/ADVANCE/RESOLVE/OVERDUE`
@@ -101,6 +105,10 @@ Boundary Packet 中的 `rhythm_features`、`rhythm_diagnostics` 与 `hook_diagno
 复核合同含 primary/secondary functions、不可逆变化、代价、叙事债务、Canon/Knowledge/Style 边界、禁止重复、结尾状态与 commit updates。合同不完整时不写正文。
 
 ### 6. Codex 草稿文件合同
+
+如果任务由 Workbench 准备，先读取 handoff 目录中的 `task.json`、`prompt.md`、
+`metric_context.json`、`context_manifest.json` 和 `output_schema.json`，再由
+`process-novel-handoff` 原子领取；Web 不启动模型进程。
 
 ```powershell
 & $Novel draft prepare --book-id $BookId --contract-id <contract-id>

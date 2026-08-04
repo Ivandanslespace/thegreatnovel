@@ -8,7 +8,7 @@
 ## 2026-08-04 增量审核计划
 
 本轮基线：`1bdc60b31e6bbb412434d2cdcc10a4f2c3bfe802`，工作分支：
-`小说续写_codex_revision_metrics`。`book/`、`inspirations/`、`workspace/`、
+`小说续写_codex_metrics_web`。`book/`、`inspirations/`、`workspace/`、
 `.venv/`、缓存和本地导出产物继续只读/不提交。
 
 ### Phase A：Revision Integrity Correction
@@ -35,7 +35,34 @@ Narrative Debt/Thread Priority 的证据，不新增五个文学总分，也不�
 2. Phase B 回归测试 + 全部质量门 + CLI help；
 3. 合成长跨度 E2E、base/derived export 与 snapshot/rebuild 对账；
 4. 真实 book 只读 dry-run 与前后 SHA-256 复核；
-5. 分阶段提交并推送 `小说续写_codex_revision_metrics`，不创建 PR。
+5. 分阶段提交并推送 `小说续写_codex_metrics_web`，不创建 PR。
+
+### Phase C：Provenance-aware Metric Core
+
+以 Migration 6 建立 edition/content-hash scoped 的指标运行、组件、缺失输入、
+可撤回观察和证据链接表；严格注册表拒绝未知指标、组件和任意表达式。指标结果
+采用 `null + missing/completeness/confidence`，不以 0 或 50 伪造缺失；每次运行冻结
+registry/config/projection/rhythm/observation 哈希，支持历史回放和确定性重建。
+
+### Phase D：Paragraph Evidence and Contributions
+
+从有效 edition 章节正文确定性切分段落，保留原文、偏移、内容哈希和段落类型；实现
+精确公式贡献、语义支持/反对贡献与作者输入的统一证据模型。作者输入只追加、不覆盖，
+同优先级冲突进入 DISPUTED，变更使旧运行、候选和合同漂移/失效但不写入正史事件。
+
+### Phase E：Local Author Workbench
+
+提供默认绑定 `127.0.0.1` 的 FastAPI/Jinja2 本地审核台：章节/段落证据、指标卡片、
+缺失输入、贡献解释、草稿审核和工作流准备页面及受保护 API。页面只读 SQLite 与
+工作区文件，不提供批准、激活、远程 API、shell 或模型/供应商字段。
+
+### Phase F：Safe Codex Workflow Handoff
+
+以 `workflow_handoffs` 和 edition workspace 下的 Local File Handoff Protocol 取代
+任何 Codex subprocess/API 集成。Web 只冻结上下文、生成可复制 prompt、读取状态和结果；
+作者在 Windows Codex 桌面端手动发送。统一 `process-novel-handoff` Skill 负责原子 claim、
+事件日志、hash/status 校验和结果合同；续写止于 `VALIDATED_DRAFT`，改写止于
+`VALIDATED_CAMPAIGN` 或请求阶段，绝不自动批准或激活。
 
 ## 目标
 
@@ -71,7 +98,7 @@ V1 实现：
 
 ## 明确不做
 
-- Web 前端、REST、微服务、云数据库、向量数据库；
+- 云数据库、向量数据库、多用户 SaaS；本轮允许本地 FastAPI 审核台；
 - LangChain、大型通用多代理框架、递归调用 Codex；
 - 运行时必需 API Key 或 Python 直接调用远程模型；
 - 全自动模拟每个 NPC、预测真实读者留存、自动发布；

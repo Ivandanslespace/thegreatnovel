@@ -15,6 +15,9 @@
 9. 改写前后都要按目标 edition 重建 `chapter_features` 并运行 rhythm/hooks 诊断；旧 content hash 的
    特征失效但保留历史。节奏诊断只作为 Repetition Fatigue、Pressure Curve、Narrative Debt/Thread Priority
    的证据，不新增总分，也不能绕过十项改写校验。
+10. Workbench 改写任务只能使用 Local File Handoff Protocol：Codex 桌面端手动领取
+    `workflow_handoffs`，按 `requested_stage` 执行并写回 result/status；Web 不启动 Codex、
+    不批准 Campaign、也不激活 Edition。
 
 ## 推荐命令
 

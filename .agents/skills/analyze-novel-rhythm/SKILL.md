@@ -20,6 +20,9 @@ description: 运行本项目 edition-aware 的章节特征、长跨度节奏、�
    续写候选必须在这些证据之后生成。
 4. 用 `novel rhythm show`、`novel hooks show` 或 `novel features show` 汇报可审计快照，保留
    `edition_id`、content hash、analyzer version、config hash 和证据短句。
+5. 如需段落级证据，先运行 `novel segments rebuild`；语义指标任务使用
+   `$review-novel-metrics` 与 `MetricSemanticObservationsOutput`，不能让 Codex 重算标题、字数、
+   Content SHA-256 或已确认状态。
 
 ## 证据与判定边界
 

@@ -6,6 +6,10 @@
 
 SQLite schema 由 `schema_migrations` 显式升级。V1 当前迁移覆盖事件完整性、规划边界、草稿任务/投影基线和 validation run。
 
+Migration 6 追加 `chapter_features`、`rhythm_diagnostic_snapshots`、`chapter_segments`、
+`metric_observations`、`metric_evidence_links`、`metric_runs`、`metric_run_results`、
+`workflow_handoffs` 和 `workflow_handoff_events`。handoff event 是任务执行日志，永不写入 Canon Event Store。
+
 ## 六种信息状态
 
 | 状态 | 含义 | 可直接进入 Canon Projection |

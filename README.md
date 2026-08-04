@@ -2,7 +2,9 @@
 
 这是一个依据 `Novel_Authoring_System_Constitution_V2.md` 构建的本地、CLI 优先、Codex 驱动小说续写系统。它把“读取长篇原文、规划下一章、生成草稿、校验、作者批准”拆成可追溯的文件合同和事件状态，而不是让模型直接改小说。
 
-Python 负责不可变原文、SQLite/FTS5、确定性指标、硬门、候选/合同、十项校验、批准事务、快照与重建；Codex 只在 `workspace/<book_id>/agent_tasks` 与 `agent_outputs` 之间读写 JSON 合同。运行时不要求 OpenAI API Key。
+Python 负责不可变原文、SQLite/FTS5、确定性指标、硬门、候选/合同、十项校验、批准事务、快照与重建；Codex 桌面端通过 `workspace/<book_id>/editions/<edition_id>/handoffs` 文件合同读写任务。运行时不要求 OpenAI API Key。
+
+Metric Observatory V2 增加严格指标注册表、缺失值/来源观察、段落证据和本地 Author Workbench。Workbench 使用 Local File Handoff Protocol：用户在 Windows Codex 桌面端手动复制指令并领取任务；Web 不调用 OpenAI API、不使用 Codex CLI 或 `codex exec`，也不启动 Codex 子进程。批准正史、改写 Campaign 与 Edition 激活仍须作者显式执行。
 
 最重要的边界：`book/` 永久只读；草稿不会自动成为正史；只有精确确认“批准写入正史”才能提交。
 
@@ -18,6 +20,7 @@ Python 负责不可变原文、SQLite/FTS5、确定性指标、硬门、候选/�
 - 十项生成后校验、重大兑现的四类 Aftershock Obligations、审计导出。
 - edition-aware `chapter_features`、长跨度节奏快照与 `HOLD/ADVANCE/RESOLVE/OVERDUE` 伏笔动作队列；
 - 版本化改写的 edition 物化隔离、Variant source span/FTS、Campaign 锚点与 r1/r2/r3 草稿审计。
+- Migration 6 的 provenance-aware `metric_runs`、`metric_observations`、段落 `chapter_segments` 与 `workflow_handoffs`；默认本地 Web 入口为 `novel web serve`。
 
 ## Windows 安装
 

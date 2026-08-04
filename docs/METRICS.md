@@ -1,5 +1,9 @@
 # 指标、公式与配置
 
+本文件的旧公式和 `novel diagnose --input` 兼容保留；新的持久化路径见
+[`METRIC_OBSERVATION_MODEL.md`](METRIC_OBSERVATION_MODEL.md)。注册表在
+`config/metrics_registry.yaml`，结果由 `metric_runs`/`metric_run_results` 保存，缺失保持 null。
+
 ## 原则
 
 公式来源是 `Novel_Authoring_System_Constitution_V2.md` 第 7—18 节；实现位于 `metrics/formulas.py`，默认值位于 `config/default.yaml`。指标用于诊断、排序和解释，不能绕过正史、时间线、知识、人物、经济/战力、作者和文风硬门。

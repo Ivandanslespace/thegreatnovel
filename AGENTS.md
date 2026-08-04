@@ -24,8 +24,13 @@
 长跨度节奏诊断遵循 `.agents/skills/analyze-novel-rhythm/SKILL.md`：先建立 edition-aware
 `chapter_features`，再运行 `novel rhythm diagnose` 与 `novel hooks diagnose`，最后才进入候选与合同。
 章节功能、标题/首尾相似和高压连续分别补充既有 Repetition Fatigue/Pressure Curve，伏笔
-Age/Dormancy/Readiness 补充 Narrative Debt 与 Thread Priority；不改变 Candidate Score 权重，
-不把 WARNING 当作批准依据，也不允许伪造语义证据。
+ Age/Dormancy/Readiness 补充 Narrative Debt 与 Thread Priority；不改变 Candidate Score 权重，
+ 不把 WARNING 当作批准依据，也不允许伪造语义证据。
+
+指标观测和本地审核台遵循 `.agents/skills/review-novel-metrics/SKILL.md`：指标只诊断，
+正文/状态提供证据，缺失必须保持 null 并可追溯。Windows Codex 桌面端交接遵循
+`.agents/skills/process-novel-handoff/SKILL.md`：Web 只生成和读取 handoff 文件，绝不调用
+Codex subprocess、`codex exec`、OpenAI API 或任意 shell；作者必须手动在 Codex 桌面端领取任务。
 
 ## 构建与验收
 
@@ -40,4 +45,8 @@ uv run --no-sync novel --help
 uv run --no-sync novel features --help
 uv run --no-sync novel rhythm --help
 uv run --no-sync novel hooks --help
+uv run --no-sync novel metrics --help
+uv run --no-sync novel segments --help
+uv run --no-sync novel workflow --help
+uv run --no-sync novel web doctor
 ```

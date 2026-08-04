@@ -1,0 +1,4 @@
+interface:
+  display_name: "Process Novel Handoff"
+  short_description: "Claim and process auditable local novel handoff tasks"
+  default_prompt: "Use -novel-handoff to claim and process a local novel handoff."

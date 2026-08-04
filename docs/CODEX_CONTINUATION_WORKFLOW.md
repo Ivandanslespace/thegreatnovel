@@ -1,5 +1,9 @@
 # Codex 续写工作流
 
+## Windows Codex Desktop Handoff (Phase F)
+
+Workbench 创建的任务通过 `workspace/<book_id>/editions/<edition_id>/handoffs/<handoff_id>/` 文件合同交接。用户在 Windows Codex 桌面端手动复制 `prompt.md` 指令并使用 `process-novel-handoff`；Python 负责 claim、hash、状态、Validator 和结果持久化，不调用 Codex CLI、OpenAI API 或 subprocess。
+
 本文件解释人工/自动代理如何使用 CLI 和文件合同完成下一章。Codex 的可执行操作清单位于 `.agents/skills/continue-novel/SKILL.md`。
 
 ## 三条不可跨越的线
@@ -128,3 +132,6 @@ approve 先显示 preview，并再次校验。Boundary 自草稿规划后若发�
 ```
 
 影响包中 `MUST_REVIEW` 必须被处置或带理由显式豁免；批准只产生目标 edition 的事件、物化记录、chapter variant、revision commit 和 snapshot，不会自动激活，也不会修改 `book/`。导出使用 ordinal 位置替换 variant，并生成 `complete_edition.md`、`edition_manifest.json`、`edition_projection.json`、`revision_audit.json`、`chapter_variant_index.json`、`revision_diff.md`、`unresolved_items.json`。
+# Windows Codex Desktop Handoff (Phase F)
+
+在 Workbench 创建的任务必须通过 `workspace/<book_id>/editions/<edition_id>/handoffs/<handoff_id>/` 文件合同交接。用户在 Windows Codex 桌面端手动复制 `prompt.md` 指令并使用 `process-novel-handoff`；本地 Python 负责 claim、hash、状态、Validator 和结果持久化，不调用 Codex CLI、OpenAI API 或 subprocess。
