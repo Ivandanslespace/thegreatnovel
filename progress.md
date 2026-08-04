@@ -185,4 +185,5 @@
 - 真实演示书维护验收：源文件 SHA `95810246d1296163fc02320446060e78addd9fa5cba56bbdd1292634a099ee6e`；294 chapters、295 source spans、11,760 observations、11,760 evidence links、294 chapter features、0 Canon Commit；权威 manifest/mirror 一致。
 - Portable latest 已固定为 `index.html`、`manifest.json`、`README.txt`、`assets/`、`data/book.js`、分块 chapters、metrics/atlas/reports；无 `fetch`、无 SVG，manifest file hashes 可复核。
 - 定向 hardening 9/9、全量 pytest `88 passed`；Ruff 与 mypy 通过。普通 wheel 已用项目指定 Python 重装；CLI help 与 `novel web doctor` 通过。
-- **Status:** ready_for_final_git_and_email
+- 提交 `f8f1975` 已直接推送到 `origin/小说续写_codex`；远端 SHA 与本地一致；完成邮件已发送到 Gmail `me`。
+- **Status:** complete

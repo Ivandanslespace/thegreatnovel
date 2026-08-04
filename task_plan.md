@@ -19,7 +19,7 @@ Observation、Evidence 或旧 Temp/audit 用户数据。
 - [x] existing target 永不 rmtree；默认拒绝或显式 merge/归档确认
 - [x] `_system/source_manifest.json` 成为唯一权威，根镜像带兼容标记且 hash 一致
 - [x] CLI 拆分 facade；DB migration 每个 SQL 独立模块
-- [ ] Hardening 测试、真实书验收、质量门、直接 push 和完成邮件
+- [x] Hardening 测试、真实书验收、质量门、直接 push 和完成邮件
 
 ## Goal
 
@@ -27,8 +27,8 @@ Observation、Evidence 或旧 Temp/audit 用户数据。
 
 ## Current Phase
 
-Book Library & Repository Consolidation 收口：代码与真实演示书已迁移，正在进行最终质量门、
-Git diff、分支 push 和完成邮件；不改变 V2 宪法、指标、Atlas、Canon 或批准边界。
+Book Library & Repository Consolidation Final Hardening 已完成；不改变 V2 宪法、指标、Atlas、
+Canon 或批准边界。
 
 ## Current Acceptance Checklist
 
@@ -39,7 +39,7 @@ Git diff、分支 push 和完成邮件；不改变 V2 宪法、指标、Atlas、
 - [x] canonical Operation Workspace、legacy compatibility、Portable Snapshot latest
 - [x] `/library`、paths、import、latest export Web surface
 - [x] retention/cleanup dry-run、精确 confirmation、可恢复 archive
-- [ ] 普通 wheel 重装、全量测试和最终 diff/branch/push
+- [x] 普通 wheel 重装、全量测试和最终 diff/branch/push
 
 ## Phases
 
