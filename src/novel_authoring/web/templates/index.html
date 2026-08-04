@@ -1,0 +1,3 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>Metric Observatory</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><main><h1>Metric Observatory &amp; Author Workbench</h1><p>本地审核台；Codex 由 Windows 桌面端手动领取。</p>{% for chapter in chapters %}<a href="/books/{{ book_id }}/editions/{{ edition_id }}/chapters/{{ chapter.chapter_id }}">{{ chapter.ordinal }} {{ chapter.title }}</a>{% endfor %}</main></body></html>

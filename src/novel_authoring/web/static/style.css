@@ -1,0 +1,4 @@
+:root { color-scheme: light; font-family: system-ui, sans-serif; }
+body { margin: 2rem auto; max-width: 72rem; line-height: 1.6; color: #1f2937; }
+a { display: block; padding: .35rem 0; color: #155e75; }
+pre { white-space: pre-wrap; background: #f3f4f6; padding: 1rem; }
