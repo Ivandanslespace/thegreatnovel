@@ -1,0 +1,29 @@
+# Storage retention defaults.  Permanent data is never eligible for cleanup.
+version: 1
+normal_portable_exports: 3
+archive_auto_delete: false
+categories:
+  PERMANENT:
+    - source
+    - book.yaml
+    - _system/state.sqlite3
+    - canon
+    - metric_observations
+    - metric_evidence_links
+    - registered_atlas_versions
+  ARCHIVE:
+    - completed_operations
+    - rejected_drafts
+    - superseded_initialization
+    - completed_handoffs
+    - old_exports
+  REGENERABLE:
+    - svg_exports
+    - portable_snapshots
+    - generated_indexes
+    - rendered_reports
+  TEMPORARY:
+    - atomic_staging
+    - pytest_workspace
+    - explicit_demo_temp
+    - transient_logs

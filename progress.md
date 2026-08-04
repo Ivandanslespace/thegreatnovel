@@ -150,6 +150,13 @@
 | 2026-08-04 | Windows CRLF 转换导致草稿文件哈希与导入哈希不同 | 1 | 哈希保护文件统一写 UTF-8 bytes |
 | 2026-08-04 | FTS5 聚合查询中无法使用 `bm25` | 1 | 相关子查询取得 span，移除 GROUP BY 后保留 bm25 排序 |
 
+## 2026-08-04 Book Library & Repository Consolidation 当前进度
+
+- Phase 0 Git/security preflight 已通过：当前分支和远程符合用户要求，基线为 `b19454471fe5c79e2982d05b01e779047fb555fc`。
+- 已完成仓库、`book/`、`workspace/real-book-smoke/`、`audit/` 的首轮只读盘点；`audit/` 保留，不在审计阶段移动或删除。
+- 已派发三个只读子任务，分别审计 Temp 演示目录、SQLite 路径字段和代码硬编码目录引用；等待结果后生成强制审计文档。
+- 当前尚未进行任何 Book Library 代码、数据库、文档结构或运行产物修改。
+
 ## 5-Question Reboot Check
 
 | Question | Answer |
@@ -159,3 +166,10 @@
 | What's the goal? | 交付宪法 V2 约束下的可运行 V1 |
 | What have I learned? | 见 `findings.md` |
 | What have I done? | 完成 M1—M7，49 测试与全部质量门通过；真实 `book` 保持基线哈希 |
+
+## 2026-08-04 Book Library & Repository Consolidation 收口记录
+
+- 已生成全量审计文档：`docs/audits/BOOK_LIBRARY_AND_REPOSITORY_AUDIT.md`。
+- 已完成真实 `cable-survival-demo` 迁移和 Portable Snapshot；迁移对账为 294 chapters、295 source spans、294 chapter features、11,760 observations、11,760 evidence links、326 historical runs、2,608 run results、0 Canon Commit。
+- 迁移验证：SQLite integrity `ok`、foreign key violations `0`、projection rebuild 可读、Web doctor 依赖通过、旧 Temp 路径在 DB path columns 中残留 `0`。
+- 已补充 storage layout/registry/migration/cleanup/retention、canonical handoff/Web library/portable export 和相应测试；当前待办是普通 wheel 重装后的全量质量门、最终 diff、仅当前分支 push 及完成邮件。

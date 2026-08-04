@@ -199,6 +199,26 @@ def _manifest_hash(database: Database, book_id: str) -> str:
     return sha256_file(path) if path.is_file() else ""
 
 
+_OPERATION_INPUT_FILES = {
+    "task.json",
+    "prompt.md",
+    "metric_context.json",
+    "context_manifest.json",
+    "output_schema.json",
+}
+
+
+def _handoff_file(task_directory: Path, name: str) -> Path:
+    """Resolve a handoff file across canonical and legacy operation layouts."""
+
+    if (task_directory / "input").is_dir() and (task_directory / "output").is_dir():
+        if name in _OPERATION_INPUT_FILES:
+            return task_directory / "input" / name
+        if name == "result.json":
+            return task_directory / "output" / name
+    return task_directory / name
+
+
 def _author_directives_hash(
     connection: sqlite3.Connection, book_id: str, edition_id: str
 ) -> str:
@@ -409,9 +429,28 @@ def create_handoff(
     handoff_id = stable_id(
         "handoff", book_id, selected, handoff_type.value, requested_stage, utc_now()
     )
-    task_directory = workspace_root / "editions" / selected / "handoffs" / handoff_id
+    canonical_layout = (workspace_root / "book.yaml").is_file()
+    if canonical_layout:
+        task_directory = workspace_root / "editions" / selected / "operations" / handoff_id
+        input_directory = task_directory / "input"
+        output_directory = task_directory / "output"
+        artifacts = task_directory / "artifacts"
+        logs_directory = task_directory / "logs"
+        for directory in (
+            task_directory,
+            input_directory,
+            output_directory,
+            artifacts,
+            logs_directory,
+        ):
+            directory.mkdir(parents=True, exist_ok=False)
+    else:
+        task_directory = workspace_root / "editions" / selected / "handoffs" / handoff_id
+        input_directory = task_directory
+        output_directory = task_directory
+        artifacts = task_directory / "artifacts"
+        artifacts.mkdir(parents=True, exist_ok=False)
     artifacts = task_directory / "artifacts"
-    artifacts.mkdir(parents=True, exist_ok=False)
     atlas_output_directory = artifacts / "story_atlas"
     task = {
         "handoff_id": handoff_id,
@@ -473,6 +512,7 @@ def create_handoff(
                         workspace_root
                         / "editions"
                         / selected
+                        / ("analysis" if canonical_layout else "")
                         / "initialization"
                     ),
                     "required_files": [
@@ -674,25 +714,52 @@ def create_handoff(
         "status": HandoffStatus.READY_FOR_CODEX.value,
         "updated_at": task["created_at"],
     }
+    input_files = {
+        name: input_directory / name
+        for name in (
+            "task.json",
+            "prompt.md",
+            "metric_context.json",
+            "context_manifest.json",
+            "output_schema.json",
+        )
+    }
+    status_path = task_directory / "status.json"
+    result_path = output_directory / "result.json"
+    event_log_path = task_directory / "events.jsonl"
     for name, value in (
         ("task.json", task),
         ("prompt.md", prompt),
         ("metric_context.json", metric_context),
         ("context_manifest.json", context_manifest),
         ("output_schema.json", output_schema),
-        ("status.json", status_json),
-        ("result.json", {}),
     ):
         if isinstance(value, str):
-            (task_directory / name).write_text(value, encoding="utf-8")
+            input_files[name].write_text(value, encoding="utf-8")
         else:
-            _write_json(task_directory / name, value)
+            _write_json(input_files[name], value)
+    _write_json(status_path, status_json)
+    _write_json(result_path, {})
     context_manifest["file_hashes"] = {
-        name: sha256_file(task_directory / name)
+        name: sha256_file(input_files[name])
         for name in ("task.json", "prompt.md", "metric_context.json", "output_schema.json")
     }
-    _write_json(task_directory / "context_manifest.json", context_manifest)
-    (task_directory / "events.jsonl").write_text("", encoding="utf-8")
+    _write_json(input_files["context_manifest.json"], context_manifest)
+    event_log_path.write_text("", encoding="utf-8")
+    if canonical_layout:
+        _write_json(
+            task_directory / "manifest.json",
+            {
+                "operation_id": handoff_id,
+                "operation_kind": "WORKFLOW_HANDOFF",
+                "legacy_imported": False,
+                "book_id": book_id,
+                "edition_id": selected,
+                "input": {name: str(path) for name, path in input_files.items()},
+                "output": {"result": str(result_path)},
+                "created_at": task["created_at"],
+            },
+        )
     with database.connect() as connection:
         connection.execute(
             """
@@ -717,11 +784,11 @@ def create_handoff(
                 requested_stage,
                 HandoffStatus.READY_FOR_CODEX.value,
                 str(task_directory),
-                str(task_directory / "prompt.md"),
-                str(task_directory / "task.json"),
-                str(task_directory / "output_schema.json"),
-                str(task_directory / "result.json"),
-                str(task_directory / "events.jsonl"),
+                str(input_files["prompt.md"]),
+                str(input_files["task.json"]),
+                str(input_files["output_schema.json"]),
+                str(result_path),
+                str(event_log_path),
                 projection.through_event_seq,
                 projection.sha256(),
                 manifest_hash,
@@ -956,7 +1023,7 @@ def claim_handoff(database: Database, handoff_id: str, claimed_by: str) -> dict[
         if str(row["status"]) != HandoffStatus.READY_FOR_CODEX.value:
             raise HandoffWorkflowError(f"handoff 当前状态不可领取：{row['status']}")
         task_directory = Path(str(row["task_directory"]))
-        manifest_path = task_directory / "context_manifest.json"
+        manifest_path = _handoff_file(task_directory, "context_manifest.json")
         file_drift_reason: str | None = None
         if not manifest_path.is_file():
             file_drift_reason = "context_manifest.json 缺失"
@@ -969,7 +1036,7 @@ def claim_handoff(database: Database, handoff_id: str, claimed_by: str) -> dict[
                 if not isinstance(file_hashes, dict):
                     raise ValueError("context_manifest.json 的 file_hashes 必须是 object")
                 for relative_name, expected_hash in file_hashes.items():
-                    candidate = (task_directory / str(relative_name)).resolve()
+                    candidate = _handoff_file(task_directory, str(relative_name)).resolve()
                     if task_directory.resolve() not in candidate.parents:
                         file_drift_reason = f"handoff 文件路径漂移：{relative_name}"
                         break
@@ -1048,7 +1115,7 @@ def validate_handoff_result(
         if row is None:
             raise HandoffWorkflowError("handoff 不存在")
         task_directory = Path(str(row["task_directory"])).resolve()
-        task_path = task_directory / "task.json"
+        task_path = _handoff_file(task_directory, "task.json")
         if not task_path.is_file():
             raise HandoffWorkflowError("task.json 缺失")
         task = json.loads(task_path.read_text(encoding="utf-8"))
@@ -1272,7 +1339,7 @@ def update_handoff_status(
                     raise HandoffWorkflowError(
                         "handoff result 必须明确 canon_committed=false 且 edition_activated=false"
                     )
-                _write_json(task_directory / "result.json", result)
+                _write_json(_handoff_file(task_directory, "result.json"), result)
             if error_message:
                 _write_json(
                     task_directory / "error.json",

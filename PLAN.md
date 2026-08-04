@@ -1,11 +1,35 @@
-# 小说作者辅助与续写系统 V1 实施计划
+# 小说作者辅助与续写系统实施计划
 
-> 状态：V1 完成  
-> 最高规范：`Novel_Authoring_System_Constitution_V2.md`（Version 2.0）  
-> 运行模式：Codex 驱动的本地文件工作流；Python 不直接调用远程 LLM  
+> 历史基线：V1 已完成；当前增量为 Book Library & Repository Consolidation
+> 最高规范：`Novel_Authoring_System_Constitution_V2.md`（Version 2.0）
+> 运行模式：Codex 驱动的本地文件工作流；Python 不直接调用远程 LLM
 > 默认续写模式：`faithful_continuation`
 
-## 2026-08-04 增量审核计划
+## 当前状态：Book Library & Repository Consolidation（2026-08-04）
+
+### 已完成
+
+- 已完成 Git/security preflight；只在 `小说续写_codex` 工作，远程为
+  `https://github.com/happyivanencoding/thegreatnovel`，基线为
+  `b19454471fe5c79e2982d05b01e779047fb555fc`。
+- 已完成全量只读审计并生成 `docs/audits/BOOK_LIBRARY_AND_REPOSITORY_AUDIT.md`。
+- 已建立 `BookLayout`、registry、legacy migration、Operation Workspace、Portable
+  Snapshot、retention/cleanup 和 `/library` Web 入口。
+- 真实 `cable-survival-demo` 已迁移到 `library/cable-survival-demo`；旧 Temp 位置仍保留，
+  并写入 `_system/legacy_locations.json`。
+
+### 未完成 / 下一里程碑
+
+- 完成普通 wheel 重装后全量 pytest、Ruff、strict Mypy、CLI help 和 Web doctor。
+- 复核 `book/` SHA、迁移对账、Portable Snapshot manifest、旧位置引用和 Git diff。
+- 仅提交并推送当前分支；不创建 PR。完成后发送本任务结果邮件。
+
+### 质量门
+
+`book/` 永久只读；不改变指标算法、Atlas 证据、Canon 或批准边界；迁移默认不删除旧位置；
+cleanup/retention 只 dry-run 或经精确确认后移动到可恢复 archive；任何缺失证据保持 null。
+
+## 历史增量审核计划
 
 提示中的历史基线为 `b29d86b300dfdf493ebdfbf131a74c3390c6df35`；实际开始时 HEAD
 为其后的 `a3929b59b45f1c1de56ab9f6ccc6bc125e3178ca`（`feat: complete metrics and

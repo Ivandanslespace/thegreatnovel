@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from novel_authoring.atlas.service import AtlasError, get_atlas_overview
+from novel_authoring.atlas.service import AtlasError, atlas_root, get_atlas_overview
 from novel_authoring.db.database import Database
 from novel_authoring.initialization import latest_initialization
 
@@ -56,6 +56,16 @@ def public_atlas_overview(database: Database, book_id: str, edition_id: str) -> 
     overview["history"] = [_public_index(dict(item)) for item in overview.get("history", [])]
     overview.pop("actions", None)
     return overview
+
+
+def _scoped_artifact_root(
+    database: Database, book_id: str, edition_id: str, raw_root: object
+) -> Path:
+    base = atlas_root(database, book_id, edition_id).resolve()
+    candidate = Path(str(raw_root or "")).expanduser().resolve()
+    if candidate != base and base not in candidate.parents:
+        raise AtlasError("Atlas artifact_root 越出当前 book/edition")
+    return candidate
 
 
 def _filtered_graph(
@@ -191,7 +201,12 @@ def atlas_context(
     if overview.get("available"):
         raw_overview = get_atlas_overview(database, book_id, edition_id)
         index = raw_overview.get("index") or {}
-        artifact_root = Path(str(index.get("artifact_root") or ""))
+        try:
+            artifact_root = _scoped_artifact_root(
+                database, book_id, edition_id, index.get("artifact_root")
+            )
+        except (AtlasError, OSError, ValueError):
+            artifact_root = Path("__invalid_atlas_artifact_root__")
         if artifact_root.is_dir():
             for report in sorted((artifact_root / "reports").glob("*.md")):
                 try:

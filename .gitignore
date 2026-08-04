@@ -12,6 +12,12 @@ build/
 workspace/*/
 !workspace/.gitkeep
 
+# canonical Book Library：真实来源、运行数据库和导出均属于本机用户数据。
+# 只把入口说明和占位文件纳入版本库。
+library/*
+!library/.gitkeep
+!library/README.md
+
 # 原始小说与 inspirations 保持本地，不由本项目生成流程修改。
 book/*
 !book/.gitkeep

@@ -61,3 +61,20 @@
 - `C:\dev\小说续写系统\book`
 - `C:\dev\小说续写系统\AGENTS.md`
 - `C:\dev\小说续写系统\.codex\agents\luna-worker.toml`
+
+## 2026-08-04 Book Library & Repository Consolidation 审计基线
+
+- Git 预检：分支 `小说续写_codex`，HEAD `b19454471fe5c79e2982d05b01e779047fb555fc`，远程为 `https://github.com/happyivanencoding/thegreatnovel`；审计开始时仅有既存未跟踪 `audit/`，未执行清理。
+- 已确认 `book/` 仅含 `.gitkeep` 与真实正文 Markdown；正文 SHA-256 为 `95810246d1296163fc02320446060e78addd9fa5cba56bbdd1292634a099ee6e`，294 章，原文只读。
+- 已确认仓库 `workspace/real-book-smoke/` 为真实书 smoke 运行产物，含 294 章相关结果与约 11.6 MB SQLite，不视为可删除临时物。
+- 已确认 `audit/` 是项目级继续审计包（109 个文件、约 21.75 MB），不是 book 原文或正式书库目录；保留为历史审计用户数据。
+- 已发现 Temp 下至少 15 个名称含 novel/cable/real-book/snapshot 的候选目录；其中 `novel_real_book_demo_20260804` 含正式真实书演示数据库，必须迁移到 `library/cable-survival-demo` 后再处理旧位置。
+- 本阶段分类原则：没有目录在迁移前可安全直接 DELETE；旧任务结构优先 `MOVE`/`ARCHIVE`，可重建静态 SVG、缓存和临时导出才可在引用审计与保留策略通过后列为 `REGENERABLE`。
+
+## 2026-08-04 Book Library 实施收口
+
+- canonical layout 已落地：`library/<book_id>/{book.yaml,README.md,source,_system,editions}`；真实演示书 source SHA 保持 `95810246d1296163fc02320446060e78addd9fa5cba56bbdd1292634a099ee6e`。
+- 迁移后的 DB 路径已改写到 canonical root，`source_manifest.json` 也会在 atomic switch 后改写并同步 handoff manifest hash；旧 Temp source/workspace 不删除。
+- Operation Workspace 新 handoff 使用 `editions/<edition>/operations/<operation_id>/{manifest,status,events,input,output,artifacts,logs}`；旧 handoff 保留兼容读取并标记 `legacy_imported`。
+- Portable Snapshot 使用 JSON canonical 动态视图，章节分块写入 `data/chapters`；SVG 只保留 explicit export，`latest` 目录可直接打开且不使用 `fetch`。
+- cleanup/retention 仅对 `REGENERABLE`/`ARCHIVE` 候选生成 dry-run；apply 需要精确 confirmation，并移动到可恢复 `.archive`，不自动删除 archive/latest/source/Canon/DB。

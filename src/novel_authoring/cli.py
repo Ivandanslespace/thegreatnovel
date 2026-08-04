@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -106,6 +107,25 @@ from novel_authoring.rhythm.service import (
     show_features,
     show_latest_rhythm,
 )
+from novel_authoring.storage.cleanup import (
+    CleanupCandidate,
+    CleanupCategory,
+    apply_cleanup,
+    plan_cleanup,
+)
+from novel_authoring.storage.layout import BookLayout
+from novel_authoring.storage.migration import (
+    MigrationOptions,
+    cleanup_legacy,
+    migrate_legacy,
+)
+from novel_authoring.storage.registry import BookRegistry
+from novel_authoring.storage.retention import (
+    RetentionConfig,
+    apply_retention,
+    plan_retention,
+    retention_candidates,
+)
 from novel_authoring.utils import json_dumps, safe_book_id
 from novel_authoring.validation.service import ValidationWorkflowError, validate_draft
 from novel_authoring.workflows.approval import (
@@ -171,6 +191,7 @@ demo_app = typer.Typer(help="合成演示数据")
 segments_app = typer.Typer(help="effective edition 段落与证据")
 workflow_app = typer.Typer(help="Local File Handoff Protocol")
 web_app = typer.Typer(help="本地 Author Workbench（不启动 Codex 进程）")
+library_app = typer.Typer(help="Canonical Book Library 与 legacy 迁移")
 app.add_typer(source_app, name="source")
 app.add_typer(extract_app, name="extract")
 app.add_typer(boundary_app, name="boundary")
@@ -196,6 +217,7 @@ app.add_typer(segments_app, name="segments")
 app.add_typer(workflow_app, name="workflow")
 app.add_typer(workflow_app, name="handoff")
 app.add_typer(web_app, name="web")
+app.add_typer(library_app, name="library")
 
 # Keep the required book ID as a plain type.  Commands provide an explicit
 # ``typer.Option`` default so the project remains compatible with Typer 0.9;
@@ -204,9 +226,268 @@ app.add_typer(web_app, name="web")
 BookId = str
 Workspace = Annotated[Path, typer.Option("--workspace", help="workspace 根目录")]
 ConfigPath = Annotated[Optional[Path], typer.Option("--config", help="可选 YAML 覆盖配置")]
+LibraryRoot = Annotated[
+    Optional[Path], typer.Option("--library-root", help="书库根目录；默认项目根目录/library")
+]
 EditionId = Annotated[
     Optional[str], typer.Option("--edition-id", help="edition ID；默认当前 ACTIVE，否则 base")
 ]
+
+
+def _book_library(library_root: Path | None) -> tuple[BookLayout, BookRegistry]:
+    layout = BookLayout.default() if library_root is None else BookLayout(library_root)
+    return layout, BookRegistry(layout)
+
+
+def _cleanup_candidates(layout: BookLayout, book_id: str) -> list[CleanupCandidate]:
+    candidates = retention_candidates(layout, book_id=book_id)
+    paths = layout.for_book(book_id)
+    for edition_root in sorted(paths.editions.glob("*"), key=lambda item: item.name.casefold()):
+        if not edition_root.is_dir() or edition_root.is_symlink():
+            continue
+        for svg in sorted(edition_root.rglob("*.svg"), key=lambda item: item.as_posix().casefold()):
+            if svg.is_file() and not svg.is_symlink():
+                candidates.append(
+                    CleanupCandidate(
+                        path=svg,
+                        category=CleanupCategory.REGENERABLE,
+                        book_id=book_id,
+                        reason="SVG 是显式可重建导出，不是 Atlas required artifact",
+                        kind="svg_export",
+                    )
+                )
+    return candidates
+
+
+@library_app.command("list")
+def library_list_command(library_root: LibraryRoot = None) -> None:
+    """列出书库中已有 book.yaml 的书。"""
+
+    _layout, registry = _book_library(library_root)
+    _emit(
+        [
+            {
+                "book_id": record.book_id,
+                "title": record.title,
+                "root": str(record.root),
+                "source_files": list(record.source_files),
+                "active_edition_id": record.active_edition_id,
+                "readiness_status": record.readiness_status,
+                "legacy_locations": list(record.legacy_locations),
+            }
+            for record in registry.list()
+        ]
+    )
+
+
+@library_app.command("init")
+def library_init_command(
+    book_id: BookId = typer.Option(..., "--book-id"),
+    title: Optional[str] = typer.Option(None, "--title"),
+    library_root: LibraryRoot = None,
+) -> None:
+    """建立一本书的 canonical 目录和 book.yaml，不复制正文。"""
+
+    _layout, registry = _book_library(library_root)
+    record = registry.ensure(book_id, title=title)
+    _emit(
+        {
+            "book_id": record.book_id,
+            "root": str(record.root),
+            "book_yaml": str(record.root / "book.yaml"),
+            "readme": str(record.root / "README.md"),
+        }
+    )
+
+
+@library_app.command("import")
+def library_import_command(
+    source: Path = typer.Option(..., "--source", exists=True, file_okay=True, dir_okay=False),
+    book_id: BookId = typer.Option(..., "--book-id"),
+    title: Optional[str] = typer.Option(None, "--title"),
+    library_root: LibraryRoot = None,
+) -> None:
+    """导入一个新的只读来源文件到 canonical library。"""
+
+    source_path = source.expanduser().resolve()
+    _layout, registry = _book_library(library_root)
+    paths = _layout.ensure_book(book_id)
+    destination = paths.source / source_path.name
+    if destination.exists():
+        if destination.read_bytes() != source_path.read_bytes():
+            raise typer.BadParameter(f"目标来源已存在且内容不同: {destination}")
+    else:
+        shutil.copy2(source_path, destination)
+    record = registry.ensure(book_id, title=title, source_path=destination)
+    _emit(
+        {
+            "book_id": record.book_id,
+            "source": str(destination),
+            "source_read_only": True,
+            "sha256": record.source_files and registry.read(record.book_id).get("source", {}).get("sha256"),
+            "root": str(record.root),
+        }
+    )
+
+
+@library_app.command("paths")
+def library_paths_command(
+    book_id: BookId = typer.Option(..., "--book-id"),
+    edition_id: str = typer.Option("base", "--edition-id"),
+    operation_id: Optional[str] = typer.Option(None, "--operation-id"),
+    library_root: LibraryRoot = None,
+) -> None:
+    """输出一本书的 canonical path map，便于 Web/脚本复核。"""
+
+    layout, _registry = _book_library(library_root)
+    paths = layout.for_book(book_id)
+    edition = paths.edition(edition_id)
+    value: dict[str, object] = {
+        "layout_version": layout.layout_version,
+        "book_id": paths.book_id,
+        "root": str(paths.root),
+        "book_yaml": str(paths.book_yaml),
+        "readme": str(paths.readme),
+        "source": str(paths.source),
+        "system": str(paths.system),
+        "database": str(paths.database),
+        "source_manifest": str(paths.source_manifest),
+        "system_snapshots": str(paths.snapshots),
+        "system_logs": str(paths.logs),
+        "system_cache": str(paths.cache),
+        "system_temp": str(paths.temp),
+        "editions": str(paths.editions),
+        "edition": {
+            "edition_id": edition.edition_id,
+            "root": str(edition.root),
+            "analysis": str(edition.analysis),
+            "initialization": str(edition.initialization),
+            "atlas": str(edition.atlas),
+            "metrics": str(edition.metrics),
+            "rhythm": str(edition.rhythm),
+            "writing": str(edition.writing),
+            "drafts": str(edition.drafts),
+            "continuation": str(edition.continuation),
+            "revisions": str(edition.revisions),
+            "validation": str(edition.validation),
+            "boundaries": str(edition.boundaries),
+            "candidates": str(edition.candidates),
+            "contracts": str(edition.contracts),
+            "operations": str(edition.operations),
+            "batches": str(edition.batches),
+            "canon": str(edition.canon),
+            "exports": str(edition.exports),
+            "latest_export": str(edition.latest_export),
+            "archive_exports": str(edition.archive_exports),
+        },
+    }
+    if operation_id is not None:
+        operation = edition.operation(operation_id)
+        value["operation"] = {
+            "operation_id": operation.operation_id,
+            "root": str(operation.root),
+            "manifest": str(operation.manifest),
+            "status": str(operation.status),
+            "events": str(operation.events),
+            "input": str(operation.input),
+            "output": str(operation.output),
+            "artifacts": str(operation.artifacts),
+            "logs": str(operation.logs),
+        }
+    _emit(value)
+
+
+@library_app.command("migrate-legacy")
+def library_migrate_legacy_command(
+    book_id: BookId = typer.Option(..., "--book-id"),
+    source_root: Path = typer.Option(..., "--source-root"),
+    workspace_root: Path = typer.Option(..., "--workspace-root"),
+    library_root: LibraryRoot = None,
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+) -> None:
+    """迁移旧书库到 canonical library；默认只生成 dry-run 计划。"""
+
+    result = migrate_legacy(
+        MigrationOptions(
+            book_id=book_id,
+            source_root=source_root,
+            workspace_root=workspace_root,
+            library_root=library_root,
+            apply=not dry_run,
+        )
+    )
+    _emit(result.to_dict())
+
+
+@library_app.command("cleanup-legacy")
+def library_cleanup_legacy_command(
+    book_id: BookId = typer.Option(..., "--book-id"),
+    library_root: LibraryRoot = None,
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+    confirmation: Optional[str] = typer.Option(None, "--confirmation", "--confirm"),
+) -> None:
+    """按 legacy_locations.json 生成报告，apply 时只移动到可恢复 archive。"""
+
+    try:
+        _emit(
+            cleanup_legacy(
+                BookLayout.default() if library_root is None else BookLayout(library_root),
+                book_id,
+                apply=not dry_run,
+                confirmation=confirmation,
+            )
+        )
+    except (ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@library_app.command("retention")
+def library_retention_command(
+    library_root: LibraryRoot = None,
+    book_id: Optional[str] = typer.Option(None, "--book-id"),
+    keep: int = typer.Option(3, "--keep", min=0),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+    confirmation: Optional[str] = typer.Option(None, "--confirmation", "--confirm"),
+) -> None:
+    """规划或安全归档超出保留数的 normal Portable Snapshot。"""
+
+    try:
+        report = plan_retention(
+            BookLayout.default() if library_root is None else BookLayout(library_root),
+            config=RetentionConfig(normal_portable_exports=keep),
+            book_id=book_id,
+        )
+        _emit(
+            report
+            if dry_run
+            else apply_retention(report, confirmation or "")
+        )
+    except (ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@library_app.command("cleanup")
+def library_cleanup_command(
+    book_id: BookId = typer.Option(..., "--book-id"),
+    library_root: LibraryRoot = None,
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+    confirmation: Optional[str] = typer.Option(None, "--confirmation", "--confirm"),
+) -> None:
+    """只规划或安全归档可重建导出；source/DB/Canon 永远不在候选中。"""
+
+    try:
+        layout = BookLayout.default() if library_root is None else BookLayout(library_root)
+        report = plan_cleanup(
+            layout,
+            candidates=_cleanup_candidates(layout, book_id),
+            book_id=book_id,
+        )
+        _emit(report if dry_run else apply_cleanup(report, confirmation or ""))
+    except (ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
 
 
 def _emit(value: object) -> None:
@@ -1615,7 +1896,13 @@ def segments_show_command(
     _emit(list_segments(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), book_id, edition_id=edition_id, chapter_id=chapter_id))
 
 
-def _book_database(workspace: Path, book_id: str) -> Database:
+def _book_database(
+    workspace: Path,
+    book_id: str,
+    library_root: Path | None = None,
+) -> Database:
+    if library_root is not None:
+        return Database(BookLayout(library_root).for_book(book_id).database)
     return Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
 
 
@@ -1624,9 +1911,10 @@ def atlas_show_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     try:
-        database = _book_database(workspace, book_id)
+        database = _book_database(workspace, book_id, library_root)
         selected = edition_id or "base"
         _emit(get_atlas_overview(database, book_id, selected))
     except (AtlasError, ValueError, OSError) as exc:
@@ -1641,12 +1929,13 @@ def atlas_register_command(
     edition_id: EditionId = None,
     artifact_root: Annotated[Optional[Path], typer.Option("--artifact-root")] = None,
     allow_gaps: bool = typer.Option(True, "--allow-gaps/--require-ready"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """验证并登记一个不可变 Story Atlas 版本；不会写入 Canon。"""
     try:
         _emit(
             register_atlas(
-                _book_database(workspace, book_id),
+                _book_database(workspace, book_id, library_root),
                 book_id,
                 edition_id or "base",
                 root=artifact_root,
@@ -1663,9 +1952,12 @@ def atlas_validate_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     try:
-        result = validate_atlas(_book_database(workspace, book_id), book_id, edition_id or "base")
+        result = validate_atlas(
+            _book_database(workspace, book_id, library_root), book_id, edition_id or "base"
+        )
         _emit(result.model_dump(mode="json"))
         if not result.ok:
             raise typer.Exit(code=3)
@@ -1680,10 +1972,11 @@ def atlas_render_command(
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
     artifact_root: Annotated[Optional[Path], typer.Option("--artifact-root")] = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     """离线渲染七张 SVG Atlas 图；不使用网络或图片 API。"""
     try:
-        database = _book_database(workspace, book_id)
+        database = _book_database(workspace, book_id, library_root)
         root = (artifact_root or atlas_root(database, book_id, edition_id or "base")).resolve()
         _emit({"artifact_root": str(root), "visuals": render_atlas_visuals(root)})
     except (AtlasError, ValueError, OSError) as exc:
@@ -1697,9 +1990,10 @@ def atlas_visuals_command(
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
     artifact_root: Annotated[Optional[Path], typer.Option("--artifact-root")] = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     """render 的明确别名。"""
-    atlas_render_command(book_id, workspace, edition_id, artifact_root)
+    atlas_render_command(book_id, workspace, edition_id, artifact_root, library_root)
 
 
 @atlas_app.command("export-snapshot")
@@ -1708,12 +2002,13 @@ def atlas_export_snapshot_command(
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
     output_root: Annotated[Optional[Path], typer.Option("--output-root")] = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     """导出无需服务器、可直接打开的本地 HTML 作者工作台。"""
     try:
         _emit(
             export_snapshot(
-                _book_database(workspace, book_id),
+                _book_database(workspace, book_id, library_root),
                 book_id,
                 edition_id=edition_id,
                 output_root=output_root,
@@ -1729,13 +2024,14 @@ def initialize_create_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
     char_limit: int = typer.Option(80_000, "--char-limit"),
     max_chapters_per_arc: int = typer.Option(20, "--max-chapters-per-arc"),
 ) -> None:
     try:
         _emit(
             create_initialization(
-                _book_database(workspace, book_id),
+                _book_database(workspace, book_id, library_root),
                 book_id,
                 edition_id=edition_id,
                 char_limit=char_limit,
@@ -1752,12 +2048,13 @@ def initialize_status_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
     initialization_id: Annotated[Optional[str], typer.Option("--initialization-id")] = None,
 ) -> None:
     try:
         _emit(
             latest_initialization(
-                _book_database(workspace, book_id),
+                _book_database(workspace, book_id, library_root),
                 book_id,
                 edition_id,
                 initialization_id,
@@ -1773,12 +2070,13 @@ def initialize_refresh_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
     initialization_id: Annotated[Optional[str], typer.Option("--initialization-id")] = None,
 ) -> None:
     try:
         _emit(
             refresh_initialization(
-                _book_database(workspace, book_id),
+                _book_database(workspace, book_id, library_root),
                 book_id,
                 edition_id=edition_id,
                 initialization_id=initialization_id,
@@ -1794,6 +2092,7 @@ def initialize_metrics_prepare_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
     initialization_id: str = typer.Option(..., "--initialization-id"),
     recent_detailed_window: int = typer.Option(50, "--recent-detailed-window"),
 ) -> None:
@@ -1801,7 +2100,7 @@ def initialize_metrics_prepare_command(
     try:
         _emit(
             prepare_metric_bootstrap(
-                _book_database(workspace, book_id),
+                _book_database(workspace, book_id, library_root),
                 book_id,
                 edition_id=edition_id,
                 initialization_id=initialization_id,
@@ -1818,6 +2117,7 @@ def initialize_metrics_import_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
     initialization_id: str = typer.Option(..., "--initialization-id"),
     input_path: Annotated[Optional[Path], typer.Option("--input")] = None,
 ) -> None:
@@ -1825,7 +2125,7 @@ def initialize_metrics_import_command(
     try:
         _emit(
             import_metric_bootstrap(
-                _book_database(workspace, book_id),
+                _book_database(workspace, book_id, library_root),
                 book_id,
                 edition_id=edition_id,
                 initialization_id=initialization_id,
@@ -1842,13 +2142,14 @@ def initialize_metrics_status_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
     initialization_id: str = typer.Option(..., "--initialization-id"),
 ) -> None:
     """审计 Manifest、Import Report、Observation、Evidence 和最新 Metric Run。"""
     try:
         _emit(
             metric_bootstrap_status(
-                _book_database(workspace, book_id),
+                _book_database(workspace, book_id, library_root),
                 book_id,
                 edition_id=edition_id,
                 initialization_id=initialization_id,
@@ -1864,13 +2165,14 @@ def initialize_metrics_rebuild_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
     initialization_id: str = typer.Option(..., "--initialization-id"),
 ) -> None:
     """从当前初始化 Observation Ledger 重建章节 Metric Run。"""
     try:
         _emit(
             rebuild_initialization_metric_runs(
-                _book_database(workspace, book_id),
+                _book_database(workspace, book_id, library_root),
                 book_id,
                 edition_id=edition_id,
                 initialization_id=initialization_id,
@@ -1886,8 +2188,13 @@ def atlas_history_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
-    _emit(list_atlas_history(_book_database(workspace, book_id), book_id, edition_id or "base"))
+    _emit(
+        list_atlas_history(
+            _book_database(workspace, book_id, library_root), book_id, edition_id or "base"
+        )
+    )
 
 
 @atlas_app.command("action")
@@ -1898,6 +2205,7 @@ def atlas_action_command(
     payload_json: str = typer.Option("{}", "--payload-json"),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     try:
         payload = json.loads(payload_json)
@@ -1906,7 +2214,10 @@ def atlas_action_command(
         )
         _emit(
             record_atlas_action(
-                _book_database(workspace, book_id), book_id, edition_id or "base", action
+                _book_database(workspace, book_id, library_root),
+                book_id,
+                edition_id or "base",
+                action,
             )
         )
     except (AtlasError, ValueError, OSError, json.JSONDecodeError) as exc:
@@ -1946,8 +2257,9 @@ def batch_show_command(
     batch_id: str = typer.Option(..., "--batch-id"),
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
-    database = _book_database(workspace, book_id)
+    database = _book_database(workspace, book_id, library_root)
     _emit({"projection": get_batch_projection(database, batch_id).model_dump(mode="json"), "plan": get_batch_plan(database, batch_id).model_dump(mode="json")})
 
 
@@ -1957,8 +2269,13 @@ def batch_chunk_context_command(
     chunk_order: int = typer.Option(..., "--chunk-order"),
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
-    _emit(get_chunk_context(_book_database(workspace, book_id), batch_id, chunk_order))
+    _emit(
+        get_chunk_context(
+            _book_database(workspace, book_id, library_root), batch_id, chunk_order
+        )
+    )
 
 
 @batch_app.command("complete-chunk")
@@ -1968,6 +2285,7 @@ def batch_complete_chunk_command(
     provisional_state_file: Path = typer.Option(..., "--provisional-state-file"),
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
     validator_summary_file: Optional[Path] = typer.Option(None, "--validator-summary-file"),
     atlas_refresh_required: bool = typer.Option(False, "--atlas-refresh-required"),
 ) -> None:
@@ -1980,7 +2298,7 @@ def batch_complete_chunk_command(
         )
         _emit(
             complete_chunk(
-                _book_database(workspace, book_id),
+                _book_database(workspace, book_id, library_root),
                 batch_id,
                 chunk_order,
                 provisional_state=state,
@@ -1998,17 +2316,19 @@ def batch_checkpoint_command(
     batch_id: str = typer.Option(..., "--batch-id"),
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
-    _emit(create_checkpoint(_book_database(workspace, book_id), batch_id))
+    _emit(create_checkpoint(_book_database(workspace, book_id, library_root), batch_id))
 
 
 @workflow_app.command("continuation")
 def workflow_continuation_command(
     book_id: BookId = typer.Option(...), requested_stage: str = typer.Option("DRAFT_AND_VALIDATE", "--stage"),
     workspace: Workspace = Path("workspace"), edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     try:
-        _emit(create_continuation_handoff(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), book_id, edition_id=edition_id, requested_stage=requested_stage))
+        _emit(create_continuation_handoff(_book_database(workspace, book_id, library_root), book_id, edition_id=edition_id, requested_stage=requested_stage))
     except (HandoffWorkflowError, ValueError, OSError) as exc:
         typer.echo(str(exc), err=True); raise typer.Exit(code=3) from exc
 
@@ -2017,9 +2337,10 @@ def workflow_continuation_command(
 def workflow_revision_command(
     book_id: BookId = typer.Option(...), requested_stage: str = typer.Option("DRAFT_SELECTED_UNITS", "--stage"),
     workspace: Workspace = Path("workspace"), edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     try:
-        _emit(create_revision_handoff(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), book_id, edition_id=edition_id, requested_stage=requested_stage))
+        _emit(create_revision_handoff(_book_database(workspace, book_id, library_root), book_id, edition_id=edition_id, requested_stage=requested_stage))
     except (HandoffWorkflowError, ValueError, OSError) as exc:
         typer.echo(str(exc), err=True); raise typer.Exit(code=3) from exc
 
@@ -2051,12 +2372,13 @@ def workflow_initialize_command(
     requested_stage: str = typer.Option("NOVEL_INITIALIZATION", "--stage"),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     """创建已有长篇 Atlas-first 初始化 handoff，不预先创建 Planning Aggregate。"""
     try:
         _emit(
             create_initialization_handoff(
-                _book_database(workspace, book_id),
+                _book_database(workspace, book_id, library_root),
                 book_id,
                 requested_stage=requested_stage,
                 edition_id=edition_id,
@@ -2073,11 +2395,12 @@ def workflow_atlas_refresh_command(
     requested_stage: str = typer.Option("ATLAS_REFRESH", "--stage"),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     try:
         _emit(
             create_story_atlas_handoff(
-                Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"),
+                _book_database(workspace, book_id, library_root),
                 book_id,
                 handoff_type=HandoffType.STORY_ATLAS_REFRESH,
                 requested_stage=requested_stage,
@@ -2095,11 +2418,12 @@ def workflow_world_model_review_command(
     requested_stage: str = typer.Option("WORLD_MODEL_REVIEW", "--stage"),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     try:
         _emit(
             create_story_atlas_handoff(
-                Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"),
+                _book_database(workspace, book_id, library_root),
                 book_id,
                 handoff_type=HandoffType.WORLD_MODEL_REVIEW,
                 requested_stage=requested_stage,
@@ -2118,11 +2442,12 @@ def workflow_batch_command(
     requested_stage: str = typer.Option("BATCH_CONTINUATION", "--stage"),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     try:
         _emit(
             create_batch_continuation_handoff(
-                Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"),
+                _book_database(workspace, book_id, library_root),
                 book_id,
                 batch_id=batch_id,
                 requested_stage=requested_stage,
@@ -2135,15 +2460,21 @@ def workflow_batch_command(
 
 
 @workflow_app.command("show")
-def workflow_show_command(handoff_id: str = typer.Option(..., "--handoff-id"), workspace: Workspace = Path("workspace"), book_id: BookId = typer.Option(...)) -> None:
-    _emit(get_handoff(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), handoff_id))
+def workflow_show_command(
+    handoff_id: str = typer.Option(..., "--handoff-id"),
+    workspace: Workspace = Path("workspace"),
+    book_id: BookId = typer.Option(...),
+    library_root: LibraryRoot = None,
+) -> None:
+    _emit(get_handoff(_book_database(workspace, book_id, library_root), handoff_id))
 
 
 @workflow_app.command("jobs")
 def workflow_handoffs_command(
     book_id: BookId = typer.Option(...), workspace: Workspace = Path("workspace"), edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     database.initialize()
     with database.connect() as connection:
         sql = "SELECT * FROM workflow_handoffs WHERE book_id=?"
@@ -2159,24 +2490,41 @@ def workflow_list_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     """jobs 的明确命名别名。"""
-    workflow_handoffs_command(book_id, workspace, edition_id)
+    workflow_handoffs_command(book_id, workspace, edition_id, library_root)
 
 
 @workflow_app.command("claim")
-def workflow_claim_command(handoff_id: str = typer.Option(..., "--handoff-id"), claimed_by: str = typer.Option(..., "--claimed-by"), workspace: Workspace = Path("workspace"), book_id: BookId = typer.Option(...)) -> None:
-    _emit(claim_handoff(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), handoff_id, claimed_by))
+def workflow_claim_command(
+    handoff_id: str = typer.Option(..., "--handoff-id"),
+    claimed_by: str = typer.Option(..., "--claimed-by"),
+    workspace: Workspace = Path("workspace"),
+    book_id: BookId = typer.Option(...),
+    library_root: LibraryRoot = None,
+) -> None:
+    _emit(claim_handoff(_book_database(workspace, book_id, library_root), handoff_id, claimed_by))
 
 
 @workflow_app.command("cancel")
-def workflow_cancel_command(handoff_id: str = typer.Option(..., "--handoff-id"), workspace: Workspace = Path("workspace"), book_id: BookId = typer.Option(...)) -> None:
-    _emit(cancel_handoff(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), handoff_id))
+def workflow_cancel_command(
+    handoff_id: str = typer.Option(..., "--handoff-id"),
+    workspace: Workspace = Path("workspace"),
+    book_id: BookId = typer.Option(...),
+    library_root: LibraryRoot = None,
+) -> None:
+    _emit(cancel_handoff(_book_database(workspace, book_id, library_root), handoff_id))
 
 
 @workflow_app.command("stale")
-def workflow_stale_command(handoff_id: str = typer.Option(..., "--handoff-id"), workspace: Workspace = Path("workspace"), book_id: BookId = typer.Option(...)) -> None:
-    _emit(mark_stale(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), handoff_id))
+def workflow_stale_command(
+    handoff_id: str = typer.Option(..., "--handoff-id"),
+    workspace: Workspace = Path("workspace"),
+    book_id: BookId = typer.Option(...),
+    library_root: LibraryRoot = None,
+) -> None:
+    _emit(mark_stale(_book_database(workspace, book_id, library_root), handoff_id))
 
 
 @workflow_app.command("mark-stale")
@@ -2184,8 +2532,9 @@ def workflow_mark_stale_command(
     handoff_id: str = typer.Option(..., "--handoff-id"),
     workspace: Workspace = Path("workspace"),
     book_id: BookId = typer.Option(...),
+    library_root: LibraryRoot = None,
 ) -> None:
-    workflow_stale_command(handoff_id, workspace, book_id)
+    workflow_stale_command(handoff_id, workspace, book_id, library_root)
 
 
 @workflow_app.command("validate-result")
@@ -2193,11 +2542,12 @@ def workflow_validate_result_command(
     handoff_id: str = typer.Option(..., "--handoff-id"),
     workspace: Workspace = Path("workspace"),
     book_id: BookId = typer.Option(...),
+    library_root: LibraryRoot = None,
 ) -> None:
     try:
         _emit(
             validate_result_file(
-                Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"),
+                _book_database(workspace, book_id, library_root),
                 handoff_id,
             )
         )
@@ -2207,8 +2557,22 @@ def workflow_validate_result_command(
 
 
 @workflow_app.command("update")
-def workflow_update_command(handoff_id: str = typer.Option(..., "--handoff-id"), status: HandoffStatus = typer.Option(..., "--status"), claim_token: str = typer.Option(..., "--claim-token"), workspace: Workspace = Path("workspace"), book_id: BookId = typer.Option(...)) -> None:
-    _emit(update_handoff_status(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), handoff_id, status, claim_token=claim_token))
+def workflow_update_command(
+    handoff_id: str = typer.Option(..., "--handoff-id"),
+    status: HandoffStatus = typer.Option(..., "--status"),
+    claim_token: str = typer.Option(..., "--claim-token"),
+    workspace: Workspace = Path("workspace"),
+    book_id: BookId = typer.Option(...),
+    library_root: LibraryRoot = None,
+) -> None:
+    _emit(
+        update_handoff_status(
+            _book_database(workspace, book_id, library_root),
+            handoff_id,
+            status,
+            claim_token=claim_token,
+        )
+    )
 
 
 @web_app.command("doctor")
@@ -2240,11 +2604,19 @@ def web_serve_command(
     book_id: BookId = typer.Option(...), workspace: Workspace = Path("workspace"),
     host: str = typer.Option("127.0.0.1", "--host"), port: int = typer.Option(8765, "--port"),
     allow_remote: bool = typer.Option(False, "--allow-remote"),
+    library_root: LibraryRoot = None,
 ) -> None:
     try:
         from novel_authoring.web.app import serve
 
-        serve(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), host=host, port=port, allow_remote=allow_remote, book_id=book_id)
+        serve(
+            _book_database(workspace, book_id, library_root),
+            host=host,
+            port=port,
+            allow_remote=allow_remote,
+            book_id=book_id,
+            library_root=library_root,
+        )
     except (ValueError, RuntimeError, OSError) as exc:
         typer.echo(str(exc), err=True); raise typer.Exit(code=3) from exc
 

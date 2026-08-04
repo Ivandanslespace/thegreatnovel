@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>路径地图 · {{ paths.book_id }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+  <style>
+    .path-table { width: 100%; }
+    .path-table td:first-child { width: 13rem; white-space: nowrap; }
+    .path-table code { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/library">小说书库</a>
+    <span class="muted">Canonical Path Map · {{ paths.book_id }}</span>
+    <button class="theme-toggle" type="button" data-theme-toggle>主题</button>
+  </header>
+  <main class="shell">
+    <section class="page-heading">
+      <div><p class="eyebrow">BookLayout</p><h1>{{ paths.book_id }}</h1><p class="muted">所有运行产物应通过这张路径地图定位。</p></div>
+      <div class="actions"><a class="button" href="/library">返回书库</a><a class="button" href="/library/{{ paths.book_id }}/export/latest/">latest export</a></div>
+    </section>
+    <section class="panel">
+      <table class="path-table"><tbody>
+        <tr><td>layout_version</td><td><code>{{ paths.layout_version }}</code></td></tr>
+        <tr><td>root</td><td><code>{{ paths.root }}</code></td></tr>
+        <tr><td>book.yaml</td><td><code>{{ paths.book_yaml }}</code></td></tr>
+        <tr><td>README.md</td><td><code>{{ paths.readme }}</code></td></tr>
+        <tr><td>source（只读）</td><td><code>{{ paths.source }}</code></td></tr>
+        <tr><td>_system / DB</td><td><code>{{ paths.system }}</code><br><code>{{ paths.database }}</code><br><code>{{ paths.source_manifest }}</code><br><code>{{ paths.system_snapshots }}</code><br><code>{{ paths.system_logs }}</code><br><code>{{ paths.system_cache }}</code><br><code>{{ paths.system_temp }}</code></td></tr>
+        <tr><td>edition root</td><td><code>{{ paths.edition.root }}</code></td></tr>
+        <tr><td>analysis</td><td><code>{{ paths.edition.analysis }}</code><br><code>{{ paths.edition.initialization }}</code><br><code>{{ paths.edition.atlas }}</code><br><code>{{ paths.edition.metrics }}</code><br><code>{{ paths.edition.rhythm }}</code></td></tr>
+        <tr><td>writing</td><td><code>{{ paths.edition.writing }}</code><br><code>{{ paths.edition.drafts }}</code><br><code>{{ paths.edition.continuation }}</code><br><code>{{ paths.edition.revisions }}</code><br><code>{{ paths.edition.validation }}</code><br><code>{{ paths.edition.boundaries }}</code><br><code>{{ paths.edition.candidates }}</code><br><code>{{ paths.edition.contracts }}</code></td></tr>
+        <tr><td>operations</td><td><code>{{ paths.edition.operations }}</code></td></tr>
+        <tr><td>batches</td><td><code>{{ paths.edition.batches }}</code></td></tr>
+        <tr><td>canon</td><td><code>{{ paths.edition.canon }}</code></td></tr>
+        <tr><td>exports/latest</td><td><code>{{ paths.edition.latest_export }}</code></td></tr>
+        <tr><td>exports/archive</td><td><code>{{ paths.edition.archive_exports }}</code></td></tr>
+      </tbody></table>
+    </section>
+  </main>
+  <script src="{{ url_for('static', path='app.js') }}" defer></script>
+</body>
+</html>

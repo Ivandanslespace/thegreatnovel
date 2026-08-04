@@ -2,24 +2,36 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 from typing import Any, cast
 
 try:  # Optional dependency: CLI/core remains usable without the web extra.
     from fastapi import FastAPI, HTTPException, Request
-    from fastapi.responses import HTMLResponse, JSONResponse, Response
+    from fastapi.responses import (
+        FileResponse,
+        HTMLResponse,
+        JSONResponse,
+        RedirectResponse,
+        Response,
+    )
     from fastapi.staticfiles import StaticFiles
     from fastapi.templating import Jinja2Templates
 except ImportError:  # pragma: no cover - exercised only without web extras
     FastAPI = None  # type: ignore[misc, assignment]
     HTTPException = Exception  # type: ignore[misc, assignment]
     Request = Any  # type: ignore[misc, assignment]
-    HTMLResponse = JSONResponse = Response = Any  # type: ignore[misc, assignment]
+    FileResponse = HTMLResponse = JSONResponse = RedirectResponse = Response = Any  # type: ignore[misc, assignment]
     StaticFiles = None  # type: ignore[misc, assignment]
     Jinja2Templates = None  # type: ignore[misc, assignment]
 
 from novel_authoring.atlas.models import AtlasAction
-from novel_authoring.atlas.service import AtlasError, get_atlas_overview, record_atlas_action
+from novel_authoring.atlas.service import (
+    AtlasError,
+    atlas_root,
+    get_atlas_overview,
+    record_atlas_action,
+)
 from novel_authoring.db.database import Database
 from novel_authoring.edition import edition_chapters, list_editions
 from novel_authoring.initialization import InitializationError, latest_initialization
@@ -32,6 +44,9 @@ from novel_authoring.metrics.service import (
     MetricValidationError,
     ObservationResolver,
 )
+from novel_authoring.storage.layout import BookLayout
+from novel_authoring.storage.registry import BookRegistry
+from novel_authoring.utils import sha256_file
 from novel_authoring.web.dependencies import create_csrf_token, verify_csrf
 from novel_authoring.web.routes.atlas import (
     GRAPH_TYPES,
@@ -96,12 +111,139 @@ def _template(templates: Any, name: str, request: Request, context: dict[str, An
     return templates.TemplateResponse(request=request, name=name, context=context)
 
 
-def create_app(database: Database, *, book_id: str | None = None) -> Any:
+def _library_root_for_database(database: Database, explicit: Path | None) -> Path | None:
+    if explicit is not None:
+        return Path(explicit).expanduser().resolve()
+    try:
+        value = database.scalar("SELECT workspace_root FROM books LIMIT 1")
+    except (OSError, RuntimeError):
+        return None
+    if value is None:
+        return None
+    book_root = Path(str(value)).expanduser().resolve()
+    return book_root.parent if (book_root / "book.yaml").is_file() else None
+
+
+def _library_payload(layout: BookLayout, registry: BookRegistry) -> list[dict[str, Any]]:
+    records = registry.list()
+    payload: list[dict[str, Any]] = []
+    for record in records:
+        latest = layout.for_book(record.book_id).edition(record.active_edition_id).latest_export
+        payload.append(
+            {
+                "book_id": record.book_id,
+                "title": record.title,
+                "root": str(record.root),
+                "source_root": str(record.source_root),
+                "source_files": list(record.source_files),
+                "active_edition_id": record.active_edition_id,
+                "readiness_status": record.readiness_status,
+                "legacy_locations": list(record.legacy_locations),
+                "latest_export": str(latest),
+                "latest_export_available": (latest / "index.html").is_file(),
+            }
+        )
+    return payload
+
+
+def _library_paths_payload(
+    layout: BookLayout, book_id: str, edition_id: str = "base"
+) -> dict[str, Any]:
+    paths = layout.for_book(book_id)
+    edition = paths.edition(edition_id)
+    return {
+        "layout_version": layout.layout_version,
+        "book_id": paths.book_id,
+        "root": str(paths.root),
+        "book_yaml": str(paths.book_yaml),
+        "readme": str(paths.readme),
+        "source": str(paths.source),
+        "system": str(paths.system),
+        "database": str(paths.database),
+        "source_manifest": str(paths.source_manifest),
+        "system_snapshots": str(paths.snapshots),
+        "system_logs": str(paths.logs),
+        "system_cache": str(paths.cache),
+        "system_temp": str(paths.temp),
+        "edition": {
+            "edition_id": edition.edition_id,
+            "root": str(edition.root),
+            "analysis": str(edition.analysis),
+            "initialization": str(edition.initialization),
+            "atlas": str(edition.atlas),
+            "metrics": str(edition.metrics),
+            "rhythm": str(edition.rhythm),
+            "writing": str(edition.writing),
+            "drafts": str(edition.drafts),
+            "continuation": str(edition.continuation),
+            "revisions": str(edition.revisions),
+            "validation": str(edition.validation),
+            "boundaries": str(edition.boundaries),
+            "candidates": str(edition.candidates),
+            "contracts": str(edition.contracts),
+            "operations": str(edition.operations),
+            "batches": str(edition.batches),
+            "canon": str(edition.canon),
+            "exports": str(edition.exports),
+            "latest_export": str(edition.latest_export),
+            "archive_exports": str(edition.archive_exports),
+        },
+    }
+
+
+def _copy_import_source(source: Path, destination: Path) -> tuple[list[str], dict[str, Any]]:
+    """Copy a new source into ``source/`` without following symlinks."""
+
+    source = source.expanduser().resolve()
+    if source.is_symlink():
+        raise ValueError("导入来源不能是 symlink/reparse point")
+    if not source.is_file() and not source.is_dir():
+        raise ValueError(f"导入来源必须是文件或目录: {source}")
+    destination.mkdir(parents=True, exist_ok=True)
+    source_files: list[str] = []
+    if source.is_file():
+        target = destination / source.name
+        if target.exists():
+            raise ValueError(f"目标来源已存在: {target}")
+        shutil.copy2(source, target)
+        source_files.append(source.name)
+        return source_files, {
+            "root": "source",
+            "files": source_files,
+            "sha256": sha256_file(target),
+            "byte_size": target.stat().st_size,
+        }
+
+    for current in sorted(source.rglob("*"), key=lambda item: item.as_posix().casefold()):
+        if current.is_symlink():
+            raise ValueError(f"导入来源包含 symlink/reparse point: {current}")
+        relative = current.relative_to(source)
+        target = destination / relative
+        if current.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        if not current.is_file():
+            raise ValueError(f"导入来源包含不支持的文件: {current}")
+        if target.exists():
+            raise ValueError(f"目标来源已存在: {target}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(current, target)
+        source_files.append(relative.as_posix())
+    return source_files, {"root": "source", "files": source_files}
+
+
+def create_app(
+    database: Database,
+    *,
+    book_id: str | None = None,
+    library_root: Path | None = None,
+) -> Any:
     if FastAPI is None or Jinja2Templates is None:
         raise RuntimeError("Web 功能需要安装可选依赖：pip install '.[web]'")
     app = FastAPI(title="Author Workbench", docs_url="/api/docs")
     app.state.database = database
     app.state.book_id = book_id
+    app.state.library_root = _library_root_for_database(database, library_root)
     app.state.csrf_token = create_csrf_token()
     template_dir = Path(__file__).parent / "templates"
     templates = Jinja2Templates(directory=str(template_dir))
@@ -129,6 +271,135 @@ def create_app(database: Database, *, book_id: str | None = None) -> Any:
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok", "executor": "Windows Codex desktop client via local file handoff"}
+
+    @app.get("/api/library")
+    async def library_api() -> dict[str, Any]:
+        root = app.state.library_root
+        if root is None:
+            return {"library_root": None, "books": []}
+        layout = BookLayout(root)
+        return {
+            "library_root": str(layout.library_root),
+            "books": _library_payload(layout, BookRegistry(layout)),
+        }
+
+    @app.get("/api/library/{path_book_id}/paths")
+    async def library_paths_api(path_book_id: str) -> dict[str, Any]:
+        root = app.state.library_root
+        if root is None:
+            raise HTTPException(status_code=404, detail="library 未配置")
+        return _library_paths_payload(BookLayout(root), _check_id(path_book_id))
+
+    @app.post("/api/library/import")
+    async def library_import_api(request: Request) -> Any:
+        verify_csrf(request, request.headers.get("X-CSRF-Token"))
+        root = app.state.library_root
+        if root is None:
+            raise HTTPException(status_code=400, detail="library 未配置")
+        try:
+            payload = await request.json()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="请求必须是 JSON") from exc
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="请求 JSON 必须是 object")
+        book_id = _check_id(str(payload.get("book_id") or ""))
+        source_value = payload.get("source_path")
+        if not isinstance(source_value, str) or not source_value.strip():
+            raise HTTPException(status_code=400, detail="需要 source_path")
+        source = Path(source_value).expanduser().resolve()
+        layout = BookLayout(root)
+        paths = layout.for_book(book_id)
+        if paths.root.exists() and any(paths.root.iterdir()):
+            raise HTTPException(status_code=409, detail="目标书籍已存在；新导入不会覆盖既有书籍")
+        if source == paths.root or paths.root in source.parents:
+            raise HTTPException(status_code=400, detail="导入来源不能位于目标书籍目录内")
+        try:
+            source_files, source_metadata = _copy_import_source(source, paths.source)
+            registry = BookRegistry(layout)
+            record = registry.ensure(
+                book_id,
+                title=str(payload.get("title") or book_id),
+                readiness_status="IMPORTED",
+            )
+            values = registry.read(book_id)
+            source_metadata["files"] = source_files
+            values["source"] = source_metadata
+            values["source_files"] = source_files
+            values["imported_at"] = values.get("updated_at")
+            registry.write(paths, values)
+            registry.write_readme(paths, values)
+            return {
+                "book_id": record.book_id,
+                "title": values["title"],
+                "root": str(paths.root),
+                "source": str(paths.source),
+                "source_files": source_files,
+                "source_read_only": True,
+                "readiness_status": values.get("readiness_status"),
+            }
+        except (OSError, ValueError) as exc:
+            return _error(exc)
+
+    @app.get("/library", response_class=HTMLResponse)
+    async def library_page(request: Request) -> Any:
+        root = app.state.library_root
+        if root is None:
+            return _template(
+                templates,
+                "library.html",
+                request,
+                {"library": [], "library_root": "", "csrf_token": app.state.csrf_token},
+            )
+        layout = BookLayout(root)
+        registry = BookRegistry(layout)
+        return _template(
+            templates,
+            "library.html",
+            request,
+            {
+                "library": _library_payload(layout, registry),
+                "library_root": str(layout.library_root),
+                "csrf_token": app.state.csrf_token,
+            },
+        )
+
+    @app.get("/library/{path_book_id}/paths", response_class=HTMLResponse)
+    async def library_paths_page(request: Request, path_book_id: str) -> Any:
+        root = app.state.library_root
+        if root is None:
+            raise HTTPException(status_code=404, detail="library 未配置")
+        layout = BookLayout(root)
+        checked = _check_id(path_book_id)
+        return _template(
+            templates,
+            "library_paths.html",
+            request,
+            {
+                "paths": _library_paths_payload(layout, checked),
+                "csrf_token": app.state.csrf_token,
+            },
+        )
+
+    @app.get("/library/{path_book_id}/export/latest")
+    async def latest_export_redirect(path_book_id: str) -> Any:
+        _check_id(path_book_id)
+        return RedirectResponse(url=f"/library/{path_book_id}/export/latest/")
+
+    @app.get("/library/{path_book_id}/export/latest/", include_in_schema=False)
+    async def latest_export_index(path_book_id: str) -> Any:
+        return await latest_export_asset(path_book_id, "index.html")
+
+    @app.get("/library/{path_book_id}/export/latest/{asset_path:path}")
+    async def latest_export_asset(path_book_id: str, asset_path: str) -> Any:
+        root = app.state.library_root
+        if root is None:
+            raise HTTPException(status_code=404, detail="library 未配置")
+        layout = BookLayout(root)
+        latest = layout.for_book(_check_id(path_book_id)).edition("base").latest_export
+        path = (latest / asset_path).resolve()
+        if latest.resolve() not in path.parents or not path.is_file():
+            raise HTTPException(status_code=404, detail="latest export 不存在")
+        return FileResponse(path)
 
     @app.get("/", response_class=HTMLResponse)
     async def home(request: Request) -> Any:
@@ -447,7 +718,13 @@ def create_app(database: Database, *, book_id: str | None = None) -> Any:
         raw_root = str(index.get("artifact_root") or "")
         if not raw_root:
             raise HTTPException(status_code=404, detail="visual 不存在")
-        root = Path(raw_root).resolve()
+        try:
+            base = atlas_root(database, _check_id(path_book_id), _check_id(edition_id)).resolve()
+            root = Path(raw_root).resolve()
+        except (AtlasError, OSError, ValueError) as exc:
+            raise HTTPException(status_code=404, detail="visual 不存在") from exc
+        if root != base and base not in root.parents:
+            raise HTTPException(status_code=404, detail="visual 不存在")
         path = (root / "visuals" / visual_name).resolve()
         if root not in path.parents or not path.is_file():
             raise HTTPException(status_code=404, detail="visual 不存在")
@@ -462,7 +739,13 @@ def create_app(database: Database, *, book_id: str | None = None) -> Any:
         raw_root = str(index.get("artifact_root") or "")
         if not raw_root:
             return {}
-        root = Path(raw_root).resolve()
+        try:
+            base = atlas_root(database, _check_id(path_book_id), _check_id(edition_id)).resolve()
+            root = Path(raw_root).resolve()
+        except (AtlasError, OSError, ValueError) as exc:
+            raise HTTPException(status_code=404, detail="Atlas reports 不存在") from exc
+        if root != base and base not in root.parents:
+            raise HTTPException(status_code=404, detail="Atlas reports 不存在")
         reports: dict[str, str] = {}
         if root.is_dir():
             for path in sorted((root / "reports").glob("*.md")):
@@ -901,9 +1184,14 @@ def serve(
     port: int = 8765,
     allow_remote: bool = False,
     book_id: str | None = None,
+    library_root: Path | None = None,
 ) -> None:
     if host not in ("127.0.0.1", "localhost", "::1") and not allow_remote:
         raise ValueError("默认只允许本机绑定；需要远程访问时显式传入 allow_remote")
     import uvicorn
 
-    uvicorn.run(create_app(database, book_id=book_id), host=host, port=port)
+    uvicorn.run(
+        create_app(database, book_id=book_id, library_root=library_root),
+        host=host,
+        port=port,
+    )

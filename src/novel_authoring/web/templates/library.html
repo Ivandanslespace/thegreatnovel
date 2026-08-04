@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>书库目录 · Novel Authoring System</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+  <style>
+    .library-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .library-card { display: flex; flex-direction: column; gap: .55rem; }
+    .library-card .actions { margin-top: auto; }
+    .library-import { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: end; }
+    .library-import button { width: fit-content; }
+    .path-line { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/library">小说书库</a>
+    <span class="muted">Book Library · source 只读 · Canon 不自动批准</span>
+    <button class="theme-toggle" type="button" data-theme-toggle>主题</button>
+  </header>
+  <main class="shell">
+    <section class="page-heading">
+      <div><p class="eyebrow">Book Library</p><h1>书库目录</h1><p class="muted">{{ library_root or '尚未配置 library-root' }}</p></div>
+      <a class="button" href="/">作者工作台</a>
+    </section>
+    <section class="panel">
+      <div class="panel-heading"><h2>导入新书</h2><span class="badge">不会覆盖已有书籍</span></div>
+      <form class="library-import" data-library-import>
+        <label>book_id<input name="book_id" required pattern="[A-Za-z0-9._-]+" placeholder="cable-survival-demo"></label>
+        <label>标题<input name="title" placeholder="可选，默认使用 book_id"></label>
+        <label>来源文件或目录<input name="source_path" required placeholder="C:\\dev\\小说续写系统\\book\\正文.md"></label>
+        <button class="button" type="submit">导入到 canonical library</button>
+      </form>
+      <p class="muted" data-library-import-result>Web 只复制来源并建立 book.yaml；分析、Atlas、指标和续写仍由既有工作流负责。</p>
+    </section>
+    <section class="library-grid" aria-label="书籍列表">
+      {% for book in library %}
+      <article class="panel library-card">
+        <div class="panel-heading"><div><p class="eyebrow">{{ book.active_edition_id }}</p><h2>{{ book.title }}</h2></div><span class="badge">{{ book.readiness_status or 'UNKNOWN' }}</span></div>
+        <p><code>{{ book.book_id }}</code></p>
+        <p class="muted path-line">source · {{ book.source_root }}</p>
+        <p class="muted">来源文件 {{ book.source_files|length }} 个 · latest export {% if book.latest_export_available %}可用{% else %}未生成{% endif %}</p>
+        {% if book.legacy_locations %}<p class="muted">保留旧位置 {{ book.legacy_locations|length }} 个</p>{% endif %}
+        <div class="actions"><a class="button" href="/library/{{ book.book_id }}/paths">查看路径</a>{% if book.latest_export_available %}<a class="button" href="/library/{{ book.book_id }}/export/latest/">打开 latest</a>{% endif %}<a class="button" href="/books/{{ book.book_id }}/editions/{{ book.active_edition_id }}/atlas">Story Atlas</a></div>
+      </article>
+      {% else %}
+      <section class="panel"><h2>书库为空</h2><p class="muted">使用上面的导入表单建立第一本书。</p></section>
+      {% endfor %}
+    </section>
+  </main>
+  <script src="{{ url_for('static', path='app.js') }}" defer></script>
+  <script>
+    document.querySelector('[data-library-import]')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const result = document.querySelector('[data-library-import-result]');
+      const payload = Object.fromEntries(new FormData(form).entries());
+      const response = await fetch('/api/library/import', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content},
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json();
+      if (!response.ok) { result.textContent = body?.error?.message || '导入失败'; return; }
+      result.textContent = `已导入 ${body.book_id}，正在刷新书库…`;
+      window.location.reload();
+    });
+  </script>
+</body>
+</html>

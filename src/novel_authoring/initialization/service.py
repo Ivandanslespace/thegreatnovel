@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from novel_authoring.db.database import Database
 from novel_authoring.edition import edition_chapters, resolve_edition_id
+from novel_authoring.storage.layout import BookLayout
 from novel_authoring.utils import json_dumps, sha256_file, stable_id, utc_now
 
 
@@ -244,7 +245,11 @@ def initialization_root(
 ) -> Path:
     database.initialize()
     selected = resolve_edition_id(database, book_id, edition_id)
-    root = _book_workspace(database, book_id) / "editions" / selected / "initialization"
+    book_root = _book_workspace(database, book_id)
+    if (book_root / "book.yaml").is_file():
+        root = BookLayout(book_root.parent).for_book(book_id).edition(selected).initialization
+    else:
+        root = book_root / "editions" / selected / "initialization"
     if initialization_id:
         root = root / initialization_id
     return root

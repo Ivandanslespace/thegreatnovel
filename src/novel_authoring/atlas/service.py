@@ -23,6 +23,7 @@ from novel_authoring.atlas.models import (
 from novel_authoring.canon.projection import projection_from_connection
 from novel_authoring.db.database import Database
 from novel_authoring.edition import edition_chapters, resolve_edition_id
+from novel_authoring.storage.layout import BookLayout
 from novel_authoring.utils import json_dumps, sha256_bytes, sha256_file, stable_id, utc_now
 
 GRAPH_FILE_TYPES = {
@@ -93,10 +94,16 @@ def atlas_root(database: Database, book_id: str, edition_id: str | None = None) 
     database.initialize()
     selected = resolve_edition_id(database, book_id, edition_id)
     book_root = _book_workspace(database, book_id).resolve()
-    edition_root = (book_root / "editions" / selected).resolve()
+    if (book_root / "book.yaml").is_file():
+        edition_root = BookLayout(book_root.parent).for_book(book_id).edition(selected).root
+        edition_root = edition_root.resolve()
+        atlas_path = BookLayout(book_root.parent).for_book(book_id).edition(selected).story_atlas
+    else:
+        edition_root = (book_root / "editions" / selected).resolve()
+        atlas_path = edition_root / "story_atlas"
     if book_root not in edition_root.parents:
         raise AtlasError("edition workspace 越界")
-    return edition_root / "story_atlas"
+    return atlas_path
 
 
 def _safe_artifact_path(root: Path, relative_path: str) -> Path:

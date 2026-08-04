@@ -6,7 +6,19 @@
 
 ## Current Phase
 
-完成：V1 文档、项目内续写 Skill、完整 CLI 与最终验收。
+Book Library & Repository Consolidation 收口：代码与真实演示书已迁移，正在进行最终质量门、
+Git diff、分支 push 和完成邮件；不改变 V2 宪法、指标、Atlas、Canon 或批准边界。
+
+## Current Acceptance Checklist
+
+- [x] Git/security preflight 与全量只读审计文档
+- [x] BookLayout、registry、book.yaml、README 和 `--library-root`
+- [x] legacy dry-run/apply、staging/hash/DB/path/source verification、atomic switch
+- [x] 真实 `cable-survival-demo` 迁移、旧位置保留和 `_system/legacy_locations.json`
+- [x] canonical Operation Workspace、legacy compatibility、Portable Snapshot latest
+- [x] `/library`、paths、import、latest export Web surface
+- [x] retention/cleanup dry-run、精确 confirmation、可恢复 archive
+- [ ] 普通 wheel 重装、全量测试和最终 diff/branch/push
 
 ## Phases
 
