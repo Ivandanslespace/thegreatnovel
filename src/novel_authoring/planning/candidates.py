@@ -223,6 +223,22 @@ def prepare_candidate_task(
             "```json",
             json_dumps([dict(row) for row in metric_rows], indent=2),
             "```",
+            "",
+            "## 长跨度节奏证据（只改变候选建议，不改变 Candidate Score 权重）",
+            "",
+            "```json",
+            json_dumps(
+                {
+                    "rhythm_diagnostics": json.loads(
+                        Path(str(boundary["json_path"])).read_text(encoding="utf-8")
+                    ).get("rhythm_diagnostics", {}),
+                    "hook_diagnostics": json.loads(
+                        Path(str(boundary["json_path"])).read_text(encoding="utf-8")
+                    ).get("hook_diagnostics", {}),
+                },
+                indent=2,
+            ),
+            "```",
         ]
     )
     metadata = {

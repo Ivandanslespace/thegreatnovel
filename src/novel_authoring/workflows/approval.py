@@ -591,6 +591,16 @@ def approve_draft(
         if snapshot_written and snapshot_path is not None:
             snapshot_path.unlink(missing_ok=True)
         raise ApprovalWorkflowError(f"正史物化失败：{exc}") from exc
+    rhythm_result: dict[str, object] | None = None
+    try:
+        from novel_authoring.rhythm.service import diagnose_rhythm, rebuild_features
+
+        rebuild_features(database, book_id, edition_id=selected_edition)
+        rhythm_result = diagnose_rhythm(database, book_id, edition_id=selected_edition)
+    except Exception as exc:
+        # Rhythm is an auditable derived layer; a diagnostic failure must not
+        # undo an already committed author approval, but it is surfaced.
+        rhythm_result = {"status": "WARNING", "error": str(exc)}
     return {
         "book_id": book_id,
         "draft_id": draft_id,
@@ -604,4 +614,5 @@ def approve_draft(
         "event_end_seq": last_event_seq,
         "snapshot_path": str(snapshot_path),
         "source_verify": source_report,
+        "rhythm_diagnostics": rhythm_result,
     }

@@ -51,6 +51,9 @@ class ContinuationBoundaryPacket(BaseModel):
     recent_structures: list[dict[str, Any]]
     style_profiles: list[dict[str, Any]]
     author_directives: list[dict[str, Any]]
+    rhythm_features: list[dict[str, Any]] = Field(default_factory=list)
+    rhythm_diagnostics: dict[str, Any] = Field(default_factory=dict)
+    hook_diagnostics: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -152,3 +155,4 @@ class ChapterContract(BaseModel):
     style_constraints: dict[str, str]
     ending_state: str
     commit_updates: list[str] = Field(min_length=1)
+    rhythm_constraints: dict[str, Any] = Field(default_factory=dict)

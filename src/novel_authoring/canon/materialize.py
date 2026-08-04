@@ -365,8 +365,11 @@ def materialize_change(
                 reader_visibility, progress, introduced_ordinal,
                 last_reminded_ordinal, reminder_count, target_min_age,
                 target_max_age, status, source_span_id, payload_json,
-                created_at, version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, ?, 1)
+                created_at, version, last_advanced_ordinal, dormancy_target,
+                resolution_readiness, dependencies_ready, promise_horizon,
+                author_deferred_until
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, ?, 1,
+                ?, ?, ?, ?, ?, ?)
             ON CONFLICT(book_id, edition_id, promise_id) DO UPDATE SET
                 thread_id=excluded.thread_id, statement=excluded.statement,
                 importance=excluded.importance,
@@ -376,6 +379,12 @@ def materialize_change(
                 reminder_count=excluded.reminder_count,
                 target_min_age=excluded.target_min_age,
                 target_max_age=excluded.target_max_age, status='CANON',
+                last_advanced_ordinal=excluded.last_advanced_ordinal,
+                dormancy_target=excluded.dormancy_target,
+                resolution_readiness=excluded.resolution_readiness,
+                dependencies_ready=excluded.dependencies_ready,
+                promise_horizon=excluded.promise_horizon,
+                author_deferred_until=excluded.author_deferred_until,
                 source_span_id=excluded.source_span_id,
                 payload_json=excluded.payload_json, version=promises.version+1
             """,
@@ -396,6 +405,12 @@ def materialize_change(
                 source_span_id,
                 payload_json,
                 now,
+                payload.get("last_advanced_ordinal", ordinal),
+                payload.get("dormancy_target", 8),
+                payload.get("resolution_readiness", 0.0),
+                int(bool(payload.get("dependencies_ready", False))),
+                payload.get("promise_horizon", "medium"),
+                payload.get("author_deferred_until"),
             ),
         )
     elif change.kind == "payoff":

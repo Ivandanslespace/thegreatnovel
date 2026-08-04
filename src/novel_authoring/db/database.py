@@ -9,6 +9,7 @@ from novel_authoring.db.schema import (
     MIGRATIONS,
     SCHEMA_SQL,
     ensure_edition_integrity_schema,
+    ensure_rhythm_schema,
 )
 from novel_authoring.utils import utc_now
 
@@ -60,6 +61,10 @@ class Database:
             # the V1 [1..5] migration contract while the physical table rebuild
             # is safe to run on every initialization.
             ensure_edition_integrity_schema(connection)
+            # Phase-B derived rhythm diagnostics are additive and likewise
+            # installed idempotently without changing the public V1
+            # migration-number contract.
+            ensure_rhythm_schema(connection)
             # 迁移只负责结构；每次初始化再幂等回填已有 book 的 base edition。
             # 使用局部导入避免 db -> edition -> projection -> db 的导入环。
             from novel_authoring.edition import backfill_base_editions

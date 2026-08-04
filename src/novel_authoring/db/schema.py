@@ -797,3 +797,90 @@ def ensure_edition_integrity_schema(connection: sqlite3.Connection) -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_metric_results_edition "
         "ON metric_results(book_id, edition_id, as_of_event_seq, metric_name, config_hash)"
     )
+
+
+def ensure_rhythm_schema(connection: sqlite3.Connection) -> None:
+    """Install the edition-aware long-span rhythm storage contract.
+
+    Rhythm analysis is a derived/auditable layer.  It never replaces the
+    append-only event history, so the tables are additive and every rebuild is
+    idempotent.  Feature rows are content-addressed: a variant or generated
+    chapter with a new effective hash creates a new row and invalidates the
+    previous row instead of overwriting its evidence.
+    """
+    connection.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS chapter_features (
+            feature_id TEXT PRIMARY KEY,
+            book_id TEXT NOT NULL,
+            edition_id TEXT NOT NULL,
+            chapter_id TEXT NOT NULL,
+            effective_content_sha256 TEXT NOT NULL,
+            analyzer_version TEXT NOT NULL,
+            planned_primary_function TEXT,
+            realized_primary_function TEXT,
+            function_confidence REAL,
+            emotional_intensity_band TEXT,
+            emotional_confidence REAL,
+            title_raw TEXT NOT NULL DEFAULT '',
+            normalized_title TEXT NOT NULL,
+            title_fingerprint TEXT NOT NULL,
+            opening_excerpt_raw TEXT NOT NULL,
+            opening_excerpt_prose TEXT NOT NULL,
+            opening_fingerprint_raw TEXT NOT NULL,
+            opening_fingerprint_prose TEXT NOT NULL,
+            opening_mode TEXT,
+            ending_excerpt_raw TEXT NOT NULL,
+            ending_excerpt_prose TEXT NOT NULL,
+            ending_fingerprint_raw TEXT NOT NULL,
+            ending_fingerprint_prose TEXT NOT NULL,
+            ending_mode TEXT,
+            extractor_kind TEXT NOT NULL,
+            evidence_json TEXT NOT NULL,
+            config_hash TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'ACTIVE',
+            created_at TEXT NOT NULL,
+            invalidated_at TEXT,
+            version INTEGER NOT NULL DEFAULT 1,
+            UNIQUE(
+                book_id, edition_id, chapter_id,
+                effective_content_sha256, analyzer_version, config_hash
+            )
+        );
+        CREATE INDEX IF NOT EXISTS idx_chapter_features_edition_ordinal
+            ON chapter_features(book_id, edition_id, chapter_id, status);
+        CREATE INDEX IF NOT EXISTS idx_chapter_features_effective
+            ON chapter_features(book_id, edition_id, effective_content_sha256);
+
+        CREATE TABLE IF NOT EXISTS rhythm_diagnostic_snapshots (
+            snapshot_id TEXT PRIMARY KEY,
+            book_id TEXT NOT NULL,
+            edition_id TEXT NOT NULL,
+            as_of_chapter INTEGER NOT NULL,
+            as_of_event_seq INTEGER NOT NULL,
+            projection_hash TEXT NOT NULL,
+            config_hash TEXT NOT NULL,
+            analyzer_versions_json TEXT NOT NULL,
+            snapshot_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            version INTEGER NOT NULL DEFAULT 1,
+            UNIQUE(book_id, edition_id, as_of_chapter, as_of_event_seq, config_hash)
+        );
+        CREATE INDEX IF NOT EXISTS idx_rhythm_snapshots_edition
+            ON rhythm_diagnostic_snapshots(book_id, edition_id, as_of_chapter DESC);
+        """
+    )
+
+    # These fields extend the existing Promise record without changing the
+    # Narrative Debt formula or its historical rows.
+    additions = (
+        ("title_raw TEXT NOT NULL DEFAULT ''", "title_raw"),
+        ("last_advanced_ordinal INTEGER", "last_advanced_ordinal"),
+        ("dormancy_target INTEGER NOT NULL DEFAULT 8", "dormancy_target"),
+        ("resolution_readiness REAL NOT NULL DEFAULT 0", "resolution_readiness"),
+        ("dependencies_ready INTEGER NOT NULL DEFAULT 0", "dependencies_ready"),
+        ("promise_horizon TEXT NOT NULL DEFAULT 'medium'", "promise_horizon"),
+        ("author_deferred_until INTEGER", "author_deferred_until"),
+    )
+    for definition, column in additions:
+        _add_column_if_missing(connection, "promises", definition, column)

@@ -41,6 +41,21 @@ def build_chapter_contract(
     )
     candidate = CandidateProposal.model_validate_json(str(row["plan_json"]))
     next_chapter = int(boundary_json["current_position"]["next_chapter"])
+    rhythm_diagnostics = dict(boundary_json.get("rhythm_diagnostics", {}))
+    rhythm_constraints: dict[str, object] = {}
+    function_streak = rhythm_diagnostics.get("same_function_streak", {})
+    if function_streak.get("severity") == "STRONG_WARNING":
+        rhythm_constraints["change_primary_function_or_pressure_shape"] = True
+    ending_streak = rhythm_diagnostics.get("ending_mode_streak", {})
+    if ending_streak.get("severity") == "STRONG_WARNING":
+        rhythm_constraints["avoid_repeated_ending_mode"] = ending_streak.get("mode")
+    hooks = boundary_json.get("hook_diagnostics", {})
+    rhythm_constraints["advance_due_promises"] = [
+        item.get("promise_id") for item in hooks.get("advance_due", [])
+    ]
+    rhythm_constraints["resolve_due_promises"] = [
+        item.get("promise_id") for item in hooks.get("resolve_due", [])
+    ]
     contract_seed = {
         "candidate_id": candidate_id,
         "packet_id": packet_id,
@@ -90,6 +105,7 @@ def build_chapter_contract(
         style_constraints=candidate.style_constraints,
         ending_state=candidate.ending_state,
         commit_updates=candidate.commit_updates,
+        rhythm_constraints=rhythm_constraints,
     )
     contract_json = json_dumps(contract.model_dump(mode="json"), indent=2)
     contract_hash = sha256_bytes(contract_json.encode())

@@ -2103,6 +2103,16 @@ def approve_revision_campaign(
         if isinstance(exc, RevisionWorkflowError):
             raise
         raise RevisionWorkflowError(f"改写批准事务已回滚：{exc}") from exc
+    rhythm_result: dict[str, object] | None = None
+    try:
+        from novel_authoring.rhythm.service import diagnose_rhythm, rebuild_features
+
+        rebuild_features(database, book_id, edition_id=edition_id)
+        rhythm_result = diagnose_rhythm(database, book_id, edition_id=edition_id)
+    except Exception as exc:
+        # Rhythm is derived evidence.  Preserve a successful revision commit
+        # while making a failed post-commit refresh explicit to the caller.
+        rhythm_result = {"status": "WARNING", "error": str(exc)}
     return {
         "campaign_id": campaign_id,
         "edition_id": edition_id,
@@ -2114,6 +2124,7 @@ def approve_revision_campaign(
         "snapshot_path": str(snapshot_path) if snapshot_path else None,
         "activation_required": edition.status is not EditionStatus.ACTIVE,
         "activation_phrase": "启用改写版本",
+        "rhythm_diagnostics": rhythm_result,
     }
 
 

@@ -91,6 +91,9 @@ def _markdown(packet: ContinuationBoundaryPacket) -> str:
         "最近结构": packet.recent_structures,
         "文风样本": packet.style_profiles,
         "作者指令与禁忌": packet.author_directives,
+        "章节节奏特征": packet.rhythm_features,
+        "长跨度节奏诊断": packet.rhythm_diagnostics,
+        "伏笔动作队列": packet.hook_diagnostics,
         "警告": packet.warnings,
     }
     for title, value in sections.items():
@@ -310,7 +313,38 @@ def build_boundary_packet(
                 ).fetchone()[0]
             )
         )
+    rhythm_features: list[dict[str, Any]] = []
+    rhythm_diagnostics: dict[str, Any] = {}
+    hook_diagnostics: dict[str, Any] = {}
+    try:
+        from novel_authoring.rhythm.service import diagnose_hooks, diagnose_rhythm
+
+        rhythm_diagnostics = diagnose_rhythm(
+            database, book_id, edition_id=selected_edition
+        )
+        hook_diagnostics = diagnose_hooks(database, book_id, edition_id=selected_edition)
+        with database.connect() as rhythm_connection:
+            rows = rhythm_connection.execute(
+                """
+                SELECT cf.*, c.ordinal
+                FROM chapter_features cf JOIN chapters c ON c.chapter_id=cf.chapter_id
+                WHERE cf.book_id=? AND cf.edition_id=? AND cf.status='ACTIVE'
+                ORDER BY c.ordinal DESC LIMIT 20
+                """,
+                (book_id, selected_edition),
+            ).fetchall()
+            rhythm_features = [dict(row) for row in reversed(rows)]
+    except Exception as exc:
+        # Rhythm diagnostics are advisory.  A malformed optional semantic
+        # artifact must be visible as a warning, never silently block the
+        # constitution-mandated boundary build.
+        warnings_message = f"节奏诊断暂不可用：{exc}"
+    else:
+        warnings_message = ""
+
     warnings: list[str] = []
+    if warnings_message:
+        warnings.append(warnings_message)
     if first_recent > 1 and not summary_rows:
         warnings.append("更早章节尚无结构化摘要；当前仅依赖 Canon Projection 与最近原文")
     if replaced_ids:
@@ -330,7 +364,10 @@ def build_boundary_packet(
                 "threads": [dict(row) for row in thread_rows],
                 "relevant_sources": [dict(row) for row in relevant_source_rows],
                 "structures": [dict(row) for row in structure_rows],
-                "styles": [dict(row) for row in style_rows],
+            "styles": [dict(row) for row in style_rows],
+            "rhythm_features": rhythm_features,
+            "rhythm_diagnostics": rhythm_diagnostics,
+            "hook_diagnostics": hook_diagnostics,
             },
         }
     )
@@ -374,6 +411,9 @@ def build_boundary_packet(
         recent_structures=[dict(row) for row in structure_rows],
         style_profiles=[dict(row) for row in style_rows],
         author_directives=[dict(row) for row in directive_rows],
+        rhythm_features=rhythm_features,
+        rhythm_diagnostics=rhythm_diagnostics,
+        hook_diagnostics=hook_diagnostics,
         warnings=warnings,
     )
     packet_json = json_dumps(packet.model_dump(mode="json"), indent=2)

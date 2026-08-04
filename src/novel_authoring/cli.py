@@ -52,6 +52,16 @@ from novel_authoring.revision import (
     revision_preview,
     validate_revision_campaign,
 )
+from novel_authoring.rhythm.service import (
+    RhythmWorkflowError,
+    diagnose_hooks,
+    diagnose_rhythm,
+    import_semantic_features,
+    prepare_semantic_features,
+    rebuild_features,
+    show_features,
+    show_latest_rhythm,
+)
 from novel_authoring.utils import json_dumps, safe_book_id
 from novel_authoring.validation.service import ValidationWorkflowError, validate_draft
 from novel_authoring.workflows.approval import (
@@ -87,6 +97,9 @@ edition_app = typer.Typer(help="版本化 edition 生命周期")
 revision_app = typer.Typer(help="显式批准、可回滚的版本化改写工作流")
 revision_draft_app = typer.Typer(help="Revision Unit 的 REVISION_DRAFT 文件合同")
 revision_contract_app = typer.Typer(help="Revision Plan/Unit 合同")
+features_app = typer.Typer(help="章节确定性与语义特征文件合同")
+rhythm_app = typer.Typer(help="edition-aware 长跨度节奏诊断")
+hooks_app = typer.Typer(help="伏笔 Age/Dormancy/Readiness 动作诊断")
 app.add_typer(source_app, name="source")
 app.add_typer(extract_app, name="extract")
 app.add_typer(boundary_app, name="boundary")
@@ -97,6 +110,9 @@ app.add_typer(edition_app, name="edition")
 app.add_typer(revision_app, name="revision")
 revision_app.add_typer(revision_draft_app, name="draft")
 revision_app.add_typer(revision_contract_app, name="contract")
+app.add_typer(features_app, name="features")
+app.add_typer(rhythm_app, name="rhythm")
+app.add_typer(hooks_app, name="hooks")
 
 # Keep the required book ID as a plain type.  Commands provide an explicit
 # ``typer.Option`` default so the project remains compatible with Typer 0.9;
@@ -1034,6 +1050,136 @@ def revision_draft_show_nested_command(
 ) -> None:
     """Nested alias for revision preview/show."""
     revision_preview_command(book_id, campaign_id, workspace)
+
+
+@features_app.command("prepare")
+def features_prepare_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    chapter_id: Annotated[Optional[str], typer.Option("--chapter-id")] = None,
+) -> None:
+    """为章节生成严格的 ChapterSemanticFeaturesOutput 任务。"""
+    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    try:
+        _emit(
+            prepare_semantic_features(
+                database, book_id, edition_id=edition_id, chapter_id=chapter_id
+            )
+        )
+    except (RhythmWorkflowError, OSError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@features_app.command("import")
+def features_import_command(
+    book_id: BookId = typer.Option(...),
+    task_id: str = typer.Option(..., "--task-id"),
+    workspace: Workspace = Path("workspace"),
+    output: Annotated[Optional[Path], typer.Option("--output")] = None,
+) -> None:
+    """验证并导入 ChapterSemanticFeaturesOutput；不修改章节正文。"""
+    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    try:
+        _emit(import_semantic_features(database, book_id, task_id, output))
+    except (RhythmWorkflowError, OSError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@features_app.command("rebuild")
+def features_rebuild_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    """按当前 edition 章节正文确定性重建有效特征。"""
+    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    try:
+        _emit(rebuild_features(database, book_id, edition_id=edition_id))
+    except (RhythmWorkflowError, OSError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@features_app.command("show")
+def features_show_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    chapter_id: Annotated[Optional[str], typer.Option("--chapter-id")] = None,
+) -> None:
+    """显示当前 content hash 对应的有效特征行与证据来源。"""
+    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    try:
+        _emit(show_features(database, book_id, edition_id=edition_id, chapter_id=chapter_id))
+    except (RhythmWorkflowError, OSError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@rhythm_app.command("diagnose")
+def rhythm_diagnose_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    as_of_chapter: Annotated[Optional[int], typer.Option("--as-of-chapter")] = None,
+) -> None:
+    """输出章节功能、标题、首尾、情绪连续诊断及伏笔队列。"""
+    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    try:
+        _emit(
+            diagnose_rhythm(
+                database,
+                book_id,
+                edition_id=edition_id,
+                as_of_chapter=as_of_chapter,
+            )
+        )
+    except (RhythmWorkflowError, OSError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@rhythm_app.command("show")
+def rhythm_show_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    """读取指定 edition 最近一次节奏诊断快照。"""
+    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    try:
+        _emit(show_latest_rhythm(database, book_id, edition_id=edition_id))
+    except (RhythmWorkflowError, OSError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@hooks_app.command("diagnose")
+def hooks_diagnose_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    """输出 HOLD/ADVANCE/RESOLVE/OVERDUE 伏笔动作队列。"""
+    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    try:
+        _emit(diagnose_hooks(database, book_id, edition_id=edition_id))
+    except (RhythmWorkflowError, OSError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@hooks_app.command("show")
+def hooks_show_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    """show 是 diagnose 的只读别名，保持动作队列结构不变。"""
+    hooks_diagnose_command(book_id, workspace, edition_id)
 
 
 if __name__ == "__main__":

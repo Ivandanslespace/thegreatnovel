@@ -172,3 +172,41 @@ metrics:
       repetition_fatigue: -0.12
       future_damage: -0.08
     tie_delta: 8
+
+rhythm:
+  analyzer_version: rhythm-deterministic-v1
+  semantic_analyzer_version: rhythm-semantic-v1
+  title_repetition:
+    exact_duplicate_window: 50
+    keyword_window: 12
+    keyword_warning_count: 3
+    similarity_window: 20
+    similarity_warning_threshold: 0.82
+  opening_ending:
+    text_window_chars: 300
+    lexical_threshold: 0.72
+    lookback_chapters: 4
+    repeated_match_warning_count: 2
+    mode_streak_warning: 3
+    mode_streak_strong_warning: 5
+  function_streak:
+    setup: {warning: 2, strong: 3}
+    pressure_build: {warning: 3, strong: 5}
+    choice: {warning: 2, strong: 3}
+    discovery: {warning: 3, strong: 4}
+    progress: {warning: 4, strong: 6}
+    partial_payoff: {warning: 2, strong: 3}
+    major_payoff: {warning: 2, strong: 2}
+    reversal: {warning: 2, strong: 3}
+    aftershock: {warning: 2, strong: 4}
+    recovery: {warning: 2, strong: 3}
+    relationship_shift: {warning: 3, strong: 4}
+    world_expansion: {warning: 2, strong: 3}
+  high_emotion_streak:
+    warning: 3
+    strong_warning: 5
+    climax_bonus: 2
+  promise:
+    default_dormancy_target: 8
+    default_target_min_age: 3
+    default_target_max_age: 12
