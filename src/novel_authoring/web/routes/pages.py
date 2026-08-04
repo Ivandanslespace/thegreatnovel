@@ -4,6 +4,8 @@ import json
 from typing import Any
 
 from novel_authoring.edition import edition_chapters, list_editions, resolve_edition_id
+from novel_authoring.initialization.metrics import metric_bootstrap_status
+from novel_authoring.initialization.service import latest_initialization
 from novel_authoring.metrics.registry import load_registry
 from novel_authoring.metrics.segments import list_segments, rebuild_segments
 from novel_authoring.metrics.service import MetricsAssembler, ObservationResolver
@@ -38,6 +40,110 @@ def home_context(database: Any, book_id: str) -> dict[str, Any]:
     }
 
 
+def _metric_card_metadata(
+    database: Any,
+    book_id: str,
+    edition_id: str,
+    chapter: dict[str, Any],
+    metrics: list[dict[str, Any]],
+    observation_rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    content_hash = str(chapter.get("content_sha256") or "")
+    current_rows = [
+        row
+        for row in observation_rows
+        if row.get("current")
+        and not row.get("stale")
+        and row.get("retracted_at") is None
+        and str(row.get("effective_content_sha256") or "") == content_hash
+    ]
+    by_metric: dict[str, list[dict[str, Any]]] = {}
+    for row in current_rows:
+        by_metric.setdefault(str(row["metric_id"]), []).append(row)
+    unknown_statuses = {
+        "UNKNOWN",
+        "UNKNOWN_AFTER_ANALYSIS",
+        "MISSING",
+        "NOT_ANALYZED",
+        "MISSING_OPTIONAL_AUTHOR_INPUT",
+    }
+    for metric in metrics:
+        metric_id = str(metric["metric_id"])
+        rows = by_metric.get(metric_id, [])
+        statuses = {str(row.get("status")) for row in rows}
+        if not rows:
+            analysis_state = "NOT_ANALYZED"
+        elif str(metric.get("status")) == "NOT_APPLICABLE" or statuses == {"NOT_APPLICABLE"}:
+            analysis_state = "NOT_APPLICABLE"
+        elif statuses & unknown_statuses:
+            analysis_state = "UNKNOWN"
+        else:
+            analysis_state = "ANALYZED"
+        metric["analysis_state"] = analysis_state
+        metric["observation_count"] = len(rows)
+        metric["semantic_estimate_count"] = sum(
+            1 for row in rows if str(row.get("source_kind")) == "SEMANTIC_ESTIMATE"
+        )
+        metric["last_analyzer_version"] = next(
+            (str(row["analyzer_version"]) for row in rows if row.get("analyzer_version")),
+            "—",
+        )
+        metric["import_tasks"] = sorted(
+            {str(row["source_task_id"]) for row in rows if row.get("source_task_id")}
+        )
+        metric["evidence_count"] = sum(len(row.get("evidence_links", [])) for row in rows)
+        metric["unknown_reasons"] = sorted(
+            {
+                str(row.get("reason"))
+                for row in rows
+                if str(row.get("status")) in unknown_statuses and row.get("reason")
+            }
+        )
+        metric["observation_history"] = rows
+    bootstrap: dict[str, Any] = {
+        "status": "NOT_READY",
+        "coverage": {
+            "source_mapping_coverage": 0.0,
+            "arc_output_coverage": 0.0,
+            "chapter_semantic_feature_coverage": 0.0,
+            "metric_observation_coverage": 0.0,
+            "recent_detailed_metric_coverage": 0.0,
+            "current_chapter_metric_coverage": 0.0,
+        },
+        "initialization_id": None,
+    }
+    initialization = latest_initialization(database, book_id, edition_id)
+    if initialization:
+        initialization_manifest = initialization.get("manifest") or {}
+        initialization_id = initialization_manifest.get("initialization_id")
+        if initialization_id:
+            try:
+                bootstrap = metric_bootstrap_status(
+                    database,
+                    book_id,
+                    edition_id=edition_id,
+                    initialization_id=str(initialization_id),
+                )
+            except (OSError, ValueError):
+                bootstrap["initialization_id"] = initialization_id
+    metadata = {
+        "observation_count": len(current_rows),
+        "semantic_estimate_count": sum(
+            1 for row in current_rows if str(row.get("source_kind")) == "SEMANTIC_ESTIMATE"
+        ),
+        "evidence_count": sum(len(row.get("evidence_links", [])) for row in current_rows),
+        "analyzer_versions": sorted(
+            {str(row["analyzer_version"]) for row in current_rows if row.get("analyzer_version")}
+        ),
+        "import_tasks": sorted(
+            {str(row["source_task_id"]) for row in current_rows if row.get("source_task_id")}
+        ),
+        "current_content_hash": content_hash,
+        "bootstrap": bootstrap,
+    }
+    return metrics, metadata
+
+
 def chapter_context(
     database: Any, book_id: str, edition_id: str, chapter_id: str
 ) -> dict[str, Any]:
@@ -65,6 +171,14 @@ def chapter_context(
     missing_count = sum(len(item.get("missing_components", [])) for item in metrics)
     history = metric_history(database, book_id, edition_id, "CHAPTER", chapter_id)
     observation_rows = observation_history(database, book_id, edition_id, "CHAPTER", chapter_id)
+    metrics, metric_metadata = _metric_card_metadata(
+        database,
+        book_id,
+        edition_id,
+        dict(chapter),
+        metrics,
+        observation_rows,
+    )
     return {
         "book": book,
         "book_id": book_id,
@@ -78,6 +192,8 @@ def chapter_context(
         "metrics": metrics,
         "history": history,
         "observation_history": observation_rows,
+        "metric_metadata": metric_metadata,
+        "metric_bootstrap": metric_metadata["bootstrap"],
         "missing_count": missing_count,
         "previous_chapter": None
         if chapter_index == 0

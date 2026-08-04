@@ -14,6 +14,8 @@ import math
 from pathlib import Path
 from typing import Any
 
+from novel_authoring.atlas.models import VisualStatus
+
 VISUAL_GRAPH_FILES = {
     "character_graph.svg": "characters.json",
     "faction_graph.svg": "factions.json",
@@ -124,6 +126,7 @@ def _metadata_text(atlas_root: Path, graph: dict[str, Any], title: str, metadata
         if node.get("confidence") not in (None, "UNKNOWN"):
             confidence_count += 1
     return (
+        f"visual status {_escape(metadata.get('visual_status', 'UNKNOWN'))} · "
         f"Atlas v{_escape(version)} · source coverage {_escape(coverage_text)} · "
         f"nodes {len(graph.get('nodes', []))} · edges {len(graph.get('edges', []))} · "
         f"evidence {evidence_count} · confidence values {confidence_count}"
@@ -138,6 +141,15 @@ def render_svg(
     metadata: dict[str, Any] | None = None,
 ) -> str:
     metadata = metadata or {}
+    visual_status = str(
+        metadata.get(
+            "visual_status",
+            VisualStatus.GENERATED_WITH_DATA.value
+            if graph.get("nodes")
+            else VisualStatus.EMPTY_SOURCE_GRAPH.value,
+        )
+    )
+    metadata = {**metadata, "visual_status": visual_status}
     nodes = [item for item in graph.get("nodes", []) if isinstance(item, dict)]
     edges = [item for item in graph.get("edges", []) if isinstance(item, dict)]
     kind = str(graph.get("graph_type", "graph"))
@@ -155,7 +167,9 @@ def render_svg(
         '<g transform="translate(28 78)">',
     ]
     if not nodes:
-        parts.append('<text x="0" y="80" font-family="system-ui, sans-serif" font-size="16" fill="#667085">当前没有可渲染的已验证节点</text>')
+        parts.append(
+            f'<text x="0" y="80" font-family="system-ui, sans-serif" font-size="16" fill="#667085">Visual state: {_escape(visual_status)} · 当前没有可渲染的已验证节点</text>'
+        )
     for edge in edges:
         start = positions.get(str(edge.get("from_id")))
         end = positions.get(str(edge.get("to_id")))
@@ -196,6 +210,7 @@ def render_atlas_visuals(
 ) -> list[str]:
     """Render the seven required visual assets and return relative paths."""
     root = atlas_root.resolve()
+    metadata = metadata or {}
     if (root / "atlas_manifest.json").is_file() and "versions" in root.parts:
         raise ValueError("已登记版本化 Atlas 不可原地重绘；请在 staging artifact 中渲染后重新登记")
     output = root / "visuals"
@@ -210,12 +225,45 @@ def render_atlas_visuals(
         "stage_ladder.svg": "Stage Transition Ladder",
     }
     paths: list[str] = []
+    visual_statuses: dict[str, dict[str, Any]] = {}
     for output_name, graph_name in VISUAL_GRAPH_FILES.items():
         graph = _graph_data(root, graph_name)
         path = output / output_name
-        path.write_text(
-            render_svg(title=titles[output_name], graph=graph, atlas_root=root, metadata=metadata),
-            encoding="utf-8",
+        status = str(
+            metadata.get(
+                "visual_status",
+                VisualStatus.GENERATED_WITH_DATA.value
+                if graph.get("nodes")
+                else VisualStatus.EMPTY_SOURCE_GRAPH.value,
+            )
         )
+        try:
+            path.write_text(
+                render_svg(
+                    title=titles[output_name],
+                    graph=graph,
+                    atlas_root=root,
+                    metadata={**metadata, "visual_status": status},
+                ),
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            status = VisualStatus.FAILED.value
+            visual_statuses[output_name] = {
+                "status": status,
+                "nodes": len(graph.get("nodes", [])),
+                "edges": len(graph.get("edges", [])),
+                "error": str(exc),
+            }
+            continue
+        visual_statuses[output_name] = {
+            "status": status,
+            "nodes": len(graph.get("nodes", [])),
+            "edges": len(graph.get("edges", [])),
+        }
         paths.append(f"visuals/{output_name}")
+    (output / "visual_status.json").write_text(
+        json.dumps(visual_statuses, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     return paths

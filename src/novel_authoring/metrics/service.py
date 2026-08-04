@@ -444,6 +444,174 @@ class MetricObservationService:
             self._insert_evidence(connection, observation, observation_id)
             return observation_id
 
+    def append_many(self, observations: list[ObservationInput]) -> list[str]:
+        """Append a validated batch in one transaction.
+
+        Initialization bootstrap imports can contain tens of thousands of
+        observations.  Calling ``append`` for every component would open a
+        connection and resolve the whole observation history for each row.
+        This path keeps the same registry/hash/content/evidence checks while
+        reusing one projection, one edition snapshot, and one transaction.
+        """
+        if not observations:
+            return []
+        self.database.initialize()
+        first = observations[0]
+        book_id = first.book_id
+        edition_id = first.edition_id
+        if any(
+            item.book_id != book_id or item.edition_id != edition_id
+            for item in observations
+        ):
+            raise MetricValidationError("批量 observation 必须属于同一 book/edition")
+        with self.database.connect() as connection:
+            projection = projection_from_connection(connection, book_id, edition_id)
+            projection_hash = projection.sha256()
+            current_config_hash = sha256_bytes(
+                json_dumps(load_settings().metrics).encode("utf-8")
+            )
+            chapters = {
+                str(item["chapter_id"]): item
+                for item in edition_chapters(connection, book_id, edition_id)
+            }
+            active_rows = connection.execute(
+                "SELECT observation_id, scope_type, scope_id, metric_id, component_id "
+                "FROM metric_observations WHERE book_id=? AND edition_id=? AND active=1",
+                (book_id, edition_id),
+            ).fetchall()
+            active_by_key: dict[tuple[str, str, str, str], list[str]] = {}
+            for row in active_rows:
+                key = (
+                    str(row["scope_type"]),
+                    str(row["scope_id"]),
+                    str(row["metric_id"]),
+                    str(row["component_id"]),
+                )
+                active_by_key.setdefault(key, []).append(str(row["observation_id"]))
+            inserted: list[str] = []
+            for observation in observations:
+                self.registry.metric(observation.metric_id)
+                self.registry.component(observation.metric_id, observation.component_id)
+                self.registry.validate_source(
+                    observation.metric_id,
+                    observation.component_id,
+                    MetricSourceKind(observation.source_kind.value),
+                )
+                if (
+                    observation.source_kind
+                    in (
+                        ObservationSourceKind.AUTHOR_OVERRIDE,
+                        ObservationSourceKind.AUTHOR_INPUT,
+                    )
+                    and not observation.reason.strip()
+                ):
+                    raise MetricValidationError(
+                        "AUTHOR_INPUT/AUTHOR_OVERRIDE 必须提供 reason"
+                    )
+                numeric = _numeric(observation.value)
+                component_definition = self.registry.component(
+                    observation.metric_id, observation.component_id
+                )
+                if numeric is not None:
+                    if (
+                        component_definition.minimum is not None
+                        and numeric < component_definition.minimum
+                    ):
+                        raise MetricValidationError("component 数值低于注册表下限")
+                    if (
+                        component_definition.maximum is not None
+                        and numeric > component_definition.maximum
+                    ):
+                        raise MetricValidationError("component 数值超过注册表上限")
+                if observation.projection_hash and observation.projection_hash != projection_hash:
+                    raise MetricConflictError("projection 已变化，请刷新后重试")
+                if (
+                    observation.registry_hash
+                    and observation.registry_hash != self.registry.registry_hash
+                ):
+                    raise MetricConflictError("registry 已变化，请刷新后重试")
+                if observation.config_hash and observation.config_hash != current_config_hash:
+                    raise MetricConflictError("config 已变化，请刷新后重试")
+                if observation.chapter_id and observation.effective_content_sha256:
+                    chapter = chapters.get(observation.chapter_id)
+                    if (
+                        chapter is not None
+                        and str(chapter["content_sha256"])
+                        != observation.effective_content_sha256
+                    ):
+                        raise MetricConflictError("章节内容 hash 已变化，请刷新后重试")
+                key = (
+                    observation.scope_type,
+                    observation.scope_id,
+                    observation.metric_id,
+                    observation.component_id,
+                )
+                current_ids = active_by_key.get(key, [])
+                current_id = current_ids[0] if len(current_ids) == 1 else None
+                if current_id is not None:
+                    connection.execute(
+                        "UPDATE metric_observations SET active=0 WHERE observation_id=?",
+                        (current_id,),
+                    )
+                observation_id = stable_id(
+                    "observation",
+                    observation.book_id,
+                    observation.edition_id,
+                    observation.scope_type,
+                    observation.scope_id,
+                    observation.metric_id,
+                    observation.component_id,
+                    utc_now(),
+                )
+                connection.execute(
+                    """
+                    INSERT INTO metric_observations(
+                        observation_id, book_id, edition_id, scope_type, scope_id, chapter_id,
+                        effective_content_sha256, metric_id, component_id, value_json,
+                        value_numeric,
+                        status, source_kind, confidence, analyzer_version, config_hash,
+                        projection_hash, registry_hash, freshness_status, stale_reason,
+                        reason, source_task_id, supersedes_observation_id, active, created_at,
+                        version
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 1
+                    )
+                    """,
+                    (
+                        observation_id,
+                        observation.book_id,
+                        observation.edition_id,
+                        observation.scope_type,
+                        observation.scope_id,
+                        observation.chapter_id,
+                        observation.effective_content_sha256,
+                        observation.metric_id,
+                        observation.component_id,
+                        _json_value(observation.value),
+                        numeric,
+                        observation.status.value,
+                        observation.source_kind.value,
+                        observation.confidence,
+                        observation.analyzer_version,
+                        current_config_hash,
+                        projection_hash,
+                        self.registry.registry_hash,
+                        "FRESH",
+                        None,
+                        observation.reason,
+                        observation.source_task_id,
+                        current_id,
+                        utc_now(),
+                    ),
+                )
+                self._insert_evidence(connection, observation, observation_id)
+                inserted.append(observation_id)
+                if len(current_ids) <= 1:
+                    active_by_key[key] = [observation_id]
+                else:
+                    active_by_key[key] = [*current_ids, observation_id]
+            return inserted
+
     def _insert_evidence(
         self, connection: sqlite3.Connection, observation: ObservationInput, observation_id: str
     ) -> None:
@@ -851,13 +1019,19 @@ class MetricsAssembler:
         disputed_components: list[str] = []
         stale_components: list[str] = []
         disputed = False
+        required_values: list[MetricComponentValue] = []
         for component_id in definition.required_components:
             value = values.get(component_id)
+            if value is not None:
+                required_values.append(value)
             if value is None or value.status in (
                 MetricComponentStatus.MISSING,
                 MetricComponentStatus.STALE,
                 MetricComponentStatus.INVALID,
                 MetricComponentStatus.UNKNOWN,
+                MetricComponentStatus.UNKNOWN_AFTER_ANALYSIS,
+                MetricComponentStatus.NOT_ANALYZED,
+                MetricComponentStatus.MISSING_OPTIONAL_AUTHOR_INPUT,
             ):
                 missing.append(component_id)
             if value is not None and value.status == MetricComponentStatus.STALE:
@@ -868,8 +1042,19 @@ class MetricsAssembler:
         for component_id, value in values.items():
             if value.status == MetricComponentStatus.STALE and component_id not in stale_components:
                 stale_components.append(component_id)
+        not_applicable_components = [
+            value
+            for value in required_values
+            if value.status == MetricComponentStatus.NOT_APPLICABLE
+        ]
+        all_required_not_applicable = bool(required_values) and len(
+            not_applicable_components
+        ) == len(definition.required_components)
         available = [
-            value for value in values.values() if value.status == MetricComponentStatus.AVAILABLE
+            value
+            for value in values.values()
+            if value.status
+            in (MetricComponentStatus.AVAILABLE, MetricComponentStatus.PROVISIONAL)
         ]
         completeness = (
             (len(definition.required_components) - len(missing))
@@ -893,10 +1078,19 @@ class MetricsAssembler:
             else 0.0
         )
         status: MetricRunStatus | MetricComponentStatus
-        if disputed:
+        if all_required_not_applicable:
+            status = MetricComponentStatus.NOT_APPLICABLE
+        elif disputed:
             status = MetricComponentStatus.DISPUTED
         elif missing:
             status = MetricRunStatus.INCOMPLETE
+        elif not_applicable_components:
+            status = MetricComponentStatus.NOT_APPLICABLE
+        elif any(
+            value.status == MetricComponentStatus.PROVISIONAL
+            for value in required_values
+        ):
+            status = MetricRunStatus.PROVISIONAL
         else:
             status = MetricRunStatus.COMPLETE
         score: float | None = None
@@ -904,7 +1098,7 @@ class MetricsAssembler:
         formula_contribution: dict[str, float | None] = {}
         action = "补齐缺失输入后重算" if missing else ""
         try:
-            if not missing and not disputed:
+            if not missing and not disputed and not not_applicable_components:
                 numeric: dict[str, float] = {}
                 for key, item in values.items():
                     number = _numeric(item.value)
@@ -1039,11 +1233,19 @@ class MetricsAssembler:
         complete_ratio = (
             sum(result.completeness for result in results) / len(results) if results else 1.0
         )
-        overall_status = (
-            MetricRunStatus.COMPLETE
-            if all(result.status == MetricRunStatus.COMPLETE for result in results)
-            else MetricRunStatus.INCOMPLETE
-        )
+        if all(result.status == MetricRunStatus.COMPLETE for result in results):
+            overall_status = MetricRunStatus.COMPLETE
+        elif all(
+            result.status in (
+                MetricRunStatus.COMPLETE,
+                MetricRunStatus.PROVISIONAL,
+                MetricComponentStatus.NOT_APPLICABLE,
+            )
+            for result in results
+        ):
+            overall_status = MetricRunStatus.PROVISIONAL
+        else:
+            overall_status = MetricRunStatus.INCOMPLETE
         run_id = stable_id(
             "metric-run", bundle.book_id, bundle.edition_id, bundle.input_bundle_hash, utc_now()
         )

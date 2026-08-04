@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -186,6 +187,7 @@ def atlas_context(
     initialization = latest_initialization(database, book_id, edition_id)
     reports: dict[str, str] = {}
     visual_paths: list[str] = []
+    visual_status: dict[str, Any] = {}
     if overview.get("available"):
         raw_overview = get_atlas_overview(database, book_id, edition_id)
         index = raw_overview.get("index") or {}
@@ -200,6 +202,14 @@ def atlas_context(
                 f"visuals/{path.name}"
                 for path in sorted((artifact_root / "visuals").glob("*.svg"))
             ]
+            status_path = artifact_root / "visuals" / "visual_status.json"
+            if status_path.is_file():
+                try:
+                    payload = json.loads(status_path.read_text(encoding="utf-8"))
+                    if isinstance(payload, dict):
+                        visual_status = payload
+                except (OSError, json.JSONDecodeError):
+                    visual_status = {}
     graph = None
     if view in GRAPH_TYPES:
         graph = atlas_graph_view(
@@ -222,6 +232,7 @@ def atlas_context(
         "initialization": initialization,
         "reports": reports,
         "visual_paths": visual_paths,
+        "visual_status": visual_status,
         "graph": graph,
         "graph_types": sorted(GRAPH_TYPES),
         "information_statuses": sorted(INFORMATION_STATUSES),

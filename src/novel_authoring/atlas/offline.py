@@ -71,6 +71,17 @@ def _portable(value: Any) -> Any:
     return value
 
 
+def _decode_json_column(row: dict[str, Any], key: str, default: Any) -> None:
+    raw = row.get(key)
+    if raw is None or raw == "":
+        row[key.removesuffix("_json")] = default
+        return
+    try:
+        row[key.removesuffix("_json")] = json.loads(str(raw))
+    except (TypeError, json.JSONDecodeError):
+        row[key.removesuffix("_json")] = default
+
+
 def export_snapshot(
     database: Database,
     book_id: str,
@@ -84,12 +95,83 @@ def export_snapshot(
     with database.connect() as connection:
         chapters = edition_chapters(connection, book_id, selected)
         book_row = connection.execute("SELECT title FROM books WHERE book_id=?", (book_id,)).fetchone()
-        metric_rows = connection.execute(
-            "SELECT run_id AS metric_id, status, confidence AS score, scope_id, created_at "
-            "FROM metric_runs "
-            "WHERE book_id=? AND edition_id=? ORDER BY created_at DESC LIMIT 100",
-            (book_id, selected),
-        ).fetchall()
+        metric_runs = [
+            dict(row)
+            for row in connection.execute(
+                "SELECT * FROM metric_runs WHERE book_id=? AND edition_id=? "
+                "ORDER BY created_at DESC",
+                (book_id, selected),
+            ).fetchall()
+        ]
+        for row in metric_runs:
+            _decode_json_column(row, "requested_metric_ids_json", [])
+            _decode_json_column(row, "disputed_components_json", [])
+            _decode_json_column(row, "stale_components_json", [])
+        metric_run_results = [
+            dict(row)
+            for row in connection.execute(
+                "SELECT r.* FROM metric_run_results r JOIN metric_runs m ON m.run_id=r.run_id "
+                "WHERE m.book_id=? AND m.edition_id=? ORDER BY m.created_at DESC, r.metric_id",
+                (book_id, selected),
+            ).fetchall()
+        ]
+        for row in metric_run_results:
+            for key, default in (
+                ("components_json", {}),
+                ("missing_components_json", []),
+                ("evidence_summary_json", []),
+                ("disputed_components_json", []),
+                ("stale_components_json", []),
+                ("formula_contribution_json", {}),
+            ):
+                _decode_json_column(row, key, default)
+        metric_observations = [
+            dict(row)
+            for row in connection.execute(
+                "SELECT * FROM metric_observations WHERE book_id=? AND edition_id=? "
+                "ORDER BY created_at DESC, observation_id DESC",
+                (book_id, selected),
+            ).fetchall()
+        ]
+        observation_ids = [str(row["observation_id"]) for row in metric_observations]
+        metric_evidence_links: list[dict[str, Any]] = []
+        if observation_ids:
+            placeholders = ",".join("?" for _ in observation_ids)
+            metric_evidence_links = [
+                dict(row)
+                for row in connection.execute(
+                    f"SELECT * FROM metric_evidence_links WHERE observation_id IN ({placeholders}) "
+                    "ORDER BY created_at, link_id",
+                    observation_ids,
+                ).fetchall()
+            ]
+        evidence_by_observation: dict[str, list[dict[str, Any]]] = {}
+        for link in metric_evidence_links:
+            evidence_by_observation.setdefault(str(link["observation_id"]), []).append(link)
+        for row in metric_observations:
+            _decode_json_column(row, "value_json", None)
+            row["evidence_links"] = evidence_by_observation.get(str(row["observation_id"]), [])
+        chapter_features = [
+            dict(row)
+            for row in connection.execute(
+                "SELECT * FROM chapter_features WHERE book_id=? AND edition_id=? "
+                "ORDER BY created_at, feature_id",
+                (book_id, selected),
+            ).fetchall()
+        ]
+        for row in chapter_features:
+            _decode_json_column(row, "evidence_json", {})
+        rhythm_snapshots = [
+            dict(row)
+            for row in connection.execute(
+                "SELECT * FROM rhythm_diagnostic_snapshots WHERE book_id=? AND edition_id=? "
+                "ORDER BY as_of_chapter DESC, created_at DESC",
+                (book_id, selected),
+            ).fetchall()
+        ]
+        for row in rhythm_snapshots:
+            _decode_json_column(row, "analyzer_versions_json", [])
+            _decode_json_column(row, "snapshot_json", {})
     if output_root is None:
         base_root = (
             Path(str(database.scalar("SELECT workspace_root FROM books WHERE book_id=?", (book_id,))))
@@ -129,8 +211,19 @@ def export_snapshot(
         json.dumps(_portable(atlas_data), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     (root / "metrics" / "runs.json").write_text(
-        json.dumps([dict(row) for row in metric_rows], ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        json.dumps(metric_runs, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
+    for filename, value in (
+        ("metric_runs.json", metric_runs),
+        ("metric_run_results.json", metric_run_results),
+        ("metric_observations.json", metric_observations),
+        ("metric_evidence_links.json", metric_evidence_links),
+        ("chapter_features.json", chapter_features),
+        ("rhythm_snapshots.json", rhythm_snapshots),
+    ):
+        (root / "metrics" / filename).write_text(
+            json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
     (root / "assets" / "README.txt").write_text(
         "本目录属于 author_workbench_snapshot；index.html 已内嵌全部 CSS、JS、章节、Atlas 摘要和 SVG。\n",
         encoding="utf-8",
@@ -152,6 +245,36 @@ def export_snapshot(
     if isinstance(init_payload, dict):
         init_payload["root"] = "initialization"
     atlas_data = _portable(atlas_data)
+    initialization_coverage = {}
+    if isinstance(init_payload, dict):
+        status_payload = init_payload.get("status") or {}
+        readiness_payload = status_payload.get("readiness") or {}
+        initialization_coverage = {
+            key: readiness_payload.get(key)
+            for key in (
+                "source_mapping_coverage",
+                "arc_output_coverage",
+                "chapter_semantic_feature_coverage",
+                "metric_observation_coverage",
+                "recent_detailed_metric_coverage",
+                "current_chapter_metric_coverage",
+                "metric_bootstrap_status",
+            )
+            if key in readiness_payload
+        }
+    metrics_payload = {
+        "runs": metric_runs,
+        "run_results": metric_run_results,
+        "observations": metric_observations,
+        "evidence_links": metric_evidence_links,
+        "chapter_features": chapter_features,
+        "rhythm_snapshots": rhythm_snapshots,
+        "initialization_coverage": initialization_coverage,
+    }
+    (root / "metrics" / "initialization_coverage.json").write_text(
+        json.dumps(initialization_coverage, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     payload = {
         "book": {"book_id": book_id, "title": "" if book_row is None else str(book_row["title"]), "edition_id": selected},
         "generated_at": utc_now(),
@@ -168,7 +291,7 @@ def export_snapshot(
         ],
         "atlas": atlas_data,
         "initialization": init_payload,
-        "metrics": [dict(row) for row in metric_rows],
+        "metrics": metrics_payload,
         "reports": reports,
         "visuals": visuals,
     }
@@ -186,7 +309,7 @@ def export_snapshot(
 :root{{--bg:#f6f7fb;--panel:#fff;--ink:#182033;--muted:#697386;--line:#d9e0ea;--accent:#2457d6;--soft:#e8efff}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,"Microsoft YaHei",sans-serif}}button,input{{font:inherit}}button{{cursor:pointer}}header{{position:sticky;top:0;z-index:4;display:flex;align-items:center;gap:12px;padding:14px 22px;background:var(--panel);border-bottom:1px solid var(--line)}}header strong{{font-size:18px}}header span{{color:var(--muted)}}.layout{{display:grid;grid-template-columns:280px minmax(0,1fr);gap:18px;width:min(1500px,calc(100% - 28px));margin:18px auto}}aside,section,.card{{background:var(--panel);border:1px solid var(--line);border-radius:12px}}aside{{position:sticky;top:75px;align-self:start;max-height:calc(100vh - 95px);overflow:auto;padding:12px}}main{{min-width:0}}.tabs{{display:flex;flex-wrap:wrap;gap:7px;padding:10px;border-bottom:1px solid var(--line)}}.tabs button{{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 11px}}.tabs button.active{{background:var(--soft);border-color:var(--accent);color:var(--accent)}}.stats{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}}.card{{padding:13px}}.stat span,.muted{{color:var(--muted)}}.stat strong{{display:block;font-size:21px;margin-top:3px}}#chapter-list{{display:grid;gap:2px;margin-top:10px}}#chapter-list button{{display:grid;grid-template-columns:42px 1fr;text-align:left;border:0;background:transparent;padding:7px;border-radius:6px;color:var(--ink)}}#chapter-list button:hover,#chapter-list button.active{{background:var(--soft)}}.reader{{padding:18px;min-height:60vh}}.reader h1{{margin-top:0}}.reader pre{{white-space:pre-wrap;font:15px/1.85 inherit}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}}.report{{white-space:pre-wrap;background:var(--bg);border-radius:8px;padding:12px;max-height:360px;overflow:auto}}.visual{{overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff}}.visual svg{{min-width:700px;width:100%;height:auto}}.search{{width:100%;padding:8px;border:1px solid var(--line);border-radius:7px;margin:6px 0 8px}}.hidden{{display:none!important}}.notice{{padding:10px;border-left:4px solid var(--accent);background:var(--soft);margin-bottom:12px}}code{{overflow-wrap:anywhere}}@media(max-width:900px){{.layout{{grid-template-columns:1fr}}aside{{position:static;max-height:none}}.stats{{grid-template-columns:repeat(2,1fr)}}}}
 </style></head><body><header><strong>小说作者工作台</strong><span>{title} · 本地离线快照 · {selected}</span><span style="margin-left:auto">Facts are deterministic. Meaning is probabilistic.</span></header>
-<div class="layout"><aside><input class="search" id="search" placeholder="搜索章节标题或正文"><div class="muted" id="chapter-count"></div><div id="chapter-list"></div></aside><main><div class="tabs"><button class="active" data-tab="reader">章节阅读</button><button data-tab="atlas">Story Atlas</button><button data-tab="reports">报告与初始化</button><button data-tab="metrics">语义指标</button><button data-tab="visuals">七张图</button></div><div id="reader" class="tab"><div class="stats"><div class="card stat"><span>章节</span><strong id="stat-chapters"></strong></div><div class="card stat"><span>Arc</span><strong id="stat-arcs"></strong></div><div class="card stat"><span>初始化</span><strong id="stat-ready"></strong></div><div class="card stat"><span>Atlas</span><strong id="stat-atlas"></strong></div></div><div class="reader card"><h1 id="chapter-title"></h1><div class="muted" id="chapter-meta"></div><pre id="chapter-content"></pre></div></div><div id="atlas" class="tab hidden"><div class="card"><h2>Story Atlas</h2><div id="atlas-summary"></div><div id="atlas-graphs" class="grid"></div></div></div><div id="reports" class="tab hidden"><div id="init-summary" class="card"></div><div id="report-list" class="grid" style="margin-top:12px"></div></div><div id="metrics" class="tab hidden"><div class="card"><h2>指标运行</h2><div id="metric-list" class="grid"></div></div></div><div id="visuals" class="tab hidden"><div id="visual-list" class="grid"></div></div></main></div>
+<div class="layout"><aside><input class="search" id="search" placeholder="搜索章节标题或正文"><div class="muted" id="chapter-count"></div><div id="chapter-list"></div></aside><main><div class="tabs"><button class="active" data-tab="reader">章节阅读</button><button data-tab="atlas">Story Atlas</button><button data-tab="reports">报告与初始化</button><button data-tab="metrics">语义指标</button><button data-tab="visuals">七张图</button></div><div id="reader" class="tab"><div class="stats"><div class="card stat"><span>章节</span><strong id="stat-chapters"></strong></div><div class="card stat"><span>Arc</span><strong id="stat-arcs"></strong></div><div class="card stat"><span>初始化</span><strong id="stat-ready"></strong></div><div class="card stat"><span>Atlas</span><strong id="stat-atlas"></strong></div></div><div class="reader card"><h1 id="chapter-title"></h1><div class="muted" id="chapter-meta"></div><pre id="chapter-content"></pre></div></div><div id="atlas" class="tab hidden"><div class="card"><h2>Story Atlas</h2><div id="atlas-summary"></div><div id="atlas-graphs" class="grid"></div></div></div><div id="reports" class="tab hidden"><div id="init-summary" class="card"></div><div id="report-list" class="grid" style="margin-top:12px"></div></div><div id="metrics" class="tab hidden"><div class="card"><h2>语义指标</h2><label>章节<select id="metric-chapter"></select></label><div id="metric-list" class="grid"></div></div></div><div id="visuals" class="tab hidden"><div id="visual-list" class="grid"></div></div></main></div>
 <script>const SNAPSHOT={data};
 const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s)); let current=0;
 function esc(v){{return String(v??'').replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]))}}
@@ -195,7 +318,7 @@ function showChapter(i){{current=i;const c=SNAPSHOT.chapters[i]; if(!c)return; $
 function textify(v){{if(v==null)return ''; if(typeof v==='string')return v; return JSON.stringify(v,null,2)}}
 function renderAtlas(){{const a=SNAPSHOT.atlas||{{}}; const r=a.readiness||{{}}; $('#atlas-summary').innerHTML='<div class="notice">'+(a.available?'Atlas v'+esc(a.manifest?.atlas_version)+' · Readiness '+esc(r.status)+' · Source '+Math.round((r.source_coverage||0)*100)+'%':'当前快照没有已登记 Atlas；初始化任务仍可继续')+'</div><div class="grid"><div><b>Current World</b><p class="muted">'+esc(a.manifest?.current_chapter_ordinal||'—')+' 章 · 图谱 '+Object.keys(a.graphs||{{}}).length+' 类</p></div><div><b>Gaps</b><p class="muted">'+esc((r.gaps||[]).join('；')||'—')+'</p></div></div>'; const g=$('#atlas-graphs'); g.innerHTML=''; Object.entries(a.graphs||{{}}).forEach(([name,x])=>{{const d=document.createElement('div');d.className='card';d.innerHTML='<h3>'+esc(name)+'</h3><p class="muted">'+(x.nodes||[]).length+' nodes · '+(x.edges||[]).length+' edges</p>';g.appendChild(d)}})}}
 function renderReports(){{const i=SNAPSHOT.initialization;$('#init-summary').innerHTML='<h2>初始化进度</h2>'+(i?'<div class="notice">'+esc(i.status?.state)+' · readiness '+esc(i.status?.readiness?.status||i.status?.readiness||'BLOCKED')+' · 初始化 '+esc(i.manifest?.initialization_id)+'</div><p>章节 '+esc(i.manifest?.chapter_count)+' · Arc '+esc(i.manifest?.arc_count)+' · 已完成 Arc '+esc((i.status?.completed_arc_ids||[]).length)+'</p>':'<p class="muted">未找到初始化目录。</p>');const l=$('#report-list');l.innerHTML='';Object.entries(SNAPSHOT.reports||{{}}).forEach(([n,t])=>{{const d=document.createElement('div');d.className='card';d.innerHTML='<h3>'+esc(n)+'</h3><div class="report">'+esc(t)+'</div>';l.appendChild(d)}})}}
-function renderMetrics(){{const l=$('#metric-list');l.innerHTML='';(SNAPSHOT.metrics||[]).forEach(m=>{{const d=document.createElement('div');d.className='card';d.innerHTML='<b>'+esc(m.metric_id)+'</b><p>'+esc(m.status)+' · '+esc(m.score??'—')+'</p><small class="muted">'+esc(m.scope_id)+'</small>';l.appendChild(d)}});if(!l.children.length)l.innerHTML='<p class="muted">暂无指标运行。</p>'}}
+function renderMetrics(){{const data=SNAPSHOT.metrics||{{}};const select=$('#metric-chapter');select.innerHTML='';SNAPSHOT.chapters.forEach(c=>{{const option=document.createElement('option');option.value=c.chapter_id;option.textContent=c.ordinal+' · '+(c.title||c.heading);select.appendChild(option)}});function draw(){{const chapterId=select.value;const runs=(data.runs||[]).filter(r=>r.scope_type==='CHAPTER'&&r.scope_id===chapterId&&!r.invalidated_at);const latest=runs[0];const results=latest?(data.run_results||[]).filter(r=>r.run_id===latest.run_id):[];const observations=(data.observations||[]).filter(o=>o.scope_type==='CHAPTER'&&o.scope_id===chapterId&&Number(o.active||0)===1);const evidenceBy={{}};(data.evidence_links||[]).forEach(e=>{{(evidenceBy[e.observation_id]||(evidenceBy[e.observation_id]=[])).push(e)}});const l=$('#metric-list');l.innerHTML='';if(!latest){{l.innerHTML='<p class="muted">该章节尚未完成语义指标分析。</p>';return}};const head=document.createElement('div');head.className='card';head.innerHTML='<div class="notice">最新 Run：<code>'+esc(latest.run_id)+'</code> · '+esc(latest.status)+' · completeness '+esc(latest.completeness)+' · Observation history '+observations.length+'</div>';l.appendChild(head);results.forEach(r=>{{const components=Object.entries(r.components||{{}}).map(([k,v])=>'<li><code>'+esc(k)+'</code> · '+esc(v.status||'—')+' · '+esc(v.source_kind||'—')+' · '+esc(textify(v.value))+'</li>').join('');const metricObs=observations.filter(o=>o.metric_id===r.metric_id);const obsText=metricObs.map(o=>'<li>'+esc(o.component_id)+' · '+esc(o.status)+' · '+esc(o.source_kind)+' · '+esc(textify(o.value))+' · '+esc(o.reason||'')+'</li>').join('');const ev=metricObs.flatMap(o=>evidenceBy[o.observation_id]||[]).map(e=>'<li>'+esc(e.segment_id||e.source_span_id||e.event_id||'—')+' · '+esc(e.evidence_quote||'')+'</li>').join('');const d=document.createElement('div');d.className='card';d.innerHTML='<b>'+esc(r.metric_id)+'</b><p>'+esc(r.status)+' · score '+esc(r.score??'—')+' · completeness '+esc(r.completeness)+'</p><h4>Components</h4><ul>'+components+'</ul><h4>Evidence</h4><ul>'+(ev||'<li class="muted">暂无 Evidence</li>')+'</ul><h4>Observation history</h4><ul>'+(obsText||'<li class="muted">该章节尚未完成语义指标分析。</li>')+'</ul>';l.appendChild(d)}})}}select.onchange=draw;select.value=SNAPSHOT.chapters[current]?.chapter_id||SNAPSHOT.chapters[0]?.chapter_id||'';draw()}}
 function renderVisuals(){{const l=$('#visual-list');l.innerHTML='';Object.entries(SNAPSHOT.visuals||{{}}).forEach(([n,s])=>{{const d=document.createElement('div');d.className='card';d.innerHTML='<h3>'+esc(n)+'</h3><div class="visual"><img alt="'+esc(n)+'" src="'+s+'"></div>';l.appendChild(d)}});if(!l.children.length)l.innerHTML='<p class="muted">暂无 SVG 视觉资产。</p>'}}
 $$('[data-tab]').forEach(b=>b.onclick=()=>{{$$('.tab').forEach(x=>x.classList.add('hidden'));$('#'+b.dataset.tab).classList.remove('hidden');$$('[data-tab]').forEach(x=>x.classList.toggle('active',x===b))}});$('#search').oninput=e=>renderList(e.target.value);renderList();showChapter(0);$('#stat-chapters').textContent=SNAPSHOT.chapters.length;$('#stat-arcs').textContent=SNAPSHOT.initialization?.manifest?.arc_count??'—';$('#stat-ready').textContent=SNAPSHOT.initialization?.status?.readiness?.status??SNAPSHOT.initialization?.status?.readiness??'未初始化';$('#stat-atlas').textContent=SNAPSHOT.atlas?.available?'v'+(SNAPSHOT.atlas.manifest?.atlas_version||'—'):'未登记';renderAtlas();renderReports();renderMetrics();renderVisuals();</script></body></html>'''
     (root / "index.html").write_text(html, encoding="utf-8")

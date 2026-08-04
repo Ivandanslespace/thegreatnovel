@@ -16,6 +16,7 @@ from novel_authoring.atlas.models import (
     ReadinessStatus,
     RollingHorizon,
     StoryAtlasStatus,
+    VisualStatus,
     WorldModelReadiness,
 )
 from novel_authoring.atlas.offline import export_snapshot
@@ -49,6 +50,7 @@ __all__ = [
     "ReadinessStatus",
     "RollingHorizon",
     "StoryAtlasStatus",
+    "VisualStatus",
     "WorldModelReadiness",
     "accept_atlas",
     "atlas_root",

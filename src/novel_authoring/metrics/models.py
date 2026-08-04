@@ -16,12 +16,16 @@ class MetricRunStatus(StrEnum):
 
 class MetricComponentStatus(StrEnum):
     AVAILABLE = "AVAILABLE"
+    PROVISIONAL = "PROVISIONAL"
     MISSING = "MISSING"
     STALE = "STALE"
     DISPUTED = "DISPUTED"
     INVALID = "INVALID"
     NOT_APPLICABLE = "NOT_APPLICABLE"
     UNKNOWN = "UNKNOWN"
+    UNKNOWN_AFTER_ANALYSIS = "UNKNOWN_AFTER_ANALYSIS"
+    NOT_ANALYZED = "NOT_ANALYZED"
+    MISSING_OPTIONAL_AUTHOR_INPUT = "MISSING_OPTIONAL_AUTHOR_INPUT"
 
 
 class ObservationSourceKind(StrEnum):
@@ -239,7 +243,13 @@ class SemanticObservation(BaseModel):
     @model_validator(mode="after")
     def validate_unknown(self) -> SemanticObservation:
         if (
-            self.status in (MetricComponentStatus.MISSING, MetricComponentStatus.UNKNOWN)
+            self.status
+            in (
+                MetricComponentStatus.MISSING,
+                MetricComponentStatus.UNKNOWN,
+                MetricComponentStatus.UNKNOWN_AFTER_ANALYSIS,
+                MetricComponentStatus.NOT_ANALYZED,
+            )
             and not self.unknown_reason
         ):
             raise ValueError("MISSING/UNKNOWN observation 必须填写 unknown_reason")

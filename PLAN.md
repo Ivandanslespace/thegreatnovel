@@ -35,6 +35,39 @@ CLI/Web/API、migration 8、版本不可覆盖、真实 source span、FAR 约束
 `https://github.com/happyivanencoding/thegreatnovel`，`audit/` 仍为未跟踪用户文件，
 不纳入提交。
 
+### 2026-08-04 Semantic Metric Bootstrap Repair
+
+真实演示库 `cable-survival-demo` 的最新初始化为
+`novel-initialization_452638432ba81f12087d6e91`：294 章、15 个 Arc，Source
+Coverage 为 100%。实际审计发现旧的
+`metrics/initialization_metric_bootstrap.json` 只是 294 条粗粒度 baseline 和
+30 条 recent review placeholder，不是可导入的 Semantic Observation 合同；它没有
+`metric_bootstrap_manifest.json`、逐章 JSONL 或 Import Report。数据库中
+`metric_observations=0`、`metric_evidence_links=0`、`chapter_features=0`，而旧的
+`refresh_initialization` 仅检查 bootstrap 文件是否存在，因此把未进入 Observation
+Ledger 的初始化错误地显示为 `READY_WITH_GAPS`。Web 随后只能由空 Observation 集合
+重建出 `INCOMPLETE` Metric Run，所有 Metric Card 的 completeness 为 0%。
+
+本轮修复必须保持 Source Mapping、Arc Output、Chapter Semantic Feature、Metric
+Observation、Recent Detailed 和 Current Chapter Coverage 分离；只有通过严格 Manifest
+校验、JSONL 导入、证据验证、Metric Run 重建和 Web/离线快照纵向验收后，Semantic
+Metric Bootstrap 才能影响初始化就绪度。
+
+本轮已完成：新增严格 `metric_bootstrap_manifest.json` + 逐章
+`chapter_metric_observations.jsonl` + `import_report.json` 合同；导入前锁定
+`source_manifest_sha256`、effective content hash、edition 和 registry hash，批量事务写入
+`SEMANTIC_ESTIMATE` Observation 与 source-span/segment Evidence，并按 content hash 与
+task/analyzer 版本幂等重跑。初始化 readiness 现在只信 Ledger 审计，不再把旧文件存在
+误判为 metrics ready；`UNKNOWN`/`NOT_ANALYZED`/`NOT_APPLICABLE` 与 `PROVISIONAL` 在
+Metric Run、Web Card 和离线快照中分开表达。
+
+真实 `cable-survival-demo` 验收：294 章、11,760 条 Semantic Observation、11,760 条
+Evidence、294 条 Chapter Feature；294/294 最新章节 Run 为 `PROVISIONAL` 且 completeness
+为 1.0，8/8 Web Metric Cards 均为 `ANALYZED`，初始化六项覆盖率均为 100%。源文件
+SHA-256 仍为 `95810246d1296163fc02320446060e78addd9fa5cba56bbdd1292634a099ee6e`；
+`book/` 未写入。离线快照的 manifest 哈希、无网络约束和嵌入式 Observation history /
+Evidence 已通过验收。
+
 #### Phase G：Metric Core Correctness
 
 按 Registry scope 隔离 Metric Run，修正 Narrative Debt 的 edition ordinal 与真实

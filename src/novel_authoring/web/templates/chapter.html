@@ -63,18 +63,30 @@
 
   <aside class="inspector panel" aria-label="指标与证据">
     <div class="panel-heading"><h2>Metric Cards</h2><span class="badge">Run {{ run.run_id }}</span></div>
+    <section class="metric-bootstrap-summary">
+      <p><strong>Analysis State</strong> · 当前章节 {{ metric_metadata.observation_count }} observations · {{ metric_metadata.semantic_estimate_count }} semantic estimates · Evidence {{ metric_metadata.evidence_count }}</p>
+      <p>Analyzer：{{ metric_metadata.analyzer_versions|join('、') if metric_metadata.analyzer_versions else '—' }} · Content Hash：<code>{{ metric_metadata.current_content_hash }}</code></p>
+      <p>Metric Bootstrap：{{ metric_bootstrap.status }} · 当前章节 Coverage {{ '%.0f'|format(metric_bootstrap.coverage.current_chapter_metric_coverage * 100) }}% · 最近详细 Coverage {{ '%.0f'|format(metric_bootstrap.coverage.recent_detailed_metric_coverage * 100) }}%</p>
+      {% if metric_metadata.observation_count == 0 %}
+      <p class="callout missing">该章节尚未完成语义指标分析。</p>
+      <form method="post" action="/api/books/{{ book_id }}/editions/{{ edition_id }}/metrics/bootstrap/prepare" data-api-form>
+        <button class="button primary" type="submit">准备语义指标任务</button>
+      </form>
+      {% endif %}
+    </section>
     <div class="metric-cards">
       {% for metric in metrics %}
       <article class="metric-card" data-metric-id="{{ metric.metric_id }}">
-        <div class="metric-card-heading"><h3>{{ metric.metric_id }}</h3><span class="status status-{{ metric.status|lower }}">{{ metric.status }}</span></div>
+        <div class="metric-card-heading"><h3>{{ metric.metric_id }}</h3><span class="status status-{{ metric.status|lower }}">{{ metric.status }}</span><span class="badge">Analysis State: {{ metric.analysis_state }}</span></div>
         <div class="metric-score">{% if metric.score is not none %}{{ '%.1f'|format(metric.score) }}{% else %}—{% endif %}</div>
-        <dl><dt>Completeness</dt><dd>{{ '%.0f'|format(metric.completeness * 100) }}%</dd><dt>Confidence</dt><dd>{{ '%.0f'|format(metric.confidence * 100) }}%</dd><dt>Formula</dt><dd><code>{{ metric.formula_id }}</code></dd></dl>
+        <dl><dt>Completeness</dt><dd>{{ '%.0f'|format(metric.completeness * 100) }}%</dd><dt>Confidence</dt><dd>{{ '%.0f'|format(metric.confidence * 100) }}%</dd><dt>Observations</dt><dd>{{ metric.observation_count }}（semantic {{ metric.semantic_estimate_count }}）</dd><dt>Analyzer</dt><dd>{{ metric.last_analyzer_version }}</dd><dt>Import task</dt><dd><code>{{ metric.import_tasks|join('、') if metric.import_tasks else '—' }}</code></dd><dt>Evidence</dt><dd>{{ metric.evidence_count }}</dd><dt>Formula</dt><dd><code>{{ metric.formula_id }}</code></dd></dl>
         <div class="component-chips" aria-label="Components">
           {% for component_id, component in metric.components.items() %}
           <button type="button" class="component-chip component-{{ component.status|lower }}" data-component-id="{{ metric.metric_id }}.{{ component_id }}" data-observation-id="{{ component.observation_id or '' }}">{{ component_id }} · {{ component.status }} · {{ component.source_kind }}</button>
           {% endfor %}
         </div>
-        {% if metric.missing_components %}<p class="callout missing">缺失：{{ metric.missing_components|join('、') }}</p>{% endif %}
+        {% if metric.analysis_state == 'UNKNOWN' and metric.unknown_reasons %}<p class="callout">UNKNOWN 原因：{{ metric.unknown_reasons|join('；') }}</p>{% endif %}
+        {% if metric.missing_components and metric.analysis_state == 'NOT_ANALYZED' %}<p class="callout missing">该指标尚未分析：{{ metric.missing_components|join('、') }}</p>{% endif %}
         {% if metric.disputed_components %}<p class="callout disputed">冲突：{{ metric.disputed_components|join('、') }}</p>{% endif %}
         {% if metric.stale_components %}<p class="callout stale">需重新审核：{{ metric.stale_components|join('、') }}</p>{% endif %}
         <details>
@@ -122,6 +134,7 @@
 
     <div class="author-form">
       <h3>补充作者输入</h3>
+      <p class="muted">作者输入用于修正或补充Codex判断，不要求作者手工完成整套指标。</p>
       <form method="post" action="/api/books/{{ book_id }}/editions/{{ edition_id }}/metrics/observations" data-api-form>
         <input type="hidden" name="scope_type" value="CHAPTER"><input type="hidden" name="scope_id" value="{{ chapter.chapter_id }}">
         <label>Metric ID<input name="metric_id" required></label><label>Component ID<input name="component_id" required></label>

@@ -41,6 +41,13 @@ class ReadinessStatus(StrEnum):
     BLOCKED = "BLOCKED"
 
 
+class VisualStatus(StrEnum):
+    GENERATED_WITH_DATA = "GENERATED_WITH_DATA"
+    EMPTY_SOURCE_GRAPH = "EMPTY_SOURCE_GRAPH"
+    FAILED = "FAILED"
+    STALE = "STALE"
+
+
 class AtlasBaseModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

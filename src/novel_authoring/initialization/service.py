@@ -180,6 +180,14 @@ class InitializationReadiness(InitializationBase):
     status: str
     chapter_coverage: float = Field(ge=0, le=1)
     arc_coverage: float = Field(ge=0, le=1)
+    source_mapping_coverage: float = Field(default=0.0, ge=0, le=1)
+    arc_output_coverage: float = Field(default=0.0, ge=0, le=1)
+    chapter_semantic_feature_coverage: float = Field(default=0.0, ge=0, le=1)
+    metric_observation_coverage: float = Field(default=0.0, ge=0, le=1)
+    recent_detailed_metric_coverage: float = Field(default=0.0, ge=0, le=1)
+    current_chapter_metric_coverage: float = Field(default=0.0, ge=0, le=1)
+    metric_bootstrap_status: str = "NOT_READY"
+    metric_bootstrap: dict[str, Any] = Field(default_factory=dict)
     canon_evidence_coverage: float = Field(ge=0, le=1)
     entity_resolution_coverage: float = Field(ge=0, le=1)
     core_graphs_complete: bool = False
@@ -721,6 +729,13 @@ def _write_reports(root: Path, coverage: SourceCoverage, arc_manifest: ArcManife
         f"- Status: {readiness.status}\n"
         f"- Chapter coverage: {readiness.chapter_coverage:.1%}\n"
         f"- Arc coverage: {readiness.arc_coverage:.1%}\n"
+        f"- Source Mapping Coverage: {readiness.source_mapping_coverage:.1%}\n"
+        f"- Arc Output Coverage: {readiness.arc_output_coverage:.1%}\n"
+        f"- Chapter Semantic Feature Coverage: {readiness.chapter_semantic_feature_coverage:.1%}\n"
+        f"- Metric Observation Coverage: {readiness.metric_observation_coverage:.1%}\n"
+        f"- Recent Detailed Metric Coverage: {readiness.recent_detailed_metric_coverage:.1%}\n"
+        f"- Current Chapter Metric Coverage: {readiness.current_chapter_metric_coverage:.1%}\n"
+        f"- Metric Bootstrap Status: {readiness.metric_bootstrap_status}\n"
         f"- Canon evidence coverage: {readiness.canon_evidence_coverage:.1%}\n"
         f"- Entity resolution coverage: {readiness.entity_resolution_coverage:.1%}\n\n"
         "## Blocking reasons\n"
@@ -781,22 +796,19 @@ def refresh_initialization(
     coverage = SourceCoverage.model_validate(_read_json(root / "source_coverage.json"))
     arc_manifest = ArcManifest.model_validate(_read_json(root / "arc_manifest.json"))
     outputs, pending, failed = _arc_outputs(root, arc_manifest)
-    arc_chapters = {arc.arc_id: set(arc.chapter_ids) for arc in arc_manifest.arcs}
     analyzed_chapter_ids: set[str] = set()
     evidence_total = 0
     evidence_valid = 0
     for output in outputs:
         feature_rows = output.chapter_semantic_features
-        if feature_rows:
-            analyzed_chapter_ids.update(
-                str(item["chapter_id"])
-                for item in feature_rows
-                if item.get("chapter_id")
-                and str(item.get("analysis_status", "PENDING")).upper() not in {"PENDING", "UNKNOWN"}
-            )
-        else:
-            analyzed_chapter_ids.update(arc_chapters.get(output.arc_id, set()))
-        for field_name in output.model_fields:
+        analyzed_chapter_ids.update(
+            str(item["chapter_id"])
+            for item in feature_rows
+            if item.get("chapter_id")
+            and str(item.get("analysis_status", "PENDING")).upper()
+            not in {"PENDING", "UNKNOWN", "NOT_ANALYZED"}
+        )
+        for field_name in type(output).model_fields:
             value = getattr(output, field_name)
             if not isinstance(value, list):
                 continue
@@ -842,6 +854,36 @@ def refresh_initialization(
         else 0.0
     )
     arc_coverage = len(outputs) / len(arc_manifest.arcs) if arc_manifest.arcs else 0.0
+    source_mapping_coverage = coverage.chapter_coverage
+    arc_output_coverage = arc_coverage
+    chapter_semantic_feature_coverage = chapter_coverage
+    try:
+        from novel_authoring.initialization.metrics import metric_bootstrap_status
+
+        metric_audit = metric_bootstrap_status(
+            database,
+            book_id,
+            edition_id=selected,
+            initialization_id=initialization_manifest.initialization_id,
+        )
+    except (InitializationError, OSError, ValueError) as exc:
+        metric_audit = {
+            "status": "NOT_READY",
+            "errors": [f"Metric Bootstrap 审计失败：{exc}"],
+            "coverage": {
+                "metric_observation_coverage": 0.0,
+                "recent_detailed_metric_coverage": 0.0,
+                "current_chapter_metric_coverage": 0.0,
+            },
+        }
+    metric_coverage = metric_audit.get("coverage", {})
+    metric_observation_coverage = float(metric_coverage.get("metric_observation_coverage", 0.0))
+    recent_detailed_metric_coverage = float(
+        metric_coverage.get("recent_detailed_metric_coverage", 0.0)
+    )
+    current_chapter_metric_coverage = float(
+        metric_coverage.get("current_chapter_metric_coverage", 0.0)
+    )
     blockers: list[str] = []
     gaps: list[str] = []
     if chapter_coverage < 0.95:
@@ -862,8 +904,9 @@ def refresh_initialization(
         blockers.append(f"校验失败 Arc：{len(failed)}")
     if not entity_file.is_file():
         gaps.append("实体解析尚未写回")
-    if not (root / "metrics" / "initialization_metric_bootstrap.json").is_file():
-        gaps.append("语义指标 Bootstrap 尚未写回")
+    if metric_audit.get("status") != "COMPLETE":
+        errors = metric_audit.get("errors") or ["严格 Semantic Metric Bootstrap 尚未完成"]
+        blockers.append(f"Semantic Metric Bootstrap 未完成：{errors[0]}")
     if (root / "synthesis" / "unresolved_assumptions.yaml").is_file():
         gaps.append("Future Possibility Space 仍保留未决假设")
     status = "BLOCKED" if blockers else ("READY_WITH_GAPS" if gaps or chapter_coverage < 1.0 else "READY")
@@ -871,6 +914,14 @@ def refresh_initialization(
         status=status,
         chapter_coverage=chapter_coverage,
         arc_coverage=arc_coverage,
+        source_mapping_coverage=source_mapping_coverage,
+        arc_output_coverage=arc_output_coverage,
+        chapter_semantic_feature_coverage=chapter_semantic_feature_coverage,
+        metric_observation_coverage=metric_observation_coverage,
+        recent_detailed_metric_coverage=recent_detailed_metric_coverage,
+        current_chapter_metric_coverage=current_chapter_metric_coverage,
+        metric_bootstrap_status=str(metric_audit.get("status", "NOT_READY")),
+        metric_bootstrap=metric_audit,
         canon_evidence_coverage=canon_evidence,
         entity_resolution_coverage=entity_cov,
         core_graphs_complete=core_graphs,
@@ -880,7 +931,7 @@ def refresh_initialization(
         gaps=gaps,
         review_queue=sorted(set([*pending, *failed])),
     )
-    metrics_ready = (root / "metrics" / "initialization_metric_bootstrap.json").is_file()
+    metrics_ready = metric_audit.get("status") == "COMPLETE"
     visuals_ready = len(list((root / "visuals").glob("*.svg"))) >= 7
     if status == "READY":
         state = InitializationState.READY
@@ -907,6 +958,13 @@ def refresh_initialization(
         "state": state.value,
         "readiness": readiness.model_dump(mode="json"),
         "source_coverage": coverage.chapter_coverage,
+        "source_mapping_coverage": source_mapping_coverage,
+        "arc_output_coverage": arc_output_coverage,
+        "chapter_semantic_feature_coverage": chapter_semantic_feature_coverage,
+        "metric_observation_coverage": metric_observation_coverage,
+        "recent_detailed_metric_coverage": recent_detailed_metric_coverage,
+        "current_chapter_metric_coverage": current_chapter_metric_coverage,
+        "metric_bootstrap": metric_audit,
         "updated_at": utc_now(),
         "completed_arc_ids": [item.arc_id for item in outputs],
         "failed_arc_ids": failed,

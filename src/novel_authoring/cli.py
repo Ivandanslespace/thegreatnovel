@@ -47,6 +47,12 @@ from novel_authoring.ingest.service import (
     verify_sources,
     write_manifest,
 )
+from novel_authoring.initialization.metrics import (
+    import_metric_bootstrap,
+    metric_bootstrap_status,
+    prepare_metric_bootstrap,
+    rebuild_initialization_metric_runs,
+)
 from novel_authoring.initialization.service import (
     InitializationError,
     create_initialization,
@@ -159,6 +165,7 @@ metrics_semantic_app = typer.Typer(help="语义指标观察文件合同")
 observation_app = typer.Typer(help="append-only Metric Observation 解析与撤回")
 atlas_app = typer.Typer(help="Versioned Soft Story Atlas")
 initialize_app = typer.Typer(help="已有长篇 Atlas-first 深度初始化")
+initialize_metrics_app = typer.Typer(help="批量 Semantic Metric Bootstrap")
 batch_app = typer.Typer(help="滚动 Batch Continuation 与 Provisional Projection")
 demo_app = typer.Typer(help="合成演示数据")
 segments_app = typer.Typer(help="effective edition 段落与证据")
@@ -182,6 +189,7 @@ metrics_app.add_typer(metrics_semantic_app, name="semantic")
 app.add_typer(observation_app, name="observation")
 app.add_typer(atlas_app, name="atlas")
 app.add_typer(initialize_app, name="initialize")
+initialize_app.add_typer(initialize_metrics_app, name="metrics")
 app.add_typer(batch_app, name="batch")
 app.add_typer(demo_app, name="demo")
 app.add_typer(segments_app, name="segments")
@@ -1777,6 +1785,98 @@ def initialize_refresh_command(
             )
         )
     except (InitializationError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@initialize_metrics_app.command("prepare")
+def initialize_metrics_prepare_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    initialization_id: str = typer.Option(..., "--initialization-id"),
+    recent_detailed_window: int = typer.Option(50, "--recent-detailed-window"),
+) -> None:
+    """生成冻结 hash、逐章 JSONL 和严格 Metric Bootstrap Manifest。"""
+    try:
+        _emit(
+            prepare_metric_bootstrap(
+                _book_database(workspace, book_id),
+                book_id,
+                edition_id=edition_id,
+                initialization_id=initialization_id,
+                recent_detailed_window=recent_detailed_window,
+            )
+        )
+    except (InitializationError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@initialize_metrics_app.command("import")
+def initialize_metrics_import_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    initialization_id: str = typer.Option(..., "--initialization-id"),
+    input_path: Annotated[Optional[Path], typer.Option("--input")] = None,
+) -> None:
+    """校验并幂等导入逐章 Semantic Metric Observation JSONL。"""
+    try:
+        _emit(
+            import_metric_bootstrap(
+                _book_database(workspace, book_id),
+                book_id,
+                edition_id=edition_id,
+                initialization_id=initialization_id,
+                input_path=input_path,
+            )
+        )
+    except (InitializationError, ValueError, OSError, MetricConflictError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@initialize_metrics_app.command("status")
+def initialize_metrics_status_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    initialization_id: str = typer.Option(..., "--initialization-id"),
+) -> None:
+    """审计 Manifest、Import Report、Observation、Evidence 和最新 Metric Run。"""
+    try:
+        _emit(
+            metric_bootstrap_status(
+                _book_database(workspace, book_id),
+                book_id,
+                edition_id=edition_id,
+                initialization_id=initialization_id,
+            )
+        )
+    except (InitializationError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@initialize_metrics_app.command("rebuild")
+def initialize_metrics_rebuild_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    initialization_id: str = typer.Option(..., "--initialization-id"),
+) -> None:
+    """从当前初始化 Observation Ledger 重建章节 Metric Run。"""
+    try:
+        _emit(
+            rebuild_initialization_metric_runs(
+                _book_database(workspace, book_id),
+                book_id,
+                edition_id=edition_id,
+                initialization_id=initialization_id,
+            )
+        )
+    except (InitializationError, ValueError, OSError, MetricConflictError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=3) from exc
 

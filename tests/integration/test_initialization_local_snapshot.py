@@ -82,6 +82,10 @@ def test_visuals_and_offline_snapshot_are_self_contained(tmp_path: Path) -> None
     visuals = render_atlas_visuals(artifact_root)
     assert len(visuals) == 7
     assert all((artifact_root / path).is_file() for path in visuals)
+    visual_status = json.loads(
+        (artifact_root / "visuals" / "visual_status.json").read_text(encoding="utf-8")
+    )
+    assert all(item["status"] == "EMPTY_SOURCE_GRAPH" for item in visual_status.values())
 
     initialization = create_initialization(database, book_id, edition_id="base")
     snapshot = export_snapshot(

@@ -22,7 +22,8 @@ from novel_authoring.atlas.models import AtlasAction
 from novel_authoring.atlas.service import AtlasError, get_atlas_overview, record_atlas_action
 from novel_authoring.db.database import Database
 from novel_authoring.edition import edition_chapters, list_editions
-from novel_authoring.initialization import latest_initialization
+from novel_authoring.initialization import InitializationError, latest_initialization
+from novel_authoring.initialization.metrics import prepare_metric_bootstrap
 from novel_authoring.metrics.registry import load_registry
 from novel_authoring.metrics.segments import list_segments
 from novel_authoring.metrics.service import (
@@ -590,6 +591,33 @@ def create_app(database: Database, *, book_id: str | None = None) -> Any:
         return chapter_context(
             database, _check_id(path_book_id), _check_id(edition_id), _check_id(chapter_id)
         )
+
+    @app.post(
+        "/api/books/{path_book_id}/editions/{edition_id}/metrics/bootstrap/prepare"
+    )
+    async def metric_bootstrap_prepare_api(
+        path_book_id: str, edition_id: str, request: Request
+    ) -> Any:
+        verify_csrf(request, None)
+        try:
+            checked_book = _check_id(path_book_id)
+            checked_edition = _check_id(edition_id)
+            initialization = latest_initialization(database, checked_book, checked_edition)
+            if not initialization:
+                raise ValueError("尚未创建初始化包，无法准备语义指标任务")
+            manifest = initialization.get("manifest") or {}
+            initialization_id = str(manifest.get("initialization_id") or "")
+            if not initialization_id:
+                raise ValueError("初始化 manifest 缺少 initialization_id")
+            return prepare_metric_bootstrap(
+                database,
+                checked_book,
+                edition_id=checked_edition,
+                initialization_id=initialization_id,
+                recent_detailed_window=50,
+            )
+        except (InitializationError, OSError, ValueError) as exc:
+            return _error(exc)
 
     @app.get("/api/books/{path_book_id}/editions/{edition_id}/metric-history")
     async def metric_history_api(
