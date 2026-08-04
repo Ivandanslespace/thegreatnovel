@@ -21,6 +21,12 @@
 
 版本化改写另遵循 `.agents/skills/revise-novel/SKILL.md`：改写只能写派生 edition，必须经过影响审计、计划、`REVISION_DRAFT`、校验和逐字批准；`批准改写版本` 与 `启用改写版本` 分离，base/真实 `book/` 不得被覆盖。
 
+长跨度节奏诊断遵循 `.agents/skills/analyze-novel-rhythm/SKILL.md`：先建立 edition-aware
+`chapter_features`，再运行 `novel rhythm diagnose` 与 `novel hooks diagnose`，最后才进入候选与合同。
+章节功能、标题/首尾相似和高压连续分别补充既有 Repetition Fatigue/Pressure Curve，伏笔
+Age/Dormancy/Readiness 补充 Narrative Debt 与 Thread Priority；不改变 Candidate Score 权重，
+不把 WARNING 当作批准依据，也不允许伪造语义证据。
+
 ## 构建与验收
 
 Windows 中文路径使用普通 wheel，避免 editable `.pth` 的本地代码页问题：
@@ -31,4 +37,7 @@ uv run --no-sync pytest -q
 uv run --no-sync ruff check src tests
 uv run --no-sync mypy src
 uv run --no-sync novel --help
+uv run --no-sync novel features --help
+uv run --no-sync novel rhythm --help
+uv run --no-sync novel hooks --help
 ```

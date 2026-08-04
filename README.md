@@ -16,6 +16,8 @@ Python 负责不可变原文、SQLite/FTS5、确定性指标、硬门、候选/�
 - 三条优先线程、恰好三个结构候选、Continuation Boundary Packet 与 Chapter Contract；
 - DRAFT → VALIDATED → AUTHOR_APPROVED → CANON_COMMITTED；
 - 十项生成后校验、重大兑现的四类 Aftershock Obligations、审计导出。
+- edition-aware `chapter_features`、长跨度节奏快照与 `HOLD/ADVANCE/RESOLVE/OVERDUE` 伏笔动作队列；
+- 版本化改写的 edition 物化隔离、Variant source span/FTS、Campaign 锚点与 r1/r2/r3 草稿审计。
 
 ## Windows 安装
 
@@ -85,6 +87,9 @@ $BookId = "my-book"
 
 ```powershell
 & $Novel boundary build --book-id $BookId
+& $Novel features rebuild --book-id $BookId --edition-id base
+& $Novel rhythm diagnose --book-id $BookId --edition-id base
+& $Novel hooks diagnose --book-id $BookId --edition-id base
 & $Novel diagnose --book-id $BookId --input ".\workspace\$BookId\metric_inputs.json"
 & $Novel plan-next --book-id $BookId
 ```
@@ -155,6 +160,11 @@ uv run --no-sync novel --help
 ## 版本化改写
 
 V1.1 提供 edition-scoped 的显式改写流水线：派生版本、RevisionSpec、影响包、Revision Units、`REVISION_DRAFT` 合同、十项改写校验、chapter variants、事务提交、可回滚快照和完整 edition 导出。请先阅读 `.agents/skills/revise-novel/SKILL.md`。批准改写必须逐字输入 `批准改写版本`，启用版本必须另行逐字输入 `启用改写版本`；base 与真实 `book/` 永远不被覆盖。
+
+长跨度节奏是独立证据层。标题/开头/结尾/功能连续补充 Repetition Fatigue，高压连续补充
+Pressure Curve，Promise 的 Age/Dormancy/Readiness 补充 Narrative Debt 与 Thread Priority；
+首版不增加文学总分、不改 Candidate Score 权重，同一重复问题不重复扣分。语义特征必须通过
+Codex 文件合同导入并提供正文证据，无法判断就保留 UNKNOWN。
 
 ## 文档
 

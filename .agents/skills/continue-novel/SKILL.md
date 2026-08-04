@@ -13,6 +13,8 @@ description: 严格依据 Novel_Authoring_System_Constitution_V2.md，在本项�
 4. 未通过十项校验不得批准；未在当前请求中明确说“批准写入正史”不得运行 `novel approve`。
 5. 不直接编辑 SQLite，不把 INFERENCE、CANDIDATE 或 PROSE_ONLY 静默升级为 CANON。
 6. 一个合同最多保留初稿加两轮修订；每轮产生新 draft，不覆盖旧草稿。
+7. 长跨度节奏是证据层，不是新的文学总分：功能/标题/首尾补充 Repetition Fatigue，
+   高压连续补充 Pressure Curve，Age/Dormancy/Readiness 补充 Narrative Debt 与 Thread Priority。
 
 以下示例假定在项目根运行 PowerShell，并设置：
 
@@ -51,6 +53,11 @@ $BookId = "<book-id>"
 
 ```powershell
 & $Novel boundary build --book-id $BookId
+
+# 读取或重建当前 edition 的章节特征与节奏/伏笔诊断
+& $Novel features rebuild --book-id $BookId --edition-id <edition-id>
+& $Novel rhythm diagnose --book-id $BookId --edition-id <edition-id>
+& $Novel hooks diagnose --book-id $BookId --edition-id <edition-id>
 ```
 
 根据边界包、当前投影和已保存指标证据，准备 `workspace/<book_id>/metric_inputs.json`，再运行：
@@ -60,6 +67,10 @@ $BookId = "<book-id>"
 ```
 
 指标只用于诊断和解释，不得绕过 Canon、Timeline、Knowledge、Character、Economy/Power、Author 与 Style 硬门。
+
+Boundary Packet 中的 `rhythm_features`、`rhythm_diagnostics` 与 `hook_diagnostics` 必须随候选任务传递。
+`same_function_streak`、标题/首尾重复和高压连续只产生建议或 WARNING；`HOLD/ADVANCE/RESOLVE/OVERDUE`
+用于调整线程优先级和合同约束，不得让模型自行伪造诊断结果。
 
 ### 4. 三线程与三个候选
 

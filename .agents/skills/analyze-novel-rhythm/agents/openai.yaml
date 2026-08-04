@@ -1,0 +1,4 @@
+interface:
+  display_name: "Analyze Novel Rhythm"
+  short_description: "生成 edition-aware 章节特征、长跨度节奏与伏笔动作诊断"
+  default_prompt: "使用 edition-aware 特征、节奏快照和伏笔动作队列检查小说续写节奏"

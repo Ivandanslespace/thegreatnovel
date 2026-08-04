@@ -12,6 +12,9 @@
 6. 依次执行 impact → plan → draft-task/import → validate → preview。批准改写必须逐字输入 `批准改写版本`；批准只提交目标 edition，不自动启用。
 7. 只有作者明确输入 `启用改写版本` 才能调用 edition activate。激活前确认目标 edition 为 VALIDATED，且 base projection/source hash 未漂移。
 8. 失败事务必须回滚事件、投影、variant、物化表和快照文件；discard 只将改写草稿标记为 REJECTED，不创建 variant。
+9. 改写前后都要按目标 edition 重建 `chapter_features` 并运行 rhythm/hooks 诊断；旧 content hash 的
+   特征失效但保留历史。节奏诊断只作为 Repetition Fatigue、Pressure Curve、Narrative Debt/Thread Priority
+   的证据，不新增总分，也不能绕过十项改写校验。
 
 ## 推荐命令
 
@@ -25,6 +28,9 @@ novel revision draft-task --book-id <book> --campaign-id <campaign> --unit-id <u
 novel revision import --book-id <book> --output output.json
 novel revision validate --book-id <book> --campaign-id <campaign>
 novel revision preview --book-id <book> --campaign-id <campaign>
+novel features rebuild --book-id <book> --edition-id <edition>
+novel rhythm diagnose --book-id <book> --edition-id <edition>
+novel hooks diagnose --book-id <book> --edition-id <edition>
 novel revision approve --book-id <book> --campaign-id <campaign> --confirm "批准改写版本"
 novel edition activate --book-id <book> --edition-id <edition> --confirm "启用改写版本"
 novel export --book-id <book> --edition-id <edition>
