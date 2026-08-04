@@ -208,14 +208,15 @@ def persist_projection_in_transaction(
             """
             INSERT INTO projection_metadata(
                 book_id, edition_id, through_event_seq, state_sha256, updated_at, state_json
-            ) VALUES (?, 'base', ?, ?, ?, ?)
-            ON CONFLICT(book_id) DO UPDATE SET
-                edition_id='base', through_event_seq=excluded.through_event_seq,
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(book_id, edition_id) DO UPDATE SET
+                through_event_seq=excluded.through_event_seq,
                 state_sha256=excluded.state_sha256, updated_at=excluded.updated_at,
                 state_json=excluded.state_json
             """,
             (
                 projection.book_id,
+                projection.edition_id,
                 projection.through_event_seq,
                 projection.sha256(),
                 utc_now(),

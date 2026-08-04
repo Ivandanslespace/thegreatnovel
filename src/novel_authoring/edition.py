@@ -31,6 +31,8 @@ class Edition(BaseModel):
     status: EditionStatus
     base_event_seq: int
     base_projection_hash: str
+    parent_base_event_seq: int = 0
+    parent_base_projection_hash: str = ""
     source_manifest_sha256: str
     created_at: str
     activated_at: str | None = None
@@ -80,6 +82,10 @@ def _row_to_edition(row: sqlite3.Row) -> Edition:
         status=EditionStatus(str(row["status"])),
         base_event_seq=int(row["base_event_seq"]),
         base_projection_hash=str(row["base_projection_hash"]),
+        parent_base_event_seq=int(row["parent_base_event_seq"] or row["base_event_seq"]),
+        parent_base_projection_hash=str(
+            row["parent_base_projection_hash"] or row["base_projection_hash"]
+        ),
         source_manifest_sha256=str(row["source_manifest_sha256"]),
         created_at=str(row["created_at"]),
         activated_at=None if row["activated_at"] is None else str(row["activated_at"]),
@@ -107,8 +113,9 @@ def backfill_base_editions(connection: sqlite3.Connection) -> None:
                 INSERT INTO editions(
                     edition_id, book_id, parent_edition_id, display_name, status,
                     base_event_seq, base_projection_hash, source_manifest_sha256,
+                    parent_base_event_seq, parent_base_projection_hash,
                     created_at, activated_at, version
-                ) VALUES (?, ?, NULL, ?, 'ACTIVE', ?, ?, ?, ?, ?, 1)
+                ) VALUES (?, ?, NULL, ?, 'ACTIVE', ?, ?, ?, ?, ?, ?, ?, 1)
                 """,
                 (
                     BASE_EDITION_ID,
@@ -117,6 +124,8 @@ def backfill_base_editions(connection: sqlite3.Connection) -> None:
                     event_seq,
                     projection_hash,
                     _source_manifest_hash(connection, book_id),
+                    event_seq,
+                    projection_hash,
                     now,
                     now,
                 ),
@@ -231,8 +240,9 @@ def create_edition(
             INSERT INTO editions(
                 edition_id, book_id, parent_edition_id, display_name, status,
                 base_event_seq, base_projection_hash, source_manifest_sha256,
+                parent_base_event_seq, parent_base_projection_hash,
                 created_at, version
-            ) VALUES (?, ?, ?, ?, 'DRAFT', ?, ?, ?, ?, 1)
+            ) VALUES (?, ?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?, 1)
             """,
             (
                 edition_id,
@@ -242,6 +252,8 @@ def create_edition(
                 projection.through_event_seq,
                 projection.sha256(),
                 _source_manifest_hash(connection, book_id),
+                projection.through_event_seq,
+                projection.sha256(),
                 now,
             ),
         )
@@ -282,9 +294,13 @@ def activate_edition(
                     connection,
                     book_id,
                     edition_id=str(parent_id),
-                    through_event_seq=int(row["base_event_seq"]),
+                    through_event_seq=int(
+                        row["parent_base_event_seq"] or row["base_event_seq"]
+                    ),
                 )
-                if frozen_parent.sha256() != str(row["base_projection_hash"]):
+                if frozen_parent.sha256() != str(
+                    row["parent_base_projection_hash"] or row["base_projection_hash"]
+                ):
                     raise EditionWorkflowError("edition 父版本锚点已漂移，禁止激活")
             if _source_manifest_hash(connection, book_id) != str(row["source_manifest_sha256"]):
                 raise EditionWorkflowError("不可变源 manifest 已漂移，禁止激活")
@@ -387,6 +403,25 @@ def edition_lineage_ids(connection: sqlite3.Connection, edition_id: str) -> list
     return list(reversed(lineage))
 
 
+def _edition_event_limits(
+    connection: sqlite3.Connection, edition_id: str
+) -> dict[str, int | None]:
+    """Return the event horizon at which each lineage edition was frozen."""
+    lineage = edition_lineage_ids(connection, edition_id)
+    limits: dict[str, int | None] = {item: None for item in lineage}
+    for index, lineage_edition in enumerate(lineage[:-1]):
+        child = lineage[index + 1]
+        row = connection.execute(
+            "SELECT parent_base_event_seq, base_event_seq FROM editions WHERE edition_id=?",
+            (child,),
+        ).fetchone()
+        if row is not None:
+            limits[lineage_edition] = int(
+                row["parent_base_event_seq"] or row["base_event_seq"] or 0
+            )
+    return limits
+
+
 def edition_workspace(database: Database, book_id: str, edition_id: str) -> Path:
     with database.connect() as connection:
         row = connection.execute(
@@ -407,6 +442,7 @@ def edition_chapters(
 ) -> list[dict[str, Any]]:
     """返回指定版本的章节视图；variant 替换原章，未改章节仍引用原文。"""
     lineage = edition_lineage_ids(connection, edition_id)
+    event_limits = _edition_event_limits(connection, edition_id)
     rows = connection.execute(
         """
         SELECT c.*, d.status AS document_status, d.relative_path
@@ -427,11 +463,21 @@ def edition_chapters(
                 """
                 SELECT variant_id, title, replacement_content,
                        replacement_content_sha256, base_source_span_id,
-                       revision_commit_id
+                       revision_commit_id, committed_event_seq
                 FROM chapter_variants
                 WHERE book_id=? AND edition_id=? AND base_chapter_id=? AND active=1
+                  AND (
+                      ? IS NULL OR committed_event_seq IS NULL
+                      OR committed_event_seq <= ?
+                  )
                 """,
-                (book_id, lineage_edition, str(row["chapter_id"])),
+                (
+                    book_id,
+                    lineage_edition,
+                    str(row["chapter_id"]),
+                    event_limits[lineage_edition],
+                    event_limits[lineage_edition],
+                ),
             ).fetchone()
             if variant is not None:
                 break
@@ -441,7 +487,19 @@ def edition_chapters(
             item["raw_heading"] = str(variant["title"])
             item["content"] = str(variant["replacement_content"])
             item["content_sha256"] = str(variant["replacement_content_sha256"])
-            item["source_span_id"] = str(variant["base_source_span_id"])
+            variant_span = connection.execute(
+                """
+                SELECT span_id FROM source_spans
+                WHERE book_id=? AND chapter_id=? AND variant_id=?
+                ORDER BY created_at DESC, span_id DESC LIMIT 1
+                """,
+                (book_id, str(row["chapter_id"]), str(variant["variant_id"])),
+            ).fetchone()
+            item["source_span_id"] = (
+                str(variant_span["span_id"])
+                if variant_span is not None
+                else str(variant["base_source_span_id"])
+            )
             item["document_status"] = "REVISION_VARIANT"
             item["revision_commit_id"] = str(variant["revision_commit_id"] or "")
         else:
@@ -465,10 +523,28 @@ def edition_chapters(
                (SELECT span_id FROM source_spans s WHERE s.chapter_id=c.chapter_id
                 ORDER BY s.span_id LIMIT 1) AS source_span_id
         FROM chapters c JOIN source_documents d ON d.document_id=c.document_id
+        LEFT JOIN canon_commits cc
+          ON cc.chapter_id=c.chapter_id AND cc.edition_id=c.edition_id
         WHERE c.book_id=? AND c.edition_id IN ({placeholders}) AND d.status='GENERATED_CANON'
+          AND (
+              cc.event_end_seq IS NULL
+              OR cc.event_end_seq <= CASE c.edition_id
+                  WHEN 'base' THEN COALESCE(?, cc.event_end_seq)
+                  ELSE COALESCE((
+                      SELECT parent_base_event_seq FROM editions child
+                      WHERE child.parent_edition_id=c.edition_id
+                        AND child.edition_id=?
+                  ), cc.event_end_seq)
+              END
+          )
         ORDER BY c.ordinal, c.created_at, c.chapter_id
         """,
-        (book_id, *lineage),
+        (
+            book_id,
+            *lineage,
+            event_limits.get("base"),
+            edition_id,
+        ),
     ).fetchall()
     result.extend({**dict(row), "edition_id": edition_id} for row in generated)
     result.sort(

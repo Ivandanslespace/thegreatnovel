@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 from typing import Any
 
 from novel_authoring.canon.projection import rebuild_projection
 from novel_authoring.db.database import Database
-from novel_authoring.edition import edition_chapters, edition_workspace, resolve_edition_id
+from novel_authoring.edition import (
+    edition_chapters,
+    edition_lineage_ids,
+    edition_workspace,
+    resolve_edition_id,
+)
 from novel_authoring.ingest.service import verify_sources
 from novel_authoring.planning.models import (
     BoundaryChapter,
@@ -164,6 +170,17 @@ def build_boundary_packet(
             """,
             (book_id, first_recent),
         ).fetchall()
+        if selected_edition != "base":
+            replaced_ids = {
+                str(item["chapter_id"])
+                for item in edition_chapters(connection, book_id, selected_edition)
+                if item.get("document_status") == "REVISION_VARIANT"
+            }
+            summary_rows = [
+                item for item in summary_rows if str(item["chapter_id"]) not in replaced_ids
+            ]
+        else:
+            replaced_ids = set()
         if selected_edition == "base":
             thread_rows = connection.execute(
                 """
@@ -214,6 +231,38 @@ def build_boundary_packet(
                 """,
                 (fts_query, book_id, first_recent),
             ).fetchall()
+            if selected_edition != "base":
+                try:
+                    variant_rows = connection.execute(
+                        """
+                        SELECT chapter_id, heading,
+                               snippet(edition_chapter_fts, 4, '', '', '…', 30) AS excerpt,
+                               variant_id
+                        FROM edition_chapter_fts
+                        WHERE edition_id=? AND edition_chapter_fts MATCH ?
+                        ORDER BY rank LIMIT 5
+                        """,
+                        (selected_edition, fts_query),
+                    ).fetchall()
+                    relevant_source_rows.extend(
+                        {
+                            **dict(item),
+                            "edition_id": selected_edition,
+                            "source_span_id": next(
+                                (
+                                    str(chapter.get("source_span_id"))
+                                    for chapter in edition_chapters(
+                                        connection, book_id, selected_edition
+                                    )
+                                    if str(chapter["chapter_id"]) == str(item["chapter_id"])
+                                ),
+                                "",
+                            ),
+                        }
+                        for item in variant_rows
+                    )
+                except sqlite3.DatabaseError:
+                    pass
         if selected_edition == "base":
             structure_rows = connection.execute(
                 "SELECT * FROM repetition_tags WHERE book_id=? ORDER BY ordinal DESC LIMIT 20",
@@ -241,13 +290,16 @@ def build_boundary_packet(
                 item.setdefault("profile_id", profile_id)
                 item.setdefault("status", "CANON")
                 style_rows.append(item)
+        directive_lineage = edition_lineage_ids(connection, selected_edition)
+        directive_placeholders = ",".join("?" for _ in directive_lineage)
         directive_rows = connection.execute(
-            """
+            f"""
             SELECT * FROM author_directives
             WHERE book_id=? AND status='ACTIVE'
+              AND edition_id IN ({directive_placeholders})
             ORDER BY priority DESC, created_at
             """,
-            (book_id,),
+            (book_id, *directive_lineage),
         ).fetchall()
         total = (
             len(edition_chapters(connection, book_id, selected_edition))
@@ -261,6 +313,8 @@ def build_boundary_packet(
     warnings: list[str] = []
     if first_recent > 1 and not summary_rows:
         warnings.append("更早章节尚无结构化摘要；当前仅依赖 Canon Projection 与最近原文")
+    if replaced_ids:
+        warnings.append("改写章节的旧摘要已从本 edition 边界排除；请重新生成 edition 摘要")
     packet_seed = json_dumps(
         {
             "book_id": book_id,
@@ -334,13 +388,14 @@ def build_boundary_packet(
         connection.execute(
             """
             INSERT OR IGNORE INTO boundary_packets(
-                packet_id, book_id, base_event_seq, base_projection_hash,
+                packet_id, book_id, edition_id, base_event_seq, base_projection_hash,
                 file_path, packet_json, packet_sha256, status, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'READY', ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'READY', ?)
             """,
             (
                 packet_id,
                 book_id,
+                selected_edition,
                 packet.base_event_seq,
                 packet.base_projection_hash,
                 str(markdown_path),

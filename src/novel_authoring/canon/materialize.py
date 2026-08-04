@@ -11,6 +11,37 @@ class MaterializationError(RuntimeError):
     pass
 
 
+def validate_materialized_event_sources(
+    connection: sqlite3.Connection, *, book_id: str, edition_id: str
+) -> None:
+    """Ensure every event-bearing materialized pointer resolves to events."""
+    checks = (
+        ("facts", "source_event_id"),
+        ("knowledge_edges", "learned_event_id"),
+        ("timeline_entries", "event_id"),
+        ("payoff_events", "event_id"),
+    )
+    for table, column in checks:
+        rows = connection.execute(
+            f"SELECT {column} FROM {table} "
+            "WHERE book_id=? AND edition_id=? AND "
+            + column
+            + " IS NOT NULL AND "
+            + column
+            + "!=''",
+            (book_id, edition_id),
+        ).fetchall()
+        for row in rows:
+            event = connection.execute(
+                "SELECT 1 FROM events WHERE book_id=? AND edition_id=? AND event_id=?",
+                (book_id, edition_id, str(row[0])),
+            ).fetchone()
+            if event is None:
+                raise MaterializationError(
+                    f"{table}.{column} 指向不存在的事件：{row[0]}"
+                )
+
+
 def _required(payload: dict[str, Any], key: str, kind: str) -> Any:
     value = payload.get(key)
     if value is None or value == "":
@@ -56,12 +87,12 @@ def materialize_change(
         connection.execute(
             """
             INSERT INTO facts(
-                fact_id, book_id, subject_id, predicate, object_json, statement,
+                fact_id, book_id, edition_id, subject_id, predicate, object_json, statement,
                 status, source_span_id, source_event_id, confidence,
                 valid_from_chapter, valid_to_chapter, supersedes_fact_id,
                 active, created_at, version
-            ) VALUES (?, ?, ?, ?, ?, ?, 'CANON', ?, ?, ?, ?, ?, ?, 1, ?, 1)
-            ON CONFLICT(fact_id) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, ?, ?, ?, ?, 1, ?, 1)
+            ON CONFLICT(book_id, edition_id, fact_id) DO UPDATE SET
                 subject_id=excluded.subject_id, predicate=excluded.predicate,
                 object_json=excluded.object_json, statement=excluded.statement,
                 status='CANON', source_span_id=excluded.source_span_id,
@@ -75,6 +106,7 @@ def materialize_change(
             (
                 record_id,
                 book_id,
+                edition_id,
                 payload.get("subject_id"),
                 predicate,
                 json_dumps(object_value),
@@ -92,11 +124,11 @@ def materialize_change(
         connection.execute(
             """
             INSERT INTO timeline_entries(
-                timeline_id, book_id, event_id, label, story_time_start,
+                timeline_id, book_id, edition_id, event_id, label, story_time_start,
                 story_time_end, order_key, status, source_span_id,
                 payload_json, created_at, version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, ?, 1)
-            ON CONFLICT(timeline_id) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, ?, 1)
+            ON CONFLICT(book_id, edition_id, timeline_id) DO UPDATE SET
                 event_id=excluded.event_id, label=excluded.label,
                 story_time_start=excluded.story_time_start,
                 story_time_end=excluded.story_time_end,
@@ -108,6 +140,7 @@ def materialize_change(
             (
                 record_id,
                 book_id,
+                edition_id,
                 event_id,
                 str(_required(payload, "label", change.kind)),
                 payload.get("story_time_start"),
@@ -122,11 +155,11 @@ def materialize_change(
         connection.execute(
             """
             INSERT INTO character_states(
-                state_id, book_id, character_id, as_of_event_seq, status,
+                state_id, book_id, edition_id, character_id, as_of_event_seq, status,
                 goals_json, knowledge_json, resources_json, relationships_json,
                 emotion_json, plans_json, source_span_id, created_at, version
-            ) VALUES (?, ?, ?, ?, 'CANON', ?, ?, ?, ?, ?, ?, ?, ?, 1)
-            ON CONFLICT(state_id) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, 'CANON', ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            ON CONFLICT(book_id, edition_id, state_id) DO UPDATE SET
                 character_id=excluded.character_id,
                 as_of_event_seq=excluded.as_of_event_seq, status='CANON',
                 goals_json=excluded.goals_json,
@@ -140,6 +173,7 @@ def materialize_change(
             (
                 record_id,
                 book_id,
+                edition_id,
                 str(_required(payload, "character_id", change.kind)),
                 event_seq,
                 _json(payload, "goals", []),
@@ -156,11 +190,11 @@ def materialize_change(
         connection.execute(
             """
             INSERT INTO knowledge_edges(
-                edge_id, book_id, character_id, fact_id, knowledge_state,
+                edge_id, book_id, edition_id, character_id, fact_id, knowledge_state,
                 learned_event_id, source_span_id, status, confidence,
                 created_at, version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, 1)
-            ON CONFLICT(edge_id) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, 1)
+            ON CONFLICT(book_id, edition_id, edge_id) DO UPDATE SET
                 character_id=excluded.character_id, fact_id=excluded.fact_id,
                 knowledge_state=excluded.knowledge_state,
                 learned_event_id=excluded.learned_event_id,
@@ -171,6 +205,7 @@ def materialize_change(
             (
                 record_id,
                 book_id,
+                edition_id,
                 str(_required(payload, "character_id", change.kind)),
                 str(_required(payload, "fact_id", change.kind)),
                 str(payload.get("knowledge_state", "KNOWN")),
@@ -184,12 +219,12 @@ def materialize_change(
         connection.execute(
             """
             INSERT INTO relationships(
-                relationship_id, book_id, from_entity_id, to_entity_id, status,
+                relationship_id, book_id, edition_id, from_entity_id, to_entity_id, status,
                 trust, alignment, dependence, debt, fear, secret_exposure,
                 commitment, betrayal_cost, power_delta, payload_json,
                 source_span_id, created_at, version
-            ) VALUES (?, ?, ?, ?, 'CANON', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-            ON CONFLICT(relationship_id) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, 'CANON', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            ON CONFLICT(book_id, edition_id, relationship_id) DO UPDATE SET
                 from_entity_id=excluded.from_entity_id,
                 to_entity_id=excluded.to_entity_id, status='CANON',
                 trust=excluded.trust, alignment=excluded.alignment,
@@ -205,6 +240,7 @@ def materialize_change(
             (
                 record_id,
                 book_id,
+                edition_id,
                 str(_required(payload, "from_entity_id", change.kind)),
                 str(_required(payload, "to_entity_id", change.kind)),
                 payload.get("trust"),
@@ -226,10 +262,10 @@ def materialize_change(
         connection.execute(
             """
             INSERT INTO resources(
-                resource_id, book_id, owner_id, resource_type, name, quantity,
+                resource_id, book_id, edition_id, owner_id, resource_type, name, quantity,
                 unit, status, source_span_id, payload_json, created_at, version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, ?, 1)
-            ON CONFLICT(resource_id) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, ?, 1)
+            ON CONFLICT(book_id, edition_id, resource_id) DO UPDATE SET
                 owner_id=excluded.owner_id, resource_type=excluded.resource_type,
                 name=excluded.name, quantity=excluded.quantity, unit=excluded.unit,
                 status='CANON', source_span_id=excluded.source_span_id,
@@ -238,6 +274,7 @@ def materialize_change(
             (
                 record_id,
                 book_id,
+                edition_id,
                 str(_required(payload, "owner_id", change.kind)),
                 str(payload.get("resource_type", "resource")),
                 str(_required(payload, "name", change.kind)),
@@ -252,11 +289,11 @@ def materialize_change(
         connection.execute(
             """
             INSERT INTO capabilities(
-                capability_id, book_id, owner_id, name, absolute_capacity,
+                capability_id, book_id, edition_id, owner_id, name, absolute_capacity,
                 effective_capacity, relative_standing, limits_json, status,
                 source_span_id, created_at, version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, 1)
-            ON CONFLICT(capability_id) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, 1)
+            ON CONFLICT(book_id, edition_id, capability_id) DO UPDATE SET
                 owner_id=excluded.owner_id, name=excluded.name,
                 absolute_capacity=excluded.absolute_capacity,
                 effective_capacity=excluded.effective_capacity,
@@ -268,6 +305,7 @@ def materialize_change(
             (
                 record_id,
                 book_id,
+                edition_id,
                 str(_required(payload, "owner_id", change.kind)),
                 str(_required(payload, "name", change.kind)),
                 payload.get("absolute_capacity"),
@@ -282,12 +320,12 @@ def materialize_change(
         connection.execute(
             """
             INSERT INTO threads(
-                thread_id, book_id, goal, stakes, phase, introduced_chapter,
+                thread_id, book_id, edition_id, goal, stakes, phase, introduced_chapter,
                 last_advanced_chapter, target_payoff_min, target_payoff_max,
                 importance, reader_visibility, progress, dependencies_json,
                 status, source_span_id, payload_json, created_at, version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, ?, 1)
-            ON CONFLICT(thread_id) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, ?, 1)
+            ON CONFLICT(book_id, edition_id, thread_id) DO UPDATE SET
                 goal=excluded.goal, stakes=excluded.stakes, phase=excluded.phase,
                 last_advanced_chapter=excluded.last_advanced_chapter,
                 target_payoff_min=excluded.target_payoff_min,
@@ -302,6 +340,7 @@ def materialize_change(
             (
                 record_id,
                 book_id,
+                edition_id,
                 str(_required(payload, "goal", change.kind)),
                 str(_required(payload, "stakes", change.kind)),
                 str(_required(payload, "phase", change.kind)),
@@ -322,13 +361,13 @@ def materialize_change(
         connection.execute(
             """
             INSERT INTO promises(
-                promise_id, book_id, thread_id, statement, importance,
+                promise_id, book_id, edition_id, thread_id, statement, importance,
                 reader_visibility, progress, introduced_ordinal,
                 last_reminded_ordinal, reminder_count, target_min_age,
                 target_max_age, status, source_span_id, payload_json,
                 created_at, version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, ?, 1)
-            ON CONFLICT(promise_id) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, ?, 1)
+            ON CONFLICT(book_id, edition_id, promise_id) DO UPDATE SET
                 thread_id=excluded.thread_id, statement=excluded.statement,
                 importance=excluded.importance,
                 reader_visibility=excluded.reader_visibility,
@@ -343,6 +382,7 @@ def materialize_change(
             (
                 record_id,
                 book_id,
+                edition_id,
                 payload.get("thread_id"),
                 str(_required(payload, "statement", change.kind)),
                 payload.get("importance", 0.5),
@@ -362,11 +402,11 @@ def materialize_change(
         connection.execute(
             """
             INSERT INTO payoff_events(
-                payoff_id, book_id, thread_id, payoff_type, subtype, score,
+                payoff_id, book_id, edition_id, thread_id, payoff_type, subtype, score,
                 chapter_id, event_id, status, aftershock_due_ordinal,
                 payload_json, created_at, version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, ?, 1)
-            ON CONFLICT(payoff_id) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, ?, 1)
+            ON CONFLICT(book_id, edition_id, payoff_id) DO UPDATE SET
                 thread_id=excluded.thread_id, payoff_type=excluded.payoff_type,
                 subtype=excluded.subtype, score=excluded.score,
                 chapter_id=excluded.chapter_id, event_id=excluded.event_id,
@@ -378,6 +418,7 @@ def materialize_change(
             (
                 record_id,
                 book_id,
+                edition_id,
                 payload.get("thread_id"),
                 str(payload.get("payoff_type", "unspecified")),
                 payload.get("subtype"),
@@ -393,12 +434,12 @@ def materialize_change(
         connection.execute(
             """
             INSERT INTO repetition_tags(
-                tag_id, book_id, chapter_id, candidate_id, event_source,
+                tag_id, book_id, edition_id, chapter_id, candidate_id, event_source,
                 solution_method, payoff_type, scene_topology,
                 emotional_outcome, ending_type, ordinal, status,
                 payload_json, created_at, version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, 1)
-            ON CONFLICT(tag_id) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANON', ?, ?, 1)
+            ON CONFLICT(book_id, edition_id, tag_id) DO UPDATE SET
                 chapter_id=excluded.chapter_id, candidate_id=excluded.candidate_id,
                 event_source=excluded.event_source,
                 solution_method=excluded.solution_method,
@@ -412,6 +453,7 @@ def materialize_change(
             (
                 record_id,
                 book_id,
+                edition_id,
                 chapter_id,
                 payload.get("candidate_id"),
                 payload.get("event_source"),
@@ -429,12 +471,12 @@ def materialize_change(
         connection.execute(
             """
             INSERT INTO style_profiles(
-                profile_id, book_id, status, pov, tense, sentence_rhythm_json,
+                profile_id, book_id, edition_id, status, pov, tense, sentence_rhythm_json,
                 dialogue_ratio, exposition_density, emotional_distance,
                 voice_samples_json, forbidden_json, source_span_id,
                 created_at, version
-            ) VALUES (?, ?, 'CANON', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-            ON CONFLICT(profile_id) DO UPDATE SET
+            ) VALUES (?, ?, ?, 'CANON', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            ON CONFLICT(book_id, edition_id, profile_id) DO UPDATE SET
                 status='CANON', pov=excluded.pov, tense=excluded.tense,
                 sentence_rhythm_json=excluded.sentence_rhythm_json,
                 dialogue_ratio=excluded.dialogue_ratio,
@@ -448,6 +490,7 @@ def materialize_change(
             (
                 record_id,
                 book_id,
+                edition_id,
                 payload.get("pov"),
                 payload.get("tense"),
                 _json(payload, "sentence_rhythm", {}),
@@ -462,26 +505,3 @@ def materialize_change(
         )
     else:
         raise MaterializationError(f"不支持的状态变化类型：{change.kind}")
-
-    # Migration 5 adds edition_id with a base default so every legacy caller
-    # remains valid.  Stamp the materialized row after the existing upsert;
-    # the event log is still authoritative and the edition is always explicit.
-    table_by_kind = {
-        "fact": ("facts", "fact_id"),
-        "timeline": ("timeline_entries", "timeline_id"),
-        "character_state": ("character_states", "state_id"),
-        "knowledge": ("knowledge_edges", "edge_id"),
-        "relationship": ("relationships", "relationship_id"),
-        "resource": ("resources", "resource_id"),
-        "capability": ("capabilities", "capability_id"),
-        "thread": ("threads", "thread_id"),
-        "promise": ("promises", "promise_id"),
-        "payoff": ("payoff_events", "payoff_id"),
-        "repetition": ("repetition_tags", "tag_id"),
-        "style": ("style_profiles", "profile_id"),
-    }
-    table, key = table_by_kind[change.kind]
-    connection.execute(
-        f"UPDATE {table} SET edition_id=? WHERE book_id=? AND {key}=?",
-        (edition_id, book_id, record_id),
-    )

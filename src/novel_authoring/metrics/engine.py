@@ -143,7 +143,7 @@ def persist_results(
                     inputs_json, evidence_json, threshold_interpretation,
                     recommended_action, config_hash, formula_id, created_at, edition_id
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(book_id, as_of_event_seq, metric_name, config_hash)
+                ON CONFLICT(book_id, edition_id, as_of_event_seq, metric_name, config_hash)
                 DO UPDATE SET
                     score=excluded.score,
                     inputs_json=excluded.inputs_json,

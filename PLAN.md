@@ -5,6 +5,38 @@
 > 运行模式：Codex 驱动的本地文件工作流；Python 不直接调用远程 LLM  
 > 默认续写模式：`faithful_continuation`
 
+## 2026-08-04 增量审核计划
+
+本轮基线：`1bdc60b31e6bbb412434d2cdcc10a4f2c3bfe802`，工作分支：
+`小说续写_codex_revision_metrics`。`book/`、`inspirations/`、`workspace/`、
+`.venv/`、缓存和本地导出产物继续只读/不提交。
+
+### Phase A：Revision Integrity Correction
+
+先完成并验证 edition-scoped 物化、真实事件来源、Variant source span/FTS、
+真实 ordinal、Campaign 当前锚点、父版本章节冻结、ImpactAudit 合同、per-unit
+Revision Plan、r1/r2/r3 草稿审计、Change Map/状态对应、真实校验器、证据与
+Adult/Consent 结构化门禁、Active Edition 生命周期、批准前重校验、Boundary
+隔离和 metric_results 逻辑唯一键。阶段 A 未通过全部回归测试、Ruff、Mypy 前，
+不得开始阶段 B。
+
+### Phase B：Long-span Rhythm Diagnostics
+
+阶段 A 全绿后，新增 edition-aware `chapter_features` 与
+`rhythm_diagnostic_snapshots`，并接通确定性标题/首尾/章节功能/高压连续诊断、
+语义特征文件合同、伏笔 HOLD/ADVANCE/RESOLVE/OVERDUE 队列、Boundary、plan-next、
+contract、draft validate、approve/export、features/rhythm/hooks CLI 和
+`analyze-novel-rhythm` Skill。诊断只补充既有 Repetition Fatigue、Pressure Curve、
+Narrative Debt/Thread Priority 的证据，不新增五个文学总分，也不重复扣分。
+
+阶段验收顺序：
+
+1. Phase A 回归测试 + 原有测试 + Ruff + strict Mypy；
+2. Phase B 回归测试 + 全部质量门 + CLI help；
+3. 合成长跨度 E2E、base/derived export 与 snapshot/rebuild 对账；
+4. 真实 book 只读 dry-run 与前后 SHA-256 复核；
+5. 分阶段提交并推送 `小说续写_codex_revision_metrics`，不创建 PR。
+
 ## 目标
 
 交付一个 Windows 兼容、CLI 优先、可运行、可测试、可追溯的 Python 3.11+ 系统，形成以下完整纵向路径：

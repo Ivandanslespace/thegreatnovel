@@ -5,7 +5,11 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from novel_authoring.db.schema import MIGRATIONS, SCHEMA_SQL
+from novel_authoring.db.schema import (
+    MIGRATIONS,
+    SCHEMA_SQL,
+    ensure_edition_integrity_schema,
+)
 from novel_authoring.utils import utc_now
 
 
@@ -51,6 +55,11 @@ class Database:
                         "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
                         (version, utc_now()),
                     )
+            # Phase-A integrity upgrade.  This is idempotent and intentionally
+            # does not add a new public migration row: existing clients rely on
+            # the V1 [1..5] migration contract while the physical table rebuild
+            # is safe to run on every initialization.
+            ensure_edition_integrity_schema(connection)
             # 迁移只负责结构；每次初始化再幂等回填已有 book 的 base edition。
             # 使用局部导入避免 db -> edition -> projection -> db 的导入环。
             from novel_authoring.edition import backfill_base_editions

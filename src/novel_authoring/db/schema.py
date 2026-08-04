@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+
 SCHEMA_VERSION = 5
 
 SCHEMA_SQL = r"""
@@ -557,3 +559,241 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
     (4, MIGRATION_4_SQL),
     (5, MIGRATION_5_SQL),
 )
+
+
+# Migration 5 added edition_id columns, but the original V1 tables retained
+# global primary keys.  That made a materialization into one edition silently
+# overwrite the row in another edition.  The integrity upgrade is deliberately
+# run idempotently from Database.initialize instead of adding a migration-row
+# that would break the V1 public migration contract.  Each rebuilt table uses
+# a physical composite key, so edition isolation is enforced by SQLite rather
+# than by generated IDs or caller discipline.
+_EDITION_SCOPED_KEYS: dict[str, str | None] = {
+    "facts": "fact_id",
+    "timeline_entries": "timeline_id",
+    "character_states": "state_id",
+    "knowledge_edges": "edge_id",
+    "relationships": "relationship_id",
+    "resources": "resource_id",
+    "capabilities": "capability_id",
+    "threads": "thread_id",
+    "promises": "promise_id",
+    "payoff_events": "payoff_id",
+    "repetition_tags": "tag_id",
+    "style_profiles": "profile_id",
+    "author_directives": "directive_id",
+    "candidate_plans": "candidate_id",
+    "chapter_contracts": "contract_id",
+    "drafts": "draft_id",
+    "validation_reports": "report_id",
+    "canon_commits": "commit_id",
+    "snapshots": "snapshot_id",
+    "metric_results": "result_id",
+    "boundary_packets": "packet_id",
+    "projection_metadata": None,
+}
+
+
+def _identifier(value: str) -> str:
+    return '"' + value.replace('"', '""') + '"'
+
+
+def _rebuild_edition_scoped_table(
+    connection: sqlite3.Connection, table: str, logical_key: str | None
+) -> None:
+    columns = connection.execute(f"PRAGMA table_info({_identifier(table)})").fetchall()
+    if not columns:
+        return
+    names = [str(row[1]) for row in columns]
+    if "edition_id" not in names or "book_id" not in names:
+        return
+    pk_columns = [str(row[1]) for row in sorted(columns, key=lambda row: int(row[5])) if row[5]]
+    desired = ["book_id", "edition_id"] if logical_key is None else [
+        "book_id", "edition_id", logical_key
+    ]
+    if pk_columns == desired:
+        return
+
+    # Capture ordinary indexes before the table is replaced.  Autoindexes are
+    # represented by sql=NULL and are intentionally not copied: old UNIQUE
+    # constraints are precisely what caused the cross-edition overwrite.
+    indexes = connection.execute(
+        "SELECT name, sql FROM sqlite_master "
+        "WHERE type='index' AND tbl_name=? AND sql IS NOT NULL",
+        (table,),
+    ).fetchall()
+    column_defs: list[str] = []
+    for row in columns:
+        name = str(row[1])
+        definition = f"{_identifier(name)} {str(row[2] or 'TEXT')}"
+        if int(row[3]):
+            definition += " NOT NULL"
+        if row[4] is not None:
+            definition += f" DEFAULT {row[4]}"
+        column_defs.append(definition)
+    column_defs.append(
+        "PRIMARY KEY (" + ", ".join(_identifier(item) for item in desired) + ")"
+    )
+    temporary = f"__edition_scope_{table}"
+    connection.execute(f"DROP TABLE IF EXISTS {_identifier(temporary)}")
+    connection.execute(
+        f"CREATE TABLE {_identifier(temporary)} (" + ", ".join(column_defs) + ")"
+    )
+    quoted_names = ", ".join(_identifier(name) for name in names)
+    connection.execute(
+        f"INSERT INTO {_identifier(temporary)} ({quoted_names}) "
+        f"SELECT {quoted_names} FROM {_identifier(table)}"
+    )
+    connection.execute(f"DROP TABLE {_identifier(table)}")
+    connection.execute(
+        f"ALTER TABLE {_identifier(temporary)} RENAME TO {_identifier(table)}"
+    )
+    for index in indexes:
+        sql = str(index[1])
+        try:
+            connection.execute(sql)
+        except sqlite3.DatabaseError:
+            # Stale legacy indexes must never prevent the integrity upgrade;
+            # the composite primary key remains authoritative.
+            continue
+
+
+def _add_column_if_missing(
+    connection: sqlite3.Connection, table: str, definition: str, column: str
+) -> None:
+    columns = {
+        str(row[1]) for row in connection.execute(f"PRAGMA table_info({_identifier(table)})")
+    }
+    if column not in columns:
+        connection.execute(f"ALTER TABLE {_identifier(table)} ADD COLUMN {definition}")
+
+
+def ensure_edition_integrity_schema(connection: sqlite3.Connection) -> None:
+    """Apply the idempotent Phase-A integrity/storage contract."""
+    for table, logical_key in _EDITION_SCOPED_KEYS.items():
+        _rebuild_edition_scoped_table(connection, table, logical_key)
+
+    # Explicit campaign/edition anchors distinguish a parent freeze from the
+    # current projection on which a campaign was opened.
+    _add_column_if_missing(
+        connection,
+        "editions",
+        "parent_base_event_seq INTEGER NOT NULL DEFAULT 0",
+        "parent_base_event_seq",
+    )
+    _add_column_if_missing(
+        connection,
+        "editions",
+        "parent_base_projection_hash TEXT NOT NULL DEFAULT ''",
+        "parent_base_projection_hash",
+    )
+    _add_column_if_missing(
+        connection,
+        "revision_campaigns",
+        "campaign_base_event_seq INTEGER NOT NULL DEFAULT 0",
+        "campaign_base_event_seq",
+    )
+    _add_column_if_missing(
+        connection,
+        "revision_campaigns",
+        "campaign_base_projection_hash TEXT NOT NULL DEFAULT ''",
+        "campaign_base_projection_hash",
+    )
+    _add_column_if_missing(
+        connection,
+        "revision_units",
+        "base_chapter_ordinal INTEGER NOT NULL DEFAULT 0",
+        "base_chapter_ordinal",
+    )
+    _add_column_if_missing(
+        connection,
+        "revision_drafts",
+        "parent_draft_id TEXT",
+        "parent_draft_id",
+    )
+    _add_column_if_missing(
+        connection,
+        "revision_drafts",
+        "revision_number INTEGER NOT NULL DEFAULT 1",
+        "revision_number",
+    )
+    _add_column_if_missing(
+        connection,
+        "revision_drafts",
+        "packet_sha256 TEXT NOT NULL DEFAULT ''",
+        "packet_sha256",
+    )
+    _add_column_if_missing(
+        connection,
+        "revision_drafts",
+        "plan_sha256 TEXT NOT NULL DEFAULT ''",
+        "plan_sha256",
+    )
+    _add_column_if_missing(
+        connection,
+        "revision_drafts",
+        "schema_sha256 TEXT NOT NULL DEFAULT ''",
+        "schema_sha256",
+    )
+    _add_column_if_missing(
+        connection,
+        "chapter_variants",
+        "committed_event_seq INTEGER",
+        "committed_event_seq",
+    )
+    _add_column_if_missing(
+        connection,
+        "source_spans",
+        "variant_id TEXT",
+        "variant_id",
+    )
+    _add_column_if_missing(
+        connection,
+        "source_spans",
+        "revision_commit_id TEXT",
+        "revision_commit_id",
+    )
+    _add_column_if_missing(
+        connection,
+        "source_spans",
+        "payload_json TEXT NOT NULL DEFAULT '{}'",
+        "payload_json",
+    )
+    _add_column_if_missing(
+        connection,
+        "revision_impact_packets",
+        "audit_task_id TEXT NOT NULL DEFAULT ''",
+        "audit_task_id",
+    )
+    _add_column_if_missing(
+        connection,
+        "revision_impact_packets",
+        "audit_schema_sha256 TEXT NOT NULL DEFAULT ''",
+        "audit_schema_sha256",
+    )
+    _add_column_if_missing(
+        connection,
+        "revision_impact_packets",
+        "analyzer_versions_json TEXT NOT NULL DEFAULT '{}'",
+        "analyzer_versions_json",
+    )
+
+    # The legacy chapter_fts table is immutable/base-only.  A separate FTS5
+    # index keeps variant正文 edition-scoped without deleting or replacing the
+    # source index used by base edition queries.
+    connection.execute(
+        """
+        CREATE VIRTUAL TABLE IF NOT EXISTS edition_chapter_fts USING fts5(
+            edition_id UNINDEXED,
+            chapter_id UNINDEXED,
+            variant_id UNINDEXED,
+            heading,
+            content,
+            tokenize='trigram'
+        )
+        """
+    )
+    connection.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_metric_results_edition "
+        "ON metric_results(book_id, edition_id, as_of_event_seq, metric_name, config_hash)"
+    )

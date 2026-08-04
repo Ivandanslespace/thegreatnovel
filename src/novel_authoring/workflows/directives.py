@@ -4,6 +4,7 @@ from novel_authoring.canon.events import EventStatus, EventStore
 from novel_authoring.canon.projection import rebuild_projection
 from novel_authoring.db.database import Database
 from novel_authoring.domain.models import InformationStatus
+from novel_authoring.edition import resolve_edition_id
 from novel_authoring.utils import stable_id, utc_now
 
 
@@ -23,6 +24,7 @@ def add_directive(
     scope: str = "next_chapter",
     priority: int = 100,
     source: str = "AUTHOR_CLI",
+    edition_id: str | None = None,
 ) -> dict[str, object]:
     normalized_type = directive_type.strip().lower().replace(" ", "_")
     normalized_content = content.strip()
@@ -35,9 +37,11 @@ def add_directive(
     if not 0 <= priority <= 1000:
         raise DirectiveWorkflowError("priority 必须在 0—1000")
     database.initialize()
+    selected_edition = resolve_edition_id(database, book_id, edition_id)
     directive_id = stable_id(
         "directive",
         book_id,
+        selected_edition,
         normalized_type,
         normalized_content,
         scope,
@@ -53,16 +57,17 @@ def add_directive(
         connection.execute(
             """
             INSERT INTO author_directives(
-                directive_id, book_id, directive_type, content, mode,
+                directive_id, book_id, edition_id, directive_type, content, mode,
                 status, priority, source, created_at, version
-            ) VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, 1)
-            ON CONFLICT(directive_id) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, 1)
+            ON CONFLICT(book_id, edition_id, directive_id) DO UPDATE SET
                 status='ACTIVE', priority=excluded.priority,
                 source=excluded.source, version=author_directives.version+1
             """,
             (
                 directive_id,
                 book_id,
+                selected_edition,
                 normalized_type,
                 normalized_content,
                 scope,
@@ -74,11 +79,13 @@ def add_directive(
         event = EventStore(database).append_in_transaction(
             connection,
             book_id=book_id,
+            edition_id=selected_edition,
             event_type="AUTHOR_DIRECTIVE_ADDED",
             aggregate_type="author_directive",
             aggregate_id=directive_id,
             payload={
                 "directive_id": directive_id,
+                "edition_id": selected_edition,
                 "directive_type": normalized_type,
                 "content": normalized_content,
                 "scope": scope,
@@ -89,10 +96,11 @@ def add_directive(
             status=EventStatus.COMMITTED,
             information_state=InformationStatus.AUTHOR_INTENT,
         )
-    projection = rebuild_projection(database, book_id, persist=True)
+    projection = rebuild_projection(database, book_id, edition_id=selected_edition, persist=True)
     return {
         "directive_id": directive_id,
         "book_id": book_id,
+        "edition_id": selected_edition,
         "directive_type": normalized_type,
         "content": normalized_content,
         "scope": scope,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 import typer
 
@@ -72,6 +72,10 @@ from novel_authoring.workflows.extraction import (
     reconcile_record,
 )
 
+# Typer 0.9 (the project's test runtime) requires explicit Option defaults for
+# required parameters; keep the compatibility annotations out of lint noise.
+# ruff: noqa: B008, UP045
+
 app = typer.Typer(help="小说作者辅助与续写系统 V1")
 source_app = typer.Typer(help="不可变源文件命令")
 extract_app = typer.Typer(help="Codex 结构化抽取文件合同")
@@ -94,11 +98,15 @@ app.add_typer(revision_app, name="revision")
 revision_app.add_typer(revision_draft_app, name="draft")
 revision_app.add_typer(revision_contract_app, name="contract")
 
-BookId = Annotated[str, typer.Option("--book-id", help="ASCII 稳定小说 ID")]
+# Keep the required book ID as a plain type.  Commands provide an explicit
+# ``typer.Option`` default so the project remains compatible with Typer 0.9;
+# combining an ``Annotated[..., Option(...)]`` alias with another Option
+# default raises ``MixedAnnotatedAndDefaultStyleError`` there.
+BookId = str
 Workspace = Annotated[Path, typer.Option("--workspace", help="workspace 根目录")]
-ConfigPath = Annotated[Path | None, typer.Option("--config", help="可选 YAML 覆盖配置")]
+ConfigPath = Annotated[Optional[Path], typer.Option("--config", help="可选 YAML 覆盖配置")]
 EditionId = Annotated[
-    str | None, typer.Option("--edition-id", help="edition ID；默认当前 ACTIVE，否则 base")
+    Optional[str], typer.Option("--edition-id", help="edition ID；默认当前 ACTIVE，否则 base")
 ]
 
 
@@ -108,8 +116,8 @@ def _emit(value: object) -> None:
 
 @app.command("init")
 def init_command(
-    book_id: BookId,
-    title: Annotated[str, typer.Option("--title")],
+    book_id: BookId = typer.Option(...),
+    title: str = typer.Option(..., "--title"),
     source_dir: Annotated[Path, typer.Option("--source-dir")] = Path("book"),
     workspace: Workspace = Path("workspace"),
     config: ConfigPath = None,
@@ -156,12 +164,12 @@ def init_command(
 
 @app.command("ingest")
 def ingest_command(
-    book_id: BookId,
-    title: Annotated[str, typer.Option("--title")],
+    book_id: BookId = typer.Option(...),
+    title: str = typer.Option(..., "--title"),
     source_dir: Annotated[Path, typer.Option("--source-dir")] = Path("book"),
     workspace: Workspace = Path("workspace"),
     config: ConfigPath = None,
-    manifest: Annotated[Path | None, typer.Option("--manifest")] = None,
+    manifest: Annotated[Optional[Path], typer.Option("--manifest")] = None,
     confirm_order: Annotated[bool, typer.Option("--confirm-order")] = False,
 ) -> None:
     """导入不可变原文；多文件顺序未经确认时阻断。"""
@@ -192,7 +200,7 @@ def ingest_command(
 
 @app.command("status")
 def status_command(
-    book_id: BookId,
+    book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
 ) -> None:
@@ -271,7 +279,9 @@ def status_command(
 
 
 @source_app.command("verify")
-def source_verify_command(book_id: BookId, workspace: Workspace = Path("workspace")) -> None:
+def source_verify_command(
+    book_id: BookId = typer.Option(...), workspace: Workspace = Path("workspace")
+) -> None:
     """复核所有源文件 SHA-256；不修改源文件。"""
     try:
         report = verify_sources(safe_book_id(book_id), workspace)
@@ -285,7 +295,7 @@ def source_verify_command(book_id: BookId, workspace: Workspace = Path("workspac
 
 @app.command("snapshot")
 def snapshot_command(
-    book_id: BookId,
+    book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
 ) -> None:
@@ -299,7 +309,7 @@ def snapshot_command(
 
 @app.command("rebuild")
 def rebuild_command(
-    book_id: BookId,
+    book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
 ) -> None:
@@ -321,9 +331,9 @@ def rebuild_command(
 
 @extract_app.command("prepare")
 def extract_prepare_command(
-    book_id: BookId,
-    chapter_start: Annotated[int, typer.Option("--chapter-start")],
-    chapter_end: Annotated[int, typer.Option("--chapter-end")],
+    book_id: BookId = typer.Option(...),
+    chapter_start: int = typer.Option(..., "--chapter-start"),
+    chapter_end: int = typer.Option(..., "--chapter-end"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """按章块生成 input.md、schema.json 和 task.json。"""
@@ -343,10 +353,10 @@ def extract_prepare_command(
 
 @extract_app.command("import")
 def extract_import_command(
-    book_id: BookId,
-    task_id: Annotated[str, typer.Option("--task-id")],
+    book_id: BookId = typer.Option(...),
+    task_id: str = typer.Option(..., "--task-id"),
     workspace: Workspace = Path("workspace"),
-    output: Annotated[Path | None, typer.Option("--output")] = None,
+    output: Annotated[Optional[Path], typer.Option("--output")] = None,
 ) -> None:
     """验证并导入 Codex output.json；默认只进入推断隔离区。"""
     database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
@@ -360,12 +370,12 @@ def extract_import_command(
 
 @app.command("reconcile")
 def reconcile_command(
-    book_id: BookId,
+    book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
-    fact_id: Annotated[str | None, typer.Option("--fact-id")] = None,
-    record_type: Annotated[str | None, typer.Option("--record-type")] = None,
-    record_id: Annotated[str | None, typer.Option("--record-id")] = None,
-    decision: Annotated[str | None, typer.Option("--decision")] = None,
+    fact_id: Annotated[Optional[str], typer.Option("--fact-id")] = None,
+    record_type: Annotated[Optional[str], typer.Option("--record-type")] = None,
+    record_id: Annotated[Optional[str], typer.Option("--record-id")] = None,
+    decision: Annotated[Optional[str], typer.Option("--decision")] = None,
     reason: Annotated[str, typer.Option("--reason")] = "人工整理",
 ) -> None:
     """生成冲突报告，或显式接受/拒绝一条结构化抽取记录。"""
@@ -406,12 +416,13 @@ def reconcile_command(
 
 @directive_app.command("add")
 def directive_add_command(
-    book_id: BookId,
-    directive_type: Annotated[str, typer.Option("--type")],
-    content: Annotated[str, typer.Option("--content")],
+    book_id: str = typer.Option(..., "--book-id", help="ASCII 稳定小说 ID"),
+    directive_type: str = typer.Option(..., "--type"),
+    content: str = typer.Option(..., "--content"),
     workspace: Workspace = Path("workspace"),
     scope: Annotated[str, typer.Option("--scope")] = "next_chapter",
     priority: Annotated[int, typer.Option("--priority")] = 100,
+    edition_id: EditionId = None,
 ) -> None:
     """先持久化用户对下一章的明确要求，再允许进入规划。"""
     database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
@@ -423,6 +434,7 @@ def directive_add_command(
             content=content,
             scope=scope,
             priority=priority,
+            edition_id=edition_id,
         )
     except (DirectiveWorkflowError, OSError, ValueError) as exc:
         typer.echo(str(exc), err=True)
@@ -432,10 +444,10 @@ def directive_add_command(
 
 @app.command("diagnose")
 def diagnose_command(
-    book_id: BookId,
+    book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     config: ConfigPath = None,
-    input_path: Annotated[Path | None, typer.Option("--input")] = None,
+    input_path: Annotated[Optional[Path], typer.Option("--input")] = None,
     edition_id: EditionId = None,
 ) -> None:
     """按宪法公式计算六项 V1 指标并保存输入证据。"""
@@ -469,7 +481,7 @@ def diagnose_command(
 
 @boundary_app.command("build")
 def boundary_build_command(
-    book_id: BookId,
+    book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     config: ConfigPath = None,
     edition_id: EditionId = None,
@@ -492,11 +504,11 @@ def boundary_build_command(
 
 @app.command("plan-next")
 def plan_next_command(
-    book_id: BookId,
+    book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     config: ConfigPath = None,
-    task_id: Annotated[str | None, typer.Option("--task-id")] = None,
-    output: Annotated[Path | None, typer.Option("--output")] = None,
+    task_id: Annotated[Optional[str], typer.Option("--task-id")] = None,
+    output: Annotated[Optional[Path], typer.Option("--output")] = None,
     edition_id: EditionId = None,
 ) -> None:
     """准备三个候选任务，或验证、评分并导入候选 output.json。"""
@@ -524,8 +536,8 @@ def plan_next_command(
 
 @contract_app.command("build")
 def contract_build_command(
-    book_id: BookId,
-    candidate_id: Annotated[str, typer.Option("--candidate-id")],
+    book_id: BookId = typer.Option(...),
+    candidate_id: str = typer.Option(..., "--candidate-id"),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
 ) -> None:
@@ -541,8 +553,8 @@ def contract_build_command(
 
 @draft_app.command("prepare")
 def draft_prepare_command(
-    book_id: BookId,
-    contract_id: Annotated[str, typer.Option("--contract-id")],
+    book_id: BookId = typer.Option(...),
+    contract_id: str = typer.Option(..., "--contract-id"),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
 ) -> None:
@@ -558,10 +570,10 @@ def draft_prepare_command(
 
 @draft_app.command("import")
 def draft_import_command(
-    book_id: BookId,
-    task_id: Annotated[str, typer.Option("--task-id")],
+    book_id: BookId = typer.Option(...),
+    task_id: str = typer.Option(..., "--task-id"),
     workspace: Workspace = Path("workspace"),
-    output: Annotated[Path | None, typer.Option("--output")] = None,
+    output: Annotated[Optional[Path], typer.Option("--output")] = None,
     edition_id: EditionId = None,
 ) -> None:
     """验证并导入 Codex 正文 output.json；状态只能进入 DRAFT。"""
@@ -576,8 +588,8 @@ def draft_import_command(
 
 @draft_app.command("validate")
 def draft_validate_command(
-    book_id: BookId,
-    draft_id: Annotated[str, typer.Option("--draft-id")],
+    book_id: BookId = typer.Option(...),
+    draft_id: str = typer.Option(..., "--draft-id"),
     workspace: Workspace = Path("workspace"),
     config: ConfigPath = None,
     edition_id: EditionId = None,
@@ -602,8 +614,8 @@ def draft_validate_command(
 
 @draft_app.command("show")
 def draft_show_command(
-    book_id: BookId,
-    draft_id: Annotated[str, typer.Option("--draft-id")],
+    book_id: BookId = typer.Option(...),
+    draft_id: str = typer.Option(..., "--draft-id"),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
 ) -> None:
@@ -619,8 +631,8 @@ def draft_show_command(
 
 @draft_app.command("discard")
 def draft_discard_command(
-    book_id: BookId,
-    draft_id: Annotated[str, typer.Option("--draft-id")],
+    book_id: BookId = typer.Option(...),
+    draft_id: str = typer.Option(..., "--draft-id"),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
 ) -> None:
@@ -636,13 +648,12 @@ def draft_discard_command(
 
 @app.command("approve")
 def approve_command(
-    book_id: BookId,
-    draft_id: Annotated[str, typer.Option("--draft-id")],
+    book_id: str = typer.Option(..., "--book-id", help="ASCII 稳定小说 ID"),
+    draft_id: str = typer.Option(..., "--draft-id"),
     workspace: Workspace = Path("workspace"),
-    confirmation: Annotated[
-        str,
-        typer.Option("--confirm", help=f"必须逐字输入：{APPROVAL_PHRASE}"),
-    ] = "",
+    confirmation: str = typer.Option(
+        "", "--confirm", help=f"必须逐字输入：{APPROVAL_PHRASE}"
+    ),
     edition_id: EditionId = None,
 ) -> None:
     """显式批准 VALIDATED 草稿并以单事务提交事件、投影和快照。"""
@@ -665,9 +676,9 @@ def approve_command(
 
 @app.command("export")
 def export_command(
-    book_id: BookId,
+    book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
-    output_dir: Annotated[Path | None, typer.Option("--output-dir")] = None,
+    output_dir: Annotated[Optional[Path], typer.Option("--output-dir")] = None,
     edition_id: EditionId = None,
 ) -> None:
     """导出投影、审计记录与已批准续写；不复制或修改原始 book。"""
@@ -688,7 +699,7 @@ def export_command(
 
 @edition_app.command("list")
 def edition_list_command(
-    book_id: BookId,
+    book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """列出 base 与所有派生 edition。"""
@@ -702,12 +713,12 @@ def edition_list_command(
 
 @edition_app.command("create")
 def edition_create_command(
-    book_id: BookId,
-    edition_id: Annotated[str, typer.Option("--edition-id")],
-    display_name: Annotated[str, typer.Option("--display-name", "--name")],
+    book_id: BookId = typer.Option(...),
+    edition_id: str = typer.Option(..., "--edition-id"),
+    display_name: str = typer.Option(..., "--display-name", "--name"),
     workspace: Workspace = Path("workspace"),
     parent_edition_id: Annotated[
-        str | None, typer.Option("--parent-edition-id", "--parent")
+        Optional[str], typer.Option("--parent-edition-id", "--parent")
     ] = None,
 ) -> None:
     """从当前或指定父 edition 冻结锚点并建立 DRAFT。"""
@@ -728,8 +739,8 @@ def edition_create_command(
 
 @edition_app.command("activate")
 def edition_activate_command(
-    book_id: BookId,
-    edition_id: Annotated[str, typer.Option("--edition-id")],
+    book_id: BookId = typer.Option(...),
+    edition_id: str = typer.Option(..., "--edition-id"),
     workspace: Workspace = Path("workspace"),
     confirmation: Annotated[
         str, typer.Option("--confirm", help=f"必须逐字输入：{ACTIVATE_PHRASE}")
@@ -747,8 +758,8 @@ def edition_activate_command(
 
 @edition_app.command("archive")
 def edition_archive_command(
-    book_id: BookId,
-    edition_id: Annotated[str, typer.Option("--edition-id")],
+    book_id: BookId = typer.Option(...),
+    edition_id: str = typer.Option(..., "--edition-id"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """归档派生 edition；base 永不删除。"""
@@ -762,8 +773,8 @@ def edition_archive_command(
 
 @edition_app.command("show")
 def edition_show_command(
-    book_id: BookId,
-    edition_id: Annotated[str, typer.Option("--edition-id")],
+    book_id: BookId = typer.Option(...),
+    edition_id: str = typer.Option(..., "--edition-id"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """显示一个 edition 的冻结锚点与生命周期状态。"""
@@ -777,10 +788,10 @@ def edition_show_command(
 
 @edition_app.command("export")
 def edition_export_command(
-    book_id: BookId,
-    edition_id: Annotated[str, typer.Option("--edition-id")],
+    book_id: BookId = typer.Option(...),
+    edition_id: str = typer.Option(..., "--edition-id"),
     workspace: Workspace = Path("workspace"),
-    output_dir: Annotated[Path | None, typer.Option("--output-dir")] = None,
+    output_dir: Annotated[Optional[Path], typer.Option("--output-dir")] = None,
 ) -> None:
     """导出指定 edition 的完整替换版与改写审计。"""
     database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
@@ -793,9 +804,9 @@ def edition_export_command(
 
 @revision_app.command("create")
 def revision_create_command(
-    book_id: BookId,
-    spec: Annotated[Path, typer.Option("--spec")],
-    edition_id: Annotated[str, typer.Option("--edition-id")],
+    book_id: BookId = typer.Option(...),
+    spec: Path = typer.Option(..., "--spec"),
+    edition_id: str = typer.Option(..., "--edition-id"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """校验并持久化 RevisionSpec。"""
@@ -809,8 +820,8 @@ def revision_create_command(
 
 @revision_app.command("impact")
 def revision_impact_command(
-    book_id: BookId,
-    campaign_id: Annotated[str, typer.Option("--campaign-id")],
+    book_id: BookId = typer.Option(...),
+    campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """执行 deterministic FTS/source scan 并生成 Codex 语义审计任务。"""
@@ -824,10 +835,10 @@ def revision_impact_command(
 
 @revision_app.command("impact-complete")
 def revision_impact_complete_command(
-    book_id: BookId,
-    campaign_id: Annotated[str, typer.Option("--campaign-id")],
+    book_id: BookId = typer.Option(...),
+    campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
-    decisions: Annotated[Path | None, typer.Option("--decisions")] = None,
+    decisions: Annotated[Optional[Path], typer.Option("--decisions")] = None,
 ) -> None:
     """导入语义审计处置 JSON；未处置项不会被默认视为已完成。"""
     database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
@@ -843,8 +854,8 @@ def revision_impact_complete_command(
 
 @revision_app.command("plan")
 def revision_plan_command(
-    book_id: BookId,
-    campaign_id: Annotated[str, typer.Option("--campaign-id")],
+    book_id: BookId = typer.Option(...),
+    campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """把影响包编译为有依赖顺序的 Revision Plan/Units。"""
@@ -858,8 +869,8 @@ def revision_plan_command(
 
 @revision_contract_app.command("build")
 def revision_contract_build_nested_command(
-    book_id: BookId,
-    campaign_id: Annotated[str, typer.Option("--campaign-id")],
+    book_id: BookId = typer.Option(...),
+    campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """为 campaign 构建 Revision Plan/Unit 合同（revision plan 的兼容别名）。"""
@@ -868,9 +879,9 @@ def revision_contract_build_nested_command(
 
 @revision_app.command("draft-task")
 def revision_draft_task_command(
-    book_id: BookId,
-    campaign_id: Annotated[str, typer.Option("--campaign-id")],
-    unit_id: Annotated[str, typer.Option("--unit-id")],
+    book_id: BookId = typer.Option(...),
+    campaign_id: str = typer.Option(..., "--campaign-id"),
+    unit_id: str = typer.Option(..., "--unit-id"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """为一个 Revision Unit 生成 REVISION_DRAFT 任务与 schema。"""
@@ -884,8 +895,8 @@ def revision_draft_task_command(
 
 @revision_app.command("import")
 def revision_import_command(
-    book_id: BookId,
-    output: Annotated[Path, typer.Option("--output")],
+    book_id: BookId = typer.Option(...),
+    output: Path = typer.Option(..., "--output"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """验证并导入 REVISION_DRAFT；只进入 revision_drafts。"""
@@ -899,8 +910,8 @@ def revision_import_command(
 
 @revision_app.command("validate")
 def revision_validate_command(
-    book_id: BookId,
-    campaign_id: Annotated[str, typer.Option("--campaign-id")],
+    book_id: BookId = typer.Option(...),
+    campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """运行十项改写校验及既有十项校验审计面。"""
@@ -917,8 +928,8 @@ def revision_validate_command(
 
 @revision_app.command("preview")
 def revision_preview_command(
-    book_id: BookId,
-    campaign_id: Annotated[str, typer.Option("--campaign-id")],
+    book_id: BookId = typer.Option(...),
+    campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """显示改写差异、variants、事件与未解决影响项。"""
@@ -932,8 +943,8 @@ def revision_preview_command(
 
 @revision_app.command("status")
 def revision_status_command(
-    book_id: BookId,
-    campaign_id: Annotated[str, typer.Option("--campaign-id")],
+    book_id: BookId = typer.Option(...),
+    campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """显示 campaign、impact、unit、variant 和未解决项状态。"""
@@ -947,17 +958,23 @@ def revision_status_command(
 
 @revision_app.command("approve")
 def revision_approve_command(
-    book_id: BookId,
-    campaign_id: Annotated[str, typer.Option("--campaign-id")],
+    book_id: BookId = typer.Option(...),
+    campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
-    confirmation: Annotated[
-        str, typer.Option("--confirm", help=f"必须逐字输入：{REVISION_APPROVAL_PHRASE}")
-    ] = "",
+    confirmation: str = typer.Option(
+        "", "--confirm", help=f"必须逐字输入：{REVISION_APPROVAL_PHRASE}"
+    ),
 ) -> None:
     """批准改写 campaign；只写入目标 edition，且不自动激活。"""
     database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
     try:
-        _emit(approve_revision_campaign(database, book_id, campaign_id, confirmation=confirmation))
+        preview = revision_preview(database, book_id, campaign_id)
+        _emit({"approval_preview": preview})
+        _emit(
+            approve_revision_campaign(
+                database, book_id, campaign_id, confirmation=confirmation
+            )
+        )
     except (RevisionWorkflowError, OSError, ValueError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=6) from exc
@@ -965,8 +982,8 @@ def revision_approve_command(
 
 @revision_app.command("discard")
 def revision_discard_command(
-    book_id: BookId,
-    draft_id: Annotated[str, typer.Option("--draft-id")],
+    book_id: BookId = typer.Option(...),
+    draft_id: str = typer.Option(..., "--draft-id"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """丢弃改写草稿；不会生成 chapter variant。"""
@@ -980,9 +997,9 @@ def revision_discard_command(
 
 @revision_draft_app.command("prepare")
 def revision_draft_prepare_nested_command(
-    book_id: BookId,
-    campaign_id: Annotated[str, typer.Option("--campaign-id")],
-    unit_id: Annotated[str, typer.Option("--unit-id")],
+    book_id: BookId = typer.Option(...),
+    campaign_id: str = typer.Option(..., "--campaign-id"),
+    unit_id: str = typer.Option(..., "--unit-id"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """Nested alias for revision draft prepare."""
@@ -991,8 +1008,8 @@ def revision_draft_prepare_nested_command(
 
 @revision_draft_app.command("import")
 def revision_draft_import_nested_command(
-    book_id: BookId,
-    output: Annotated[Path, typer.Option("--output")],
+    book_id: BookId = typer.Option(...),
+    output: Path = typer.Option(..., "--output"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """Nested alias for revision draft import."""
@@ -1001,8 +1018,8 @@ def revision_draft_import_nested_command(
 
 @revision_draft_app.command("validate")
 def revision_draft_validate_nested_command(
-    book_id: BookId,
-    campaign_id: Annotated[str, typer.Option("--campaign-id")],
+    book_id: BookId = typer.Option(...),
+    campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """Nested alias for final campaign validation."""
@@ -1011,8 +1028,8 @@ def revision_draft_validate_nested_command(
 
 @revision_draft_app.command("show")
 def revision_draft_show_nested_command(
-    book_id: BookId,
-    campaign_id: Annotated[str, typer.Option("--campaign-id")],
+    book_id: BookId = typer.Option(...),
+    campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
 ) -> None:
     """Nested alias for revision preview/show."""

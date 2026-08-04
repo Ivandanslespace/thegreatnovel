@@ -123,6 +123,42 @@ class ImpactPacket(BaseModel):
     created_at: str
 
 
+class ImpactAuditDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    impact_id: str
+    classification: Literal[
+        "MUST_REWRITE",
+        "MUST_REVIEW",
+        "INFORMATIONAL",
+        "EXPLICITLY_WAIVED",
+    ]
+    status: Literal["OPEN", "HANDLED", "WAIVED"]
+    evidence_quotes: list[str] = Field(default_factory=list)
+    waiver_reason: str | None = None
+    notes: list[str] = Field(default_factory=list)
+
+
+class ImpactAuditOutput(BaseModel):
+    """Codex 语义影响审计文件合同；不能由数据库缺省值代替。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    task_type: Literal["REVISION_IMPACT_AUDIT"] = "REVISION_IMPACT_AUDIT"
+    task_id: str
+    campaign_id: str
+    edition_id: str
+    packet_id: str
+    packet_sha256: str
+    schema_sha256: str
+    source_manifest_sha256: str
+    base_event_seq: int
+    base_projection_hash: str
+    analyzer_versions: dict[str, str] = Field(default_factory=dict)
+    decisions: list[ImpactAuditDecision] = Field(min_length=1)
+    new_items: list[ImpactItem] = Field(default_factory=list)
+
+
 class RevisionUnit(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -131,6 +167,7 @@ class RevisionUnit(BaseModel):
     book_id: str
     edition_id: str
     unit_order: int
+    base_chapter_ordinal: int
     base_chapter_id: str
     base_source_span_id: str
     base_content_sha256: str
@@ -163,6 +200,11 @@ class RevisionDraftOutput(BaseModel):
     edition_id: str
     base_chapter_id: str
     base_content_sha256: str
+    parent_draft_id: str | None = None
+    revision_number: int = Field(default=1, ge=1, le=3)
+    packet_sha256: str = ""
+    plan_sha256: str = ""
+    schema_sha256: str = ""
     replacement_title: str
     replacement_markdown: str = Field(min_length=1)
     change_map: list[ChangeMapItem] = Field(min_length=1)
@@ -177,6 +219,24 @@ class RevisionDraftOutput(BaseModel):
     character_fit_inputs: dict[str, float] = Field(default_factory=dict)
     style_fit_inputs: dict[str, float] = Field(default_factory=dict)
     notes: list[str] = Field(default_factory=list)
+    adult_consent: "AdultConsentDeclaration | None" = None  # noqa: UP037
+
+
+class AdultConsentDeclaration(BaseModel):
+    """亲密/成人情节的结构化当前状态声明。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    characters: list[str] = Field(min_length=1)
+    adult_status: dict[str, Literal["ADULT", "MINOR", "UNKNOWN"]]
+    consciousness: Literal["CLEAR", "IMPAIRED", "UNCONSCIOUS", "UNKNOWN"]
+    coercion_state: Literal["NONE", "PRESENT", "UNKNOWN"]
+    ability_or_bloodline_influence: Literal["NONE", "PRESENT", "UNKNOWN"]
+    proposal: Literal["PRESENT", "ABSENT", "UNKNOWN"]
+    acceptance: Literal["EXPLICIT", "ABSENT", "REFUSED", "UNKNOWN"]
+    refusal_possible: bool
+    withdrawal_possible: bool
+    evidence_quotes: list[str] = Field(min_length=1)
 
 
 class RevisionValidationReport(BaseModel):
@@ -187,3 +247,6 @@ class RevisionValidationReport(BaseModel):
     passed: bool
     evidence: list[str] = Field(default_factory=list)
     details: dict[str, Any] = Field(default_factory=dict)
+
+
+RevisionDraftOutput.model_rebuild()
