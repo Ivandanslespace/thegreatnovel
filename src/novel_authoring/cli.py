@@ -7,14 +7,17 @@ from typing import Annotated, Optional
 import typer
 
 from novel_authoring.atlas.models import AtlasAction
+from novel_authoring.atlas.offline import export_snapshot
 from novel_authoring.atlas.service import (
     AtlasError,
+    atlas_root,
     get_atlas_overview,
     list_atlas_history,
     record_atlas_action,
     register_atlas,
     validate_atlas,
 )
+from novel_authoring.atlas.visuals import render_atlas_visuals
 from novel_authoring.canon.projection import projection_from_connection, rebuild_projection
 from novel_authoring.canon.state import create_snapshot, projection_counts
 from novel_authoring.config import load_settings
@@ -43,6 +46,12 @@ from novel_authoring.ingest.service import (
     scan_sources,
     verify_sources,
     write_manifest,
+)
+from novel_authoring.initialization.service import (
+    InitializationError,
+    create_initialization,
+    latest_initialization,
+    refresh_initialization,
 )
 from novel_authoring.metrics.engine import diagnose_bundle, load_metric_bundle, persist_results
 from novel_authoring.metrics.models import MetricSemanticObservationsOutput
@@ -118,6 +127,7 @@ from novel_authoring.workflows.handoffs import (
     claim_handoff,
     create_batch_continuation_handoff,
     create_continuation_handoff,
+    create_initialization_handoff,
     create_revision_handoff,
     create_story_atlas_handoff,
     get_handoff,
@@ -148,6 +158,7 @@ metrics_app = typer.Typer(help="provenance-aware 指标观测与运行")
 metrics_semantic_app = typer.Typer(help="语义指标观察文件合同")
 observation_app = typer.Typer(help="append-only Metric Observation 解析与撤回")
 atlas_app = typer.Typer(help="Versioned Soft Story Atlas")
+initialize_app = typer.Typer(help="已有长篇 Atlas-first 深度初始化")
 batch_app = typer.Typer(help="滚动 Batch Continuation 与 Provisional Projection")
 demo_app = typer.Typer(help="合成演示数据")
 segments_app = typer.Typer(help="effective edition 段落与证据")
@@ -170,6 +181,7 @@ app.add_typer(metrics_app, name="metrics")
 metrics_app.add_typer(metrics_semantic_app, name="semantic")
 app.add_typer(observation_app, name="observation")
 app.add_typer(atlas_app, name="atlas")
+app.add_typer(initialize_app, name="initialize")
 app.add_typer(batch_app, name="batch")
 app.add_typer(demo_app, name="demo")
 app.add_typer(segments_app, name="segments")
@@ -1654,6 +1666,121 @@ def atlas_validate_command(
         raise typer.Exit(code=3) from exc
 
 
+@atlas_app.command("render")
+def atlas_render_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    artifact_root: Annotated[Optional[Path], typer.Option("--artifact-root")] = None,
+) -> None:
+    """离线渲染七张 SVG Atlas 图；不使用网络或图片 API。"""
+    try:
+        database = _book_database(workspace, book_id)
+        root = (artifact_root or atlas_root(database, book_id, edition_id or "base")).resolve()
+        _emit({"artifact_root": str(root), "visuals": render_atlas_visuals(root)})
+    except (AtlasError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@atlas_app.command("visuals")
+def atlas_visuals_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    artifact_root: Annotated[Optional[Path], typer.Option("--artifact-root")] = None,
+) -> None:
+    """render 的明确别名。"""
+    atlas_render_command(book_id, workspace, edition_id, artifact_root)
+
+
+@atlas_app.command("export-snapshot")
+def atlas_export_snapshot_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    output_root: Annotated[Optional[Path], typer.Option("--output-root")] = None,
+) -> None:
+    """导出无需服务器、可直接打开的本地 HTML 作者工作台。"""
+    try:
+        _emit(
+            export_snapshot(
+                _book_database(workspace, book_id),
+                book_id,
+                edition_id=edition_id,
+                output_root=output_root,
+            )
+        )
+    except (AtlasError, ValueError, OSError, InitializationError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@initialize_app.command("create")
+def initialize_create_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    char_limit: int = typer.Option(80_000, "--char-limit"),
+    max_chapters_per_arc: int = typer.Option(20, "--max-chapters-per-arc"),
+) -> None:
+    try:
+        _emit(
+            create_initialization(
+                _book_database(workspace, book_id),
+                book_id,
+                edition_id=edition_id,
+                char_limit=char_limit,
+                max_chapters_per_arc=max_chapters_per_arc,
+            )
+        )
+    except (InitializationError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@initialize_app.command("status")
+def initialize_status_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    initialization_id: Annotated[Optional[str], typer.Option("--initialization-id")] = None,
+) -> None:
+    try:
+        _emit(
+            latest_initialization(
+                _book_database(workspace, book_id),
+                book_id,
+                edition_id,
+                initialization_id,
+            )
+        )
+    except (InitializationError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@initialize_app.command("refresh")
+def initialize_refresh_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    initialization_id: Annotated[Optional[str], typer.Option("--initialization-id")] = None,
+) -> None:
+    try:
+        _emit(
+            refresh_initialization(
+                _book_database(workspace, book_id),
+                book_id,
+                edition_id=edition_id,
+                initialization_id=initialization_id,
+            )
+        )
+    except (InitializationError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
 @atlas_app.command("history")
 def atlas_history_command(
     book_id: BookId = typer.Option(...),
@@ -1808,6 +1935,28 @@ def workflow_atlas_bootstrap_command(
         _emit(
             create_story_atlas_handoff(
                 Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"),
+                book_id,
+                requested_stage=requested_stage,
+                edition_id=edition_id,
+            )
+        )
+    except (HandoffWorkflowError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@workflow_app.command("initialize")
+def workflow_initialize_command(
+    book_id: BookId = typer.Option(...),
+    requested_stage: str = typer.Option("NOVEL_INITIALIZATION", "--stage"),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    """创建已有长篇 Atlas-first 初始化 handoff，不预先创建 Planning Aggregate。"""
+    try:
+        _emit(
+            create_initialization_handoff(
+                _book_database(workspace, book_id),
                 book_id,
                 requested_stage=requested_stage,
                 edition_id=edition_id,

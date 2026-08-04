@@ -177,4 +177,10 @@ th, td { padding: .6rem; border-bottom: 1px solid var(--line); text-align: left;
 .horizon-card li { margin-bottom: .8rem; }
 .horizon-card span { color: var(--muted); display: block; font-size: .8rem; }
 .horizon-far { opacity: .78; }
+.atlas-assets, .atlas-report-grid { margin-top: 1.2rem; }
+.atlas-visual-grid, .atlas-report-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.atlas-visual-grid figure { margin: 0; overflow: auto; }
+.atlas-visual-grid img { display: block; min-width: 520px; width: 100%; margin-top: .5rem; }
+.atlas-report-grid > h2 { grid-column: 1 / -1; }
+.atlas-report-grid pre { max-height: 360px; overflow: auto; white-space: pre-wrap; color: var(--muted); }
 @media (max-width: 760px) { .atlas-layout { grid-template-columns: 1fr; } }

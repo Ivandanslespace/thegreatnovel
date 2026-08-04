@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from novel_authoring.atlas.service import AtlasError, get_atlas_overview
 from novel_authoring.db.database import Database
+from novel_authoring.initialization import latest_initialization
 
 GRAPH_TYPES = {
     "characters",
@@ -181,6 +183,23 @@ def atlas_context(
     query: str | None = None,
 ) -> dict[str, Any]:
     overview = public_atlas_overview(database, book_id, edition_id)
+    initialization = latest_initialization(database, book_id, edition_id)
+    reports: dict[str, str] = {}
+    visual_paths: list[str] = []
+    if overview.get("available"):
+        raw_overview = get_atlas_overview(database, book_id, edition_id)
+        index = raw_overview.get("index") or {}
+        artifact_root = Path(str(index.get("artifact_root") or ""))
+        if artifact_root.is_dir():
+            for report in sorted((artifact_root / "reports").glob("*.md")):
+                try:
+                    reports[report.name] = report.read_text(encoding="utf-8")[:250_000]
+                except OSError:
+                    continue
+            visual_paths = [
+                f"visuals/{path.name}"
+                for path in sorted((artifact_root / "visuals").glob("*.svg"))
+            ]
     graph = None
     if view in GRAPH_TYPES:
         graph = atlas_graph_view(
@@ -200,6 +219,9 @@ def atlas_context(
         "horizon": horizon,
         "q": query,
         "overview": overview,
+        "initialization": initialization,
+        "reports": reports,
+        "visual_paths": visual_paths,
         "graph": graph,
         "graph_types": sorted(GRAPH_TYPES),
         "information_statuses": sorted(INFORMATION_STATUSES),

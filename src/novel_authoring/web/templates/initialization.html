@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>已有长篇初始化 · {{ book_id }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/">小说作者工作台</a><span class="muted">Existing Novel Initialization · Atlas-first</span></header>
+  <main class="shell narrow">
+    <section class="page-heading"><div><p class="eyebrow">NOVEL_INITIALIZATION</p><h1>已有长篇深度初始化</h1><p class="muted">Facts are deterministic. Meaning is probabilistic.</p></div><div class="actions"><a class="button" href="/books/{{ book_id }}/editions/{{ edition_id }}/atlas">Story Atlas</a><a class="button" href="/">章节</a></div></section>
+    {% if initialization %}
+    <section class="stat-grid"><article class="stat-card"><span>State</span><strong>{{ initialization.status.state }}</strong></article><article class="stat-card"><span>Readiness</span><strong>{{ initialization.status.readiness.status if initialization.status.readiness is mapping else initialization.status.readiness }}</strong></article><article class="stat-card"><span>章节</span><strong>{{ initialization.manifest.chapter_count }}</strong></article><article class="stat-card"><span>Arc</span><strong>{{ initialization.manifest.arc_count }}</strong></article></section>
+    <section class="panel"><h2>进度</h2><p>初始化 ID：<code>{{ initialization.manifest.initialization_id }}</code></p><p>Source manifest：<code>{{ initialization.manifest.source_manifest_sha256 }}</code></p><p>已完成 Arc：{{ initialization.status.completed_arc_ids|length }}；失败：{{ initialization.status.failed_arc_ids|length }}；待处理：{{ initialization.status.pending_arc_ids|length if initialization.status.pending_arc_ids is defined else '—' }}</p><h3>阻断原因</h3><ul>{% for item in initialization.status.readiness.blocking_reasons if initialization.status.readiness is mapping %}<li>{{ item }}</li>{% else %}<li class="muted">当前没有阻断原因。</li>{% endfor %}</ul><h3>Gaps / Review Queue</h3><ul>{% for item in initialization.status.readiness.gaps if initialization.status.readiness is mapping %}<li>{{ item }}</li>{% else %}<li class="muted">当前没有记录 gap。</li>{% endfor %}</ul></section>
+    {% else %}
+    <section class="panel callout"><h2>尚未创建初始化包</h2><p>Web 只创建 handoff，不执行语义理解。请点击下方按钮，再由 Codex 桌面端手动领取任务。</p><button class="button primary" data-create-initialization>创建 NOVEL_INITIALIZATION handoff</button><pre data-initialization-result class="hidden"></pre></section>
+    {% endif %}
+    <section class="panel"><h2>固定流水线</h2><p>Source Coverage → Arc Segmentation → Arc Extraction → Entity Resolution → Cross-Arc Synthesis → Contradiction Audit → Narrative DNA → Current Story Atlas → Future Possibility Space → Semantic Metric Bootstrap → Visual Asset Rendering</p><p class="muted">初始化不修改 book、不写入 Canon、不批准草稿，也不依赖 Planning Aggregate。</p></section>
+  </main>
+  <script>
+  document.querySelector('[data-create-initialization]')?.addEventListener('click', async function () {
+    const token = document.querySelector('meta[name="csrf-token"]').content;
+    const result = document.querySelector('[data-initialization-result]');
+    const response = await fetch('/api/books/{{ book_id }}/editions/{{ edition_id }}/initialization', { method: 'POST', headers: { 'X-CSRF-Token': token } });
+    result.classList.remove('hidden'); result.textContent = JSON.stringify(await response.json(), null, 2);
+  });
+  </script>
+</body>
+</html>

@@ -7,21 +7,22 @@ from typing import Any, cast
 
 try:  # Optional dependency: CLI/core remains usable without the web extra.
     from fastapi import FastAPI, HTTPException, Request
-    from fastapi.responses import HTMLResponse, JSONResponse
+    from fastapi.responses import HTMLResponse, JSONResponse, Response
     from fastapi.staticfiles import StaticFiles
     from fastapi.templating import Jinja2Templates
 except ImportError:  # pragma: no cover - exercised only without web extras
     FastAPI = None  # type: ignore[misc, assignment]
     HTTPException = Exception  # type: ignore[misc, assignment]
     Request = Any  # type: ignore[misc, assignment]
-    HTMLResponse = JSONResponse = Any  # type: ignore[misc, assignment]
+    HTMLResponse = JSONResponse = Response = Any  # type: ignore[misc, assignment]
     StaticFiles = None  # type: ignore[misc, assignment]
     Jinja2Templates = None  # type: ignore[misc, assignment]
 
 from novel_authoring.atlas.models import AtlasAction
-from novel_authoring.atlas.service import AtlasError, record_atlas_action
+from novel_authoring.atlas.service import AtlasError, get_atlas_overview, record_atlas_action
 from novel_authoring.db.database import Database
 from novel_authoring.edition import edition_chapters, list_editions
+from novel_authoring.initialization import latest_initialization
 from novel_authoring.metrics.registry import load_registry
 from novel_authoring.metrics.segments import list_segments
 from novel_authoring.metrics.service import (
@@ -61,6 +62,7 @@ from novel_authoring.workflows.handoffs import (
     HandoffWorkflowError,
     cancel_handoff,
     copy_instruction,
+    create_initialization_handoff,
     get_handoff,
     mark_stale,
     record_user_response,
@@ -175,6 +177,23 @@ def create_app(database: Database, *, book_id: str | None = None) -> Any:
             ) from exc
         context["csrf_token"] = app.state.csrf_token
         return _template(templates, "atlas.html", request, context)
+
+    @app.get(
+        "/books/{path_book_id}/editions/{edition_id}/initialization",
+        response_class=HTMLResponse,
+    )
+    async def initialization_page(
+        request: Request, path_book_id: str, edition_id: str
+    ) -> Any:
+        checked_book = _check_id(path_book_id)
+        checked_edition = _check_id(edition_id)
+        context = {
+            "book_id": checked_book,
+            "edition_id": checked_edition,
+            "initialization": latest_initialization(database, checked_book, checked_edition),
+            "csrf_token": app.state.csrf_token,
+        }
+        return _template(templates, "initialization.html", request, context)
 
     @app.get(
         "/books/{path_book_id}/editions/{edition_id}/chapters/{chapter_id}",
@@ -394,6 +413,63 @@ def create_app(database: Database, *, book_id: str | None = None) -> Any:
         return public_atlas_overview(
             database, _check_id(path_book_id), _check_id(edition_id)
         )
+
+    @app.get("/api/books/{path_book_id}/editions/{edition_id}/initialization")
+    async def initialization_api(path_book_id: str, edition_id: str) -> dict[str, Any] | None:
+        return latest_initialization(database, _check_id(path_book_id), _check_id(edition_id))
+
+    @app.post("/api/books/{path_book_id}/editions/{edition_id}/initialization")
+    async def initialization_handoff_api(
+        request: Request, path_book_id: str, edition_id: str
+    ) -> Any:
+        verify_csrf(request, request.headers.get("X-CSRF-Token"))
+        try:
+            return create_initialization_handoff(
+                database,
+                _check_id(path_book_id),
+                edition_id=_check_id(edition_id),
+                requested_stage="NOVEL_INITIALIZATION",
+            )
+        except Exception as exc:
+            return _error(exc)
+
+    @app.get(
+        "/api/books/{path_book_id}/editions/{edition_id}/atlas/visuals/{visual_name}"
+    )
+    async def atlas_visual_api(path_book_id: str, edition_id: str, visual_name: str) -> Response:
+        if not re.fullmatch(r"[A-Za-z0-9._-]+\.svg", visual_name):
+            raise HTTPException(status_code=400, detail="visual name 无效")
+        overview = get_atlas_overview(
+            database, _check_id(path_book_id), _check_id(edition_id)
+        )
+        index = overview.get("index") or {}
+        raw_root = str(index.get("artifact_root") or "")
+        if not raw_root:
+            raise HTTPException(status_code=404, detail="visual 不存在")
+        root = Path(raw_root).resolve()
+        path = (root / "visuals" / visual_name).resolve()
+        if root not in path.parents or not path.is_file():
+            raise HTTPException(status_code=404, detail="visual 不存在")
+        return Response(content=path.read_text(encoding="utf-8"), media_type="image/svg+xml")
+
+    @app.get("/api/books/{path_book_id}/editions/{edition_id}/atlas/reports")
+    async def atlas_reports_api(path_book_id: str, edition_id: str) -> dict[str, str]:
+        overview = get_atlas_overview(
+            database, _check_id(path_book_id), _check_id(edition_id)
+        )
+        index = overview.get("index") or {}
+        raw_root = str(index.get("artifact_root") or "")
+        if not raw_root:
+            return {}
+        root = Path(raw_root).resolve()
+        reports: dict[str, str] = {}
+        if root.is_dir():
+            for path in sorted((root / "reports").glob("*.md")):
+                try:
+                    reports[path.name] = path.read_text(encoding="utf-8")[:250_000]
+                except OSError:
+                    continue
+        return reports
 
     @app.get(
         "/api/books/{path_book_id}/editions/{edition_id}/atlas/graphs/{graph_type}"

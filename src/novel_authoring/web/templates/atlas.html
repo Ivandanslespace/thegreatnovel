@@ -16,10 +16,10 @@
   <main class="shell atlas-page">
     <section class="page-heading">
       <div><p class="eyebrow">Versioned Soft Story Atlas</p><h1>Story Atlas</h1><p class="muted">Atlas 不是 Canon，也不是固定结局；它记录当前最好的世界理解、证据与未知。</p></div>
-      <div class="actions"><a class="button" href="/">章节</a><a class="button" href="/books/{{ book_id }}/editions/{{ edition_id }}/atlas/history">Atlas History</a></div>
+      <div class="actions"><a class="button" href="/">章节</a><a class="button" href="/books/{{ book_id }}/editions/{{ edition_id }}/initialization">初始化进度</a><a class="button" href="/books/{{ book_id }}/editions/{{ edition_id }}/atlas/history">Atlas History</a></div>
     </section>
     {% if not overview.available %}
-    <section class="panel callout disputed"><h2>当前 edition 尚无 Story Atlas</h2><p>请先创建 <code>STORY_ATLAS_BOOTSTRAP</code> Local File Handoff。Web 不会启动 Codex 或调用 API。</p><p class="muted">当前页面只展示 Atlas artifact；缺少 Atlas 不会阻断普通章节工作台。</p></section>
+    <section class="panel callout disputed"><h2>当前 edition 尚无 Story Atlas</h2><p>请先准备已有长篇初始化任务；Web 不会启动 Codex 或调用 API。</p><p class="muted">缺少 Atlas 不会阻断普通章节工作台，但没有 World Model 就不能进入正式续写。</p>{% if initialization %}<p>初始化状态：<strong>{{ initialization.status.state }}</strong> · Readiness：<strong>{{ initialization.status.readiness.status if initialization.status.readiness is mapping else initialization.status.readiness }}</strong></p><p>初始化 ID：<code>{{ initialization.manifest.initialization_id }}</code></p><label>可复制指令<textarea readonly>novel workflow initialize --book-id {{ book_id }} --edition-id {{ edition_id }} --workspace workspace</textarea></label>{% else %}<p>尚未发现初始化目录。请执行 <code>novel initialize create --book-id {{ book_id }} --edition-id {{ edition_id }}</code>。</p>{% endif %}</section>
     {% else %}
     <section class="stat-grid atlas-stat-grid">
       <article class="stat-card"><span>Atlas Version</span><strong>{{ overview.manifest.atlas_version }}</strong></article>
@@ -57,6 +57,8 @@
         <h2>Atlas History</h2><table><thead><tr><th>版本</th><th>状态</th><th>Readiness</th><th>Base Hash</th><th>创建时间</th></tr></thead><tbody>{% for item in overview.history %}<tr><td>{{ item.atlas_version }}</td><td>{{ item.status }}</td><td>{{ item.readiness_status }}</td><td><code>{{ item.base_projection_hash[:12] }}</code></td><td>{{ item.created_at }}</td></tr>{% else %}<tr><td colspan="5">暂无历史</td></tr>{% endfor %}</tbody></table>
         {% else %}
         <div class="atlas-overview-grid"><article><h2>Narrative DNA</h2><p class="muted">{{ overview.manifest.notes|join('；') or '由 Codex 分阶段阅读与综合生成，保留 reasoning/evidence，不是公式分数。' }}</p></article><article><h2>Current World</h2><p>图谱：{{ overview.graphs|length }} 类；当前章节：第 {{ overview.manifest.current_chapter_ordinal }} 章。</p></article><article><h2>Future Possibility Space</h2><p>Active Spine、Alternative Spines、Wildcard 和 Open Design Spaces 保持分离，不预设固定结局。</p></article><article><h2>Readiness</h2><ul>{% for gap in overview.readiness.gaps %}<li>{{ gap }}</li>{% else %}<li>当前没有登记 gap。</li>{% endfor %}</ul></article></div>
+        <section class="atlas-assets"><h2>离线视觉资产</h2><div class="atlas-visual-grid">{% for visual in visual_paths %}<figure class="panel"><figcaption>{{ visual }}</figcaption><img src="/api/books/{{ book_id }}/editions/{{ edition_id }}/atlas/{{ visual }}" alt="{{ visual }}" loading="lazy"></figure>{% else %}<p class="muted">尚未生成七张 SVG；可运行 <code>novel atlas render</code>。</p>{% endfor %}</div></section>
+        <section class="atlas-report-grid"><h2>Initialization / Atlas Reports</h2>{% for name, report in reports.items() %}<article class="panel"><h3>{{ name }}</h3><pre>{{ report }}</pre></article>{% else %}<p class="muted">尚未写入完整报告。</p>{% endfor %}</section>
         {% endif %}
       </section>
     </section>

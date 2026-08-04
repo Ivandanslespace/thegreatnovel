@@ -1,3 +1,21 @@
+# Canonical Development Branch
+
+本仓库唯一永久开发分支是 `小说续写_codex`。所有生产代码、测试、文档和本地 Web 交付均直接在该分支完成；不得创建新分支、Pull Request 或额外 worktree。允许创建保护性 tag，但不得把功能分散到其他长期分支。每次交付前必须确认当前分支、工作树和远端 `origin/小说续写_codex` 一致，并只推送该分支。
+
+主 Agent 负责拆解、调度、整合、验收和最终提交；子代理只能执行自包含的只读审计，或在明确隔离的 workspace/artifact 目录内工作，不得修改生产代码、`book/`、Canon、远端分支或启动 Codex 子进程/API。
+
+## Existing Novel Initialization Is Atlas-First
+
+对已有长篇的正式初始化不是一次普通 ingest，也不是直接进入续写。初始化必须按下列可审计流水线执行：
+
+`Source Coverage -> Arc Segmentation -> Arc Extraction -> Entity Resolution -> Cross-Arc Synthesis -> Contradiction Audit -> Narrative DNA -> Current Story Atlas -> Future Possibility Space -> Semantic Metric Bootstrap -> Visual Asset Rendering`
+
+`ingest` 只负责建立不可变源、章节和 source spans；它不等于初始化完成。正式续写的最低状态是 `WORLD_MODEL_READY_WITH_GAPS`，50/100 章 Batch 的最低状态是 `WORLD_MODEL_READY`。未来路线允许存在空白；但当前主角状态、当前核心规则、当前能力边界、当前主要线程和续写边界缺失时必须阻断。
+
+初始化状态使用 `NOT_STARTED`、`SOURCE_MAPPED`、`ARC_EXTRACTION_RUNNING`、`ENTITY_RESOLUTION_RUNNING`、`SYNTHESIS_RUNNING`、`ATLAS_VALIDATION_RUNNING`、`METRIC_BOOTSTRAP_RUNNING`、`VISUAL_RENDERING_RUNNING`、`READY_WITH_GAPS`、`READY`、`BLOCKED`、`STALE`。Web 只创建本地 handoff；`$process-novel-handoff` 之后必须进入 `$initialize-existing-novel`。所有 CANON 节点和关系必须能回指真实 source span；INFERENCE/CANDIDATE/PROSE_ONLY 不得静默升级为 CANON。
+
+架构原则：**Facts are deterministic. Meaning is probabilistic.** Python 负责完整源覆盖、边界、哈希、唯一归属、Schema、证据、状态、阈值、冲突检测、稳定 ID 和离线图渲染；Codex 桌面端负责分段语义理解、跨 Arc 综合、Narrative DNA、世界模型、未知与反证解释。初始化不得依赖 Planning Aggregate 才能建立 Atlas。
+
 # 子代理调度与项目边界
 
 主 Agent 负责拆解任务、选择执行方式、派发子任务、整合结果并按验收标准复核；worker 负责执行父任务明确授权的独立子任务。以下原则适用于 `luna_worker` 及其他自定义 subagents。

@@ -18,6 +18,7 @@ from novel_authoring.atlas.models import (
     StoryAtlasStatus,
     WorldModelReadiness,
 )
+from novel_authoring.atlas.offline import export_snapshot
 from novel_authoring.atlas.service import (
     AtlasError,
     accept_atlas,
@@ -29,6 +30,7 @@ from novel_authoring.atlas.service import (
     register_atlas,
     validate_atlas,
 )
+from novel_authoring.atlas.visuals import render_atlas_visuals
 
 __all__ = [
     "AtlasAction",
@@ -56,4 +58,6 @@ __all__ = [
     "record_atlas_action",
     "register_atlas",
     "validate_atlas",
+    "export_snapshot",
+    "render_atlas_visuals",
 ]

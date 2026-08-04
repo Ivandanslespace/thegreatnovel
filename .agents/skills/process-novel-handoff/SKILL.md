@@ -22,6 +22,9 @@ Codex 桌面客户端是唯一 LLM 执行者。先读取任务目录，再由 Py
 - `STORY_ATLAS_BOOTSTRAP` / `STORY_ATLAS_REFRESH` / `WORLD_MODEL_REVIEW`：调用
   `$bootstrap-story-atlas`，只写 `artifacts/story_atlas/`，由 Python 校验后登记 immutable
   版本；不把软理解写入 Canon。
+- `NOVEL_INITIALIZATION`：调用 `$initialize-existing-novel`，先读取初始化目录和 Arc task，
+  按 Atlas-first pipeline 处理 `arc_outputs/`、`entity_resolution/`、`synthesis/`、
+  `metrics/` 和 `visuals/`；不得预先创建 Planning Aggregate。
 - `BATCH_CONTINUATION`：调用 `$continue-novel-batch`，必须绑定 batch/chunk，逐章保留
   Boundary、Contract、十项 Validator 和 provisional hash；`BATCH_VALIDATED` 不是批准。
 

@@ -47,12 +47,21 @@ REQUIRED_ARTIFACTS = (
     "graphs/regions.json",
     "graphs/plot_threads.json",
     "graphs/stage_transitions.json",
+    "visuals/character_graph.svg",
+    "visuals/faction_graph.svg",
+    "visuals/ability_graph.svg",
+    "visuals/resource_chain.svg",
+    "visuals/region_topology.svg",
+    "visuals/plot_thread_graph.svg",
+    "visuals/stage_ladder.svg",
     "future/active_spine.yaml",
     "future/alternative_spines.yaml",
     "future/wildcard_possibilities.yaml",
     "future/open_design_spaces.yaml",
     "future/rolling_horizon.yaml",
     "reports/coverage_report.md",
+    "reports/source_coverage_report.md",
+    "reports/entity_resolution_report.md",
     "reports/contradiction_report.md",
     "reports/world_model_report.md",
     "reports/readiness_report.md",
@@ -312,7 +321,10 @@ def validate_atlas(
     declared_paths = set(manifest.artifact_paths)
     for required in REQUIRED_ARTIFACTS:
         if required not in declared_paths:
-            warnings.append(f"Atlas 缺少推荐 artifact：{required}")
+            if manifest.source_coverage:
+                errors.append(f"Atlas 缺少初始化必需 artifact：{required}")
+            else:
+                warnings.append(f"Atlas 缺少推荐 artifact：{required}")
 
     future_space: FuturePossibilitySpace | None = None
     try:

@@ -42,7 +42,9 @@ class HandoffType(StrEnum):
     STORY_ATLAS_BOOTSTRAP = "STORY_ATLAS_BOOTSTRAP"
     STORY_ATLAS_REFRESH = "STORY_ATLAS_REFRESH"
     WORLD_MODEL_REVIEW = "WORLD_MODEL_REVIEW"
+    STORY_ATLAS_RENDER = "STORY_ATLAS_RENDER"
     BATCH_CONTINUATION = "BATCH_CONTINUATION"
+    NOVEL_INITIALIZATION = "NOVEL_INITIALIZATION"
 
 
 class HandoffWorkflowError(RuntimeError):
@@ -89,6 +91,22 @@ class WorkflowHandoffResult(BaseModel):
     review_queue_ids: list[str] = Field(default_factory=list)
     atlas_refresh_required: bool = False
     completed_at: str | None = None
+    initialization_id: str | None = None
+    completed_arc_ids: list[str] = Field(default_factory=list)
+    failed_arc_ids: list[str] = Field(default_factory=list)
+    chapter_coverage: float | None = None
+    arc_coverage: float | None = None
+    entity_count: int = 0
+    relationship_count: int = 0
+    faction_count: int = 0
+    ability_count: int = 0
+    resource_count: int = 0
+    region_count: int = 0
+    thread_count: int = 0
+    metric_observation_count: int = 0
+    generated_visuals: list[str] = Field(default_factory=list)
+    readiness: str | None = None
+    review_queue: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_stage_contract(self) -> WorkflowHandoffResult:
@@ -107,6 +125,7 @@ class WorkflowHandoffResult(BaseModel):
         if atlas_type in {
             HandoffType.STORY_ATLAS_BOOTSTRAP.value,
             HandoffType.STORY_ATLAS_REFRESH.value,
+            HandoffType.STORY_ATLAS_RENDER.value,
         } and not self.artifact_paths:
             raise ValueError(f"{atlas_type} 完成结果必须包含 Atlas artifact_paths")
         if atlas_type == HandoffType.BATCH_CONTINUATION.value and not self.batch_id:
@@ -115,6 +134,8 @@ class WorkflowHandoffResult(BaseModel):
             raise ValueError("BATCH_CONTINUATION 完成结果必须包含 chunk_ids")
         if atlas_type == HandoffType.WORLD_MODEL_REVIEW.value and not self.review_queue_ids:
             raise ValueError("WORLD_MODEL_REVIEW 完成结果必须包含 review_queue_ids")
+        if atlas_type == HandoffType.NOVEL_INITIALIZATION.value and not self.initialization_id:
+            raise ValueError("NOVEL_INITIALIZATION 完成结果必须包含 initialization_id")
         compatible = {
             "PLAN_ONLY": {"PLAN_ONLY", "PLANNED", "CANDIDATES"},
             "DRAFT_AND_VALIDATE": {"DRAFT_AND_VALIDATE", "VALIDATED_DRAFT", "VALIDATED"},
@@ -124,6 +145,13 @@ class WorkflowHandoffResult(BaseModel):
             "ATLAS_REFRESH": {"ATLAS_REFRESH", "STORY_ATLAS_READY", "VALIDATED_ATLAS"},
             "WORLD_MODEL_REVIEW": {"WORLD_MODEL_REVIEW", "REVIEWED", "VALIDATED_ATLAS"},
             "BATCH_CONTINUATION": {"BATCH_CONTINUATION", "BATCH_VALIDATED", "VALIDATED"},
+            "NOVEL_INITIALIZATION": {
+                "NOVEL_INITIALIZATION",
+                "INITIALIZATION_READY",
+                "WORLD_MODEL_READY",
+                "WORLD_MODEL_READY_WITH_GAPS",
+                "VALIDATED_INITIALIZATION",
+            },
         }
         if requested in compatible and completed not in compatible[requested]:
             raise ValueError(f"requested_stage={requested} 与 completed_stage={completed} 不兼容")
@@ -285,13 +313,26 @@ def create_handoff(
         ).fetchone()
         directives_hash = _author_directives_hash(connection, book_id, selected)
     edition_status = None if edition_row is None else str(edition_row["status"])
-    metric_context, latest = _current_metric_anchor(database, book_id, selected)
-    planning_aggregate = build_planning_aggregate(
-        database,
-        book_id,
-        edition_id=selected,
-        author_policy={"source": "handoff-freeze", "policy_version": "v1"},
-    )
+    initialization_handoff = handoff_type is HandoffType.NOVEL_INITIALIZATION
+    if initialization_handoff:
+        # Existing-novel initialization is the upstream producer of the Atlas.
+        # It must not require a planning aggregate or a completed metric run.
+        metric_context = {
+            "scope_type": "INITIALIZATION",
+            "scope_id": selected,
+            "input_bundle_hash": "",
+            "semantic_metrics_deferred": True,
+        }
+        latest = None
+        planning_aggregate = {"aggregate_id": None, "bundle_hash": None}
+    else:
+        metric_context, latest = _current_metric_anchor(database, book_id, selected)
+        planning_aggregate = build_planning_aggregate(
+            database,
+            book_id,
+            edition_id=selected,
+            author_policy={"source": "handoff-freeze", "policy_version": "v1"},
+        )
     if metric_run_id is None and latest is not None:
         metric_run_id = str(latest["run"]["run_id"])
     if metric_run_id is None:
@@ -424,6 +465,47 @@ def create_handoff(
         "expected_outputs": ["events.jsonl", "result.json", "status.json"],
         "task_schema_version": "handoff-v1",
     }
+    if initialization_handoff:
+        task.update(
+            {
+                "initialization_contract": {
+                    "root": str(
+                        workspace_root
+                        / "editions"
+                        / selected
+                        / "initialization"
+                    ),
+                    "required_files": [
+                        "initialization_manifest.json",
+                        "source_coverage.json",
+                        "arc_manifest.json",
+                        "status.json",
+                        "events.jsonl",
+                        "arc_tasks/",
+                        "arc_outputs/",
+                        "entity_resolution/",
+                        "synthesis/",
+                        "metrics/",
+                        "visuals/",
+                        "reports/",
+                    ],
+                    "pipeline": [
+                        "Source Coverage",
+                        "Arc Segmentation",
+                        "Arc Extraction",
+                        "Entity Resolution",
+                        "Cross-Arc Synthesis",
+                        "Contradiction Audit",
+                        "Narrative DNA",
+                        "Current Story Atlas",
+                        "Future Possibility Space",
+                        "Semantic Metric Bootstrap",
+                        "Visual Asset Rendering",
+                    ],
+                },
+                "planning_aggregate_required": False,
+            }
+        )
     if batch_projection is not None and batch_plan is not None:
         task["batch_target_chapter_count"] = batch_plan.target_chapter_count
         task["batch_current_chapter_ordinal"] = batch_projection.current_chapter_ordinal
@@ -431,16 +513,21 @@ def create_handoff(
     skill_name = {
         HandoffType.CONTINUATION: "continue-novel",
         HandoffType.REVISION: "revise-novel",
+        HandoffType.METRIC_SEMANTIC_ANALYSIS: "review-novel-metrics",
+        HandoffType.CHAPTER_FEATURE_ANALYSIS: "analyze-novel-rhythm",
         HandoffType.STORY_ATLAS_BOOTSTRAP: "bootstrap-story-atlas",
-        HandoffType.STORY_ATLAS_REFRESH: "bootstrap-story-atlas",
-        HandoffType.WORLD_MODEL_REVIEW: "bootstrap-story-atlas",
+        HandoffType.STORY_ATLAS_REFRESH: "refresh-story-atlas",
+        HandoffType.WORLD_MODEL_REVIEW: "review-story-atlas",
+        HandoffType.STORY_ATLAS_RENDER: "render-story-atlas-assets",
         HandoffType.BATCH_CONTINUATION: "continue-novel-batch",
+        HandoffType.NOVEL_INITIALIZATION: "initialize-existing-novel",
     }.get(handoff_type, "continue-novel")
     atlas_instruction = ""
     if handoff_type in {
         HandoffType.STORY_ATLAS_BOOTSTRAP,
         HandoffType.STORY_ATLAS_REFRESH,
         HandoffType.WORLD_MODEL_REVIEW,
+        HandoffType.STORY_ATLAS_RENDER,
     }:
         atlas_instruction = (
             "Atlas 输出必须先写入 task artifacts/story_atlas，再由 Python 校验并登记；"
@@ -450,6 +537,13 @@ def create_handoff(
         atlas_instruction = (
             "Batch 必须按 chunk_size=5 滚动执行、每章更新 Batch Provisional Projection；"
             "每10章进入 checkpoint，最终停在 BATCH_VALIDATED，不得自动批准正史。"
+        )
+    elif handoff_type is HandoffType.NOVEL_INITIALIZATION:
+        atlas_instruction = (
+            "初始化必须先完成 Source Coverage 和 Arc task 文件合同，再由 Codex 桌面端执行 "
+            "Arc Extraction、Entity Resolution、Cross-Arc Synthesis、Contradiction Audit、"
+            "Narrative DNA、Atlas、语义指标和 SVG 渲染；"
+            "不得依赖 Planning Aggregate，不得写入 Canon。"
         )
     prompt = (
         "$process-novel-handoff\n\n"
@@ -527,7 +621,54 @@ def create_handoff(
         "ATLAS_REFRESH": {"required_non_empty": ["artifact_paths"]},
         "WORLD_MODEL_REVIEW": {"required_non_empty": ["review_queue_ids"]},
         "BATCH_CONTINUATION": {"required_non_empty": ["batch_id", "chunk_ids"]},
+        "NOVEL_INITIALIZATION": {
+            "required_non_empty": ["initialization_id", "completed_arc_ids", "readiness"]
+        },
     }
+    if initialization_handoff:
+        output_schema["required"].extend(
+            [
+                "initialization_id",
+                "completed_arc_ids",
+                "failed_arc_ids",
+                "chapter_coverage",
+                "arc_coverage",
+                "entity_count",
+                "relationship_count",
+                "faction_count",
+                "ability_count",
+                "resource_count",
+                "region_count",
+                "thread_count",
+                "metric_observation_count",
+                "generated_visuals",
+                "readiness",
+                "review_queue",
+            ]
+        )
+        output_schema["x-initialization-result-fields"] = [
+            "initialization_id",
+            "completed_arc_ids",
+            "failed_arc_ids",
+            "chapter_coverage",
+            "arc_coverage",
+            "entity_count",
+            "relationship_count",
+            "faction_count",
+            "ability_count",
+            "resource_count",
+            "region_count",
+            "thread_count",
+            "metric_observation_count",
+            "generated_visuals",
+            "atlas_id",
+            "atlas_version",
+            "readiness",
+            "warnings",
+            "review_queue",
+            "canon_committed",
+            "edition_activated",
+        ]
     status_json = {
         "handoff_id": handoff_id,
         "status": HandoffStatus.READY_FOR_CODEX.value,
@@ -659,6 +800,17 @@ def create_batch_continuation_handoff(
         book_id,
         handoff_type=HandoffType.BATCH_CONTINUATION,
         batch_id=batch_id,
+        **kwargs,
+    )
+
+
+def create_initialization_handoff(
+    database: Database, book_id: str, **kwargs: Any
+) -> dict[str, Any]:
+    return create_handoff(
+        database,
+        book_id,
+        handoff_type=HandoffType.NOVEL_INITIALIZATION,
         **kwargs,
     )
 
@@ -928,6 +1080,28 @@ def validate_handoff_result(
             "completed_at",
         }
         missing_fields = sorted(required_fields - set(result))
+        if str(row["handoff_type"]) == HandoffType.NOVEL_INITIALIZATION.value:
+            required_fields.update(
+                {
+                    "initialization_id",
+                    "completed_arc_ids",
+                    "failed_arc_ids",
+                    "chapter_coverage",
+                    "arc_coverage",
+                    "entity_count",
+                    "relationship_count",
+                    "faction_count",
+                    "ability_count",
+                    "resource_count",
+                    "region_count",
+                    "thread_count",
+                    "metric_observation_count",
+                    "generated_visuals",
+                    "readiness",
+                    "review_queue",
+                }
+            )
+            missing_fields = sorted(required_fields - set(result))
         if missing_fields:
             raise HandoffWorkflowError(
                 f"result.json 缺少必填字段：{', '.join(missing_fields)}"
