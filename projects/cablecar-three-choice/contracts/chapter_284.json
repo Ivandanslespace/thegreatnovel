@@ -1,0 +1,41 @@
+{
+  "chapter": 284,
+  "engagement_plan": {
+    "pressure_before": 72.2,
+    "pressure_after": 32,
+    "payoff": {
+      "type": "",
+      "target_resource": "",
+      "target_score": 77.2,
+      "problems_resolved": [],
+      "must_change_behavior": [],
+      "must_not_resolve": []
+    },
+    "progress": {
+      "minimum_score": "",
+      "required_irreversible_change": ""
+    },
+    "narrative_debt": {
+      "hook_to_advance": "蘇牧何時出手、如何出手？已蓄勢兩章未動，全營地被雙 Boss 壓制，讀者等待主角破局",
+      "advance_level": "full_payoff"
+    },
+    "risk": {
+      "required_cost": "",
+      "must_not_be_cost_free": true
+    },
+    "repetition": {
+      "forbidden_hooks": [
+        "禁止无铺垫发大数字、暴富后立刻清空、一次解除所有资源限制（宪章 3.5 四种禁止写法）"
+      ]
+    },
+    "required_aftershock_chapters": 3
+  },
+  "_comment": {
+    "说明": "空字符串/空数组字段请由作者填写后再交给 LLM；合同约束方向不约束文字（宪章 4.2），禁止项防止重复，不指定必须使用的桥段。",
+    "payoff.problems_resolved": "本次兑现永久解决的旧问题清单",
+    "payoff.must_change_behavior": "兑现后主角行为必须发生的改变",
+    "payoff.must_not_resolve": "本次不得顺手解决的高层问题（稀缺性上移）",
+    "progress.required_irreversible_change": "本章必须发生的不可逆状态变化",
+    "risk.required_cost": "主角必须实际付出的代价（宪章 2.6 铁律）"
+  }
+}

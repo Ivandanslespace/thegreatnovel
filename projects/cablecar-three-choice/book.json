@@ -1,0 +1,171 @@
+{
+  "_comment": {
+    "说明": "作者台账。analyze/plan 只依据这里填写的事实计算，不会猜测。",
+    "pressure": "读者压力六分项，各 0-100（CONSTITUTION.md 2.1）：survival_threat 生存威胁 / resource_scarcity 资源匮乏 / time_pressure 时间压力 / uncertainty 信息不确定性 / social_conflict 人际冲突 / recent_failure 失败累积。",
+    "resources": "核心资源台账。gap=当前缺口 0-100；blocked_count=因缺它而被阻塞的决策次数；next_tier_goal=下一阶段资源目标；perceptibility=读者可感知程度 0-100；setup_chapters=已铺垫章数。",
+    "progress_components": "最近一章的进展六维 0-100（2.4）：permanent_growth / world_change / relationship_change / intel_change / goal_advance / new_gameplay。",
+    "risk_factors": "风险可信度五维 0-1（2.6）：cost_realized_rate 实际代价兑现率 / failure_clarity 失败后果清晰度 / enemy_effectiveness 敌人有效性 / info_incompleteness 主角信息不完整度 / protection_limitedness 保护机制有限度。另附 notes 列表：台账层面的额外风险备注（不参与 2.6 连乘）。",
+    "payoff_draft": "对下一章计划爽点的作者评分（2.2）。把 M/I/C/A 的全部子项（各 0-100）与 D（剧情破坏扣分项，0-100）填齐后，analyze/plan 自动汇总 S = 0.25M+0.25I+0.15N+0.15C+0.20A−0.10F−0.10D（N/F 由爽点历史自动计算）并据此分档、生成合同 target_score 与 required_aftershock_chapters；任一子项缺失即视为未填，保持「待作者填写」。另附 group（冷却组归类）与 intent（作者意图备注）。",
+    "payoff_cooldowns": "六冷却组（3.1）：last_major_chapter 为该组最近一次大爽点章号。",
+    "budget_10ch": "最近 10 章爽点消费记录（3.2），由 record 命令自动追加。",
+    "llm_api": "可选。填写 {base_url, api_key, model} 启用 API 适配层，否则手动粘贴提示词。",
+    "_note": "源文件共 294 条章节条目，但正文实际止于第 283 章《牽制》（第 224–233 章在源文件中各出现两次，属原文章节错乱修正块；另有一条 no=0 的作者说明）。故 current_chapter=283、next_write_chapter=284。"
+  },
+  "title": "全民纜車求生，我一級一個三選一",
+  "slug": "cablecar-three-choice",
+  "source_path": "inspirations/全民纜車求生，我一級一個三選一_正文全集.md",
+  "source_name": "全民纜車求生，我一級一個三選一_正文全集.md",
+  "encoding": "utf-8-sig",
+  "sha256": "95810246d1296163fc02320446060e78addd9fa5cba56bbdd1292634a099ee6e",
+  "total_chapters": 294,
+  "current_chapter": 284,
+  "next_write_chapter": 285,
+  "pressure": {
+    "survival_threat": 92,
+    "resource_scarcity": 55,
+    "time_pressure": 82,
+    "uncertainty": 85,
+    "social_conflict": 45,
+    "recent_failure": 45
+  },
+  "resources": [
+    {
+      "name": "纜車等級",
+      "gap": 30,
+      "consume_income_ratio": 20,
+      "blocked_count": 0,
+      "next_tier_goal": "纜車再升級，解鎖更高層天賦三選一",
+      "next_tier_demand": 55,
+      "perceptibility": 90,
+      "setup_chapters": 283,
+      "causal_source": "金手指主成長線：每升一級天賦三選一",
+      "post_gameplay": "更高級天賦卡牌組合與選擇策略"
+    },
+    {
+      "name": "天賦卡牌",
+      "gap": 40,
+      "consume_income_ratio": 30,
+      "blocked_count": 1,
+      "next_tier_goal": "取得能正面對抗雙 Boss 級怪物的新天賦",
+      "next_tier_demand": 60,
+      "perceptibility": 85,
+      "setup_chapters": 2,
+      "causal_source": "纜車升級三選一獎勵",
+      "post_gameplay": "新卡牌改變戰鬥方式"
+    },
+    {
+      "name": "營地物資",
+      "gap": 50,
+      "consume_income_ratio": 55,
+      "blocked_count": 0,
+      "next_tier_goal": "守住營地、戰後補充消耗",
+      "next_tier_demand": 50,
+      "perceptibility": 70,
+      "setup_chapters": 5,
+      "causal_source": "夜間多波次哥布林進攻持續消耗",
+      "post_gameplay": null
+    },
+    {
+      "name": "軍方戰力",
+      "gap": 70,
+      "consume_income_ratio": 80,
+      "blocked_count": 2,
+      "next_tier_goal": "頂層戰力（趙德榮等）恢復並重組防線",
+      "next_tier_demand": 75,
+      "perceptibility": 85,
+      "setup_chapters": 3,
+      "causal_source": "雙 Boss 壓制下強者重傷、防線瀕臨崩潰",
+      "post_gameplay": null
+    }
+  ],
+  "progress_components": {
+    "permanent_growth": 5,
+    "world_change": 40,
+    "relationship_change": 30,
+    "intel_change": 30,
+    "goal_advance": 40,
+    "new_gameplay": 10
+  },
+  "risk_factors": {
+    "cost_realized_rate": 0.85,
+    "failure_clarity": 0.9,
+    "enemy_effectiveness": 0.85,
+    "info_incompleteness": 0.7,
+    "protection_limitedness": 0.75,
+    "notes": [
+      "主角旁觀兩章蓄勢未出手，讀者耐心接近臨界，續寫必須盡快兌現",
+      "雙 Boss（落雷哥布林＋牛頭王薩烏塔）同時在場，處理不當有戰力崩壞風險"
+    ]
+  },
+  "payoff_draft": {
+    "group": "combat",
+    "intent": "主角蘇牧蓄勢兩章後出手破局（高檔戰鬥爽點，目標淨分約 70-85，對應「適合階段性大爆發」檔下沿）",
+    "M": {
+      "scarcity_pressure": 85,
+      "setup_depth": 90,
+      "wait_time": 75,
+      "paid_cost": 65,
+      "arc_fit": 90
+    },
+    "I": {
+      "relative_gain": 70,
+      "restriction_lifted": 75,
+      "behavior_change": 65,
+      "future_growth": 70,
+      "social_feedback": 85
+    },
+    "C": {
+      "causal_chain": 90,
+      "rule_consistency": 85,
+      "price_paid": 60,
+      "source_foreshadowed": 90
+    },
+    "A": {
+      "new_gameplay": 60,
+      "decision_change": 70,
+      "higher_tier_demand": 75,
+      "group_impact": 85
+    },
+    "D": 25
+  },
+  "payoff_cooldowns": [
+    {
+      "group": "resource",
+      "last_major_chapter": 0,
+      "recommended_cooldown": 40
+    },
+    {
+      "group": "combat",
+      "last_major_chapter": 284,
+      "recommended_cooldown": 12
+    },
+    {
+      "group": "cognition",
+      "last_major_chapter": 0,
+      "recommended_cooldown": 10
+    },
+    {
+      "group": "social",
+      "last_major_chapter": 0,
+      "recommended_cooldown": 15
+    },
+    {
+      "group": "world",
+      "last_major_chapter": 0,
+      "recommended_cooldown": 45
+    },
+    {
+      "group": "emotion",
+      "last_major_chapter": 0,
+      "recommended_cooldown": 15
+    }
+  ],
+  "budget_10ch": [
+    {
+      "chapter": 284,
+      "score": 75,
+      "group": "combat"
+    }
+  ],
+  "llm_api": null
+}

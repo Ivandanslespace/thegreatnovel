@@ -1,0 +1,1781 @@
+{
+  "source_path": "inspirations/全民纜車求生，我一級一個三選一_正文全集.md",
+  "source_sha256": "95810246d1296163fc02320446060e78addd9fa5cba56bbdd1292634a099ee6e",
+  "mtime": 1785333918.1111717,
+  "encoding": "utf-8-sig",
+  "warning": null,
+  "frontmatter": {
+    "title": "全民纜車求生，我一級一個三選一 正文全集",
+    "book_id": 2106587852,
+    "type": "novel_full_text",
+    "chapter_count": 294,
+    "source_scope": "authorized_local_backup",
+    "merged_from": "書籍/2106587852_全民纜車求生，我一級一個三選一/正文"
+  },
+  "entries": [
+    {
+      "no": 1,
+      "title": "全民纜車求生",
+      "offset": 214,
+      "length": 3212
+    },
+    {
+      "no": 2,
+      "title": "纜車等級也有三選一",
+      "offset": 3426,
+      "length": 4144
+    },
+    {
+      "no": 3,
+      "title": "準備降落",
+      "offset": 7570,
+      "length": 3665
+    },
+    {
+      "no": 4,
+      "title": "2級甲",
+      "offset": 11235,
+      "length": 3837
+    },
+    {
+      "no": 5,
+      "title": "哥布林幼崽",
+      "offset": 15072,
+      "length": 3044
+    },
+    {
+      "no": 6,
+      "title": "白銀寶箱",
+      "offset": 18116,
+      "length": 2519
+    },
+    {
+      "no": 7,
+      "title": "二級纜車升級圖紙",
+      "offset": 20635,
+      "length": 2415
+    },
+    {
+      "no": 8,
+      "title": "燃油的作用",
+      "offset": 23050,
+      "length": 2380
+    },
+    {
+      "no": 9,
+      "title": "一級力量型突破符籙",
+      "offset": 25430,
+      "length": 2333
+    },
+    {
+      "no": 10,
+      "title": "降溫",
+      "offset": 27763,
+      "length": 2230
+    },
+    {
+      "no": 11,
+      "title": "纜車2級，新三選一",
+      "offset": 29993,
+      "length": 2274
+    },
+    {
+      "no": 12,
+      "title": "夜晚的襲擊",
+      "offset": 32267,
+      "length": 2531
+    },
+    {
+      "no": 13,
+      "title": "捕獸夾",
+      "offset": 34798,
+      "length": 2254
+    },
+    {
+      "no": 14,
+      "title": "詭蝠",
+      "offset": 37052,
+      "length": 3020
+    },
+    {
+      "no": 15,
+      "title": "製作台",
+      "offset": 40072,
+      "length": 2547
+    },
+    {
+      "no": 16,
+      "title": "讓你啪嘰",
+      "offset": 42619,
+      "length": 2865
+    },
+    {
+      "no": 17,
+      "title": "力量暴增",
+      "offset": 45484,
+      "length": 2713
+    },
+    {
+      "no": 18,
+      "title": "等級2，新的三選一",
+      "offset": 48197,
+      "length": 2488
+    },
+    {
+      "no": 19,
+      "title": "新情報，幸運轉盤",
+      "offset": 50685,
+      "length": 2371
+    },
+    {
+      "no": 20,
+      "title": "紅豆度假村",
+      "offset": 53056,
+      "length": 2458
+    },
+    {
+      "no": 21,
+      "title": "額外攻擊",
+      "offset": 55514,
+      "length": 2303
+    },
+    {
+      "no": 22,
+      "title": "差距",
+      "offset": 57817,
+      "length": 2547
+    },
+    {
+      "no": 23,
+      "title": "分解的隱藏作用",
+      "offset": 60364,
+      "length": 2801
+    },
+    {
+      "no": 24,
+      "title": "收集",
+      "offset": 63165,
+      "length": 2562
+    },
+    {
+      "no": 25,
+      "title": "灰色寶箱",
+      "offset": 65727,
+      "length": 3071
+    },
+    {
+      "no": 26,
+      "title": "賓館和青銅寶箱",
+      "offset": 68798,
+      "length": 2259
+    },
+    {
+      "no": 27,
+      "title": "被拿走的白銀寶箱",
+      "offset": 71057,
+      "length": 2385
+    },
+    {
+      "no": 28,
+      "title": "合作",
+      "offset": 73442,
+      "length": 3763
+    },
+    {
+      "no": 29,
+      "title": "遊樂場，密集屍群",
+      "offset": 77205,
+      "length": 2552
+    },
+    {
+      "no": 30,
+      "title": "這是人能做到的？",
+      "offset": 79757,
+      "length": 2723
+    },
+    {
+      "no": 31,
+      "title": "靜音結界符",
+      "offset": 82480,
+      "length": 2540
+    },
+    {
+      "no": 32,
+      "title": "鬼屋",
+      "offset": 85020,
+      "length": 2829
+    },
+    {
+      "no": 33,
+      "title": "幸厄轉盤",
+      "offset": 87849,
+      "length": 2413
+    },
+    {
+      "no": 34,
+      "title": "豐厚獎勵與底線",
+      "offset": 90262,
+      "length": 2443
+    },
+    {
+      "no": 35,
+      "title": "這就是規則的力量",
+      "offset": 92705,
+      "length": 2994
+    },
+    {
+      "no": 36,
+      "title": "一不小心全轉完了",
+      "offset": 95699,
+      "length": 2733
+    },
+    {
+      "no": 37,
+      "title": "人怎麼能這麼好運成這樣",
+      "offset": 98432,
+      "length": 2116
+    },
+    {
+      "no": 37,
+      "title": "怪呢？",
+      "offset": 100548,
+      "length": 2118
+    },
+    {
+      "no": 38,
+      "title": "資源轉盤",
+      "offset": 102666,
+      "length": 2863
+    },
+    {
+      "no": 39,
+      "title": "紫色職業",
+      "offset": 105529,
+      "length": 2359
+    },
+    {
+      "no": 40,
+      "title": "無法拒絕的圖紙",
+      "offset": 107888,
+      "length": 2653
+    },
+    {
+      "no": 41,
+      "title": "驗牌",
+      "offset": 110541,
+      "length": 2435
+    },
+    {
+      "no": 42,
+      "title": "日記",
+      "offset": 112976,
+      "length": 2318
+    },
+    {
+      "no": 43,
+      "title": "內容",
+      "offset": 115294,
+      "length": 2413
+    },
+    {
+      "no": 44,
+      "title": "生活職業",
+      "offset": 117707,
+      "length": 2843
+    },
+    {
+      "no": 45,
+      "title": "爆炸聲",
+      "offset": 120550,
+      "length": 2623
+    },
+    {
+      "no": 46,
+      "title": "我怎麼聽他的話了？",
+      "offset": 123173,
+      "length": 2403
+    },
+    {
+      "no": 47,
+      "title": "果斷與收穫",
+      "offset": 125576,
+      "length": 2551
+    },
+    {
+      "no": 48,
+      "title": "奸商",
+      "offset": 128127,
+      "length": 2434
+    },
+    {
+      "no": 49,
+      "title": "削的木箭",
+      "offset": 130561,
+      "length": 2503
+    },
+    {
+      "no": 50,
+      "title": "詭異",
+      "offset": 133064,
+      "length": 2512
+    },
+    {
+      "no": 51,
+      "title": "他來了",
+      "offset": 135576,
+      "length": 2500
+    },
+    {
+      "no": 52,
+      "title": "肝帝",
+      "offset": 138076,
+      "length": 2255
+    },
+    {
+      "no": 53,
+      "title": "纜車3級",
+      "offset": 140331,
+      "length": 2558
+    },
+    {
+      "no": 54,
+      "title": "新功能",
+      "offset": 142889,
+      "length": 2283
+    },
+    {
+      "no": 55,
+      "title": "來啊",
+      "offset": 145172,
+      "length": 2499
+    },
+    {
+      "no": 56,
+      "title": "這也算？",
+      "offset": 147671,
+      "length": 2332
+    },
+    {
+      "no": 57,
+      "title": "簡易氣罐爆炸裝置",
+      "offset": 150003,
+      "length": 2224
+    },
+    {
+      "no": 58,
+      "title": "另一條纜線",
+      "offset": 152227,
+      "length": 2497
+    },
+    {
+      "no": 59,
+      "title": "準備",
+      "offset": 154724,
+      "length": 2768
+    },
+    {
+      "no": 60,
+      "title": "貓妖",
+      "offset": 157492,
+      "length": 1863
+    },
+    {
+      "no": 61,
+      "title": "哪有植物會流血的？",
+      "offset": 159355,
+      "length": 2545
+    },
+    {
+      "no": 62,
+      "title": "喝一口，加體質",
+      "offset": 161900,
+      "length": 2066
+    },
+    {
+      "no": 63,
+      "title": "藍色猛毒貓妖",
+      "offset": 163966,
+      "length": 2562
+    },
+    {
+      "no": 64,
+      "title": "擊殺",
+      "offset": 166528,
+      "length": 2061
+    },
+    {
+      "no": 65,
+      "title": "三級敏捷型突破符籙",
+      "offset": 168589,
+      "length": 2395
+    },
+    {
+      "no": 66,
+      "title": "3級",
+      "offset": 170984,
+      "length": 2397
+    },
+    {
+      "no": 67,
+      "title": "3級，新三選一",
+      "offset": 173381,
+      "length": 2064
+    },
+    {
+      "no": 68,
+      "title": "轉職",
+      "offset": 175445,
+      "length": 2565
+    },
+    {
+      "no": 69,
+      "title": "眼不見為凈",
+      "offset": 178010,
+      "length": 2536
+    },
+    {
+      "no": 70,
+      "title": "第二職業欄位",
+      "offset": 180546,
+      "length": 2273
+    },
+    {
+      "no": 71,
+      "title": "連招",
+      "offset": 182819,
+      "length": 2616
+    },
+    {
+      "no": 72,
+      "title": "無解",
+      "offset": 185435,
+      "length": 4425
+    },
+    {
+      "no": 73,
+      "title": "外國人",
+      "offset": 189860,
+      "length": 2070
+    },
+    {
+      "no": 75,
+      "title": "被發現",
+      "offset": 191930,
+      "length": 2365
+    },
+    {
+      "no": 76,
+      "title": "亂了",
+      "offset": 194295,
+      "length": 2162
+    },
+    {
+      "no": 77,
+      "title": "收穫、撤離",
+      "offset": 196457,
+      "length": 2395
+    },
+    {
+      "no": 78,
+      "title": "這也有經驗？",
+      "offset": 198852,
+      "length": 2629
+    },
+    {
+      "no": 79,
+      "title": "藥酒配方",
+      "offset": 201481,
+      "length": 2355
+    },
+    {
+      "no": 80,
+      "title": "藥酒釀造",
+      "offset": 203836,
+      "length": 2403
+    },
+    {
+      "no": 81,
+      "title": "軍事基地",
+      "offset": 206239,
+      "length": 2463
+    },
+    {
+      "no": 82,
+      "title": "瘋狂增長的經驗",
+      "offset": 208702,
+      "length": 2246
+    },
+    {
+      "no": 83,
+      "title": "好運",
+      "offset": 210948,
+      "length": 2308
+    },
+    {
+      "no": 84,
+      "title": "血參藥酒、糧倉、木板",
+      "offset": 213256,
+      "length": 2277
+    },
+    {
+      "no": 85,
+      "title": "建築升級捲軸、詭火",
+      "offset": 215533,
+      "length": 2356
+    },
+    {
+      "no": 86,
+      "title": "纜車停了",
+      "offset": 217889,
+      "length": 2301
+    },
+    {
+      "no": 87,
+      "title": "打鬥聲",
+      "offset": 220190,
+      "length": 2327
+    },
+    {
+      "no": 88,
+      "title": "慘勝",
+      "offset": 222517,
+      "length": 2341
+    },
+    {
+      "no": 89,
+      "title": "升級了？",
+      "offset": 224858,
+      "length": 2286
+    },
+    {
+      "no": 90,
+      "title": "4級，新三選一",
+      "offset": 227144,
+      "length": 2457
+    },
+    {
+      "no": 91,
+      "title": "這玩意兒，不會有靈性吧？",
+      "offset": 229601,
+      "length": 2450
+    },
+    {
+      "no": 92,
+      "title": "誇張的屬性",
+      "offset": 232051,
+      "length": 2247
+    },
+    {
+      "no": 93,
+      "title": "新公告，強制投放",
+      "offset": 234298,
+      "length": 2426
+    },
+    {
+      "no": 94,
+      "title": "新情報",
+      "offset": 236724,
+      "length": 2345
+    },
+    {
+      "no": 95,
+      "title": "前往軍事基地（二合一）",
+      "offset": 239069,
+      "length": 4580
+    },
+    {
+      "no": 0,
+      "title": "關於章節錯亂的說明",
+      "offset": 243649,
+      "length": 1147
+    },
+    {
+      "no": 97,
+      "title": "發生了什麼",
+      "offset": 244796,
+      "length": 2297
+    },
+    {
+      "no": 98,
+      "title": "大量資源",
+      "offset": 247093,
+      "length": 2549
+    },
+    {
+      "no": 99,
+      "title": "那是什麼東西？",
+      "offset": 249642,
+      "length": 2373
+    },
+    {
+      "no": 100,
+      "title": "舔食者",
+      "offset": 252015,
+      "length": 2336
+    },
+    {
+      "no": 101,
+      "title": "四級纜車升級捲軸",
+      "offset": 254351,
+      "length": 2268
+    },
+    {
+      "no": 102,
+      "title": "無需證明",
+      "offset": 256619,
+      "length": 2441
+    },
+    {
+      "no": 103,
+      "title": "準備撤離",
+      "offset": 259060,
+      "length": 2546
+    },
+    {
+      "no": 104,
+      "title": "精緻的利己主義者",
+      "offset": 261606,
+      "length": 2042
+    },
+    {
+      "no": 105,
+      "title": "動容",
+      "offset": 263648,
+      "length": 2444
+    },
+    {
+      "no": 106,
+      "title": "以後不能這樣了",
+      "offset": 266092,
+      "length": 2550
+    },
+    {
+      "no": 107,
+      "title": "【捲軸升級符】",
+      "offset": 268642,
+      "length": 2388
+    },
+    {
+      "no": 108,
+      "title": "4級纜車升級方向",
+      "offset": 271030,
+      "length": 2196
+    },
+    {
+      "no": 109,
+      "title": "頻道合併",
+      "offset": 273226,
+      "length": 2373
+    },
+    {
+      "no": 110,
+      "title": "仇恨導向",
+      "offset": 275599,
+      "length": 2357
+    },
+    {
+      "no": 111,
+      "title": "心眼是真的多",
+      "offset": 277956,
+      "length": 2353
+    },
+    {
+      "no": 112,
+      "title": "襲擊提前",
+      "offset": 280309,
+      "length": 2240
+    },
+    {
+      "no": 113,
+      "title": "灰燼城外",
+      "offset": 282549,
+      "length": 2292
+    },
+    {
+      "no": 114,
+      "title": "危機",
+      "offset": 284841,
+      "length": 2326
+    },
+    {
+      "no": 115,
+      "title": "等著",
+      "offset": 287167,
+      "length": 2686
+    },
+    {
+      "no": 116,
+      "title": "灰燼城公共頻道",
+      "offset": 289853,
+      "length": 1920
+    },
+    {
+      "no": 117,
+      "title": "聯繫",
+      "offset": 291773,
+      "length": 2247
+    },
+    {
+      "no": 118,
+      "title": "猜測",
+      "offset": 294020,
+      "length": 2367
+    },
+    {
+      "no": 119,
+      "title": "纜車4級",
+      "offset": 296387,
+      "length": 2495
+    },
+    {
+      "no": 120,
+      "title": "纜車4級的三選一",
+      "offset": 298882,
+      "length": 2048
+    },
+    {
+      "no": 121,
+      "title": "灰燼城",
+      "offset": 300930,
+      "length": 2253
+    },
+    {
+      "no": 122,
+      "title": "灰燼大學區域",
+      "offset": 303183,
+      "length": 2287
+    },
+    {
+      "no": 123,
+      "title": "爆率變高",
+      "offset": 305470,
+      "length": 2414
+    },
+    {
+      "no": 124,
+      "title": "動靜",
+      "offset": 307884,
+      "length": 2270
+    },
+    {
+      "no": 125,
+      "title": "飛行能力？",
+      "offset": 310154,
+      "length": 2321
+    },
+    {
+      "no": 126,
+      "title": "大學生",
+      "offset": 312475,
+      "length": 3330
+    },
+    {
+      "no": 127,
+      "title": "被迫",
+      "offset": 315805,
+      "length": 2621
+    },
+    {
+      "no": 128,
+      "title": "林小禾",
+      "offset": 318426,
+      "length": 2395
+    },
+    {
+      "no": 128,
+      "title": "尾隨",
+      "offset": 320821,
+      "length": 2377
+    },
+    {
+      "no": 129,
+      "title": "熟練",
+      "offset": 323198,
+      "length": 2121
+    },
+    {
+      "no": 130,
+      "title": "另一個尾巴",
+      "offset": 325319,
+      "length": 2243
+    },
+    {
+      "no": 131,
+      "title": "誘餌",
+      "offset": 327562,
+      "length": 2287
+    },
+    {
+      "no": 132,
+      "title": "黃金寶箱，開箱",
+      "offset": 329849,
+      "length": 2413
+    },
+    {
+      "no": 133,
+      "title": "怪物襲擊",
+      "offset": 332262,
+      "length": 2339
+    },
+    {
+      "no": 134,
+      "title": "破壁爬行者",
+      "offset": 334601,
+      "length": 2453
+    },
+    {
+      "no": 135,
+      "title": "救命？",
+      "offset": 337054,
+      "length": 2260
+    },
+    {
+      "no": 136,
+      "title": "5級",
+      "offset": 339314,
+      "length": 2368
+    },
+    {
+      "no": 137,
+      "title": "5級，三選一",
+      "offset": 341682,
+      "length": 2138
+    },
+    {
+      "no": 138,
+      "title": "傳單？軍隊？",
+      "offset": 343820,
+      "length": 2341
+    },
+    {
+      "no": 139,
+      "title": "藤蔓",
+      "offset": 346161,
+      "length": 2187
+    },
+    {
+      "no": 140,
+      "title": "逃脫",
+      "offset": 348348,
+      "length": 2617
+    },
+    {
+      "no": 141,
+      "title": "正常水平",
+      "offset": 350965,
+      "length": 1906
+    },
+    {
+      "no": 142,
+      "title": "救世公會",
+      "offset": 352871,
+      "length": 2384
+    },
+    {
+      "no": 143,
+      "title": "不識抬舉",
+      "offset": 355255,
+      "length": 2097
+    },
+    {
+      "no": 144,
+      "title": "戰力評估",
+      "offset": 357352,
+      "length": 2224
+    },
+    {
+      "no": 145,
+      "title": "新的藤蔓",
+      "offset": 359576,
+      "length": 2346
+    },
+    {
+      "no": 146,
+      "title": "缺人",
+      "offset": 361922,
+      "length": 2180
+    },
+    {
+      "no": 147,
+      "title": "強迫邀請",
+      "offset": 364102,
+      "length": 2372
+    },
+    {
+      "no": 148,
+      "title": "先看看他的戰力",
+      "offset": 366474,
+      "length": 2213
+    },
+    {
+      "no": 149,
+      "title": "蘇牧的戰力",
+      "offset": 368687,
+      "length": 2301
+    },
+    {
+      "no": 150,
+      "title": "炸開了",
+      "offset": 370988,
+      "length": 2344
+    },
+    {
+      "no": 151,
+      "title": "另想辦法",
+      "offset": 373332,
+      "length": 2262
+    },
+    {
+      "no": 152,
+      "title": "方案",
+      "offset": 375594,
+      "length": 2275
+    },
+    {
+      "no": 153,
+      "title": "林小禾的職業",
+      "offset": 377869,
+      "length": 2244
+    },
+    {
+      "no": 154,
+      "title": "空戰",
+      "offset": 380113,
+      "length": 2551
+    },
+    {
+      "no": 155,
+      "title": "這東西有智商",
+      "offset": 382664,
+      "length": 1989
+    },
+    {
+      "no": 156,
+      "title": "成了",
+      "offset": 384653,
+      "length": 2498
+    },
+    {
+      "no": 157,
+      "title": "要的是打不準",
+      "offset": 387151,
+      "length": 2280
+    },
+    {
+      "no": 158,
+      "title": "暴漲的經驗",
+      "offset": 389431,
+      "length": 2517
+    },
+    {
+      "no": 159,
+      "title": "6級，三選一",
+      "offset": 391948,
+      "length": 2101
+    },
+    {
+      "no": 160,
+      "title": "誰殺得了這種東西？",
+      "offset": 394049,
+      "length": 2289
+    },
+    {
+      "no": 161,
+      "title": "不見了",
+      "offset": 396338,
+      "length": 2321
+    },
+    {
+      "no": 162,
+      "title": "巨人",
+      "offset": 398659,
+      "length": 2400
+    },
+    {
+      "no": 163,
+      "title": "居民樓",
+      "offset": 401059,
+      "length": 2077
+    },
+    {
+      "no": 164,
+      "title": "尖叫",
+      "offset": 403136,
+      "length": 2190
+    },
+    {
+      "no": 165,
+      "title": "夜襲",
+      "offset": 405326,
+      "length": 2289
+    },
+    {
+      "no": 166,
+      "title": "出手",
+      "offset": 407615,
+      "length": 2407
+    },
+    {
+      "no": 167,
+      "title": "猜測？",
+      "offset": 410022,
+      "length": 2344
+    },
+    {
+      "no": 168,
+      "title": "到底是誰",
+      "offset": 412366,
+      "length": 2477
+    },
+    {
+      "no": 169,
+      "title": "堅固的木質地板圖紙",
+      "offset": 414843,
+      "length": 2113
+    },
+    {
+      "no": 170,
+      "title": "大部分目前的水平",
+      "offset": 416956,
+      "length": 2244
+    },
+    {
+      "no": 171,
+      "title": "屏障可能會出問題",
+      "offset": 419200,
+      "length": 2236
+    },
+    {
+      "no": 172,
+      "title": "離開",
+      "offset": 421436,
+      "length": 2332
+    },
+    {
+      "no": 173,
+      "title": "麵粉",
+      "offset": 423768,
+      "length": 2189
+    },
+    {
+      "no": 174,
+      "title": "覺醒者",
+      "offset": 425957,
+      "length": 2242
+    },
+    {
+      "no": 175,
+      "title": "刺殺",
+      "offset": 428199,
+      "length": 2256
+    },
+    {
+      "no": 176,
+      "title": "不是倖存者",
+      "offset": 430455,
+      "length": 1280
+    },
+    {
+      "no": 177,
+      "title": "救我",
+      "offset": 431735,
+      "length": 1904
+    },
+    {
+      "no": 178,
+      "title": "暗區",
+      "offset": 433639,
+      "length": 2637
+    },
+    {
+      "no": 179,
+      "title": "軍方精英",
+      "offset": 436276,
+      "length": 2237
+    },
+    {
+      "no": 180,
+      "title": "潛入",
+      "offset": 438513,
+      "length": 2147
+    },
+    {
+      "no": 181,
+      "title": "不一樣的地方",
+      "offset": 440660,
+      "length": 2365
+    },
+    {
+      "no": 182,
+      "title": "經驗加成",
+      "offset": 443025,
+      "length": 2153
+    },
+    {
+      "no": 183,
+      "title": "不對勁",
+      "offset": 445178,
+      "length": 2255
+    },
+    {
+      "no": 184,
+      "title": "硬漢",
+      "offset": 447433,
+      "length": 2254
+    },
+    {
+      "no": 185,
+      "title": "小心",
+      "offset": 449687,
+      "length": 2188
+    },
+    {
+      "no": 186,
+      "title": "再次偷襲",
+      "offset": 451875,
+      "length": 2260
+    },
+    {
+      "no": 187,
+      "title": "強大的蘇牧",
+      "offset": 454135,
+      "length": 2290
+    },
+    {
+      "no": 188,
+      "title": "你是從纜車上下來的？",
+      "offset": 456425,
+      "length": 2184
+    },
+    {
+      "no": 189,
+      "title": "編號",
+      "offset": 458609,
+      "length": 2136
+    },
+    {
+      "no": 190,
+      "title": "合作.",
+      "offset": 460745,
+      "length": 2263
+    },
+    {
+      "no": 191,
+      "title": "目標",
+      "offset": 463008,
+      "length": 2316
+    },
+    {
+      "no": 192,
+      "title": "追蹤",
+      "offset": 465324,
+      "length": 2117
+    },
+    {
+      "no": 193,
+      "title": "出現",
+      "offset": 467441,
+      "length": 2207
+    },
+    {
+      "no": 194,
+      "title": "目的",
+      "offset": 469648,
+      "length": 2291
+    },
+    {
+      "no": 195,
+      "title": "誘餌.",
+      "offset": 471939,
+      "length": 2276
+    },
+    {
+      "no": 196,
+      "title": "太小瞧我了",
+      "offset": 474215,
+      "length": 2178
+    },
+    {
+      "no": 197,
+      "title": "來了",
+      "offset": 476393,
+      "length": 2218
+    },
+    {
+      "no": 198,
+      "title": "這人不是黑殺的",
+      "offset": 478611,
+      "length": 2228
+    },
+    {
+      "no": 199,
+      "title": "藤蔓的強度",
+      "offset": 480839,
+      "length": 2132
+    },
+    {
+      "no": 200,
+      "title": "報仇",
+      "offset": 482971,
+      "length": 2301
+    },
+    {
+      "no": 201,
+      "title": "又一個奇物",
+      "offset": 485272,
+      "length": 2202
+    },
+    {
+      "no": 202,
+      "title": "窮B",
+      "offset": 487474,
+      "length": 2311
+    },
+    {
+      "no": 203,
+      "title": "練級",
+      "offset": 489785,
+      "length": 2298
+    },
+    {
+      "no": 204,
+      "title": "資格",
+      "offset": 492083,
+      "length": 2244
+    },
+    {
+      "no": 205,
+      "title": "7級",
+      "offset": 494327,
+      "length": 2109
+    },
+    {
+      "no": 206,
+      "title": "7級，三選一",
+      "offset": 496436,
+      "length": 2242
+    },
+    {
+      "no": 207,
+      "title": "目標，動物園",
+      "offset": 498678,
+      "length": 2393
+    },
+    {
+      "no": 208,
+      "title": "另一支隊伍",
+      "offset": 501071,
+      "length": 2052
+    },
+    {
+      "no": 209,
+      "title": "隊伍目標",
+      "offset": 503123,
+      "length": 2216
+    },
+    {
+      "no": 210,
+      "title": "什麼人？",
+      "offset": 505339,
+      "length": 2241
+    },
+    {
+      "no": 211,
+      "title": "損壞的投幣機",
+      "offset": 507580,
+      "length": 2346
+    },
+    {
+      "no": 212,
+      "title": "這是什麼運氣？",
+      "offset": 509926,
+      "length": 2134
+    },
+    {
+      "no": 213,
+      "title": "銀斑豹幼崽",
+      "offset": 512060,
+      "length": 2318
+    },
+    {
+      "no": 214,
+      "title": "突然出現的棕熊",
+      "offset": 514378,
+      "length": 2069
+    },
+    {
+      "no": 215,
+      "title": "秘境",
+      "offset": 516447,
+      "length": 2167
+    },
+    {
+      "no": 216,
+      "title": "出一個秘境位置",
+      "offset": 518614,
+      "length": 2224
+    },
+    {
+      "no": 217,
+      "title": "魔丸",
+      "offset": 520838,
+      "length": 2229
+    },
+    {
+      "no": 218,
+      "title": "巧合",
+      "offset": 523067,
+      "length": 2190
+    },
+    {
+      "no": 219,
+      "title": "秘境內",
+      "offset": 525257,
+      "length": 2149
+    },
+    {
+      "no": 220,
+      "title": "熱鬧",
+      "offset": 527406,
+      "length": 2211
+    },
+    {
+      "no": 221,
+      "title": "會不會是他們",
+      "offset": 529617,
+      "length": 2236
+    },
+    {
+      "no": 222,
+      "title": "規則",
+      "offset": 531853,
+      "length": 2132
+    },
+    {
+      "no": 223,
+      "title": "不同的選擇",
+      "offset": 533985,
+      "length": 2305
+    },
+    {
+      "no": 224,
+      "title": "遊戲繼續",
+      "offset": 536290,
+      "length": 2118
+    },
+    {
+      "no": 225,
+      "title": "太浪費時間了",
+      "offset": 538408,
+      "length": 2232
+    },
+    {
+      "no": 226,
+      "title": "作弊？",
+      "offset": 540640,
+      "length": 2175
+    },
+    {
+      "no": 227,
+      "title": "通透",
+      "offset": 542815,
+      "length": 2288
+    },
+    {
+      "no": 228,
+      "title": "8級，三選一",
+      "offset": 545103,
+      "length": 2306
+    },
+    {
+      "no": 229,
+      "title": "我就賭，裡面沒有子彈",
+      "offset": 547409,
+      "length": 2324
+    },
+    {
+      "no": 230,
+      "title": "異空間的傳送門",
+      "offset": 549733,
+      "length": 2228
+    },
+    {
+      "no": 231,
+      "title": "魔丸又來了",
+      "offset": 551961,
+      "length": 2246
+    },
+    {
+      "no": 232,
+      "title": "殃及池魚",
+      "offset": 554207,
+      "length": 2162
+    },
+    {
+      "no": 233,
+      "title": "逃",
+      "offset": 556369,
+      "length": 2147
+    },
+    {
+      "no": 224,
+      "title": "危機降臨",
+      "offset": 558516,
+      "length": 2258
+    },
+    {
+      "no": 225,
+      "title": "無妄之災",
+      "offset": 560774,
+      "length": 1315
+    },
+    {
+      "no": 226,
+      "title": "超過我們等級太多了，看不到",
+      "offset": 562089,
+      "length": 2307
+    },
+    {
+      "no": 227,
+      "title": "八級",
+      "offset": 564396,
+      "length": 2113
+    },
+    {
+      "no": 228,
+      "title": "十九倍",
+      "offset": 566509,
+      "length": 2249
+    },
+    {
+      "no": 229,
+      "title": "巨熊",
+      "offset": 568758,
+      "length": 2235
+    },
+    {
+      "no": 230,
+      "title": "餘威",
+      "offset": 570993,
+      "length": 2186
+    },
+    {
+      "no": 231,
+      "title": "北門",
+      "offset": 573179,
+      "length": 2205
+    },
+    {
+      "no": 232,
+      "title": "為何打不得",
+      "offset": 575384,
+      "length": 2168
+    },
+    {
+      "no": 233,
+      "title": "關注",
+      "offset": 577552,
+      "length": 2252
+    },
+    {
+      "no": 234,
+      "title": "蛋液",
+      "offset": 579804,
+      "length": 2284
+    },
+    {
+      "no": 235,
+      "title": "拖住、偷",
+      "offset": 582088,
+      "length": 2177
+    },
+    {
+      "no": 236,
+      "title": "到手、跑",
+      "offset": 584265,
+      "length": 2163
+    },
+    {
+      "no": 237,
+      "title": "人和人的差距，怎麼可以大到這種程度",
+      "offset": 586428,
+      "length": 2306
+    },
+    {
+      "no": 238,
+      "title": "分贓",
+      "offset": 588734,
+      "length": 2058
+    },
+    {
+      "no": 239,
+      "title": "心虛",
+      "offset": 590792,
+      "length": 2412
+    },
+    {
+      "no": 240,
+      "title": "假的，暴怒的熊",
+      "offset": 593204,
+      "length": 2204
+    },
+    {
+      "no": 241,
+      "title": "吃蛋液",
+      "offset": 595408,
+      "length": 2243
+    },
+    {
+      "no": 242,
+      "title": "一路向北",
+      "offset": 597651,
+      "length": 2413
+    },
+    {
+      "no": 243,
+      "title": "殺戮詛咒的逆天BUG",
+      "offset": 600064,
+      "length": 2041
+    },
+    {
+      "no": 244,
+      "title": "軍區，防線",
+      "offset": 602105,
+      "length": 2234
+    },
+    {
+      "no": 245,
+      "title": "團長",
+      "offset": 604339,
+      "length": 2263
+    },
+    {
+      "no": 246,
+      "title": "震懾",
+      "offset": 606602,
+      "length": 2196
+    },
+    {
+      "no": 247,
+      "title": "有情有義",
+      "offset": 608798,
+      "length": 2326
+    },
+    {
+      "no": 248,
+      "title": "變得更強",
+      "offset": 611124,
+      "length": 2130
+    },
+    {
+      "no": 249,
+      "title": "被圍",
+      "offset": 613254,
+      "length": 2386
+    },
+    {
+      "no": 250,
+      "title": "他來了.",
+      "offset": 615640,
+      "length": 2287
+    },
+    {
+      "no": 251,
+      "title": "這他媽是想害死我？",
+      "offset": 617927,
+      "length": 2225
+    },
+    {
+      "no": 252,
+      "title": "嗯",
+      "offset": 620152,
+      "length": 2228
+    },
+    {
+      "no": 253,
+      "title": "吃掉它",
+      "offset": 622380,
+      "length": 2274
+    },
+    {
+      "no": 254,
+      "title": "受傷的林雨薇",
+      "offset": 624654,
+      "length": 2282
+    },
+    {
+      "no": 255,
+      "title": "後悔",
+      "offset": 626936,
+      "length": 2173
+    },
+    {
+      "no": 256,
+      "title": "想吃",
+      "offset": 629109,
+      "length": 2209
+    },
+    {
+      "no": 257,
+      "title": "暴走的能量，真吃了",
+      "offset": 631318,
+      "length": 2277
+    },
+    {
+      "no": 258,
+      "title": "我是被動的",
+      "offset": 633595,
+      "length": 2273
+    },
+    {
+      "no": 259,
+      "title": "開會",
+      "offset": 635868,
+      "length": 2284
+    },
+    {
+      "no": 260,
+      "title": "群英匯聚",
+      "offset": 638152,
+      "length": 2342
+    },
+    {
+      "no": 261,
+      "title": "狗頭、壯漢、綠皮膚、天使",
+      "offset": 640494,
+      "length": 2085
+    },
+    {
+      "no": 262,
+      "title": "後面的路",
+      "offset": 642579,
+      "length": 2086
+    },
+    {
+      "no": 263,
+      "title": "怪物粗略難度分級",
+      "offset": 644665,
+      "length": 2285
+    },
+    {
+      "no": 264,
+      "title": "中二程序員",
+      "offset": 646950,
+      "length": 2164
+    },
+    {
+      "no": 265,
+      "title": "介紹",
+      "offset": 649114,
+      "length": 2237
+    },
+    {
+      "no": 266,
+      "title": "我有三個隊友",
+      "offset": 651351,
+      "length": 2180
+    },
+    {
+      "no": 267,
+      "title": "出發",
+      "offset": 653531,
+      "length": 2303
+    },
+    {
+      "no": 268,
+      "title": "巨人來襲",
+      "offset": 655834,
+      "length": 2258
+    },
+    {
+      "no": 269,
+      "title": "自見分曉",
+      "offset": 658092,
+      "length": 2330
+    },
+    {
+      "no": 270,
+      "title": "考量",
+      "offset": 660422,
+      "length": 2190
+    },
+    {
+      "no": 271,
+      "title": "不繞路",
+      "offset": 662612,
+      "length": 2186
+    },
+    {
+      "no": 272,
+      "title": "是動物",
+      "offset": 664798,
+      "length": 2193
+    },
+    {
+      "no": 273,
+      "title": "簽訂契約？",
+      "offset": 666991,
+      "length": 2240
+    },
+    {
+      "no": 274,
+      "title": "動物園發生了什麼",
+      "offset": 669231,
+      "length": 2231
+    },
+    {
+      "no": 275,
+      "title": "移動",
+      "offset": 671462,
+      "length": 2198
+    },
+    {
+      "no": 276,
+      "title": "失效",
+      "offset": 673660,
+      "length": 2255
+    },
+    {
+      "no": 277,
+      "title": "失望",
+      "offset": 675915,
+      "length": 2111
+    },
+    {
+      "no": 278,
+      "title": "出怪",
+      "offset": 678026,
+      "length": 2252
+    },
+    {
+      "no": 279,
+      "title": "沒有危機",
+      "offset": 680278,
+      "length": 2179
+    },
+    {
+      "no": 280,
+      "title": "突襲",
+      "offset": 682457,
+      "length": 2270
+    },
+    {
+      "no": 281,
+      "title": "毒貓王",
+      "offset": 684727,
+      "length": 2115
+    },
+    {
+      "no": 282,
+      "title": "落雷哥布林、牛頭王薩烏塔",
+      "offset": 686842,
+      "length": 2273
+    },
+    {
+      "no": 283,
+      "title": "牽制",
+      "offset": 689115,
+      "length": 2093
+    }
+  ]
+}

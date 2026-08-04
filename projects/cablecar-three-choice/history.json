@@ -1,0 +1,49 @@
+{
+  "_comment": "由 record 命令自动维护：payoff_events 爽点事件（chapter/group/subtype/intensity/score）；pressure_history 每章压力总分；recent_structures 结构标签 {chapter,label}（用于重复疲劳 2.5）；hook_events 悬念新增/推进/兑现事件（用于 2.3 平衡检查）；effective_change_chapters 登记了有效不可逆变化的章号清单（record --effective-change / --no-effective-change，用于 2.4 停滞指数）。",
+  "payoff_events": [
+    {
+      "chapter": 284,
+      "group": "combat",
+      "subtype": "主角出手",
+      "intensity": 75,
+      "score": 75
+    }
+  ],
+  "pressure_history": [
+    {
+      "chapter": 284,
+      "total": 51.8,
+      "components": {
+        "survival_threat": 58.0,
+        "resource_scarcity": 60.0,
+        "time_pressure": 48.0,
+        "uncertainty": 58.0,
+        "social_conflict": 40.0,
+        "recent_failure": 30.0
+      }
+    }
+  ],
+  "recent_structures": [
+    {
+      "chapter": 284,
+      "label": "主角出手"
+    }
+  ],
+  "hook_events": [
+    {
+      "chapter": 284,
+      "action": "new"
+    },
+    {
+      "chapter": 284,
+      "action": "advance"
+    },
+    {
+      "chapter": 284,
+      "action": "resolve"
+    }
+  ],
+  "effective_change_chapters": [
+    284
+  ]
+}
