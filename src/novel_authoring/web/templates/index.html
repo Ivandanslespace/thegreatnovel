@@ -1,3 +1,53 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>Metric Observatory</title><link rel="stylesheet" href="/static/style.css"></head>
-<body><main><h1>Metric Observatory &amp; Author Workbench</h1><p>本地审核台；Codex 由 Windows 桌面端手动领取。</p>{% for chapter in chapters %}<a href="/books/{{ book_id }}/editions/{{ edition_id }}/chapters/{{ chapter.chapter_id }}">{{ chapter.ordinal }} {{ chapter.title }}</a>{% endfor %}</main></body></html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>作者工作台 · {{ book.title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">小说作者工作台</a>
+    <span class="muted">本地文件交接 · Codex 桌面端手动领取</span>
+    <button class="theme-toggle" type="button" data-theme-toggle aria-label="切换主题">主题</button>
+  </header>
+  <main class="dashboard shell">
+    <section class="page-heading">
+      <div><p class="eyebrow">Dashboard</p><h1>{{ book.title }}</h1></div>
+      <div class="actions"><label class="inline-select">Books<select data-book-select><option value="{{ book_id }}">{{ book.title }}</option>{% for item in books if item.book_id != book_id %}<option value="{{ item.book_id }}">{{ item.title }}</option>{% endfor %}</select></label><label class="inline-select">Edition<select data-edition-select data-book-id="{{ book_id }}">{% for edition in editions %}<option value="{{ edition.edition_id }}"{% if edition.edition_id == edition_id %} selected{% endif %}>{{ edition.display_name }} · {{ edition.status }}</option>{% endfor %}</select></label><a class="button" href="/books/{{ book_id }}/workflow">工作流</a><a class="button" href="/books/{{ book_id }}/jobs">Handoff 状态</a></div>
+    </section>
+    <section class="stat-grid" aria-label="工作台摘要">
+      <article class="stat-card"><span>Active Edition</span><strong>{{ edition_id }}</strong></article>
+      <article class="stat-card"><span>最新章节</span><strong>{% if latest_chapter %}第 {{ latest_chapter.ordinal }} 章{% else %}暂无{% endif %}</strong></article>
+      <article class="stat-card"><span>Complete / Incomplete</span><strong>{{ counts.complete }} / {{ counts.incomplete }}</strong></article>
+      <article class="stat-card"><span>Missing / Disputed / Stale</span><strong>{{ counts.missing }} / {{ counts.disputed }} / {{ counts.stale }}</strong></article>
+    </section>
+    <section class="dashboard-grid">
+      <article class="panel">
+        <div class="panel-heading"><h2>章节</h2><label>搜索章节<input data-chapter-search type="search" placeholder="标题或序号"></label></div>
+        <nav class="chapter-list" aria-label="章节列表">
+          {% for chapter in chapters %}
+          <a data-chapter-item href="/books/{{ book_id }}/editions/{{ edition_id }}/chapters/{{ chapter.chapter_id }}"><span class="chapter-number">{{ chapter.ordinal }}</span><span>{{ chapter.title }}</span></a>
+          {% else %}<p class="muted">当前 edition 没有章节。</p>{% endfor %}
+        </nav>
+      </article>
+      <article class="panel">
+        <div class="panel-heading"><h2>最新指标快照</h2><span class="badge">只诊断，不批准</span></div>
+        {% if latest_run %}
+        <div class="metric-mini-grid">{% for metric in latest_run.results %}<div class="metric-mini"><strong>{{ metric.metric_id }}</strong><span>{{ metric.status }}</span><b>{% if metric.score is not none %}{{ '%.1f'|format(metric.score) }}{% else %}—{% endif %}</b></div>{% endfor %}</div>
+        {% else %}<p class="muted">暂无 Metric Run。</p>{% endif %}
+      </article>
+    </section>
+    <section class="panel dashboard-footer">
+      <div><h2>Handoff</h2><p>READY {{ handoffs.get('READY_FOR_CODEX', 0) }} · RUNNING {{ handoffs.get('RUNNING', 0) }} · WAITING {{ handoffs.get('WAITING_FOR_USER', 0) }}</p></div>
+      <div><h2>最新 Metric Aggregate</h2><p>{% if latest_aggregate %}<code>{{ latest_aggregate.aggregate_id }}</code> · {{ latest_aggregate.status }}{% else %}暂无{% endif %}</p></div>
+      <div><h2>最新 VALIDATED Draft</h2><p>{% if latest_draft %}{{ latest_draft.draft_id }} · {{ latest_draft.display_status }}{% else %}暂无{% endif %}</p></div>
+      <div><h2>最新 Revision Campaign</h2><p>{% if latest_campaign %}{{ latest_campaign.campaign_id }} · {{ latest_campaign.status }}{% else %}暂无{% endif %}</p></div>
+      <div><h2>Rhythm 警告</h2><p>{{ (rhythm.warnings or [])|length }} · Overdue Promise {{ overdue_promises|length }}</p></div>
+    </section>
+  </main>
+  <script src="{{ url_for('static', path='app.js') }}" defer></script>
+</body>
+</html>

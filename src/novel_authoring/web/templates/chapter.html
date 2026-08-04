@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}"><title>{{ chapter.title }} · 作者工作台</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">小说作者工作台</a>
+  <span class="muted">{{ book.title }} / {{ edition_id }}</span>
+  <button class="theme-toggle" type="button" data-theme-toggle>主题</button>
+</header>
+<main class="workbench shell" data-workbench>
+  <aside class="sidebar panel" aria-label="章节导航">
+    <div class="panel-heading"><h2>章节</h2><a href="/">首页</a></div>
+    <div class="workbench-context"><span>Books：{{ book.title }}</span><span>Edition：{{ edition_id }}</span></div>
+    <label>搜索章节<input data-chapter-search type="search" placeholder="标题或序号"></label>
+    <nav class="chapter-list">
+      {% for item in chapters %}
+      <a data-chapter-item class="{% if item.chapter_id == chapter.chapter_id %}active{% endif %}"
+         href="/books/{{ book_id }}/editions/{{ edition_id }}/chapters/{{ item.chapter_id }}">
+        <span class="chapter-number">{{ item.ordinal }}</span><span>{{ item.title }}</span>
+        <span class="status-dot" aria-label="当前章节缺失 {{ missing_count }} 项">{% if item.chapter_id == chapter.chapter_id %}●{% endif %}</span>
+      </a>
+      {% endfor %}
+    </nav>
+    <div class="chapter-nav">
+      {% if previous_chapter %}<a class="button" href="/books/{{ book_id }}/editions/{{ edition_id }}/chapters/{{ previous_chapter.chapter_id }}">← 上一章</a>{% endif %}
+      {% if next_chapter %}<a class="button" href="/books/{{ book_id }}/editions/{{ edition_id }}/chapters/{{ next_chapter.chapter_id }}">下一章 →</a>{% endif %}
+    </div>
+  </aside>
+
+  <section class="reader panel">
+    <div class="page-heading">
+      <div><p class="eyebrow">第 {{ chapter.ordinal }} 章 · {{ source_info.document_status }}</p><h1>{{ chapter.title }}</h1></div>
+      <span class="badge">{{ edition_id }}</span>
+    </div>
+    <div class="source-card">
+      <span>来源：{{ source_info.relative_path }}</span>
+      <span>Content Hash：<code>{{ source_info.content_sha256 }}</code></span>
+      <span>Source Span：{{ source_info.source_span_id or '—' }}</span>
+    </div>
+    <div class="view-tabs" role="tablist">
+      <button type="button" class="active" data-view-tab="prose">正文</button>
+      <button type="button" data-view-tab="state">结构化状态</button>
+      <button type="button" data-view-tab="draft">草稿</button>
+    </div>
+    <div data-view-panel="prose" class="prose-view">
+      {% for segment in segments %}
+      <article class="segment" id="segment-{{ segment.segment_id }}" data-segment-id="{{ segment.segment_id }}" tabindex="0">
+        <header><span class="segment-label">P{{ '%03d'|format(segment.segment_ordinal) }}</span><span class="badge badge-subtle">{{ segment.segment_kind }}</span><code>{{ segment.text_sha256 }}</code></header>
+        <p>{{ segment.text }}</p>
+      </article>
+      {% else %}<p class="muted">暂无段落。</p>{% endfor %}
+    </div>
+    <div data-view-panel="state" class="structured-view" hidden><pre>{{ bundle|tojson(indent=2) }}</pre></div>
+    <div data-view-panel="draft" class="structured-view" hidden>
+      <p>草稿由 Codex 桌面端 handoff 产生；本页面只展示，不直接执行或批准。</p>
+      <a class="button" href="/books/{{ book_id }}/editions/{{ edition_id }}/draft-review">打开 Draft Review</a>
+    </div>
+  </section>
+
+  <aside class="inspector panel" aria-label="指标与证据">
+    <div class="panel-heading"><h2>Metric Cards</h2><span class="badge">Run {{ run.run_id }}</span></div>
+    <div class="metric-cards">
+      {% for metric in metrics %}
+      <article class="metric-card" data-metric-id="{{ metric.metric_id }}">
+        <div class="metric-card-heading"><h3>{{ metric.metric_id }}</h3><span class="status status-{{ metric.status|lower }}">{{ metric.status }}</span></div>
+        <div class="metric-score">{% if metric.score is not none %}{{ '%.1f'|format(metric.score) }}{% else %}—{% endif %}</div>
+        <dl><dt>Completeness</dt><dd>{{ '%.0f'|format(metric.completeness * 100) }}%</dd><dt>Confidence</dt><dd>{{ '%.0f'|format(metric.confidence * 100) }}%</dd><dt>Formula</dt><dd><code>{{ metric.formula_id }}</code></dd></dl>
+        <div class="component-chips" aria-label="Components">
+          {% for component_id, component in metric.components.items() %}
+          <button type="button" class="component-chip component-{{ component.status|lower }}" data-component-id="{{ metric.metric_id }}.{{ component_id }}" data-observation-id="{{ component.observation_id or '' }}">{{ component_id }} · {{ component.status }} · {{ component.source_kind }}</button>
+          {% endfor %}
+        </div>
+        {% if metric.missing_components %}<p class="callout missing">缺失：{{ metric.missing_components|join('、') }}</p>{% endif %}
+        {% if metric.disputed_components %}<p class="callout disputed">冲突：{{ metric.disputed_components|join('、') }}</p>{% endif %}
+        {% if metric.stale_components %}<p class="callout stale">需重新审核：{{ metric.stale_components|join('、') }}</p>{% endif %}
+        <details>
+          <summary>Components / Evidence</summary>
+          <pre>{{ metric.components|tojson(indent=2) }}</pre>
+          <ul class="evidence-list">
+            {% for evidence in metric.evidence_summary %}
+            <li data-evidence-segment="{{ evidence.segment_id or '' }}" data-evidence-component="{{ metric.metric_id }}.{{ evidence.component_id or '' }}">
+              <button type="button" class="evidence-link" data-segment-link="{{ evidence.segment_id or '' }}" title="observation={{ evidence.observation_id or '—' }}; source={{ evidence.source_kind or '—' }}; strength={{ evidence.strength or '—' }}; confidence={{ evidence.confidence or '—' }}; rationale={{ evidence.rationale }}">
+                <span class="direction direction-{{ evidence.direction|lower }}">{% if evidence.direction == 'RAISES' %}↑{% elif evidence.direction == 'LOWERS' %}↓{% elif evidence.direction == 'SUPPORTS' %}✓{% elif evidence.direction == 'CONTRADICTS' %}×{% else %}—{% endif %}</span><strong>{{ evidence.contribution_kind }}</strong> {{ evidence.evidence_quote }} <small>strength={{ evidence.strength or '—' }} · confidence={{ evidence.confidence or '—' }}</small>
+              </button>
+            </li>
+            {% else %}<li class="muted">暂无段落证据</li>{% endfor %}
+          </ul>
+        </details>
+      </article>
+      {% endfor %}
+    </div>
+
+    <section class="history-panel">
+      <div class="panel-heading"><h3>Observation / Run History</h3><span class="badge">{{ history|length }} runs</span></div>
+      <ol class="history-list">
+        {% for item in history[:8] %}<li><code>{{ item.run_id }}</code> · {{ item.scope_type }} · {{ item.status }} · completeness {{ item.completeness }}</li>
+        {% else %}<li class="muted">暂无 Metric Run 历史。</li>{% endfor %}
+      </ol>
+      <details class="observation-ledger">
+        <summary>Observation ledger（含 supersedes / retracted / stale）</summary>
+        <div class="table-scroll"><table>
+          <thead><tr><th>当前</th><th>Metric / Component</th><th>值</th><th>来源</th><th>理由</th><th>链与状态</th></tr></thead>
+          <tbody>
+          {% for item in observation_history %}
+          <tr data-observation-row="{{ item.observation_id }}" class="{% if item.current %}current-observation{% endif %}{% if item.stale %} stale-observation{% endif %}">
+            <td>{% if item.current %}CURRENT{% else %}—{% endif %}<br><code>{{ item.observation_id }}</code></td>
+            <td>{{ item.metric_id }}.{{ item.component_id }}</td>
+            <td><code>{{ item.value|tojson }}</code></td>
+            <td>{{ item.source_kind }}<br>confidence {{ item.confidence if item.confidence is not none else '—' }}</td>
+            <td>{{ item.reason or '—' }}</td>
+            <td>resolution={{ item.resolution_status }}<br>supersedes={{ item.supersedes_observation_id or '—' }}<br>retracted={{ item.retracted_at or '—' }}<br>{% if item.stale %}STALE: {{ item.stale_reason or 'hash/status drift' }}{% else %}FRESH{% endif %}</td>
+          </tr>
+          {% else %}<tr><td colspan="6" class="muted">暂无 observation。</td></tr>{% endfor %}
+          </tbody>
+        </table></div>
+      </details>
+    </section>
+
+    <div class="author-form">
+      <h3>补充作者输入</h3>
+      <form method="post" action="/api/books/{{ book_id }}/editions/{{ edition_id }}/metrics/observations" data-api-form>
+        <input type="hidden" name="scope_type" value="CHAPTER"><input type="hidden" name="scope_id" value="{{ chapter.chapter_id }}">
+        <label>Metric ID<input name="metric_id" required></label><label>Component ID<input name="component_id" required></label>
+        <label>数值<input name="value" type="number" min="0" max="100" step="any"></label><label>理由<textarea name="reason" required></textarea></label>
+        <button class="button primary" type="submit">保存 AUTHOR_INPUT</button>
+      </form>
+    </div>
+  </aside>
+</main>
+<script type="application/json" id="metric-bundle">{{ bundle|tojson }}</script>
+<script src="{{ url_for('static', path='app.js') }}" defer></script>
+</body>
+</html>

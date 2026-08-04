@@ -4,8 +4,10 @@
 
 ## Local File Handoff Protocol
 
-Web 创建 `workspace/<book_id>/editions/<edition_id>/handoffs/<handoff_id>/`，包含 `task.json`、`prompt.md`、`metric_context.json`、`context_manifest.json`、`output_schema.json`、`status.json`、`events.jsonl`、`result.json` 和 `artifacts/`。所有 hash 在创建时冻结；指标或 projection 漂移会使任务 STALE，不能覆盖原任务。
+Web 创建 `workspace/<book_id>/editions/<edition_id>/handoffs/<handoff_id>/`，包含 `task.json`、`prompt.md`、`metric_context.json`、`context_manifest.json`、`output_schema.json`、`status.json`、`events.jsonl`、`result.json` 和 `artifacts/`。所有 hash 在创建时冻结；source manifest、effective content、projection、registry、config、edition status 或 Planning Aggregate 漂移会使 READY/CLAIMED 任务 STALE，不能覆盖原任务。
 
-作者在 Codex 桌面端复制 Web 给出的固定指令，使用 `$process-novel-handoff` 原子领取任务，调用 `$continue-novel` 或 `$revise-novel`，并写回状态/结果。Web 只读取 SQLite、状态文件、事件日志和结果文件；SSE（如启用）只传输已有状态，不能控制 Codex，也不能假装知道模型是否仍在思考。没有 heartbeat 时只显示“Codex 客户端可能已停止或等待用户操作”。
+作者在 Codex 桌面端复制 Web 给出的固定指令，必须先使用 `$process-novel-handoff` 原子领取任务，再调用 `$continue-novel` 或 `$revise-novel`，并写回状态/结果。Web 只读取 SQLite、状态文件、事件日志和结果文件；SSE（如启用）只传输已有状态，不能控制 Codex，也不能假装知道模型是否仍在思考。没有 heartbeat 时只显示“Codex 客户端可能已停止或等待用户操作”。
+
+`result.json` 必须符合严格 `WorkflowHandoffResult`；COMPLETED 还要通过 artifact、edition/hash anchor 和 `status.json` 一致性检查。需要作者决定时，Codex 写 `waiting_for_user.json` 并进入 `WAITING_FOR_USER`；Web 只新增 `handoff_user_response.json`，不修改冻结的 `task.json`。
 
 续写最终停在 `VALIDATED_DRAFT`，改写停在 `VALIDATED_CAMPAIGN` 或 requested stage；`canon_committed` 和 `edition_activated` 必须为 `false`。批准和激活仍由作者显式执行。

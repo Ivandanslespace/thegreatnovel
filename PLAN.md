@@ -7,9 +7,38 @@
 
 ## 2026-08-04 增量审核计划
 
-本轮基线：`1bdc60b31e6bbb412434d2cdcc10a4f2c3bfe802`，工作分支：
-`小说续写_codex_metrics_web`。`book/`、`inspirations/`、`workspace/`、
+本轮基线：`b29d86b300dfdf493ebdfbf131a74c3390c6df35`，工作分支：
+`小说续写_codex_metrics_web_qoder_fix`。远程：
+`https://github.com/happyivanencoding/thegreatnovel`。
+`book/`、`inspirations/`、`workspace/`、
 `.venv/`、缓存和本地导出产物继续只读/不提交。
+
+### 2026-08-04 Phase G–J 增量计划
+
+实际质量门基线：`pytest 63 passed`；`ruff check src tests` 通过；
+`mypy src`（strict）通过。当前未提交的 `audit/` 保留，不纳入本轮修改。
+
+#### Phase G：Metric Core Correctness
+
+按 Registry scope 隔离 Metric Run，修正 Narrative Debt 的 edition ordinal 与真实
+target age，集中实现 ObservationResolver、撤回恢复、stale/hash 解析和 Planning
+Aggregate 引用冻结；Web 与 CLI 共用同一 service 层。
+
+#### Phase H：Handoff Contract Hardening
+
+统一 `$process-novel-handoff` 入口，严格校验 WorkflowHandoffResult、required
+artifact、阶段兼容性、WAITING_FOR_USER、并发 claim 和 stale/drift 结果。
+
+#### Phase I：Complete Author Workbench UI
+
+用 Jinja2 autoescape 和安全 JSON 渲染完整三栏章节审核页，补齐章节/段落/指标/证据/
+缺失输入/历史/Handoff/Draft Review 页面与受保护 API；保持本地绑定、无 shell/API Key/
+模型字段，并加入 CSRF 与乐观并发校验。
+
+#### Phase J：Synthetic End-to-End Acceptance
+
+补齐 scope、resolver、retraction、handoff、安全、Workbench、edition 隔离和合成
+端到端测试；运行全量质量门、CLI help、Web doctor，并核对 `book/` 和运行数据未被修改。
 
 ### Phase A：Revision Integrity Correction
 
@@ -187,6 +216,7 @@ Immutable Source + Approved Change Events
 - 2026-08-04：M6 完成；十项校验、显式批准、正史物化、四项余波义务、snapshot/rebuild 通过累计 40 项测试。
 - 2026-08-04：M7 完成；补齐 directive/export、通用 reconcile、冷却与诊断结构、FTS5 相关片段、完整文档和项目内 Skill；累计 49 项测试、Ruff、strict mypy、普通 wheel CLI 与真实书只读回归全部通过。
 - 2026-08-04：M8 完成；新增 base/derived edition、冻结父锚点、edition-scoped 事件/投影/物化、RevisionSpec/Impact Packet/Plan/Unit/REVISION_DRAFT、十项改写校验、chapter variant、批准与启用分离、七文件完整 edition 导出及 `revise-novel` skill；本地质量门与合成改写 E2E 通过。
+- 2026-08-04：Phase G–J 完成；基线 `b29d86b300dfdf493ebdfbf131a74c3390c6df35` 上完成 Migration 7、scope-aware Metric Run、ObservationResolver、Planning Aggregate、严格 Handoff/WAITING_FOR_USER、三栏 Author Workbench、Jinja autoescape、安全 API、合成 E2E 与 edition 隔离；全量测试 `67 passed`，Ruff、strict Mypy、CLI help、Web doctor 通过，远端已切换为 `https://github.com/happyivanencoding/thegreatnovel`。
 
 ## 未实现内容
 
@@ -197,7 +227,7 @@ V1 约定的核心纵向路径没有占位实现：导入、抽取/整理、指�
 - Python 不自动调用 Codex/远程模型；agent output 仍由 Codex按文件合同生成；
 - 较早章节的分层摘要字段和降级警告已支持，但摘要内容需由后续抽取批次提供，V1 不伪造自动摘要；
 - 通用故事事件保留确认事件和审计来源，尚未增加独立 `story_events` 读模型；
-- Web 审核台、REST、云数据库、向量检索、自动发布和真实读者预测均按计划不做。
+- 云数据库、向量检索、自动发布和真实读者预测仍按计划不做；本轮已交付本地 Web 审核台与 REST。
 - Codex 语义影响审计仍通过文件合同导入；系统不会假装本地规则能够替代语义判断。
 
 下一阶段最值得实现：

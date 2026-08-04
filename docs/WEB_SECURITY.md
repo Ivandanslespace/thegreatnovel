@@ -7,3 +7,4 @@
 - Web 不批准 Canon、Revision Campaign 或 Edition，也不写入 `book/`。
 - handoff claim 使用 SQLite 事务和 claim token；结果必须声明 `canon_committed=false`、`edition_activated=false`。
 - 心跳仅作为最近活动时间；超时提示可能停止/等待，不自动 FAILED。
+- Migration 7 记录 stale reason、result validation、Planning Aggregate 与 `WAITING_FOR_USER`，任何旧 artifact 都不能绕过结果合同成为当前有效草稿。

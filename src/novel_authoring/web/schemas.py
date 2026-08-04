@@ -22,6 +22,8 @@ class AuthorInputRequest(BaseModel):
     chapter_id: str | None = None
     effective_content_sha256: str | None = None
     projection_hash: str | None = None
+    registry_hash: str | None = None
+    config_hash: str | None = None
     expected_active_observation_id: str | None = None
     evidence_links: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -39,3 +41,24 @@ class RetractRequest(BaseModel):
 
     scope_type: str = "CHAPTER"
     scope_id: str
+    reason: str = "作者撤回"
+    expected_active_observation_id: str | None = None
+
+
+class RecomputeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scope_type: str = "CHAPTER"
+    scope_id: str
+    requested_metric_ids: list[str] | None = None
+    effective_content_sha256: str | None = None
+    projection_hash: str | None = None
+    registry_hash: str | None = None
+    config_hash: str | None = None
+    expected_effective_observation_ids: dict[str, str] = Field(default_factory=dict)
+
+
+class UserResponseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    response: dict[str, Any]

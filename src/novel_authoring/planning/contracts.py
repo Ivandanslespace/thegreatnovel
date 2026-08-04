@@ -116,7 +116,7 @@ def build_chapter_contract(
     with database.connect() as connection:
         candidate_anchor = connection.execute(
             "SELECT metric_run_id, metric_bundle_hash, rhythm_snapshot_id, registry_hash, "
-            "config_hash "
+            "config_hash, aggregate_id "
             "FROM candidate_plans WHERE book_id=? AND candidate_id=? AND edition_id=?",
             (book_id, candidate_id, selected_edition),
         ).fetchone()
@@ -126,8 +126,8 @@ def build_chapter_contract(
                 contract_id, book_id, candidate_id, target_chapter_ordinal,
                 mode, contract_json, contract_sha256, status, created_at, version
                 , edition_id, metric_run_id, metric_bundle_hash, rhythm_snapshot_id,
-                registry_hash, config_hash
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'READY', ?, 1, ?, ?, ?, ?, ?, ?)
+                registry_hash, config_hash, aggregate_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'READY', ?, 1, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 contract_id,
@@ -144,6 +144,7 @@ def build_chapter_contract(
                 None if candidate_anchor is None else candidate_anchor["rhythm_snapshot_id"],
                 None if candidate_anchor is None else candidate_anchor["registry_hash"],
                 None if candidate_anchor is None else candidate_anchor["config_hash"],
+                None if candidate_anchor is None else candidate_anchor["aggregate_id"],
             ),
         )
     return {

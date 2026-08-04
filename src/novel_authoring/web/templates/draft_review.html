@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}"><title>Draft Review · 作者工作台</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+<header class="topbar"><a class="brand" href="/">小说作者工作台</a><span class="muted">只读审核面板</span></header>
+<main class="shell narrow">
+  <div class="page-heading"><div><p class="eyebrow">Draft Review</p><h1>草稿审核</h1></div><span class="badge">尚未进入正史</span></div>
+  <p class="callout">此页只读展示 Validator、hard errors、soft warnings、指标变化和 Approval Preview；没有批准按钮，也不会调用 shell、模型或外部 API。</p>
+  {% for draft in drafts %}
+  <article class="panel draft-card">
+    <div class="panel-heading"><h2>{{ draft.draft_id }}</h2><span class="status status-{{ draft.display_status|lower }}">{{ draft.display_status }}</span></div>
+    <p>Contract：<code>{{ draft.contract_id }}</code> · Candidate：<code>{{ draft.candidate_id or '—' }}</code></p>
+    <p>正文路径：<code>{{ draft.file_path }}</code> · Content SHA-256：<code>{{ draft.content_sha256 }}</code></p>
+    <details open><summary>Draft 正文</summary><pre class="draft-prose">{{ draft.content }}</pre></details>
+    <div class="review-grid">
+      <section><h3>Validator reports</h3>
+        <table><thead><tr><th>Validator</th><th>Severity</th><th>结果</th><th>Run</th></tr></thead><tbody>
+        {% for report in draft.validation_reports %}<tr><td>{{ report.validator }}</td><td>{{ report.severity }}</td><td>{% if report.passed %}PASS{% else %}FAIL{% endif %}</td><td><code>{{ report.run_id or '—' }}</code></td></tr>{% else %}<tr><td colspan="4">暂无报告。</td></tr>{% endfor %}
+        </tbody></table>
+        {% for report in draft.validation_reports %}<details><summary>{{ report.validator }} detail</summary><pre>{{ report.report|tojson(indent=2) }}</pre></details>{% endfor %}
+      </section>
+      <section><h3>Hard / Soft</h3>
+        <p>Hard errors：<strong>{{ draft.validation_reports|selectattr('passed', 'equalto', 0)|list|length }}</strong></p>
+        <p>Soft warnings：以报告 severity 为 WARNING 的条目为准；WARNING 不会被静默升级为批准。</p>
+        <h3>指标变化</h3><pre>{{ draft.metric_changes|tojson(indent=2) }}</pre>
+      </section>
+    </div>
+    <div class="review-grid">
+      <section><h3>Candidate / selected</h3><ul>{% for candidate in draft.candidates %}<li><code>{{ candidate.candidate_id }}</code> · rank {{ candidate.rank }} · {{ candidate.primary_function }} · {{ candidate.selection_status }}</li>{% else %}<li>暂无候选。</li>{% endfor %}</ul><p>Selected Candidate：<code>{{ draft.candidate_id or '—' }}</code></p><h3>Chapter Contract</h3><pre>{{ draft.contract|tojson(indent=2) }}</pre></section>
+      <section><h3>Rhythm diagnostics</h3><pre>{{ draft.rhythm|tojson(indent=2) }}</pre><h3>Promise changes / debt</h3><pre>{{ draft.promises|tojson(indent=2) }}</pre><h3>State Changes</h3><pre>{{ draft.state_changes|tojson(indent=2) }}</pre></section>
+    </div>
+    <details class="approval-preview"><summary>Approval Preview（只读）</summary><pre>{{ draft.approval_preview|tojson(indent=2) }}</pre><p class="muted">批准前仍需作者当前明确确认；当前页面不会运行 <code>novel approve</code>。</p></details>
+  </article>
+  {% else %}<section class="panel"><p>暂无草稿。</p></section>{% endfor %}
+</main>
+<script src="{{ url_for('static', path='app.js') }}" defer></script>
+</body>
+</html>

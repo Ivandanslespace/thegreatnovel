@@ -12,6 +12,7 @@ from novel_authoring.db.database import Database
 from novel_authoring.edition import edition_workspace, resolve_edition_id
 from novel_authoring.metrics.formulas import candidate_score, narrative_debt, thread_need
 from novel_authoring.metrics.gates import evaluate_hard_gates
+from novel_authoring.planning.aggregates import build_planning_aggregate
 from novel_authoring.planning.boundary import PlanningError, _workspace, build_boundary_packet
 from novel_authoring.planning.models import CandidateOutput, CandidateProposal, ThreadPriority
 from novel_authoring.utils import json_dumps, sha256_bytes, stable_id, utc_now
@@ -171,6 +172,12 @@ def prepare_candidate_task(
     threads = rank_threads(database, book_id, settings, edition_id=selected_edition)
     if not threads:
         raise PlanningError("没有可规划的活跃线程；请先完成抽取与 reconcile")
+    aggregate = build_planning_aggregate(
+        database,
+        book_id,
+        edition_id=selected_edition,
+        author_policy={"source": "plan-next", "policy_version": "v1"},
+    )
     with database.connect() as connection:
         metric_rows = connection.execute(
             """
@@ -192,6 +199,7 @@ def prepare_candidate_task(
         {
             "book_id": book_id,
             "boundary": boundary["packet_id"],
+            "planning_aggregate": aggregate,
             "threads": [item.model_dump(mode="json") for item in threads],
             "metrics": [dict(row) for row in metric_rows],
         }
@@ -229,6 +237,7 @@ def prepare_candidate_task(
             "```json",
             json_dumps(
                 {
+                    "planning_aggregate": aggregate,
                     "rhythm_diagnostics": json.loads(
                         Path(str(boundary["json_path"])).read_text(encoding="utf-8")
                     ).get("rhythm_diagnostics", {}),
@@ -248,6 +257,12 @@ def prepare_candidate_task(
         "edition_id": selected_edition,
         "boundary_packet_id": boundary["packet_id"],
         "boundary_path": boundary["json_path"],
+        "aggregate_id": aggregate["aggregate_id"],
+        "metric_run_ids": aggregate["metric_run_ids"],
+        "bundle_hash": aggregate["bundle_hash"],
+        "rhythm_snapshot_id": aggregate.get("rhythm_snapshot_id"),
+        "registry_hash": aggregate["registry_hash"],
+        "config_hash": aggregate["config_hash"],
         "thread_priorities": [item.model_dump(mode="json") for item in threads],
         "schema_sha256": sha256_bytes(schema_json.encode()),
         "created_at": utc_now(),
@@ -262,6 +277,8 @@ def prepare_candidate_task(
         "schema": str(task_dir / "schema.json"),
         "expected_output": str(output_dir / "output.json"),
         "top_threads": [item.model_dump(mode="json") for item in threads],
+        "aggregate_id": aggregate["aggregate_id"],
+        "bundle_hash": aggregate["bundle_hash"],
     }
 
 
@@ -360,12 +377,24 @@ def import_candidate_output(
         if best_score - float(item["score"]) < tie_delta
     ]
     ranking = {str(item["candidate_id"]): index for index, item in enumerate(passed, 1)}
+    aggregate_id = str(metadata.get("aggregate_id") or "")
     with database.connect() as connection:
-        v2_run = connection.execute(
-            "SELECT * FROM metric_runs WHERE book_id=? AND edition_id=? "
-            "ORDER BY created_at DESC LIMIT 1",
-            (book_id, selected_edition),
-        ).fetchone()
+        aggregate = None
+        if aggregate_id:
+            aggregate = connection.execute(
+                "SELECT * FROM planning_aggregates WHERE aggregate_id=? "
+                "AND book_id=? AND edition_id=?",
+                (aggregate_id, book_id, selected_edition),
+            ).fetchone()
+        run_ids = [] if aggregate is None else json.loads(str(aggregate["metric_run_ids_json"]))
+        v2_run = None
+        if run_ids:
+            placeholders = ",".join("?" for _ in run_ids)
+            v2_run = connection.execute(
+                f"SELECT * FROM metric_runs WHERE run_id IN ({placeholders}) "
+                "ORDER BY created_at DESC LIMIT 1",
+                tuple(run_ids),
+            ).fetchone()
         rhythm_snapshot = connection.execute(
             "SELECT snapshot_id FROM rhythm_diagnostic_snapshots WHERE book_id=? AND edition_id=? "
             "ORDER BY as_of_chapter DESC, created_at DESC LIMIT 1",
@@ -413,8 +442,8 @@ def import_candidate_output(
                     primary_function, secondary_functions_json, plan_json,
                     score_json, gate_report_json, selection_status, status,
                     created_at, version, edition_id, metric_run_id, metric_bundle_hash,
-                    rhythm_snapshot_id, registry_hash, config_hash
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANDIDATE', ?, 1, ?, ?, ?, ?, ?, ?)
+                    rhythm_snapshot_id, registry_hash, config_hash, aggregate_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANDIDATE', ?, 1, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     candidate_id,
@@ -435,6 +464,7 @@ def import_candidate_output(
                     None if rhythm_snapshot is None else str(rhythm_snapshot["snapshot_id"]),
                     None if v2_run is None else str(v2_run["registry_hash"]),
                     None if v2_run is None else str(v2_run["config_hash"]),
+                    aggregate_id or None,
                 ),
             )
     return {
@@ -458,4 +488,5 @@ def import_candidate_output(
             for item in evaluated
         ],
         "boundary_packet_id": metadata["boundary_packet_id"],
+        "aggregate_id": aggregate_id or None,
     }

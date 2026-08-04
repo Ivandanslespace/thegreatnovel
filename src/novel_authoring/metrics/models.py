@@ -59,12 +59,18 @@ class MetricComponentValue(BaseModel):
     confidence: float | None = Field(default=None, ge=0, le=1)
     reason: str = ""
     observation_id: str | None = None
+    selected_reason: str = ""
+    freshness: str = "FRESH"
+    stale_reason: str = ""
 
 
 class EvidenceSummary(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     link_id: str | None = None
+    component_id: str | None = None
+    observation_id: str | None = None
+    source_kind: ObservationSourceKind | None = None
     segment_id: str | None = None
     source_span_id: str | None = None
     event_id: str | None = None
@@ -89,12 +95,18 @@ class MetricResultV2(BaseModel):
     completeness: float = Field(ge=0, le=1)
     confidence: float = Field(ge=0, le=1)
     missing_components: list[str] = Field(default_factory=list)
+    disputed_components: list[str] = Field(default_factory=list)
+    stale_components: list[str] = Field(default_factory=list)
     components: dict[str, MetricComponentValue] = Field(default_factory=dict)
     formula_id: str
     config_hash: str
     evidence_summary: list[EvidenceSummary] = Field(default_factory=list)
     threshold_interpretation: str = ""
     recommended_action: str = ""
+    semantic_confidence: float = Field(default=0.0, ge=0, le=1)
+    data_freshness: str = "FRESH"
+    dispute_status: str = "NONE"
+    formula_contribution: dict[str, float | None] = Field(default_factory=dict)
     created_at: str
 
 
@@ -116,6 +128,7 @@ class MetricRun(BaseModel):
     completeness: float = Field(ge=0, le=1)
     confidence: float = Field(ge=0, le=1)
     input_bundle_hash: str
+    requested_metric_ids: list[str] = Field(default_factory=list)
     created_at: str
     invalidated_at: str | None = None
 
@@ -134,9 +147,15 @@ class MetricRunResult(BaseModel):
     confidence: float = Field(ge=0, le=1)
     components: dict[str, MetricComponentValue] = Field(default_factory=dict)
     missing_components: list[str] = Field(default_factory=list)
+    disputed_components: list[str] = Field(default_factory=list)
+    stale_components: list[str] = Field(default_factory=list)
     evidence_summary: list[EvidenceSummary] = Field(default_factory=list)
     threshold_interpretation: str = ""
     recommended_action: str = ""
+    semantic_confidence: float = Field(default=0.0, ge=0, le=1)
+    data_freshness: str = "FRESH"
+    dispute_status: str = "NONE"
+    formula_contribution: dict[str, float | None] = Field(default_factory=dict)
     formula_id: str
 
 
@@ -153,6 +172,7 @@ class MetricInputBundleV2(BaseModel):
     effective_content_sha256: str | None = None
     registry_hash: str
     config_hash: str
+    requested_metric_ids: list[str] | None = None
     components: dict[str, dict[str, MetricComponentValue]] = Field(default_factory=dict)
     evidence: dict[str, list[EvidenceSummary]] = Field(default_factory=dict)
 
@@ -161,6 +181,22 @@ class MetricInputBundleV2(BaseModel):
         from novel_authoring.utils import json_dumps, sha256_bytes
 
         return sha256_bytes(json_dumps(self.model_dump(mode="json")).encode("utf-8"))
+
+
+class ObservationResolution(BaseModel):
+    """Auditable result of resolving one component's append-only history."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: MetricComponentStatus
+    effective_observation_id: str | None = None
+    value: Any | None = None
+    source_kind: ObservationSourceKind | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    selected_reason: str = ""
+    ignored_observations: list[dict[str, Any]] = Field(default_factory=list)
+    conflicts: list[dict[str, Any]] = Field(default_factory=list)
+    stale_reason: str = ""
 
 
 class SemanticEvidenceLink(BaseModel):

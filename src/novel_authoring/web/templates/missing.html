@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}"><title>缺失输入 · 作者工作台</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/">小说作者工作台</a><span class="muted">Missing Input Editor</span></header>
+  <main class="shell narrow">
+    <div class="page-heading"><div><p class="eyebrow">Metric Inputs</p><h1>缺失输入编辑器</h1></div><span class="badge">缺失不按 0 或 50 代替</span></div>
+    <section class="panel">
+      <p>Run：<code>{{ run.run_id }}</code> · 当前 scope：<code>{{ scope_id or '—' }}</code></p>
+      {% for metric in run.results %}
+        {% if metric.missing_components %}
+          {% for component in metric.missing_components %}
+          <article class="missing-row">
+            <div class="panel-heading"><h2>{{ metric.metric_id }}.{{ component }}</h2><span class="status status-incomplete">MISSING</span></div>
+            {% set definition = component_definitions[metric.metric_id][component] %}
+            <p>{{ definition.display_name or component }}：{{ definition.description or '注册表未提供额外说明。' }}</p>
+            <p class="muted">允许范围：{{ definition.minimum if definition.minimum is not none else '—' }} 至 {{ definition.maximum if definition.maximum is not none else '—' }} · 类型：{{ definition.value_type }} · 必填：{{ '是' if definition.evidence_required else '否' }} · 来源：{{ definition.allowed_source_kinds|join('、') }}</p>
+            <p class="muted">该 Component 当前没有可用观察；保存后会通过 service 层追加 AUTHOR_INPUT，使当前 Planning Aggregate 需要重新审核，相关 candidate/contract 标记 STALE。</p>
+            <form method="post" action="/api/books/{{ book_id }}/editions/{{ edition_id }}/metrics/observations" data-api-form>
+              <input type="hidden" name="scope_type" value="CHAPTER"><input type="hidden" name="scope_id" value="{{ scope_id }}"><input type="hidden" name="chapter_id" value="{{ chapter.chapter_id }}">
+              <input type="hidden" name="effective_content_sha256" value="{{ run.bundle.effective_content_sha256 }}"><input type="hidden" name="projection_hash" value="{{ run.bundle.projection_hash }}"><input type="hidden" name="registry_hash" value="{{ run.bundle.registry_hash }}"><input type="hidden" name="config_hash" value="{{ run.bundle.config_hash }}">
+              <input type="hidden" name="metric_id" value="{{ metric.metric_id }}"><input type="hidden" name="component_id" value="{{ component }}">
+              <label>数值（{{ definition.minimum if definition.minimum is not none else 0 }}—{{ definition.maximum if definition.maximum is not none else 100 }}）<input name="value" type="range" min="{{ definition.minimum if definition.minimum is not none else 0 }}" max="{{ definition.maximum if definition.maximum is not none else 100 }}" step="{{ '0.01' if definition.maximum is not none and definition.maximum <= 1 else 'any' }}" value="{{ definition.minimum if definition.minimum is not none else 0 }}" data-value-mirror></label>
+              <label>数值确认<input type="number" min="{{ definition.minimum if definition.minimum is not none else 0 }}" max="{{ definition.maximum if definition.maximum is not none else 100 }}" step="{{ '0.01' if definition.maximum is not none and definition.maximum <= 1 else 'any' }}" value="{{ definition.minimum if definition.minimum is not none else 0 }}" data-value-target></label>
+              {% if segments %}<fieldset class="segment-picker"><legend>选择段落证据（可选，最多两段）</legend>{% for segment in segments[:2] %}<label class="checkbox-label"><input type="checkbox" name="evidence_segment_ids" value="{{ segment.segment_id }}" data-evidence-segment data-quote="{{ segment.text }}">P{{ '%03d'|format(segment.segment_ordinal) }} · {{ segment.text[:80] }}</label>{% endfor %}</fieldset>{% endif %}
+              <label>理由<textarea name="reason" required placeholder="说明作者判断依据"></textarea></label>
+              <button class="button primary" type="submit">保存 AUTHOR_INPUT</button>
+            </form>
+          </article>
+          {% endfor %}
+        {% endif %}
+      {% else %}<p>当前没有缺失 Component。</p>{% endfor %}
+    </section>
+  </main>
+  <script src="{{ url_for('static', path='app.js') }}" defer></script>
+</body>
+</html>

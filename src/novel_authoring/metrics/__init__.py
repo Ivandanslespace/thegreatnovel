@@ -22,12 +22,14 @@ from novel_authoring.metrics.models import (
     MetricRunResult,
     MetricRunStatus,
     MetricSemanticObservationsOutput,
+    ObservationResolution,
 )
 from novel_authoring.metrics.registry import MetricsRegistry, load_registry
 from novel_authoring.metrics.service import (
     AuthorMetricInputService,
     MetricObservationService,
     MetricsAssembler,
+    ObservationResolver,
 )
 
 __all__ = [
@@ -54,9 +56,11 @@ __all__ = [
     "MetricRunResult",
     "MetricRunStatus",
     "MetricSemanticObservationsOutput",
+    "ObservationResolution",
     "MetricsRegistry",
     "load_registry",
     "AuthorMetricInputService",
     "MetricsAssembler",
     "MetricObservationService",
+    "ObservationResolver",
 ]

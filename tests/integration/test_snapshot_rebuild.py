@@ -8,6 +8,7 @@ from novel_authoring.canon.projection import rebuild_projection
 from novel_authoring.canon.state import create_snapshot
 from novel_authoring.config import load_settings
 from novel_authoring.db.database import Database
+from novel_authoring.db.schema import MIGRATIONS, SCHEMA_SQL
 from novel_authoring.domain.models import InformationStatus
 from novel_authoring.ingest.service import ingest_book
 
@@ -91,5 +92,49 @@ def test_schema_migration_is_idempotent(tmp_path: Path) -> None:
             row[1] for row in connection.execute("PRAGMA table_info(events)").fetchall()
         }
 
-    assert versions == [1, 2, 3, 4, 5, 6]
+    assert versions == [1, 2, 3, 4, 5, 6, 7]
     assert {"information_state", "payload_sha256", "event_hash"} <= event_columns
+
+
+def test_old_v6_workspace_upgrades_to_migration_7_without_history_loss(tmp_path: Path) -> None:
+    path = tmp_path / "old-v6.sqlite3"
+    with Database(path).connect() as connection:
+        connection.executescript(SCHEMA_SQL)
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (1, 'now')"
+        )
+        for version, sql in MIGRATIONS:
+            if version <= 6:
+                connection.executescript(sql)
+                connection.execute(
+                    "INSERT INTO schema_migrations(version, applied_at) VALUES (?, 'now')",
+                    (version,),
+                )
+        connection.execute(
+            """
+            INSERT INTO metric_observations(
+                observation_id, book_id, edition_id, scope_type, scope_id, metric_id,
+                component_id, value_json, status, source_kind, config_hash, reason,
+                active, created_at, version
+            ) VALUES ('old-observation', 'old-book', 'base', 'CHAPTER', 'chapter-1',
+                      'pressure', 'threat', '70', 'AVAILABLE', 'SEMANTIC_ESTIMATE',
+                      'old-config', '保留历史', 1, 'now', 1)
+            """
+        )
+    Database(path).initialize()
+    with Database(path).connect() as connection:
+        versions = [
+            int(row[0])
+            for row in connection.execute(
+                "SELECT version FROM schema_migrations ORDER BY version"
+            ).fetchall()
+        ]
+        observation = connection.execute(
+            "SELECT value_json, retracted_at, freshness_status FROM metric_observations "
+            "WHERE observation_id='old-observation'"
+        ).fetchone()
+    assert versions == [1, 2, 3, 4, 5, 6, 7]
+    assert observation is not None
+    assert observation["value_json"] == "70"
+    assert observation["retracted_at"] is None
+    assert observation["freshness_status"] == "FRESH"

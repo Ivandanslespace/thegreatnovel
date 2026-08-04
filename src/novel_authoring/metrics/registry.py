@@ -102,6 +102,33 @@ class MetricsRegistry(BaseModel):
         except KeyError as exc:
             raise ValueError(f"未知指标：{metric_id}") from exc
 
+    def metric_ids_for_scope(self, scope_type: str) -> list[str]:
+        """Return registry metrics applicable to one run scope.
+
+        The registry, rather than the assembler's historical iteration order,
+        is the source of truth for scope membership.  Keeping the result in
+        registry order also makes a run replayable and its JSON stable.
+        """
+        normalized = str(scope_type).upper()
+        try:
+            MetricScope(normalized)
+        except ValueError as exc:
+            raise ValueError(f"未知 Metric Run scope：{scope_type}") from exc
+        return [
+            metric_id
+            for metric_id, definition in self.metrics.items()
+            if definition.scope.value == normalized
+        ]
+
+    def validate_metric_scope(self, metric_id: str, scope_type: str) -> None:
+        definition = self.metric(metric_id)
+        normalized = str(scope_type).upper()
+        if definition.scope.value != normalized:
+            raise ValueError(
+                f"指标 {metric_id} 属于 {definition.scope.value}，"
+                f"不能在 {normalized} Run 中计算"
+            )
+
     def component(self, metric_id: str, component_id: str) -> ComponentDefinition:
         metric = self.metric(metric_id)
         try:
@@ -117,7 +144,10 @@ class MetricsRegistry(BaseModel):
             raise ValueError(f"{metric_id}.{component_id} 不允许 source_kind={source_kind.value}")
 
 
-PACKAGED_REGISTRY_PATH = Path(__file__).resolve().with_name("metrics_registry.yaml")
+# The wheel force-includes the registry at the package root.  Keeping the
+# source-tree fallback below makes both ``pytest`` and the required
+# ``--no-editable`` Windows runtime resolve the same registry.
+PACKAGED_REGISTRY_PATH = Path(__file__).resolve().parents[1] / "metrics_registry.yaml"
 DEFAULT_REGISTRY_PATH = (
     PROJECT_ROOT / "config" / "metrics_registry.yaml"
     if (PROJECT_ROOT / "config" / "metrics_registry.yaml").is_file()

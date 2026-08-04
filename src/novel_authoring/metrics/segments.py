@@ -55,7 +55,10 @@ def split_segments(text: str) -> list[tuple[int, int, str]]:
         return []
     result: list[tuple[int, int, str]] = []
     cursor = 0
-    for match in re.finditer(r"\n[ \t]*\n+", text):
+    # Ingested files may retain Windows CRLF line endings. Treat CRLF and LF
+    # identically so a heading and following prose become separate evidence
+    # segments on Windows as well.
+    for match in re.finditer(r"\r?\n[ \t]*(?:\r?\n)+", text):
         if match.start() > cursor:
             result.append((cursor, match.start(), text[cursor : match.start()]))
         cursor = match.end()

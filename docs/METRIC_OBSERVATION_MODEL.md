@@ -6,7 +6,7 @@
 
 `DETERMINISTIC > DERIVED` 适用于章节字数、Content SHA、库存和已确认状态；语义/作者 component 使用 `AUTHOR_OVERRIDE > AUTHOR_INPUT > SEMANTIC_ESTIMATE > DERIVED > UNKNOWN`。确定性事实不能被作者改写，只能标记争议并要求重算。
 
-`metric_observations` 是 append-only。新观察通过 `supersedes_observation_id` 指向旧观察，旧观察只失效，不覆盖历史。相同优先级冲突进入 `DISPUTED`。
+`metric_observations` 是 append-only。新观察通过 `supersedes_observation_id` 指向旧观察，旧观察只失效，不覆盖历史；显式撤回会保留值和 supersedes 链，Resolver 会恢复此前仍合法的观察。相同最高优先级冲突进入 `DISPUTED`，不按数据库顺序任选一个。
 
 ## 缺失与运行
 
@@ -14,4 +14,4 @@
 
 ## 兼容入口
 
-旧的 `novel diagnose --input` 保留用于调试和导入兼容；正常路径是 `novel metrics rebuild|diagnose|show|missing|history`。
+旧的 `novel diagnose --input` 保留用于调试和导入兼容；正常路径是 `novel metrics rebuild|run-chapter|run-window|run-promise|build-planning-aggregate|diagnose|show|missing|history|disputes`。`novel observation resolve|retract` 与 Web 共用 `ObservationResolver`/service 层。

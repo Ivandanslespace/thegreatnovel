@@ -10,6 +10,7 @@ from novel_authoring.canon.projection import projection_from_connection, rebuild
 from novel_authoring.canon.state import create_snapshot, projection_counts
 from novel_authoring.config import load_settings
 from novel_authoring.db.database import Database
+from novel_authoring.demo import seed_author_workbench
 from novel_authoring.drafting.service import (
     DraftWorkflowError,
     discard_draft,
@@ -38,7 +39,14 @@ from novel_authoring.metrics.engine import diagnose_bundle, load_metric_bundle, 
 from novel_authoring.metrics.models import MetricSemanticObservationsOutput
 from novel_authoring.metrics.registry import load_registry
 from novel_authoring.metrics.segments import list_segments, rebuild_segments
-from novel_authoring.metrics.service import MetricsAssembler, import_semantic_output
+from novel_authoring.metrics.service import (
+    AuthorMetricInputService,
+    MetricConflictError,
+    MetricsAssembler,
+    ObservationResolver,
+    import_semantic_output,
+)
+from novel_authoring.planning.aggregates import build_planning_aggregate
 from novel_authoring.planning.boundary import PlanningError, build_boundary_packet
 from novel_authoring.planning.candidates import import_candidate_output, prepare_candidate_task
 from novel_authoring.planning.contracts import build_chapter_contract
@@ -95,6 +103,7 @@ from novel_authoring.workflows.handoffs import (
     get_handoff,
     mark_stale,
     update_handoff_status,
+    validate_result_file,
 )
 
 # Typer 0.9 (the project's test runtime) requires explicit Option defaults for
@@ -117,6 +126,8 @@ rhythm_app = typer.Typer(help="edition-aware 长跨度节奏诊断")
 hooks_app = typer.Typer(help="伏笔 Age/Dormancy/Readiness 动作诊断")
 metrics_app = typer.Typer(help="provenance-aware 指标观测与运行")
 metrics_semantic_app = typer.Typer(help="语义指标观察文件合同")
+observation_app = typer.Typer(help="append-only Metric Observation 解析与撤回")
+demo_app = typer.Typer(help="合成演示数据")
 segments_app = typer.Typer(help="effective edition 段落与证据")
 workflow_app = typer.Typer(help="Local File Handoff Protocol")
 web_app = typer.Typer(help="本地 Author Workbench（不启动 Codex 进程）")
@@ -135,8 +146,11 @@ app.add_typer(rhythm_app, name="rhythm")
 app.add_typer(hooks_app, name="hooks")
 app.add_typer(metrics_app, name="metrics")
 metrics_app.add_typer(metrics_semantic_app, name="semantic")
+app.add_typer(observation_app, name="observation")
+app.add_typer(demo_app, name="demo")
 app.add_typer(segments_app, name="segments")
 app.add_typer(workflow_app, name="workflow")
+app.add_typer(workflow_app, name="handoff")
 app.add_typer(web_app, name="web")
 
 # Keep the required book ID as a plain type.  Commands provide an explicit
@@ -1226,6 +1240,129 @@ def metrics_rebuild_command(
         raise typer.Exit(code=3) from exc
 
 
+def _run_metric_scope(
+    book_id: BookId,
+    workspace: Path,
+    edition_id: EditionId,
+    scope_type: str,
+    scope_id: str | None,
+    requested_metric_ids: list[str] | None = None,
+) -> None:
+    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    try:
+        _emit(
+            MetricsAssembler(database).rebuild(
+                book_id,
+                edition_id=edition_id,
+                scope_type=scope_type,
+                scope_id=scope_id,
+                requested_metric_ids=requested_metric_ids,
+            )
+        )
+    except (MetricConflictError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@metrics_app.command("run-chapter")
+def metrics_run_chapter_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    chapter_id: Annotated[Optional[str], typer.Option("--chapter-id")] = None,
+) -> None:
+    """只运行 Registry 中 scope=CHAPTER 的指标。"""
+    _run_metric_scope(book_id, workspace, edition_id, "CHAPTER", chapter_id)
+
+
+@metrics_app.command("run-window")
+def metrics_run_window_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    window_id: str = typer.Option("current", "--window-id"),
+) -> None:
+    """运行当前章节窗口的 Window 指标。"""
+    _run_metric_scope(book_id, workspace, edition_id, "WINDOW", window_id)
+
+
+@metrics_app.command("run-promise")
+def metrics_run_promise_command(
+    book_id: BookId = typer.Option(...),
+    promise_id: str = typer.Option(..., "--promise-id"),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    """只运行指定 Promise 的 Narrative Debt。"""
+    _run_metric_scope(book_id, workspace, edition_id, "PROMISE", promise_id)
+
+
+@metrics_app.command("build-planning-aggregate")
+def metrics_build_planning_aggregate_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    """冻结多个 scope Run 的引用与 hash，供 plan-next 使用。"""
+    try:
+        _emit(
+            build_planning_aggregate(
+                Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"),
+                book_id,
+                edition_id=edition_id or "base",
+            )
+        )
+    except (ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@metrics_app.command("disputes")
+def metrics_disputes_command(
+    book_id: BookId = typer.Option(...),
+    scope_id: str = typer.Option(..., "--scope-id"),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    scope_type: str = typer.Option("CHAPTER", "--scope-type"),
+) -> None:
+    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    selected = edition_id or "base"
+    database.initialize()
+    with database.connect() as connection:
+        keys = connection.execute(
+            "SELECT DISTINCT metric_id, component_id FROM metric_observations "
+            "WHERE book_id=? AND edition_id=? AND scope_type=? AND scope_id=?",
+            (book_id, selected, scope_type.upper(), scope_id),
+        ).fetchall()
+    resolver = ObservationResolver(database)
+    _emit(
+        [
+            {
+                "metric_id": str(row["metric_id"]),
+                "component_id": str(row["component_id"]),
+                "resolution": resolver.resolve(
+                    book_id,
+                    selected,
+                    scope_type.upper(),
+                    scope_id,
+                    str(row["metric_id"]),
+                    str(row["component_id"]),
+                ).model_dump(mode="json"),
+            }
+            for row in keys
+            if resolver.resolve(
+                book_id,
+                selected,
+                scope_type.upper(),
+                scope_id,
+                str(row["metric_id"]),
+                str(row["component_id"]),
+            ).status.value
+            == "DISPUTED"
+        ]
+    )
+
+
 @metrics_app.command("diagnose")
 def metrics_diagnose_command(
     book_id: BookId = typer.Option(...),
@@ -1353,6 +1490,66 @@ def metrics_semantic_import_nested_command(
     metrics_semantic_import_command(book_id, input_path, workspace)
 
 
+@observation_app.command("resolve")
+def observation_resolve_command(
+    book_id: BookId = typer.Option(...),
+    metric_id: str = typer.Option(..., "--metric-id"),
+    component_id: str = typer.Option(..., "--component-id"),
+    scope_id: str = typer.Option(..., "--scope-id"),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    scope_type: str = typer.Option("CHAPTER", "--scope-type"),
+) -> None:
+    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    try:
+        _emit(
+            ObservationResolver(database)
+            .resolve(
+                book_id,
+                edition_id or "base",
+                scope_type.upper(),
+                scope_id,
+                metric_id,
+                component_id,
+            )
+            .model_dump(mode="json")
+        )
+    except (ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@observation_app.command("retract")
+def observation_retract_command(
+    book_id: BookId = typer.Option(...),
+    observation_id: str = typer.Option(..., "--observation-id"),
+    scope_id: str = typer.Option(..., "--scope-id"),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    scope_type: str = typer.Option("CHAPTER", "--scope-type"),
+    reason: str = typer.Option("作者撤回", "--reason"),
+    expected_active_observation_id: Annotated[
+        Optional[str], typer.Option("--expected-active-observation-id")
+    ] = None,
+) -> None:
+    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    try:
+        _emit(
+            AuthorMetricInputService(database).retract(
+                observation_id,
+                book_id=book_id,
+                edition_id=edition_id or "base",
+                scope_type=scope_type.upper(),
+                scope_id=scope_id,
+                reason=reason,
+                expected_active_observation_id=expected_active_observation_id,
+            )
+        )
+    except (MetricConflictError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
 @segments_app.command("rebuild")
 def segments_rebuild_command(
     book_id: BookId = typer.Option(...), workspace: Workspace = Path("workspace"), edition_id: EditionId = None
@@ -1414,6 +1611,16 @@ def workflow_handoffs_command(
         _emit([dict(row) for row in connection.execute(sql, tuple(params)).fetchall()])
 
 
+@workflow_app.command("list")
+def workflow_list_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    """jobs 的明确命名别名。"""
+    workflow_handoffs_command(book_id, workspace, edition_id)
+
+
 @workflow_app.command("claim")
 def workflow_claim_command(handoff_id: str = typer.Option(..., "--handoff-id"), claimed_by: str = typer.Option(..., "--claimed-by"), workspace: Workspace = Path("workspace"), book_id: BookId = typer.Option(...)) -> None:
     _emit(claim_handoff(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), handoff_id, claimed_by))
@@ -1427,6 +1634,33 @@ def workflow_cancel_command(handoff_id: str = typer.Option(..., "--handoff-id"),
 @workflow_app.command("stale")
 def workflow_stale_command(handoff_id: str = typer.Option(..., "--handoff-id"), workspace: Workspace = Path("workspace"), book_id: BookId = typer.Option(...)) -> None:
     _emit(mark_stale(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), handoff_id))
+
+
+@workflow_app.command("mark-stale")
+def workflow_mark_stale_command(
+    handoff_id: str = typer.Option(..., "--handoff-id"),
+    workspace: Workspace = Path("workspace"),
+    book_id: BookId = typer.Option(...),
+) -> None:
+    workflow_stale_command(handoff_id, workspace, book_id)
+
+
+@workflow_app.command("validate-result")
+def workflow_validate_result_command(
+    handoff_id: str = typer.Option(..., "--handoff-id"),
+    workspace: Workspace = Path("workspace"),
+    book_id: BookId = typer.Option(...),
+) -> None:
+    try:
+        _emit(
+            validate_result_file(
+                Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"),
+                handoff_id,
+            )
+        )
+    except (HandoffWorkflowError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
 
 
 @workflow_app.command("update")
@@ -1444,6 +1678,18 @@ def web_doctor_command() -> None:
         _emit({"ok": False, "error": str(exc), "install": "pip install -e '.[web]'"})
         raise typer.Exit(code=3) from exc
     _emit({"ok": True, "executor": "Windows Codex desktop client", "bind_default": "127.0.0.1"})
+
+
+@demo_app.command("seed-author-workbench")
+def demo_seed_author_workbench_command(
+    workspace: Workspace = Path("workspace"),
+) -> None:
+    """生成完全合成的 Author Workbench 端到端演示项目。"""
+    try:
+        _emit(seed_author_workbench(workspace.resolve()))
+    except (ValueError, OSError, RuntimeError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
 
 
 @web_app.command("serve")

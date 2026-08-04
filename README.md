@@ -20,7 +20,7 @@ Metric Observatory V2 增加严格指标注册表、缺失值/来源观察、段
 - 十项生成后校验、重大兑现的四类 Aftershock Obligations、审计导出。
 - edition-aware `chapter_features`、长跨度节奏快照与 `HOLD/ADVANCE/RESOLVE/OVERDUE` 伏笔动作队列；
 - 版本化改写的 edition 物化隔离、Variant source span/FTS、Campaign 锚点与 r1/r2/r3 草稿审计。
-- Migration 6 的 provenance-aware `metric_runs`、`metric_observations`、段落 `chapter_segments` 与 `workflow_handoffs`；默认本地 Web 入口为 `novel web serve`。
+- Migration 7 的 provenance-aware `metric_runs`、`metric_observations`、段落 `chapter_segments`、Planning Aggregate、严格 `workflow_handoffs` 与 `WAITING_FOR_USER`；默认本地 Web 入口为 `novel web serve`。
 
 ## Windows 安装
 
@@ -146,6 +146,28 @@ Codex 依据 Boundary Packet、Chapter Contract 与 `schema.json` 写正文 `out
 & $Novel source verify --book-id $BookId
 & $Novel export --book-id $BookId
 ```
+
+## Metric Observatory 与 Author Workbench
+
+```powershell
+& $Novel metrics run-chapter --book-id $BookId --chapter-id <chapter-id>
+& $Novel metrics run-window --book-id $BookId --window-id current
+& $Novel metrics run-promise --book-id $BookId --promise-id <promise-id>
+& $Novel metrics build-planning-aggregate --book-id $BookId
+& $Novel observation resolve --book-id $BookId --scope-id <scope-id> --metric-id pressure --component-id threat
+& $Novel handoff list --book-id $BookId
+& $Novel web doctor
+& $Novel web serve --book-id $BookId --workspace workspace --host 127.0.0.1 --port 8765
+```
+
+要快速查看完整的合成纵向切片，可运行：
+
+```powershell
+& $Novel demo seed-author-workbench --workspace workspace
+& $Novel web serve --book-id demo-author-workbench --workspace workspace --host 127.0.0.1 --port 8765
+```
+
+演示数据只写入指定 `workspace`，不复制真实正文、不调用 Codex/OpenAI、没有 API Key，且包含 base/derived edition、缺失/冲突/stale 指标、Rhythm 警告、过期 Promise、READY/COMPLETED handoff 和 VALIDATED Draft。
 
 导出目录包含 `manifest.json`、`canon_projection.json`、`audit.json` 和 `approved_canon.md`；不会复制或改写原始小说。
 
