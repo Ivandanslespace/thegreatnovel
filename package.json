@@ -1,0 +1,17 @@
+{
+  "name": "thegreatnovel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=23.6"
+  },
+  "scripts": {
+    "tgn": "node src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/*.test.ts\""
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

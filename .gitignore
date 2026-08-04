@@ -1,0 +1,9 @@
+# 依赖与构建产物
+node_modules/
+
+# 临时产物（temps/ 目录本身保留，见 .gitkeep）
+*.tmp
+temps/*
+!temps/.gitkeep
+
+# worlds/ 存档与 novel 内容保留入库，不忽略

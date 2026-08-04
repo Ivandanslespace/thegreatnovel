@@ -1,0 +1,158 @@
+{
+  "_comment": "TheGreatNovel 示例世界提案（求生向范例，非模板）。灾变题材：浓雾吞没地表，幸存者在高架轨道车站求生；杠杆为信息类（预知雾潮窗口），通过宪章 §3.1 五问自查。正式起草请参照 proposal.template.json。",
+  "worldName": "雾轨尽头",
+  "language": "zh",
+  "background": "雾潮吞没了地表城市，最后的幸存者沿环城高架轨道的十七座车站聚居。雾潮每天沿轨道涨落，谁也不知道它从哪里来、为什么准时——趁雾隙下轨拾荒的人九死一生，而车站联盟的补给车却越来越少。失控是结构性的：不是某个坏人囤积了活路，而是规则本身在收紧。",
+  "rulesExplicit": [
+    "明规则1：每回合资产每级消耗 1 单位 supplies 维护，欠缴将导致有效容量减半。",
+    "明规则2：行动风险分低/中/高三档，成功率分别为 85%/65%/45%；风险是可知分布，不是任意惩罚。",
+    "明规则3：机会窗口最多同时存在 3 个，过期即关闭，错过就是真实成本。",
+    "明规则4：打听情报消耗 focus；focus 每回合恢复 1 点，上限 3。"
+  ],
+  "rulesHidden": [
+    "隐藏规则1：雾潮并非自然现象——旧市中心的钟楼每夜整点鸣响，声波驱雾暴涨，该时段内下轨拾荒必遭吞没。",
+    "隐藏规则2：补给车减少不是损耗，车站联盟把物资调去修建通往地表的升降井，知情者被下了封口令。"
+  ],
+  "resources": ["supplies", "scrap", "filter"],
+  "actions": [
+    {
+      "id": "scavenge-platform",
+      "label": "在站台翻找残存物资",
+      "timeCost": 1,
+      "requires": {},
+      "costs": {},
+      "risk": { "level": "low", "base": 3, "spread": 1 },
+      "effects": [{ "verb": "resource", "resource": "supplies", "amount": 3 }]
+    },
+    {
+      "id": "track-dive",
+      "label": "趁雾隙下轨，在站间拾荒",
+      "timeCost": 1,
+      "requires": {},
+      "costs": { "resources": { "supplies": 1 } },
+      "risk": { "level": "high", "base": 5, "spread": 3, "hiddenTag": "隐藏规则1" },
+      "effects": [
+        { "verb": "resource", "resource": "scrap", "amount": 3 },
+        { "verb": "windowOpen", "kind": "opportunity", "labelKey": "window.derelict-train" }
+      ]
+    },
+    {
+      "id": "listen-rails",
+      "label": "贴耳钢轨，听雾潮的脉动",
+      "timeCost": 1,
+      "requires": {},
+      "costs": { "focus": 1 },
+      "risk": { "level": "low", "base": 0, "spread": 0 },
+      "effects": [{ "verb": "knowledge", "knowledge": "fogtide-rhythm" }]
+    },
+    {
+      "id": "repair-workshop",
+      "label": "帮老秦检修站务工坊",
+      "timeCost": 1,
+      "requires": {},
+      "costs": { "resources": { "scrap": 1 } },
+      "risk": { "level": "low", "base": 0, "spread": 0 },
+      "effects": [
+        { "verb": "relation", "npcId": "qin", "delta": 1 },
+        { "verb": "knowledge", "knowledge": "rail-handicraft" }
+      ]
+    },
+    {
+      "id": "decode-map",
+      "label": "破译旧地铁线网图",
+      "timeCost": 1,
+      "requires": { "resources": { "supplies": 1 } },
+      "costs": { "focus": 1 },
+      "risk": { "level": "low", "base": 0, "spread": 0 },
+      "effects": [
+        { "verb": "knowledge", "knowledge": "line-map" },
+        { "verb": "knowledge", "knowledge": "station-network" }
+      ]
+    },
+    {
+      "id": "build-filter-station",
+      "label": "搭建滤芯净化站",
+      "timeCost": 2,
+      "requires": { "knowledge": ["rail-handicraft"], "resources": { "scrap": 3 } },
+      "costs": { "resources": { "scrap": 3 } },
+      "risk": { "level": "medium", "base": 2, "spread": 1 },
+      "effects": [
+        { "verb": "assetInvest", "asset": "filter-station" },
+        { "verb": "resource", "resource": "filter", "amount": 2 }
+      ]
+    },
+    {
+      "id": "scout-belltower",
+      "label": "侦察钟楼外围",
+      "timeCost": 2,
+      "requires": { "knowledge": ["fogtide-rhythm", "line-map"], "resources": { "supplies": 2 } },
+      "costs": { "resources": { "supplies": 2 } },
+      "risk": { "level": "high", "base": 4, "spread": 2, "hiddenTag": "隐藏规则1" },
+      "effects": [
+        { "verb": "knowledge", "knowledge": "bell-tower-watch" },
+        { "verb": "knowledge", "knowledge": "fog-source" },
+        { "verb": "unlock", "unlock": "rule:fog-retreat" }
+      ]
+    },
+    {
+      "id": "rally-shift",
+      "label": "参加夜班同盟的换班集会",
+      "timeCost": 1,
+      "requires": {},
+      "costs": { "resources": { "supplies": 1 } },
+      "risk": { "level": "low", "base": 2, "spread": 1 },
+      "effects": [
+        { "verb": "relation", "npcId": "deng", "delta": 1 },
+        { "verb": "resource", "resource": "supplies", "amount": 2 },
+        { "verb": "knowledge", "knowledge": "shift-rules" }
+      ]
+    },
+    {
+      "id": "fog-retreat-run",
+      "label": "按雾退暗期下轨抢运整批物资",
+      "timeCost": 1,
+      "requires": { "unlocks": ["rule:fog-retreat"] },
+      "costs": { "resources": { "supplies": 1 } },
+      "risk": { "level": "medium", "base": 4, "spread": 2 },
+      "effects": [
+        { "verb": "resource", "resource": "scrap", "amount": 4 },
+        { "verb": "resource", "resource": "supplies", "amount": 3 }
+      ]
+    }
+  ],
+  "_comment_actions": "9 条行动：低风险供给、高风险杠杆场景（hiddenTag 绑定隐藏规则1）、focus 换信息、关系换手艺、资产投资、7 个不同知识 id（保证 tier3 门槛 minKnowledge 7 可达）。unlock 链路示范：scout-belltower 成功后 unlock rule:fog-retreat → 解锁 fog-retreat-run（requires.unlocks 引用，缺码时 hints 给 unlock:rule:fog-retreat）。",
+  "leverage": {
+    "name": "雾隙听潮",
+    "causalChain": "主角能通过空心钢轨提前一刻钟听见雾潮涨落的脉动：同一次下轨拾荒，别人赌命，他能压缩进雾隙做成时刻表作业——改变了'时间→安全行动窗口'的转化链，高风险行动的机会质量与可承受性对他与普通人完全不同。",
+    "cost": "每次听轨消耗 focus；长时间贴轨会引来雾中异动与巡逻队的注意，听轨时本人毫无防备。",
+    "whyUnreplicable": "他的听觉在童年一次雾爆事故中被重塑，能听见雾里别人听不见的超低频脉动；无法传授，别人只能事后模仿他的选择。",
+    "failureMode": "当雾潮被钟楼非常规鸣响或隧道塌方扰动时，预感失准：高风险行动按正常分布结算甚至失败，并经 hiddenTag 揭示隐藏规则1；玩家由此学会'先听轨确认，再下重注'。"
+  },
+  "npcs": [
+    { "id": "qin", "name": "老秦", "goal": "scrap", "resources": { "scrap": 4 }, "power": 2, "personality": "车站老检修工，手上功夫是全环线唯一的车床，愿意以手艺换尊重。" },
+    { "id": "deng", "name": "灯叔", "goal": "supplies", "resources": { "supplies": 6 }, "power": 4, "personality": "夜班同盟头目，掌握配给分发，只认人头不认人情。" },
+    { "id": "sui", "name": "阿穗", "goal": "filter", "resources": { "filter": 3 }, "power": 2, "personality": "最熟悉雾隙时机的拾荒者，从不说自己的滤芯是从哪里来的。" },
+    { "id": "botao", "name": "博涛", "goal": "supplies", "resources": {}, "power": 3, "personality": "车站联盟调度员，知道补给车的去向，却被人下了封口令。" },
+    { "id": "hehe", "name": "禾禾", "goal": "scrap", "resources": {}, "power": 1, "personality": "沿轨拾荒的少年，耳朵尖，愿意用情报换一顿饱饭。" },
+    { "id": "jia", "name": "贾婶", "goal": "filter", "resources": { "supplies": 3 }, "power": 3, "personality": "诊所医生，握着全营地唯一一台滤芯检测仪，说话滴水不漏。" }
+  ],
+  "tierGates": [
+    { "minAssetLevel": 1, "minKnowledge": 2, "minStanding": 0.3 },
+    { "minAssetLevel": 3, "minKnowledge": 4, "minStanding": 0.5 },
+    { "minAssetLevel": 5, "minKnowledge": 7, "minStanding": 0.6 }
+  ],
+  "expansionAnchors": [
+    {
+      "id": "anchor-belltower",
+      "tier": 2,
+      "description": "钟楼与旧市中心：雾潮控制之源，势力割据的更大世界。",
+      "constraint": "进入后旧层站台搜掠劳动背景化；钟楼一方 power 基线按 cohort 倍数抬升；不预展开具体人物与事件。"
+    },
+    {
+      "id": "anchor-surface",
+      "tier": 3,
+      "description": "地表与邻城环线：多势力争夺升降井与地表通行权的区域舞台。",
+      "constraint": "仅存锚点与约束；物化时由种子展开并先验证候选再成事实（宪章 §7）。"
+    }
+  ]
+}

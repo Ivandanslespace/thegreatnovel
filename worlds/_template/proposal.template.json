@@ -1,0 +1,173 @@
+{
+  "_comment": "TheGreatNovel 世界提案模板。JSON 不支持注释，所有说明放 _comment* 字段（校验器忽略以 _ 开头的键）。照此填写后执行：tgn propose <world> --file <f>（只校验）与 tgn accept <world> --file <f>（校验+初始化）。",
+  "worldName": "灰烬海岸",
+  "_comment_worldName": "世界名（将用于小说文件名《世界名》.md 与导出文件名）。",
+  "language": "zh",
+  "_comment_language": "zh | en | fr | ar 四选一；引擎面板/表头/错误提示按此语言渲染。",
+  "background": "大潮汐摧毁了旧港口的全部淡水设施，幸存者聚集在灰烬海岸争夺残存的补给。所有人都知道水在变少，却没人说得清补给队为什么越来越少——失控是结构性的，不是某个坏人造成的。",
+  "_comment_background": "失控背景：控制缺口的来源（核心循环起点）。说明世界为什么对所有人失控。",
+  "rulesExplicit": [
+    "明规则1：每回合资产每级消耗 1 单位 supplies 维护，欠缴导致有效容量减半。",
+    "明规则2：行动有风险等级（低/中/高），风险是可知分布而非任意惩罚。",
+    "明规则3：机会窗口最多同时存在 3 个，过期即关闭，错过就是真实成本。"
+  ],
+  "_comment_rulesExplicit": "明规则：至少 3 条，开局即写入玩家已知规则。",
+  "rulesHidden": [
+    "隐藏规则1：补给队减少是因为上游闸门被人控制，夜间开闸会冲走沿岸物资。"
+  ],
+  "_comment_rulesHidden": "隐藏规则：至少 1 条，只能经失败揭示（hiddenTag）、打听（interact ask）或调查行动获得。",
+  "resources": ["supplies", "scrap", "water"],
+  "_comment_resources": "资源种类 ≤5，必须包含 supplies（引擎维护成本固定使用它）。",
+  "actions": [
+    {
+      "id": "gather",
+      "label": "在滩涂搜集补给",
+      "timeCost": 1,
+      "requires": {},
+      "costs": {},
+      "risk": { "level": "low", "base": 3, "spread": 1 },
+      "effects": [{ "verb": "resource", "resource": "supplies", "amount": 3 }]
+    },
+    {
+      "id": "salvage",
+      "label": "打捞沉船废料",
+      "timeCost": 1,
+      "requires": {},
+      "costs": { "resources": { "supplies": 1 } },
+      "risk": { "level": "medium", "base": 2, "spread": 2, "hiddenTag": "隐藏规则1" },
+      "effects": [
+        { "verb": "resource", "resource": "scrap", "amount": 2 },
+        { "verb": "windowOpen", "kind": "opportunity", "labelKey": "window.wreck" }
+      ]
+    },
+    {
+      "id": "study-tides",
+      "label": "观测潮汐规律",
+      "timeCost": 1,
+      "requires": { "resources": { "supplies": 1 } },
+      "costs": { "focus": 1 },
+      "risk": { "level": "low", "base": 0, "spread": 0 },
+      "effects": [{ "verb": "knowledge", "knowledge": "tide-pattern" }]
+    },
+    {
+      "id": "build-still",
+      "label": "建造蒸馏器",
+      "timeCost": 2,
+      "requires": { "knowledge": ["tide-pattern"], "resources": { "scrap": 3 } },
+      "costs": { "resources": { "scrap": 3 } },
+      "risk": { "level": "medium", "base": 2, "spread": 1 },
+      "effects": [
+        { "verb": "assetInvest", "asset": "still" },
+        { "verb": "resource", "resource": "water", "amount": 2 }
+      ]
+    },
+    {
+      "id": "befriend",
+      "label": "与阿岩交换情报",
+      "timeCost": 1,
+      "requires": {},
+      "costs": { "resources": { "supplies": 1 } },
+      "risk": { "level": "low", "base": 0, "spread": 0 },
+      "effects": [
+        { "verb": "relation", "npcId": "ayan", "delta": 1 },
+        { "verb": "unlock", "unlock": "rule:gate-schedule" }
+      ]
+    },
+    {
+      "id": "track-convoy",
+      "label": "跟踪补给队清点规律",
+      "timeCost": 1,
+      "requires": {},
+      "costs": { "focus": 1 },
+      "risk": { "level": "low", "base": 0, "spread": 0 },
+      "effects": [
+        { "verb": "knowledge", "knowledge": "convoy-rhythm" },
+        { "verb": "knowledge", "knowledge": "ration-math" }
+      ]
+    },
+    {
+      "id": "chart-reefs",
+      "label": "测绘礁渠与星位",
+      "timeCost": 1,
+      "requires": { "resources": { "supplies": 1 } },
+      "costs": { "focus": 1 },
+      "risk": { "level": "low", "base": 0, "spread": 0 },
+      "effects": [
+        { "verb": "knowledge", "knowledge": "reef-channels" },
+        { "verb": "knowledge", "knowledge": "star-fix" }
+      ]
+    },
+    {
+      "id": "learn-craft",
+      "label": "跟云婶学手艺",
+      "timeCost": 1,
+      "requires": {},
+      "costs": { "resources": { "supplies": 1 } },
+      "risk": { "level": "low", "base": 0, "spread": 0 },
+      "effects": [
+        { "verb": "relation", "npcId": "yune", "delta": 1 },
+        { "verb": "knowledge", "knowledge": "brine-craft" },
+        { "verb": "knowledge", "knowledge": "still-maintain" }
+      ]
+    },
+    {
+      "id": "ask-zhou",
+      "label": "旁敲老周问上游的事",
+      "timeCost": 1,
+      "requires": {},
+      "costs": { "focus": 1 },
+      "risk": { "level": "medium", "base": 1, "spread": 1, "hiddenTag": "隐藏规则1" },
+      "effects": [
+        { "verb": "knowledge", "knowledge": "upstream-rumor" },
+        { "verb": "knowledge", "knowledge": "gate-trace" }
+      ]
+    },
+    {
+      "id": "gate-window-trade",
+      "label": "按开闸时刻抢收并转卖窗口期",
+      "timeCost": 1,
+      "requires": { "unlocks": ["rule:gate-schedule"] },
+      "costs": { "resources": { "supplies": 1 } },
+      "risk": { "level": "medium", "base": 4, "spread": 2 },
+      "effects": [{ "verb": "resource", "resource": "supplies", "amount": 4 }]
+    }
+  ],
+  "_comment_actions": "行动表 ≤10 条。每项 {id,label,timeCost,requires,costs,risk{level,base,spread,hiddenTag?},effects}。effects 只能用固定动词：resource / knowledge / assetInvest / relation / windowOpen / unlock。risk.level ∈ low|medium|high；hiddenTag 建议指向某条隐藏规则（失败时揭示）。知识 id 共 9 个互不相同（≥7 保证 tier3 门槛 minKnowledge 7 可达）。unlock 链路示范：befriend 成功后 unlock rule:gate-schedule → 解锁 gate-window-trade（requires.unlocks 引用，缺码时 hints 给 unlock:rule:gate-schedule）。",
+  "leverage": {
+    "name": "潮汐预感",
+    "causalChain": "主角能提前感知潮汐与开闸节律：同一次搜掠，他能赶在冲岸前收回物资，并把窗口期卖给需要的人——改变了'时间→物资'的转化链。",
+    "cost": "每次使用消耗 focus，且连续预判会引来闸门控制者的注意（关系风险）。",
+    "whyUnreplicable": "预感来自主角童年沉船事故留下的独特感官记忆，无法传授；其他人只能事后观察他的选择。",
+    "failureMode": "当上游闸门被人为改期时预感会失准，行动按正常风险结算甚至失败；玩家通过失败揭示的 hiddenTag 学会先验证再下注。"
+  },
+  "_comment_leverage": "主角非对称杠杆（宪法 §3.1）：name / causalChain / cost / whyUnreplicable / failureMode 五字段缺一即错。",
+  "npcs": [
+    { "id": "ayan", "name": "阿岩", "goal": "scrap", "resources": { "scrap": 4 }, "power": 2, "personality": "精明的打捞者，只信交易不信承诺。" },
+    { "id": "zhou", "name": "老周", "goal": "supplies", "resources": {}, "power": 3, "personality": "前补给队队长，知道上游的事但不肯说。" },
+    { "id": "mira", "name": "米拉", "goal": "water", "resources": {}, "power": 2, "personality": "医生，掌握营地信任网络。" },
+    { "id": "kesto", "name": "克斯托", "goal": "supplies", "resources": { "supplies": 6 }, "power": 4, "personality": "垄断淡水摊位的商人，习惯用匮乏定价。" },
+    { "id": "yune", "name": "云婶", "goal": "scrap", "resources": {}, "power": 1, "personality": "修理工，愿意传授手艺换取稳定供给。" }
+  ],
+  "_comment_npcs": "NPC 5–8 人：id 唯一；goal 必须是 resources 中的资源 id；power 为 ≥1 整数（初始 cohort 基线约 2）；resources 可留空 {}，由引擎按种子确定性展开。",
+  "tierGates": [
+    { "minAssetLevel": 1, "minKnowledge": 2, "minStanding": 0.3 },
+    { "minAssetLevel": 3, "minKnowledge": 4, "minStanding": 0.5 },
+    { "minAssetLevel": 5, "minKnowledge": 7, "minStanding": 0.6 }
+  ],
+  "_comment_tierGates": "3 级跃迁门槛，必须与引擎 balance.ts 的 TIER_GATES 完全一致（引擎以此为唯一事实），此处用于设计自查。",
+  "expansionAnchors": [
+    {
+      "id": "anchor-upstream",
+      "tier": 2,
+      "description": "上游闸门与河口市镇：控制淡水分配的更大世界。",
+      "constraint": "进入后旧层搜掠劳动背景化；闸门势力 power 基线按 cohort 倍数抬升；不预展开具体人物与事件。"
+    },
+    {
+      "id": "anchor-basin",
+      "tier": 3,
+      "description": "整个流域盆地：多势力水权博弈的区域舞台。",
+      "constraint": "仅存锚点与约束；物化时由种子展开并先验证候选再成事实（宪法 §7）。"
+    }
+  ],
+  "_comment_expansionAnchors": "Tier 2/3 宏观锚点：各至少 1 个。只存锚点描述与约束，不预展开内容（宪法 §7）。"
+}
