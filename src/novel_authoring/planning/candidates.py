@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from novel_authoring.config import Settings
 from novel_authoring.db.database import Database
+from novel_authoring.edition import edition_workspace, resolve_edition_id
 from novel_authoring.metrics.formulas import candidate_score, narrative_debt, thread_need
 from novel_authoring.metrics.gates import evaluate_hard_gates
 from novel_authoring.planning.boundary import PlanningError, _workspace, build_boundary_packet
@@ -28,34 +29,85 @@ STRUCTURE_FIELDS = (
 )
 
 
-def _current_ordinal(connection: Any, book_id: str) -> int:
+def _current_ordinal(connection: Any, book_id: str, edition_id: str = "base") -> int:
+    if edition_id != "base":
+        from novel_authoring.edition import edition_chapters
+
+        chapters = edition_chapters(connection, book_id, edition_id)
+        return max((int(row["ordinal"]) for row in chapters), default=0)
     row = connection.execute(
-        "SELECT COALESCE(MAX(ordinal), 0) FROM chapters WHERE book_id=?", (book_id,)
+        "SELECT COALESCE(MAX(ordinal), 0) FROM chapters WHERE book_id=? AND edition_id=?",
+        (book_id, edition_id),
     ).fetchone()
     return int(row[0])
 
 
 def rank_threads(
-    database: Database, book_id: str, settings: Settings
+    database: Database,
+    book_id: str,
+    settings: Settings,
+    *,
+    edition_id: str = "base",
 ) -> list[ThreadPriority]:
+    projection = None
+    if edition_id != "base":
+        from novel_authoring.canon.projection import rebuild_projection
+
+        projection = rebuild_projection(database, book_id, edition_id=edition_id, persist=False)
     with database.connect() as connection:
-        current_ordinal = _current_ordinal(connection, book_id)
-        rows = connection.execute(
-            """
-            SELECT * FROM threads
-            WHERE book_id=? AND status IN ('CANON','AUTHOR_INTENT','APPROVED_OUTLINE')
-              AND phase NOT IN ('resolved','closed')
-            ORDER BY importance DESC, thread_id
-            """,
-            (book_id,),
-        ).fetchall()
+        current_ordinal = _current_ordinal(connection, book_id, edition_id)
+        if projection is None:
+            rows = connection.execute(
+                """
+                SELECT * FROM threads
+                WHERE book_id=? AND edition_id=?
+                  AND status IN ('CANON','AUTHOR_INTENT','APPROVED_OUTLINE')
+                  AND phase NOT IN ('resolved','closed')
+                ORDER BY importance DESC, thread_id
+                """,
+                (book_id, edition_id),
+            ).fetchall()
+        else:
+            rows = []
+            for thread_id, value in projection.threads.items():
+                item = dict(value)
+                item.setdefault("thread_id", thread_id)
+                item.setdefault("status", "CANON")
+                item.setdefault("phase", "active")
+                item.setdefault("importance", 0.5)
+                item.setdefault("progress", 0.0)
+                item.setdefault("goal", "")
+                item.setdefault("introduced_chapter", 0)
+                item.setdefault("last_advanced_chapter", 0)
+                item.setdefault("payload_json", json_dumps(item))
+                if str(item["phase"]) not in {"resolved", "closed"}:
+                    rows.append(item)
+            rows.sort(key=lambda row: (-float(row["importance"]), str(row["thread_id"])))
         priorities: list[ThreadPriority] = []
         for row in rows:
             payload = json.loads(str(row["payload_json"]))
-            promise_rows = connection.execute(
-                "SELECT * FROM promises WHERE book_id=? AND thread_id=? AND status='CANON'",
-                (book_id, row["thread_id"]),
-            ).fetchall()
+            if projection is None:
+                promise_rows = connection.execute(
+                    """
+                    SELECT * FROM promises
+                    WHERE book_id=? AND edition_id=? AND thread_id=? AND status='CANON'
+                    """,
+                    (book_id, edition_id, row["thread_id"]),
+                ).fetchall()
+            else:
+                promise_rows = []
+                for promise_id, value in projection.promises.items():
+                    item = dict(value)
+                    item.setdefault("promise_id", promise_id)
+                    item.setdefault("status", "CANON")
+                    item.setdefault("importance", 0.5)
+                    item.setdefault("reader_visibility", 0.5)
+                    item.setdefault("progress", 0.0)
+                    item.setdefault("introduced_ordinal", 0)
+                    item.setdefault("target_max_age", 8)
+                    item.setdefault("reminder_count", 0)
+                    if str(item.get("thread_id")) == str(row["thread_id"]):
+                        promise_rows.append(item)
             debts = []
             for promise in promise_rows:
                 debt = narrative_debt(
@@ -103,22 +155,34 @@ def rank_threads(
 
 
 def prepare_candidate_task(
-    database: Database, book_id: str, settings: Settings
+    database: Database,
+    book_id: str,
+    settings: Settings,
+    *,
+    edition_id: str | None = None,
 ) -> dict[str, object]:
+    selected_edition = resolve_edition_id(database, book_id, edition_id)
     boundary = build_boundary_packet(
-        database, book_id, recent_full_chapters=settings.recent_full_chapters
+        database,
+        book_id,
+        recent_full_chapters=settings.recent_full_chapters,
+        edition_id=selected_edition,
     )
-    threads = rank_threads(database, book_id, settings)
+    threads = rank_threads(database, book_id, settings, edition_id=selected_edition)
     if not threads:
         raise PlanningError("没有可规划的活跃线程；请先完成抽取与 reconcile")
     with database.connect() as connection:
         metric_rows = connection.execute(
             """
             SELECT * FROM metric_results WHERE book_id=?
-            AND as_of_event_seq=(SELECT MAX(as_of_event_seq) FROM metric_results WHERE book_id=?)
+            AND edition_id=?
+            AND as_of_event_seq=(
+                SELECT MAX(as_of_event_seq) FROM metric_results
+                WHERE book_id=? AND edition_id=?
+            )
             ORDER BY metric_name
             """,
-            (book_id, book_id),
+            (book_id, selected_edition, book_id, selected_edition),
         ).fetchall()
     if len(metric_rows) < 6:
         raise PlanningError("缺少六项最新指标；请先运行 novel diagnose")
@@ -133,7 +197,7 @@ def prepare_candidate_task(
         }
     )
     task_id = stable_id("plan", seed, sha256_bytes(schema_json.encode()))
-    workspace = _workspace(database, book_id)
+    workspace = edition_workspace(database, book_id, selected_edition)
     task_dir = workspace / "agent_tasks" / task_id
     output_dir = workspace / "agent_outputs" / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
@@ -165,6 +229,7 @@ def prepare_candidate_task(
         "task_id": task_id,
         "task_type": "plan-next",
         "book_id": book_id,
+        "edition_id": selected_edition,
         "boundary_packet_id": boundary["packet_id"],
         "boundary_path": boundary["json_path"],
         "thread_priorities": [item.model_dump(mode="json") for item in threads],
@@ -173,9 +238,7 @@ def prepare_candidate_task(
     }
     (task_dir / "input.md").write_text(input_text, encoding="utf-8")
     (task_dir / "schema.json").write_text(schema_json + "\n", encoding="utf-8")
-    (task_dir / "task.json").write_text(
-        json_dumps(metadata, indent=2) + "\n", encoding="utf-8"
-    )
+    (task_dir / "task.json").write_text(json_dumps(metadata, indent=2) + "\n", encoding="utf-8")
     return {
         "task_id": task_id,
         "boundary_packet_id": boundary["packet_id"],
@@ -200,11 +263,23 @@ def import_candidate_output(
     task_id: str,
     settings: Settings,
     output_path: Path | None = None,
+    *,
+    edition_id: str | None = None,
 ) -> dict[str, object]:
+    database.initialize()
     workspace = _workspace(database, book_id)
     task_path = workspace / "agent_tasks" / task_id / "task.json"
+    if not task_path.exists() and edition_id is None:
+        candidates = list((workspace / "editions").glob(f"*/agent_tasks/{task_id}/task.json"))
+        if candidates:
+            task_path = candidates[0]
+            workspace = task_path.parents[2]
     if not task_path.exists():
         raise PlanningError(f"候选任务不存在：{task_id}")
+    metadata = json.loads(task_path.read_text(encoding="utf-8"))
+    selected_edition = str(edition_id or metadata.get("edition_id", "base"))
+    workspace = edition_workspace(database, book_id, selected_edition)
+    task_path = workspace / "agent_tasks" / task_id / "task.json"
     metadata = json.loads(task_path.read_text(encoding="utf-8"))
     path = output_path or workspace / "agent_outputs" / task_id / "output.json"
     try:
@@ -225,9 +300,11 @@ def import_candidate_output(
     evaluated: list[dict[str, Any]] = []
     for candidate in output.candidates:
         gate = evaluate_hard_gates(candidate.gate_input, settings.metrics)
-        diversity = sum(differences[candidate.local_id]) / (
-            len(differences[candidate.local_id]) * len(STRUCTURE_FIELDS)
-        ) * 100
+        diversity = (
+            sum(differences[candidate.local_id])
+            / (len(differences[candidate.local_id]) * len(STRUCTURE_FIELDS))
+            * 100
+        )
         inputs = candidate.score_inputs.model_dump()
         inputs["structural_diversity"] = diversity
         required_evidence = set(inputs) - {"structural_diversity"}
@@ -235,9 +312,7 @@ def import_candidate_output(
             key for key in required_evidence if not candidate.score_evidence.get(key)
         )
         if missing_evidence:
-            raise PlanningError(
-                f"候选 {candidate.local_id} 缺少评分证据：{missing_evidence}"
-            )
+            raise PlanningError(f"候选 {candidate.local_id} 缺少评分证据：{missing_evidence}")
         score_evidence = dict(candidate.score_evidence)
         score_evidence["structural_diversity"] = [
             f"与另外两案的结构差异维度数：{differences[candidate.local_id]}"
@@ -292,8 +367,7 @@ def import_candidate_output(
                 )
                 if candidate_id == selected_id
                 else (
-                    f"与最高分差小于 {tie_delta:g}，属于同一可选区间；"
-                    "默认未选但保留给作者"
+                    f"与最高分差小于 {tie_delta:g}，属于同一可选区间；默认未选但保留给作者"
                     if candidate_id in same_choice_band
                     else f"通过硬门但排名 {ranking[candidate_id]}，保留为备选"
                 )
@@ -308,11 +382,11 @@ def import_candidate_output(
             connection.execute(
                 """
                 INSERT OR REPLACE INTO candidate_plans(
-                    candidate_id, book_id, task_id, rank, primary_thread_id,
+                candidate_id, book_id, task_id, rank, primary_thread_id,
                     primary_function, secondary_functions_json, plan_json,
                     score_json, gate_report_json, selection_status, status,
-                    created_at, version
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANDIDATE', ?, 1)
+                    created_at, version, edition_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANDIDATE', ?, 1, ?)
                 """,
                 (
                     candidate_id,
@@ -327,6 +401,7 @@ def import_candidate_output(
                     json_dumps(gate.model_dump(mode="json")),
                     selection,
                     utc_now(),
+                    selected_edition,
                 ),
             )
     return {

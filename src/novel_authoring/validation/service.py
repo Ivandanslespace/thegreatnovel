@@ -9,7 +9,7 @@ from novel_authoring.config import Settings, load_settings
 from novel_authoring.contracts.draft import DraftOutput
 from novel_authoring.db.database import Database
 from novel_authoring.domain.models import DraftStatus
-from novel_authoring.planning.boundary import _workspace
+from novel_authoring.edition import edition_workspace, resolve_edition_id
 from novel_authoring.planning.models import ChapterContract
 from novel_authoring.utils import json_dumps, sha256_file, stable_id, utc_now
 from novel_authoring.validation.models import VALIDATOR_NAMES, ValidationBundle
@@ -25,16 +25,19 @@ def validate_draft(
     book_id: str,
     draft_id: str,
     settings: Settings | None = None,
+    *,
+    edition_id: str | None = None,
 ) -> ValidationBundle:
     database.initialize()
+    selected_edition = resolve_edition_id(database, book_id, edition_id)
     with database.connect() as connection:
         row = connection.execute(
             """
             SELECT d.*, c.contract_json
             FROM drafts d JOIN chapter_contracts c ON c.contract_id=d.contract_id
-            WHERE d.book_id=? AND d.draft_id=?
+            WHERE d.book_id=? AND d.draft_id=? AND d.edition_id=?
             """,
-            (book_id, draft_id),
+            (book_id, draft_id, selected_edition),
         ).fetchone()
     if row is None:
         raise ValidationWorkflowError(f"草稿不存在：{draft_id}")
@@ -56,7 +59,7 @@ def validate_draft(
         contract = ChapterContract.model_validate_json(str(row["contract_json"]))
     except ValidationError as exc:
         raise ValidationWorkflowError(f"持久化合同无效：{exc}") from exc
-    projection = rebuild_projection(database, book_id, persist=False)
+    projection = rebuild_projection(database, book_id, edition_id=selected_edition, persist=False)
     context = ValidationContext(
         draft=draft,
         contract=contract,
@@ -87,7 +90,7 @@ def validate_draft(
         reports=reports,
         created_at=created_at,
     )
-    workspace = _workspace(database, book_id)
+    workspace = edition_workspace(database, book_id, selected_edition)
     validation_dir = workspace / "validation"
     validation_dir.mkdir(parents=True, exist_ok=True)
     artifact_path = validation_dir / f"{draft_id}.json"
@@ -106,13 +109,14 @@ def validate_draft(
             connection.execute(
                 """
                 INSERT INTO validation_reports(
-                    report_id, book_id, draft_id, validator, severity, passed,
+                report_id, book_id, edition_id, draft_id, validator, severity, passed,
                     report_json, created_at, version, run_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
                 """,
                 (
                     report_id,
                     book_id,
+                    selected_edition,
                     draft_id,
                     report.validator,
                     report.severity.value,
@@ -123,11 +127,12 @@ def validate_draft(
                 ),
             )
         connection.execute(
-            "UPDATE drafts SET status=?, validation_run_id=? WHERE draft_id=?",
+            "UPDATE drafts SET status=?, validation_run_id=? WHERE draft_id=? AND edition_id=?",
             (
                 DraftStatus.VALIDATED.value if passed else DraftStatus.DRAFT.value,
                 run_id,
                 draft_id,
+                selected_edition,
             ),
         )
     return bundle

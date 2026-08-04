@@ -4,7 +4,8 @@ import json
 
 from novel_authoring.db.database import Database
 from novel_authoring.domain.models import ContinuationMode
-from novel_authoring.planning.boundary import PlanningError, _workspace
+from novel_authoring.edition import edition_workspace, resolve_edition_id
+from novel_authoring.planning.boundary import PlanningError
 from novel_authoring.planning.models import CandidateProposal, ChapterContract
 from novel_authoring.utils import json_dumps, sha256_bytes, stable_id, utc_now
 
@@ -13,11 +14,14 @@ def build_chapter_contract(
     database: Database,
     book_id: str,
     candidate_id: str,
+    *,
+    edition_id: str | None = None,
 ) -> dict[str, object]:
+    selected_edition = resolve_edition_id(database, book_id, edition_id)
     with database.connect() as connection:
         row = connection.execute(
-            "SELECT * FROM candidate_plans WHERE book_id=? AND candidate_id=?",
-            (book_id, candidate_id),
+            "SELECT * FROM candidate_plans WHERE book_id=? AND candidate_id=? AND edition_id=?",
+            (book_id, candidate_id, selected_edition),
         ).fetchone()
         if row is None:
             raise PlanningError(f"候选不存在：{candidate_id}")
@@ -27,7 +31,7 @@ def build_chapter_contract(
         book_row = connection.execute(
             "SELECT mode FROM books WHERE book_id=?", (book_id,)
         ).fetchone()
-    workspace = _workspace(database, book_id)
+    workspace = edition_workspace(database, book_id, selected_edition)
     task_metadata = json.loads(
         (workspace / "agent_tasks" / task_id / "task.json").read_text(encoding="utf-8")
     )
@@ -99,7 +103,8 @@ def build_chapter_contract(
             INSERT OR REPLACE INTO chapter_contracts(
                 contract_id, book_id, candidate_id, target_chapter_ordinal,
                 mode, contract_json, contract_sha256, status, created_at, version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'READY', ?, 1)
+                , edition_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'READY', ?, 1, ?)
             """,
             (
                 contract_id,
@@ -110,6 +115,7 @@ def build_chapter_contract(
                 contract_json,
                 contract_hash,
                 utc_now(),
+                selected_edition,
             ),
         )
     return {

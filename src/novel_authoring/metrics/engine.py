@@ -120,26 +120,29 @@ def persist_results(
     book_id: str,
     results: list[MetricResult],
     metrics_config: dict[str, Any],
+    *,
+    edition_id: str = "base",
 ) -> list[str]:
     config_json = json_dumps(metrics_config)
     config_hash = sha256_bytes(config_json.encode())
     with database.connect() as connection:
         row = connection.execute(
-            "SELECT COALESCE(MAX(event_seq), 0) FROM events WHERE book_id=?", (book_id,)
+            "SELECT COALESCE(MAX(event_seq), 0) FROM events WHERE book_id=? AND edition_id=?",
+            (book_id, edition_id),
         ).fetchone()
         as_of_seq = int(row[0])
         result_ids: list[str] = []
         for result in results:
             result_id = stable_id(
-                "metric", book_id, str(as_of_seq), result.metric, config_hash
+                "metric", book_id, edition_id, str(as_of_seq), result.metric, config_hash
             )
             connection.execute(
                 """
                 INSERT INTO metric_results(
                     result_id, book_id, as_of_event_seq, metric_name, score,
                     inputs_json, evidence_json, threshold_interpretation,
-                    recommended_action, config_hash, formula_id, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    recommended_action, config_hash, formula_id, created_at, edition_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(book_id, as_of_event_seq, metric_name, config_hash)
                 DO UPDATE SET
                     score=excluded.score,
@@ -161,6 +164,7 @@ def persist_results(
                     config_hash,
                     "constitution-v2",
                     utc_now(),
+                    edition_id,
                 ),
             )
             result_ids.append(result_id)

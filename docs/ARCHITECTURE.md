@@ -136,6 +136,12 @@ workspace/<book_id>/
 └─ exports/              # 投影和审计导出
 ```
 
+## Edition-scoped 改写架构
+
+版本化改写沿用 V1 的 append-only 事件与确定性投影，但把可变状态和事件 overlay 绑定到 `edition_id`。`base` 是迁移时自动补齐且永不归档的只读基线；派生 edition 记录父版本及冻结 `base_event_seq/base_projection_hash/source_manifest_sha256`。重放派生版本时先重放父版本冻结前的事件，再按全局事件序叠加目标 edition 事件。
+
+改写流水线为：`RevisionSpec → Impact Packet（规则扫描 + Codex 语义审计）→ Revision Plan/Units → REVISION_DRAFT → 十项改写校验 + 既有十项审计 → 作者批准 → chapter_variants/revision commit/snapshot`。批准事务失败会回滚数据库和本次创建的文件；`批准改写版本` 只提交目标版本，`启用改写版本` 才切换 books.active_edition_id，二者不合并。
+
 ## V1 有意不做
 
 Web/API、云数据库、向量数据库、LangChain、递归多代理、运行时 API Key、自动发布、无批准 retcon，以及对真实读者留存的伪精确预测均不在 V1 内。

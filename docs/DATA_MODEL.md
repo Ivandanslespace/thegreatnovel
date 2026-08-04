@@ -90,6 +90,24 @@ AUTHOR_APPROVED 虽在同一批准事务中迅速转为最终状态，仍由独�
 
 `next_chapter` directive 在成功 Canon Commit 中标记为 CONSUMED；persistent directive 保持 ACTIVE。
 
+## Edition 与版本化改写
+
+迁移 5 在不删除旧表/旧数据的前提下，为所有可变查询表加入 `edition_id`（旧记录回填 `base`），并建立以下审计表：
+
+| 表 | 作用 |
+|---|---|
+| `editions` | base/派生版本、父版本、冻结的 `base_event_seq`、projection/source manifest hash 与 DRAFT/VALIDATED/ACTIVE/ARCHIVED 状态 |
+| `edition_projection_metadata` | 派生 edition 的确定性投影快照；base 继续使用原 `projection_metadata` |
+| `revision_campaigns` | 严格 `RevisionSpec` 的意图、范围、变更、禁改、传播规则和冻结锚点 |
+| `revision_impact_packets/items` | deterministic scan 与 Codex semantic audit 的分类：MUST_REWRITE、MUST_REVIEW、INFORMATIONAL、EXPLICITLY_WAIVED |
+| `revision_units` | 按章节/依赖排序的最小改写单元与 source preimage |
+| `revision_drafts` | 仅 `REVISION_DRAFT` 输出、替换文件哈希、校验运行与状态 |
+| `revision_validation_reports` | 十项改写校验及既有十项校验的逐项结果 |
+| `chapter_variants` | 稳定 `base_chapter_id` 的完整替换文本；每个 edition+chapter 至多一个 active variant |
+| `revision_commits` | 一次改写批准的事件范围、variant、投影 hash、snapshot 与作者确认 |
+
+派生投影是“父 edition 在冻结 event seq 的投影 + 目标 edition overlay 事件”，不会把新事件或 variant 反写到 base。完整 edition 导出以 ordinal 位置替换 variant，而不是把改写章节追加到末尾。
+
 ## 事件模型
 
 `events` 的核心字段：

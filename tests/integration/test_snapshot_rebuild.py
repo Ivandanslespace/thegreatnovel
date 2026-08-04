@@ -91,5 +91,5 @@ def test_schema_migration_is_idempotent(tmp_path: Path) -> None:
             row[1] for row in connection.execute("PRAGMA table_info(events)").fetchall()
         }
 
-    assert versions == [1, 2, 3, 4]
+    assert versions == [1, 2, 3, 4, 5]
     assert {"information_state", "payload_sha256", "event_hash"} <= event_columns

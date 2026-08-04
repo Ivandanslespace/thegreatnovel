@@ -5,6 +5,7 @@ from typing import Any
 
 from novel_authoring.canon.projection import rebuild_projection
 from novel_authoring.db.database import Database
+from novel_authoring.edition import edition_chapters, edition_workspace, resolve_edition_id
 from novel_authoring.ingest.service import verify_sources
 from novel_authoring.planning.models import (
     BoundaryChapter,
@@ -28,24 +29,16 @@ def _workspace(database: Database, book_id: str) -> Path:
     return Path(str(row["workspace_root"]))
 
 
-def _fact_conflicts(database: Database, book_id: str) -> list[dict[str, Any]]:
-    with database.connect() as connection:
-        rows = connection.execute(
-            """
-            SELECT subject_id, predicate, object_json, fact_id
-            FROM facts WHERE book_id=? AND active=1 AND status='CANON'
-            ORDER BY subject_id, predicate, fact_id
-            """,
-            (book_id,),
-        ).fetchall()
+def _fact_conflicts(projection: Any) -> list[dict[str, Any]]:
+    """Detect conflicts from the selected edition projection, not global rows."""
     groups: dict[tuple[str | None, str], list[dict[str, str]]] = {}
-    for row in rows:
+    for fact_id, fact in projection.facts.items():
         key = (
-            None if row["subject_id"] is None else str(row["subject_id"]),
-            str(row["predicate"]),
+            None if fact.get("subject_id") is None else str(fact.get("subject_id")),
+            str(fact.get("predicate", "")),
         )
         groups.setdefault(key, []).append(
-            {"fact_id": str(row["fact_id"]), "object_json": str(row["object_json"])}
+            {"fact_id": str(fact_id), "object_json": json_dumps(fact.get("object"))}
         )
     return [
         {"subject_id": key[0], "predicate": key[1], "facts": facts}
@@ -123,27 +116,44 @@ def build_boundary_packet(
     book_id: str,
     *,
     recent_full_chapters: int = 3,
+    edition_id: str | None = None,
 ) -> dict[str, object]:
     database.initialize()
-    workspace = _workspace(database, book_id)
-    verification = verify_sources(book_id, workspace.parent)
+    workspace_root = _workspace(database, book_id)
+    verification = verify_sources(book_id, workspace_root.parent)
     if not verification["ok"]:
         raise PlanningError("源文件 SHA-256 校验失败，禁止建立续写边界")
-    conflicts = _fact_conflicts(database, book_id)
+    selected_edition = resolve_edition_id(database, book_id, edition_id)
+    workspace = edition_workspace(database, book_id, selected_edition)
+    projection = rebuild_projection(database, book_id, edition_id=selected_edition)
+    conflicts = _fact_conflicts(projection)
     if conflicts:
         raise PlanningError("存在未解决的 CANON 冲突，禁止建立续写边界")
-    projection = rebuild_projection(database, book_id)
     with database.connect() as connection:
-        recent_rows = connection.execute(
-            """
-            SELECT c.chapter_id, c.ordinal, c.raw_heading, c.content, s.span_id
-            FROM chapters c JOIN source_spans s ON s.chapter_id=c.chapter_id
-            WHERE c.book_id=?
-              AND s.kind IN ('chapter', 'AUTHOR_APPROVED_CHAPTER')
-            ORDER BY c.ordinal DESC LIMIT ?
-            """,
-            (book_id, recent_full_chapters),
-        ).fetchall()
+        if selected_edition == "base":
+            recent_rows = connection.execute(
+                """
+                SELECT c.chapter_id, c.ordinal, c.raw_heading, c.content, s.span_id
+                FROM chapters c JOIN source_spans s ON s.chapter_id=c.chapter_id
+                WHERE c.book_id=?
+                  AND s.kind IN ('chapter', 'AUTHOR_APPROVED_CHAPTER')
+                ORDER BY c.ordinal DESC LIMIT ?
+                """,
+                (book_id, recent_full_chapters),
+            ).fetchall()
+        else:
+            recent_rows = [
+                {
+                    "chapter_id": row["chapter_id"],
+                    "ordinal": row["ordinal"],
+                    "raw_heading": row.get("raw_heading", row.get("title", "")),
+                    "content": row["content"],
+                    "span_id": row.get("source_span_id", ""),
+                }
+                for row in edition_chapters(connection, book_id, selected_edition)[
+                    -recent_full_chapters:
+                ]
+            ]
         recent_rows = list(reversed(recent_rows))
         first_recent = int(recent_rows[0]["ordinal"]) if recent_rows else 1
         summary_rows = connection.execute(
@@ -154,14 +164,32 @@ def build_boundary_packet(
             """,
             (book_id, first_recent),
         ).fetchall()
-        thread_rows = connection.execute(
-            """
-            SELECT * FROM threads
-            WHERE book_id=? AND status IN ('CANON','AUTHOR_INTENT','APPROVED_OUTLINE')
-            ORDER BY importance DESC, thread_id
-            """,
-            (book_id,),
-        ).fetchall()
+        if selected_edition == "base":
+            thread_rows = connection.execute(
+                """
+                SELECT * FROM threads
+                WHERE book_id=? AND status IN ('CANON','AUTHOR_INTENT','APPROVED_OUTLINE')
+                ORDER BY importance DESC, thread_id
+                """,
+                (book_id,),
+            ).fetchall()
+        else:
+            # Derived editions inherit the frozen parent projection; querying
+            # only rows physically stamped with the child edition would hide
+            # unchanged threads and leak an incomplete continuation boundary.
+            thread_rows = []
+            for thread_id, value in projection.threads.items():
+                item = dict(value)
+                item.setdefault("thread_id", thread_id)
+                item.setdefault("status", "CANON")
+                item.setdefault("importance", 0.5)
+                item.setdefault("goal", "")
+                item.setdefault("phase", "active")
+                item.setdefault("payload_json", json_dumps(item))
+                thread_rows.append(item)
+            thread_rows.sort(
+                key=lambda row: (-float(row["importance"]), str(row["thread_id"]))
+            )
         fts_query = _fts_query([str(row["goal"]) for row in thread_rows[:3]])
         relevant_source_rows: list[Any] = []
         if fts_query is not None:
@@ -186,21 +214,33 @@ def build_boundary_packet(
                 """,
                 (fts_query, book_id, first_recent),
             ).fetchall()
-        structure_rows = connection.execute(
-            """
-            SELECT * FROM repetition_tags WHERE book_id=?
-            ORDER BY ordinal DESC LIMIT 20
-            """,
-            (book_id,),
-        ).fetchall()
-        style_rows = connection.execute(
-            """
-            SELECT * FROM style_profiles
-            WHERE book_id=? AND status IN ('CANON','AUTHOR_INTENT','APPROVED_OUTLINE')
-            ORDER BY created_at DESC
-            """,
-            (book_id,),
-        ).fetchall()
+        if selected_edition == "base":
+            structure_rows = connection.execute(
+                "SELECT * FROM repetition_tags WHERE book_id=? ORDER BY ordinal DESC LIMIT 20",
+                (book_id,),
+            ).fetchall()
+            style_rows = connection.execute(
+                """
+                SELECT * FROM style_profiles
+                WHERE book_id=? AND status IN ('CANON','AUTHOR_INTENT','APPROVED_OUTLINE')
+                ORDER BY created_at DESC
+                """,
+                (book_id,),
+            ).fetchall()
+        else:
+            structure_rows = []
+            for tag_id, value in projection.repetition.items():
+                item = dict(value)
+                item.setdefault("tag_id", tag_id)
+                structure_rows.append(item)
+            structure_rows.sort(key=lambda row: int(row.get("ordinal", 0)), reverse=True)
+            structure_rows = structure_rows[:20]
+            style_rows = []
+            for profile_id, value in projection.style_profiles.items():
+                item = dict(value)
+                item.setdefault("profile_id", profile_id)
+                item.setdefault("status", "CANON")
+                style_rows.append(item)
         directive_rows = connection.execute(
             """
             SELECT * FROM author_directives
@@ -209,10 +249,14 @@ def build_boundary_packet(
             """,
             (book_id,),
         ).fetchall()
-        total = int(
-            connection.execute(
-                "SELECT COUNT(*) FROM chapters WHERE book_id=?", (book_id,)
-            ).fetchone()[0]
+        total = (
+            len(edition_chapters(connection, book_id, selected_edition))
+            if selected_edition != "base"
+            else int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM chapters WHERE book_id=?", (book_id,)
+                ).fetchone()[0]
+            )
         )
     warnings: list[str] = []
     if first_recent > 1 and not summary_rows:
@@ -220,6 +264,7 @@ def build_boundary_packet(
     packet_seed = json_dumps(
         {
             "book_id": book_id,
+            "edition_id": selected_edition,
             "event_seq": projection.through_event_seq,
             "projection": projection.sha256(),
             "last_chapter": total,
@@ -239,6 +284,7 @@ def build_boundary_packet(
     packet = ContinuationBoundaryPacket(
         packet_id=packet_id,
         book_id=book_id,
+        edition_id=selected_edition,
         base_event_seq=projection.through_event_seq,
         base_projection_hash=projection.sha256(),
         current_position={"last_canon_chapter": total, "next_chapter": total + 1},
@@ -305,6 +351,7 @@ def build_boundary_packet(
         )
     return {
         "packet_id": packet_id,
+        "edition_id": selected_edition,
         "json_path": str(json_path),
         "markdown_path": str(markdown_path),
         "packet_sha256": packet_hash,

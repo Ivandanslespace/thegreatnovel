@@ -32,6 +32,7 @@ def materialize_change(
     event_seq: int,
     chapter_id: str,
     ordinal: int,
+    edition_id: str = "base",
 ) -> None:
     """把已提交事件同步到供查询的规范化表；事件仍是唯一可重放来源。"""
     payload = change.payload
@@ -48,9 +49,9 @@ def materialize_change(
             connection.execute(
                 """
                 UPDATE facts SET active=0, valid_to_chapter=?, version=version+1
-                WHERE book_id=? AND fact_id=?
+                WHERE book_id=? AND edition_id=? AND fact_id=?
                 """,
-                (chapter_id, book_id, str(superseded)),
+                (chapter_id, book_id, edition_id, str(superseded)),
             )
         connection.execute(
             """
@@ -461,3 +462,26 @@ def materialize_change(
         )
     else:
         raise MaterializationError(f"不支持的状态变化类型：{change.kind}")
+
+    # Migration 5 adds edition_id with a base default so every legacy caller
+    # remains valid.  Stamp the materialized row after the existing upsert;
+    # the event log is still authoritative and the edition is always explicit.
+    table_by_kind = {
+        "fact": ("facts", "fact_id"),
+        "timeline": ("timeline_entries", "timeline_id"),
+        "character_state": ("character_states", "state_id"),
+        "knowledge": ("knowledge_edges", "edge_id"),
+        "relationship": ("relationships", "relationship_id"),
+        "resource": ("resources", "resource_id"),
+        "capability": ("capabilities", "capability_id"),
+        "thread": ("threads", "thread_id"),
+        "promise": ("promises", "promise_id"),
+        "payoff": ("payoff_events", "payoff_id"),
+        "repetition": ("repetition_tags", "tag_id"),
+        "style": ("style_profiles", "profile_id"),
+    }
+    table, key = table_by_kind[change.kind]
+    connection.execute(
+        f"UPDATE {table} SET edition_id=? WHERE book_id=? AND {key}=?",
+        (edition_id, book_id, record_id),
+    )

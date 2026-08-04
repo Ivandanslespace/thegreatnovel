@@ -37,6 +37,7 @@ class EventRecord(BaseModel):
     prev_event_hash: str
     event_hash: str
     canon_commit_id: str | None
+    edition_id: str = "base"
     created_at: str
     version: int
 
@@ -56,8 +57,9 @@ def _event_header(
     canon_commit_id: str | None,
     created_at: str,
     version: int,
+    edition_id: str = "base",
 ) -> dict[str, Any]:
-    return {
+    header = {
         "event_seq": event_seq,
         "event_id": event_id,
         "book_id": book_id,
@@ -72,11 +74,14 @@ def _event_header(
         "created_at": created_at,
         "version": version,
     }
+    # Version 1 hashes predate editions.  Keep those hashes byte-for-byte
+    # compatible while including the edition in every new (version 2) event.
+    if version >= 2:
+        header["edition_id"] = edition_id
+    return header
 
 
-def calculate_event_hash(
-    prev_event_hash: str, header: dict[str, Any], payload_json: str
-) -> str:
+def calculate_event_hash(prev_event_hash: str, header: dict[str, Any], payload_json: str) -> str:
     material = prev_event_hash + json_dumps(header) + payload_json
     return hashlib.sha256(material.encode()).hexdigest()
 
@@ -98,6 +103,7 @@ class EventStore:
         status: EventStatus = EventStatus.PENDING,
         information_state: InformationStatus = InformationStatus.INFERENCE,
         canon_commit_id: str | None = None,
+        edition_id: str = "base",
     ) -> EventRecord:
         with self.database.connect() as connection:
             return self.append_in_transaction(
@@ -112,6 +118,7 @@ class EventStore:
                 status=status,
                 information_state=information_state,
                 canon_commit_id=canon_commit_id,
+                edition_id=edition_id,
             )
 
     def append_in_transaction(
@@ -128,6 +135,7 @@ class EventStore:
         status: EventStatus = EventStatus.PENDING,
         information_state: InformationStatus = InformationStatus.INFERENCE,
         canon_commit_id: str | None = None,
+        edition_id: str = "base",
     ) -> EventRecord:
         previous = connection.execute(
             """
@@ -142,7 +150,13 @@ class EventStore:
         payload_hash = sha256_bytes(payload_json.encode())
         created_at = utc_now()
         event_id = stable_id(
-            "event", book_id, str(next_sequence), event_type, aggregate_id, payload_hash
+            "event",
+            book_id,
+            edition_id,
+            str(next_sequence),
+            event_type,
+            aggregate_id,
+            payload_hash,
         )
         header = _event_header(
             event_seq=next_sequence,
@@ -157,7 +171,8 @@ class EventStore:
             information_state=information_state.value,
             canon_commit_id=canon_commit_id,
             created_at=created_at,
-            version=1,
+            version=2,
+            edition_id=edition_id,
         )
         event_hash = calculate_event_hash(previous_hash, header, payload_json)
         cursor = connection.execute(
@@ -166,8 +181,8 @@ class EventStore:
                 event_id, book_id, event_type, aggregate_type, aggregate_id,
                 payload_json, source_kind, source_id, status, created_at, version,
                 information_state, payload_sha256, prev_event_hash, event_hash,
-                canon_commit_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+                canon_commit_id, edition_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2, ?, ?, ?, ?, ?, ?)
             """,
             (
                 event_id,
@@ -185,15 +200,14 @@ class EventStore:
                 previous_hash,
                 event_hash,
                 canon_commit_id,
+                edition_id,
             ),
         )
         if cursor.lastrowid is None:
             raise RuntimeError("SQLite 未返回事件序列")
         actual_sequence = int(cursor.lastrowid)
         if actual_sequence != next_sequence:
-            raise RuntimeError(
-                f"事件序列不连续：预期 {next_sequence}，实际 {actual_sequence}"
-            )
+            raise RuntimeError(f"事件序列不连续：预期 {next_sequence}，实际 {actual_sequence}")
         return EventRecord(
             event_seq=actual_sequence,
             event_id=event_id,
@@ -211,7 +225,8 @@ class EventStore:
             event_hash=event_hash,
             canon_commit_id=canon_commit_id,
             created_at=created_at,
-            version=1,
+            edition_id=edition_id,
+            version=2,
         )
 
 
@@ -231,8 +246,11 @@ def row_to_event(row: sqlite3.Row) -> EventRecord:
         payload_sha256=str(row["payload_sha256"]),
         prev_event_hash=str(row["prev_event_hash"]),
         event_hash=str(row["event_hash"]),
-        canon_commit_id=(
-            None if row["canon_commit_id"] is None else str(row["canon_commit_id"])
+        canon_commit_id=(None if row["canon_commit_id"] is None else str(row["canon_commit_id"])),
+        edition_id=(
+            str(row["edition_id"])
+            if row["edition_id"] is not None
+            else "base"
         ),
         created_at=str(row["created_at"]),
         version=int(row["version"]),
@@ -254,4 +272,5 @@ def event_header(record: EventRecord) -> dict[str, Any]:
         canon_commit_id=record.canon_commit_id,
         created_at=record.created_at,
         version=record.version,
+        edition_id=record.edition_id,
     )

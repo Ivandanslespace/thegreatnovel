@@ -86,6 +86,7 @@ Immutable Source + Approved Change Events
 | M5 | 三线程、三候选、Boundary、Contract | 结构差异、门禁、合同生成/校验测试 | 完成 |
 | M6 | 草稿、十类校验、批准、Canon Commit | 未批准不污染、冲突阻断、批准 E2E | 完成 |
 | M7 | AGENTS、continue-novel skill、文档、完整验收 | pytest、Ruff、类型检查、合成 E2E、真实 book smoke | 完成 |
+| M8 | edition-scoped 版本化改写、影响包、Revision Unit、chapter variant、审批/激活分离、完整导出 | migration 5、事件链隔离、事务回滚、base 不变、revision CLI/skill、全量质量门 | 完成 |
 
 ## 测试策略
 
@@ -126,17 +127,19 @@ Immutable Source + Approved Change Events
 - 2026-08-04：M5 完成；三线程、三个结构候选、Boundary Packet 与 Chapter Contract 通过累计 37 项测试。
 - 2026-08-04：M6 完成；十项校验、显式批准、正史物化、四项余波义务、snapshot/rebuild 通过累计 40 项测试。
 - 2026-08-04：M7 完成；补齐 directive/export、通用 reconcile、冷却与诊断结构、FTS5 相关片段、完整文档和项目内 Skill；累计 49 项测试、Ruff、strict mypy、普通 wheel CLI 与真实书只读回归全部通过。
+- 2026-08-04：M8 完成；新增 base/derived edition、冻结父锚点、edition-scoped 事件/投影/物化、RevisionSpec/Impact Packet/Plan/Unit/REVISION_DRAFT、十项改写校验、chapter variant、批准与启用分离、七文件完整 edition 导出及 `revise-novel` skill；本地质量门与合成改写 E2E 通过。
 
 ## 未实现内容
 
 V1 约定的核心纵向路径没有占位实现：导入、抽取/整理、指标、三线程/三候选、Boundary、Contract、草稿、十项校验、显式批准、事件/投影/快照、重建与导出均已接通。
 
-以下属于明确的 V1 边界或后续增强，不影响本次完成状态：
+以下属于明确的 V1/V1.1 边界或后续增强，不影响本次完成状态：
 
 - Python 不自动调用 Codex/远程模型；agent output 仍由 Codex按文件合同生成；
 - 较早章节的分层摘要字段和降级警告已支持，但摘要内容需由后续抽取批次提供，V1 不伪造自动摘要；
 - 通用故事事件保留确认事件和审计来源，尚未增加独立 `story_events` 读模型；
 - Web 审核台、REST、云数据库、向量检索、自动发布和真实读者预测均按计划不做。
+- Codex 语义影响审计仍通过文件合同导入；系统不会假装本地规则能够替代语义判断。
 
 下一阶段最值得实现：
 

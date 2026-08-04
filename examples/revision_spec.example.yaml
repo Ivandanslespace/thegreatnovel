@@ -1,0 +1,45 @@
+# 仅示例合同，不包含任何真实小说正文。
+campaign_name: "示例角色关系重构"
+revision_kind: relationship_transformation
+intent: "在指定章节重新表达一个稳定角色关系，并保留既有能力与时间线。"
+target_scope:
+  chapter_ids:
+    - "chapter-example-001"
+  chapter_ranges: []
+  source_span_ids:
+    - "span-example-001"
+  semantic_queries:
+    - "关系变化"
+    - "角色称谓"
+  include_downstream_dependencies: true
+canon_changes:
+  - subject_id: "entity-example-a"
+    predicate: "relationship_status"
+    old_value: "旧状态"
+    new_value: "新状态"
+    change_type: add_or_supersede
+    reason: "作者明确要求的关系重构。"
+    author_authority: true
+entity_changes:
+  - entity_id: "entity-example-a"
+    old_name: "旧称谓"
+    new_name: "新称谓"
+    aliases:
+      - "历史称谓"
+    change_type: RENAME
+    reason: "保留稳定 entity_id，仅更新 edition 内显示名称。"
+must_preserve:
+  - "角色既有能力"
+  - "已发生事件结果"
+  - "时间线顺序"
+must_change:
+  - "关系变化"
+forbidden_changes:
+  - "未列入 target_scope 的章节"
+  - "base edition 原始章节"
+propagation_rules:
+  - "检查下游章节的称谓、关系和回忆引用"
+style_policy:
+  pov: "保持原章节 POV"
+completion_policy:
+  required_units: true

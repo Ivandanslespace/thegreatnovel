@@ -51,6 +51,11 @@ class Database:
                         "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
                         (version, utc_now()),
                     )
+            # 迁移只负责结构；每次初始化再幂等回填已有 book 的 base edition。
+            # 使用局部导入避免 db -> edition -> projection -> db 的导入环。
+            from novel_authoring.edition import backfill_base_editions
+
+            backfill_base_editions(connection)
 
     def scalar(self, sql: str, parameters: tuple[object, ...] = ()) -> object | None:
         with self.connect() as connection:

@@ -25,9 +25,11 @@ class CanonProjection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     book_id: str
+    edition_id: str = "base"
     through_event_seq: int = 0
     facts: dict[str, dict[str, Any]] = Field(default_factory=dict)
     timeline: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    entities: dict[str, dict[str, Any]] = Field(default_factory=dict)
     character_states: dict[str, dict[str, Any]] = Field(default_factory=dict)
     knowledge: dict[str, dict[str, Any]] = Field(default_factory=dict)
     relationships: dict[str, dict[str, Any]] = Field(default_factory=dict)
@@ -50,6 +52,8 @@ class CanonProjection(BaseModel):
 EVENT_TARGETS: dict[str, tuple[str, str]] = {
     "FACT_ASSERTED": ("facts", "fact_id"),
     "TIMELINE_ENTRY_SET": ("timeline", "timeline_id"),
+    "ENTITY_CONFIRMED": ("entities", "entity_id"),
+    "ENTITY_OVERLAY_SET": ("entities", "entity_id"),
     "CHARACTER_STATE_SET": ("character_states", "state_id"),
     "KNOWLEDGE_EDGE_SET": ("knowledge", "edge_id"),
     "RELATIONSHIP_SET": ("relationships", "relationship_id"),
@@ -65,13 +69,12 @@ EVENT_TARGETS: dict[str, tuple[str, str]] = {
 
 
 def _validate_event_chain(events: list[EventRecord]) -> None:
+    """Validate the book-wide append-only chain, including legacy v1 rows."""
     previous_hash = ""
     previous_sequence = 0
     for event in events:
         if event.event_seq != previous_sequence + 1:
-            raise EventIntegrityError(
-                f"事件序列断裂：{previous_sequence} → {event.event_seq}"
-            )
+            raise EventIntegrityError(f"事件序列断裂：{previous_sequence} → {event.event_seq}")
         payload_json = json_dumps(event.payload)
         payload_hash = sha256_bytes(payload_json.encode())
         if payload_hash != event.payload_sha256:
@@ -104,57 +107,94 @@ def apply_event(projection: CanonProjection, event: EventRecord) -> None:
     value["_event_seq"] = event.event_seq
     value["_source_kind"] = event.source_kind
     value["_source_id"] = event.source_id
+    value["_edition_id"] = event.edition_id
     collection[identifier] = value
 
 
-def rebuild_projection(
-    database: Database, book_id: str, *, persist: bool = True
-) -> CanonProjection:
-    database.initialize()
-    with database.connect() as connection:
-        rows = connection.execute(
-            "SELECT * FROM events WHERE book_id=? ORDER BY event_seq", (book_id,)
-        ).fetchall()
-    events = [row_to_event(row) for row in rows]
-    _validate_event_chain(events)
-    projection = CanonProjection(book_id=book_id)
-    for event in events:
-        apply_event(projection, event)
-    if persist:
-        state_json = projection.canonical_json()
-        with database.connect() as connection:
-            connection.execute(
-                """
-                INSERT INTO projection_metadata(
-                    book_id, through_event_seq, state_sha256, updated_at, state_json
-                ) VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(book_id) DO UPDATE SET
-                    through_event_seq=excluded.through_event_seq,
-                    state_sha256=excluded.state_sha256,
-                    updated_at=excluded.updated_at,
-                    state_json=excluded.state_json
-                """,
-                (
-                    book_id,
-                    projection.through_event_seq,
-                    projection.sha256(),
-                    utc_now(),
-                    state_json,
-                ),
-            )
-    return projection
+def _selected_events(
+    connection: sqlite3.Connection,
+    all_events: list[EventRecord],
+    book_id: str,
+    edition_id: str,
+    through_event_seq: int | None,
+) -> list[EventRecord]:
+    """Return parent snapshot plus the target edition overlay."""
+    if edition_id == "base":
+        return [
+            event
+            for event in all_events
+            if event.edition_id == "base"
+            and (through_event_seq is None or event.event_seq <= through_event_seq)
+        ]
+    row = connection.execute(
+        """
+        SELECT parent_edition_id, base_event_seq
+        FROM editions WHERE book_id=? AND edition_id=?
+        """,
+        (book_id, edition_id),
+    ).fetchone()
+    if row is None:
+        raise ValueError(f"未知 edition_id：{edition_id}")
+    base_seq = int(row["base_event_seq"])
+    limit = through_event_seq
+    parent_id = str(row["parent_edition_id"])
+    parent_events = _selected_events(
+        connection, all_events, book_id, parent_id, min(base_seq, limit) if limit else base_seq
+    )
+    overlay = [
+        event
+        for event in all_events
+        if event.edition_id == edition_id
+        and event.event_seq > base_seq
+        and (limit is None or event.event_seq <= limit)
+    ]
+    return sorted([*parent_events, *overlay], key=lambda event: event.event_seq)
 
 
-def projection_from_connection(
-    connection: sqlite3.Connection, book_id: str
-) -> CanonProjection:
+def _all_events(connection: sqlite3.Connection, book_id: str) -> list[EventRecord]:
     rows = connection.execute(
         "SELECT * FROM events WHERE book_id=? ORDER BY event_seq", (book_id,)
     ).fetchall()
     events = [row_to_event(row) for row in rows]
     _validate_event_chain(events)
-    projection = CanonProjection(book_id=book_id)
-    for event in events:
+    return events
+
+
+def rebuild_projection(
+    database: Database,
+    book_id: str,
+    *,
+    edition_id: str | None = None,
+    persist: bool = True,
+    through_event_seq: int | None = None,
+) -> CanonProjection:
+    database.initialize()
+    from novel_authoring.edition import ensure_base_edition, resolve_edition_id
+
+    ensure_base_edition(database, book_id)
+    selected_edition = resolve_edition_id(database, book_id, edition_id)
+    with database.connect() as connection:
+        projection = projection_from_connection(
+            connection,
+            book_id,
+            edition_id=selected_edition,
+            through_event_seq=through_event_seq,
+        )
+        if persist:
+            persist_projection_in_transaction(connection, projection)
+    return projection
+
+
+def projection_from_connection(
+    connection: sqlite3.Connection,
+    book_id: str,
+    edition_id: str = "base",
+    through_event_seq: int | None = None,
+) -> CanonProjection:
+    events = _all_events(connection, book_id)
+    selected = _selected_events(connection, events, book_id, edition_id, through_event_seq)
+    projection = CanonProjection(book_id=book_id, edition_id=edition_id)
+    for event in selected:
         apply_event(projection, event)
     return projection
 
@@ -162,12 +202,33 @@ def projection_from_connection(
 def persist_projection_in_transaction(
     connection: sqlite3.Connection, projection: CanonProjection
 ) -> None:
+    state_json = projection.canonical_json()
+    if projection.edition_id == "base":
+        connection.execute(
+            """
+            INSERT INTO projection_metadata(
+                book_id, edition_id, through_event_seq, state_sha256, updated_at, state_json
+            ) VALUES (?, 'base', ?, ?, ?, ?)
+            ON CONFLICT(book_id) DO UPDATE SET
+                edition_id='base', through_event_seq=excluded.through_event_seq,
+                state_sha256=excluded.state_sha256, updated_at=excluded.updated_at,
+                state_json=excluded.state_json
+            """,
+            (
+                projection.book_id,
+                projection.through_event_seq,
+                projection.sha256(),
+                utc_now(),
+                state_json,
+            ),
+        )
+        return
     connection.execute(
         """
-        INSERT INTO projection_metadata(
-            book_id, through_event_seq, state_sha256, updated_at, state_json
-        ) VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(book_id) DO UPDATE SET
+        INSERT INTO edition_projection_metadata(
+            book_id, edition_id, through_event_seq, state_sha256, updated_at, state_json
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(book_id, edition_id) DO UPDATE SET
             through_event_seq=excluded.through_event_seq,
             state_sha256=excluded.state_sha256,
             updated_at=excluded.updated_at,
@@ -175,22 +236,43 @@ def persist_projection_in_transaction(
         """,
         (
             projection.book_id,
+            projection.edition_id,
             projection.through_event_seq,
             projection.sha256(),
             utc_now(),
-            projection.canonical_json(),
+            state_json,
         ),
     )
 
 
-def load_projection(database: Database, book_id: str) -> CanonProjection:
+def load_projection(
+    database: Database, book_id: str, edition_id: str | None = None
+) -> CanonProjection:
+    database.initialize()
+    from novel_authoring.edition import ensure_base_edition, resolve_edition_id
+
+    ensure_base_edition(database, book_id)
+    selected_edition = resolve_edition_id(database, book_id, edition_id)
     with database.connect() as connection:
-        row = connection.execute(
-            "SELECT state_json FROM projection_metadata WHERE book_id=?", (book_id,)
-        ).fetchone()
+        if selected_edition == "base":
+            row = connection.execute(
+                "SELECT state_json FROM projection_metadata WHERE book_id=?",
+                (book_id,),
+            ).fetchone()
+        else:
+            row = connection.execute(
+                """
+                SELECT state_json FROM edition_projection_metadata
+                WHERE book_id=? AND edition_id=?
+                """,
+                (book_id, selected_edition),
+            ).fetchone()
     if row is None:
-        return rebuild_projection(database, book_id)
-    return CanonProjection.model_validate_json(str(row["state_json"]))
+        return rebuild_projection(database, book_id, edition_id=selected_edition, persist=True)
+    projection = CanonProjection.model_validate_json(str(row["state_json"]))
+    if projection.edition_id != selected_edition:
+        projection.edition_id = selected_edition
+    return projection
 
 
 def validate_information_transition(

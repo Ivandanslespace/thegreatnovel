@@ -32,6 +32,7 @@ class ContinuationBoundaryPacket(BaseModel):
 
     packet_id: str
     book_id: str
+    edition_id: str = "base"
     base_event_seq: int
     base_projection_hash: str
     current_position: dict[str, Any]

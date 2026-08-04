@@ -152,6 +152,10 @@ uv run --no-sync novel --help
 
 测试只使用合成小说和固定 agent output，不调用 Codex 或远程模型。真实 `book` 只执行扫描、导入和哈希复核，不自动生成续写。
 
+## 版本化改写
+
+V1.1 提供 edition-scoped 的显式改写流水线：派生版本、RevisionSpec、影响包、Revision Units、`REVISION_DRAFT` 合同、十项改写校验、chapter variants、事务提交、可回滚快照和完整 edition 导出。请先阅读 `.agents/skills/revise-novel/SKILL.md`。批准改写必须逐字输入 `批准改写版本`，启用版本必须另行逐字输入 `启用改写版本`；base 与真实 `book/` 永远不被覆盖。
+
 ## 文档
 
 - `docs/ARCHITECTURE.md`：组件、信任边界与事务；

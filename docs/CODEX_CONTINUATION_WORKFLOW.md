@@ -106,3 +106,25 @@ approve 先显示 preview，并再次校验。Boundary 自草稿规划后若发�
 ```
 
 报告 draft/contract/candidate、chapter/commit、event range、projection/snapshot hash、canon/export 路径和 source verify。不得把“已生成草稿”描述成“已写入正史”。
+
+## 版本化改写（V1.1）
+
+续写重试的 `drafts.revision` 不表示改写版本。改写先在派生 edition 冻结父版本锚点，再按以下顺序运行：
+
+```powershell
+& $Novel edition create --book-id $BookId --edition-id <edition-id> --display-name "改写候选"
+& $Novel revision create --book-id $BookId --edition-id <edition-id> --spec revision_spec.yaml
+& $Novel revision impact --book-id $BookId --campaign-id <campaign-id>
+# 完成 impact-complete 的 deterministic scan + Codex semantic audit
+& $Novel revision plan --book-id $BookId --campaign-id <campaign-id>
+& $Novel revision draft-task --book-id $BookId --campaign-id <campaign-id> --unit-id <unit-id>
+# Codex 只能输出 task_type=REVISION_DRAFT 的 output.json
+& $Novel revision import --book-id $BookId --output output.json
+& $Novel revision validate --book-id $BookId --campaign-id <campaign-id>
+& $Novel revision preview --book-id $BookId --campaign-id <campaign-id>
+& $Novel revision approve --book-id $BookId --campaign-id <campaign-id> --confirm "批准改写版本"
+& $Novel edition activate --book-id $BookId --edition-id <edition-id> --confirm "启用改写版本"
+& $Novel export --book-id $BookId --edition-id <edition-id>
+```
+
+影响包中 `MUST_REVIEW` 必须被处置或带理由显式豁免；批准只产生目标 edition 的事件、物化记录、chapter variant、revision commit 和 snapshot，不会自动激活，也不会修改 `book/`。导出使用 ordinal 位置替换 variant，并生成 `complete_edition.md`、`edition_manifest.json`、`edition_projection.json`、`revision_audit.json`、`chapter_variant_index.json`、`revision_diff.md`、`unresolved_items.json`。

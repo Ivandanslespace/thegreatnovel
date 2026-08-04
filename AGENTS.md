@@ -19,6 +19,8 @@
 4. 草稿默认停在 `VALIDATED`。未经作者当前明确说“批准写入正史”，不得运行 `novel approve` 或产生 Canon Commit。
 5. 不得把 `INFERENCE`、`CANDIDATE`、`PROSE_ONLY` 静默升级为 `CANON`；所有正史变化必须可回指原文或作者批准事件。
 
+版本化改写另遵循 `.agents/skills/revise-novel/SKILL.md`：改写只能写派生 edition，必须经过影响审计、计划、`REVISION_DRAFT`、校验和逐字批准；`批准改写版本` 与 `启用改写版本` 分离，base/真实 `book/` 不得被覆盖。
+
 ## 构建与验收
 
 Windows 中文路径使用普通 wheel，避免 editable `.pth` 的本地代码页问题：

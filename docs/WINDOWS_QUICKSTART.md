@@ -92,7 +92,32 @@ $BookId = "my-novel"
 
 `draft validate` 成功即停在 VALIDATED_DRAFT。不要因为命令成功就自动批准。
 
-## 6. 显式批准
+## 6. 版本化改写（V1.1）
+
+改写旧章节必须创建派生 edition；不要把 replacement 写回 `book`。完整流程和回滚规则见 [`REVISION_WORKFLOW.md`](REVISION_WORKFLOW.md)。最小命令序列：
+
+```powershell
+& $Novel edition create --book-id $BookId --edition-id rewrite-v1 `
+  --display-name "改写候选" --parent base
+& $Novel revision create --book-id $BookId --edition-id rewrite-v1 `
+  --spec .\examples\revision_spec.example.yaml
+& $Novel revision impact --book-id $BookId --campaign-id <campaign-id>
+& $Novel revision plan --book-id $BookId --campaign-id <campaign-id>
+& $Novel revision draft-task --book-id $BookId --campaign-id <campaign-id> `
+  --unit-id <unit-id>
+# Codex 写 REVISION_DRAFT 后导入并校验
+& $Novel revision import --book-id $BookId --output <revision-output.json>
+& $Novel revision validate --book-id $BookId --campaign-id <campaign-id>
+& $Novel revision approve --book-id $BookId --campaign-id <campaign-id> `
+  --confirm "批准改写版本"
+& $Novel edition export --book-id $BookId --edition-id rewrite-v1
+& $Novel edition activate --book-id $BookId --edition-id rewrite-v1 `
+  --confirm "启用改写版本"
+```
+
+批准不会自动激活；检查导出满意后才使用第二个精确确认语。要回到原版，启用 `base`，不会删除改写审计历史。
+
+## 7. 显式批准
 
 只有作者当前明确说“批准写入正史”时：
 
@@ -103,7 +128,7 @@ $BookId = "my-novel"
 
 命令先打印 preview，然后才执行批准事务。确认语错误、校验失败、源哈希变化、Boundary 漂移或重复提交均返回非零退出码。
 
-## 7. 重建与导出
+## 8. 重建与导出
 
 ```powershell
 & $Novel rebuild --book-id $BookId
@@ -114,7 +139,7 @@ $BookId = "my-novel"
 
 批准正文位于 `workspace\<book-id>\canon`；导出位于 `exports`。不要手动拼接回 `book`。
 
-## 8. 开发验收
+## 9. 开发验收
 
 ```powershell
 uv run --no-sync pytest -q
