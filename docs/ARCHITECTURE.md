@@ -1,0 +1,141 @@
+# 系统架构
+
+## 目标与边界
+
+系统是单机、CLI 优先的 Python 3.11+ 应用。它不运行远程 LLM SDK：Codex 通过文件任务包参与抽取、候选规划和正文写作，所有进入正史的变化由确定性 Python 代码校验和提交。
+
+唯一产品规范为根目录 `Novel_Authoring_System_Constitution_V2.md`。原始 `book/` 是不可变输入，所有派生物写入 `workspace/<book_id>/`。
+
+## 纵向数据流
+
+```text
+book/*.txt|md
+  │  scan + encoding + SHA-256 + chapter split
+  ▼
+Source Store (SQLite + source_manifest.json + FTS5)
+  │
+  ├─ Codex extraction task ──► INFERENCE / PROSE_ONLY ──► reconcile
+  │
+  ▼
+Approved events ──► deterministic Canon Projection ──► snapshot/rebuild
+  │
+  ▼
+metrics + top-3 threads + Continuation Boundary Packet
+  │
+  ▼
+Codex candidate task ──► exactly 3 candidates ──► hard gates + score
+  │
+  ▼
+Chapter Contract ──► Codex draft task ──► DRAFT
+  │
+  ▼
+10 validators ──► VALIDATED
+  │ explicit author phrase only
+  ▼
+AUTHOR_APPROVED + state events + CANON_CHAPTER_COMMITTED
+  │
+  ├─ normalized query tables
+  ├─ Canon Projection
+  └─ Snapshot + export
+```
+
+## 组件
+
+| 组件 | 位置 | 职责 |
+|---|---|---|
+| CLI | `src/novel_authoring/cli.py` | Typer 命令、参数与非零失败码 |
+| 配置 | `config/default.yaml`、`config.py` | 宪法权重、阈值、编码和切章正则 |
+| 数据库 | `db/schema.py`、`db/database.py` | SQLite schema、迁移、事务连接 |
+| 不可变导入 | `ingest/` | manifest、编码、切章、来源跨度、FTS5、哈希复核 |
+| 事件与投影 | `canon/` | append-only 哈希链、CANON 过滤、确定性重建、查询表物化 |
+| Codex 合同 | `contracts/` | Pydantic output 模型和 JSON Schema |
+| 抽取整理 | `workflows/extraction.py` | task packet、来源证据验证、隔离导入、事实 reconcile |
+| 指标 | `metrics/` | 纯公式、硬门、证据化结果持久化 |
+| 规划 | `planning/` | 线程排序、Boundary、三候选差异、Chapter Contract |
+| 草稿 | `drafting/` | 正文任务、导入、哈希、revision 和状态 |
+| 校验 | `validation/` | 十项报告、validation run 与 VALIDATED 状态 |
+| 批准 | `workflows/approval.py` | 明确确认、漂移校验、事务 Canon Commit、余波义务 |
+| 导出 | `workflows/exporting.py` | 投影、审计、批准正文与 source verify manifest |
+
+## 信任边界
+
+### 不可信或待审核
+
+- Codex `output.json`；
+- 自动抽取的 INFERENCE/PROSE_ONLY；
+- 三个 CANDIDATE 计划；
+- DRAFT 正文；
+- 尚未 reconcile 的冲突记录。
+
+这些内容可以持久化，但不能被 Canon Projection 当作正史。
+
+### 可进入正史
+
+- 带合法 `source_span_id` 且经显式 source reconcile 的原文事实；
+- 作者显式批准的 VALIDATED draft；
+- `explicit_revision` 模式下有修订来源和作者批准的更正事件。
+
+Canon Projection 只应用 `status=COMMITTED` 且 `information_state=CANON` 的受支持事件。
+
+## Codex 文件合同
+
+每个边缘任务使用独立目录：
+
+```text
+workspace/<book_id>/
+├─ agent_tasks/<task_id>/
+│  ├─ input.md
+│  ├─ schema.json
+│  └─ task.json
+└─ agent_outputs/<task_id>/
+   └─ output.json
+```
+
+`task.json` 固定 book、章节/合同、来源哈希、Boundary 投影哈希和 Schema 哈希。导入器使用 Pydantic `extra=forbid`，拒绝未知字段、任务 ID 错配、非法来源和缺失证据。
+
+Boundary 组合最近章节原文、已有分层摘要、Canon Projection，以及用前三线程目标生成的 trigram 查询所命中的较早原文片段。若早期摘要尚未建立，包会明确发出 warning，而不是伪造摘要。
+
+## 批准事务
+
+`approve` 在提交前重新运行十项校验，并验证：
+
+1. 确认语精确等于“批准写入正史”；
+2. draft 状态为 VALIDATED，文件 SHA-256 未改变；
+3. 原始 source manifest 全部匹配；
+4. 当前 event sequence 与 projection hash 等于 Chapter Contract 的 Boundary；
+5. 没有同 draft 的既有 canon commit。
+
+随后在一个 SQLite `BEGIN IMMEDIATE` 事务中创建 GENERATED_CANON 文档/章节/跨度、AUTHOR_APPROVED、所有状态事件、规范化查询记录、CANON_CHAPTER_COMMITTED、canon_commit、投影元数据、snapshot 记录和最终状态。重大 payoff 额外建立四条 Promise。事务失败时数据库回滚，函数清理本次精确生成的 canon/snapshot 文件。
+
+## 重放与完整性
+
+每个事件记录：
+
+- 单调 `event_seq`；
+- 规范化 JSON 的 `payload_sha256`；
+- `prev_event_hash`；
+- 事件头与 payload 合成的 `event_hash`；
+- 来源、信息状态和可选 `canon_commit_id`。
+
+`rebuild` 从第一个事件重新验证序列与哈希链，并只应用合法 CANON 事件。快照是审计/加速产物，不是独立事实来源；重建结果必须与快照 `state_sha256` 一致。
+
+## Workspace
+
+```text
+workspace/<book_id>/
+├─ state.sqlite3
+├─ source_manifest.json
+├─ agent_tasks/          # Codex 输入合同
+├─ agent_outputs/        # Codex 固定 JSON 输出
+├─ boundaries/           # Continuation Boundary Packet JSON/Markdown
+├─ contracts/            # Chapter Contract JSON
+├─ drafts/               # 未批准正文
+├─ validation/           # 十项校验 bundle
+├─ canon/                # 仅作者批准后的续章
+├─ snapshots/            # 投影快照
+└─ exports/              # 投影和审计导出
+```
+
+## V1 有意不做
+
+Web/API、云数据库、向量数据库、LangChain、递归多代理、运行时 API Key、自动发布、无批准 retcon，以及对真实读者留存的伪精确预测均不在 V1 内。

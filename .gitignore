@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+workspace/*/
+!workspace/.gitkeep
+
+# 原始小说与 inspirations 保持本地，不由本项目生成流程修改。
+book/*
+!book/.gitkeep
+inspirations/*
+!inspirations/.gitkeep

@@ -1,0 +1,7 @@
+interface:
+  display_name: "宪法约束小说续写"
+  short_description: "依宪法执行可审计的下一章规划、草稿、校验与显式批准流程"
+  default_prompt: "Use $continue-novel to 续写下一章，并停止在已校验草稿状态。"
+
+policy:
+  allow_implicit_invocation: true
