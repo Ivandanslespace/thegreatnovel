@@ -27,6 +27,7 @@ from novel_authoring.contracts.extraction import (
 )
 from novel_authoring.db.database import Database
 from novel_authoring.domain.models import InformationStatus
+from novel_authoring.storage.operations import ensure_operation, find_operation
 from novel_authoring.utils import json_dumps, sha256_bytes, stable_id, utc_now
 
 
@@ -77,15 +78,33 @@ def prepare_extraction_task(
         "extract", book_id, ",".join(chapter_ids), schema_hash
     )
     workspace = _book_workspace(database, book_id)
-    task_dir = workspace / "agent_tasks" / task_id
+    operation = ensure_operation(
+        database,
+        book_id,
+        "base",
+        task_id,
+        "EXTRACTION",
+        {"chapter_start": chapter_start, "chapter_end": chapter_end},
+    )
+    task_dir = (
+        operation.input
+        if operation is not None
+        else workspace / "agent_tasks" / task_id
+    )
+    output_dir = (
+        operation.output
+        if operation is not None
+        else workspace / "agent_outputs" / task_id
+    )
     task_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
     input_lines = [
         f"# 结构化抽取任务 `{task_id}`",
         "",
         "只依据下方原文抽取结构化信息，不补写剧情。",
         "所有记录只能标记为 INFERENCE 或 PROSE_ONLY；系统会在导入后单独 reconcile。",
         "每条记录必须引用所列 source_span_id，并提供可在原文中定位的短证据。",
-        "将结果写入对应 agent_outputs 目录的 output.json，并严格遵守 schema.json。",
+        "将结果写入任务 output/ 目录的 output.json，并严格遵守 schema.json。",
         "",
     ]
     spans: list[dict[str, object]] = []
@@ -124,8 +143,6 @@ def prepare_extraction_task(
     (task_dir / "task.json").write_text(
         json_dumps(metadata, indent=2) + "\n", encoding="utf-8"
     )
-    output_dir = workspace / "agent_outputs" / task_id
-    output_dir.mkdir(parents=True, exist_ok=True)
     return {
         "task_id": task_id,
         "input": str(task_dir / "input.md"),
@@ -496,11 +513,20 @@ def import_extraction_output(
     output_path: Path | None = None,
 ) -> dict[str, object]:
     workspace = _book_workspace(database, book_id)
-    task_path = workspace / "agent_tasks" / task_id / "task.json"
+    operation = find_operation(database, book_id, "base", task_id)
+    task_path = (
+        operation.input / "task.json"
+        if operation is not None
+        else workspace / "agent_tasks" / task_id / "task.json"
+    )
     if not task_path.exists():
         raise AgentContractError(f"任务不存在：{task_id}")
     metadata = json.loads(task_path.read_text(encoding="utf-8"))
-    path = output_path or workspace / "agent_outputs" / task_id / "output.json"
+    path = output_path or (
+        operation.output / "output.json"
+        if operation is not None
+        else workspace / "agent_outputs" / task_id / "output.json"
+    )
     try:
         output = ExtractionOutput.model_validate_json(path.read_text(encoding="utf-8"))
     except (OSError, ValidationError) as exc:

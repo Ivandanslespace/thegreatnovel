@@ -25,13 +25,13 @@ $Novel = ".\.venv\Scripts\novel.exe"
 
 ```powershell
 $BookId = "my-novel"
-& $Novel init --book-id $BookId --title "我的小说" --source-dir .\book
-& $Novel ingest --book-id $BookId --title "我的小说" --source-dir .\book
-& $Novel source verify --book-id $BookId
-& $Novel status --book-id $BookId
+& $Novel library add --book-id $BookId --title "我的小说" --source .\book --confirm-order
+& $Novel library paths --book-id $BookId
 ```
 
-输出只进入 `workspace\my-novel`。如果多文件顺序置信度不足，先打开命令返回的 `source_manifest.json` 核对，再运行：
+新书输出只进入 `library\my-novel`。如果多文件顺序置信度不足，先核对
+`library\my-novel\_system\source_manifest.json`，再补充 `--confirm-order`；旧
+`init`/`ingest` 仅作为显式 legacy 兼容入口。
 
 ```powershell
 & $Novel ingest --book-id $BookId --title "我的小说" --source-dir .\book `

@@ -7,6 +7,8 @@ from novel_authoring.domain.models import ContinuationMode
 from novel_authoring.edition import edition_workspace, resolve_edition_id
 from novel_authoring.planning.boundary import PlanningError
 from novel_authoring.planning.models import CandidateProposal, ChapterContract
+from novel_authoring.storage.layout import BookLayout
+from novel_authoring.storage.operations import book_root, find_operation
 from novel_authoring.utils import json_dumps, sha256_bytes, stable_id, utc_now
 
 
@@ -32,12 +34,22 @@ def build_chapter_contract(
             "SELECT mode FROM books WHERE book_id=?", (book_id,)
         ).fetchone()
     workspace = edition_workspace(database, book_id, selected_edition)
-    task_metadata = json.loads(
-        (workspace / "agent_tasks" / task_id / "task.json").read_text(encoding="utf-8")
+    root = book_root(database, book_id)
+    operation = find_operation(database, book_id, selected_edition, task_id)
+    task_path = (
+        operation.input / "task.json"
+        if operation is not None
+        else workspace / "agent_tasks" / task_id / "task.json"
     )
+    task_metadata = json.loads(task_path.read_text(encoding="utf-8"))
     packet_id = str(task_metadata["boundary_packet_id"])
+    boundary_dir = (
+        BookLayout(root.parent).for_book(book_id).edition(selected_edition).boundaries
+        if (root / "book.yaml").is_file()
+        else workspace / "boundaries"
+    )
     boundary_json = json.loads(
-        (workspace / "boundaries" / f"{packet_id}.json").read_text(encoding="utf-8")
+        (boundary_dir / f"{packet_id}.json").read_text(encoding="utf-8")
     )
     candidate = CandidateProposal.model_validate_json(str(row["plan_json"]))
     next_chapter = int(boundary_json["current_position"]["next_chapter"])
@@ -113,7 +125,11 @@ def build_chapter_contract(
     )
     contract_json = json_dumps(contract.model_dump(mode="json"), indent=2)
     contract_hash = sha256_bytes(contract_json.encode())
-    contracts_dir = workspace / "contracts"
+    contracts_dir = (
+        BookLayout(root.parent).for_book(book_id).edition(selected_edition).contracts
+        if (root / "book.yaml").is_file()
+        else workspace / "contracts"
+    )
     contracts_dir.mkdir(parents=True, exist_ok=True)
     path = contracts_dir / f"{contract_id}.json"
     path.write_text(contract_json + "\n", encoding="utf-8")

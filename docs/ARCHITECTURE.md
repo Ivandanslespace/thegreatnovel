@@ -4,7 +4,7 @@
 
 系统是单机、CLI 优先的 Python 3.11+ 应用。它不运行远程 LLM SDK：Codex 通过文件任务包参与抽取、候选规划、Story Atlas 综合和正文写作，所有进入正史的变化由确定性 Python 代码校验和提交。
 
-唯一产品规范为根目录 `Novel_Authoring_System_Constitution_V2.md`。原始 `book/` 是不可变输入，所有派生物写入 `workspace/<book_id>/`。
+唯一产品规范为根目录 `Novel_Authoring_System_Constitution_V2.md`。原始 `book/` 是不可变输入，所有新派生物写入 `library/<book_id>/`；旧 `workspace/<book_id>/` 只作为 legacy 读取、迁移和历史审计输入。
 
 ## 纵向数据流
 
@@ -50,7 +50,7 @@ AUTHOR_APPROVED + state events + CANON_CHAPTER_COMMITTED
 
 | 组件 | 位置 | 职责 |
 |---|---|---|
-| CLI | `src/novel_authoring/cli.py` | Typer 命令、参数与非零失败码 |
+| CLI | `src/novel_authoring/cli/` | 分域 Typer 命令、参数与非零失败码；根 `cli.py` 仅为 deprecated facade |
 | 配置 | `config/default.yaml`、`config.py` | 宪法权重、阈值、编码和切章正则 |
 | 数据库 | `db/schema.py`、`db/database.py` | SQLite schema、迁移、事务连接 |
 | 不可变导入 | `ingest/` | manifest、编码、切章、来源跨度、FTS5、哈希复核 |
@@ -59,7 +59,7 @@ AUTHOR_APPROVED + state events + CANON_CHAPTER_COMMITTED
 | 抽取整理 | `workflows/extraction.py` | task packet、来源证据验证、隔离导入、事实 reconcile |
 | 指标 | `metrics/` | 纯公式、硬门、证据化结果持久化 |
 | 规划 | `planning/` | 线程排序、Boundary、三候选差异、Chapter Contract |
-| Story Atlas | `atlas/` + `workspace/.../story_atlas/` | 版本化软理解、图谱、Narrative DNA、未来可能性、Readiness 与 Horizon hash |
+| Story Atlas | `atlas/` + `library/.../analysis/story_atlas/` | 版本化软理解、图谱、Narrative DNA、未来可能性、Readiness 与 Horizon hash |
 | Batch | `planning/batch.py` + `batch_*` 表 | chunk 计划、临时 projection、逐章十项校验和 checkpoint |
 | 草稿 | `drafting/` | 正文任务、导入、哈希、revision 和状态 |
 | 校验 | `validation/` | 十项报告、validation run 与 VALIDATED 状态 |
@@ -93,16 +93,18 @@ hash、anchor、usage、author action 和 review queue，软图谱文件不物�
 
 ## Codex 文件合同
 
-每个边缘任务使用独立目录：
+每个边缘任务使用独立的 Operation Workspace：
 
 ```text
-workspace/<book_id>/
-├─ agent_tasks/<task_id>/
-│  ├─ input.md
-│  ├─ schema.json
-│  └─ task.json
-└─ agent_outputs/<task_id>/
-   └─ output.json
+library/<book_id>/
+└─ editions/<edition_id>/operations/<operation_id>/
+   ├─ input/       # task.json、prompt.md、schema/context
+   ├─ output/      # Codex output.json 或 result.json
+   ├─ artifacts/
+   ├─ logs/
+   ├─ manifest.json
+   ├─ status.json
+   └─ events.jsonl
 ```
 
 `task.json` 固定 book、章节/合同、来源哈希、Boundary 投影哈希和 Schema 哈希。导入器使用 Pydantic `extra=forbid`，拒绝未知字段、任务 ID 错配、非法来源和缺失证据。
@@ -133,24 +135,21 @@ Boundary 组合最近章节原文、已有分层摘要、Canon Projection，以�
 
 `rebuild` 从第一个事件重新验证序列与哈希链，并只应用合法 CANON 事件。快照是审计/加速产物，不是独立事实来源；重建结果必须与快照 `state_sha256` 一致。
 
-## Workspace
+## Book Library layout
 
 ```text
-workspace/<book_id>/
-├─ state.sqlite3
-├─ source_manifest.json
-├─ agent_tasks/          # Codex 输入合同
-├─ agent_outputs/        # Codex 固定 JSON 输出
-├─ boundaries/           # Continuation Boundary Packet JSON/Markdown
-├─ contracts/            # Chapter Contract JSON
-├─ drafts/               # 未批准正文
-├─ validation/           # 十项校验 bundle
-├─ canon/                # 仅作者批准后的续章
-├─ snapshots/            # 投影快照
-├─ exports/              # 投影和审计导出
-└─ editions/<edition_id>/
-   ├─ story_atlas/       # immutable versioned soft Atlas artifacts
-   └─ batches/            # frozen plans and provisional checkpoints
+library/<book_id>/
+├─ _system/state.sqlite3
+├─ _system/source_manifest.json
+├─ source/               # COPY_READ_ONLY 原文
+├─ editions/<edition_id>/
+│  ├─ analysis/          # initialization、metrics、rhythm、Story Atlas
+│  ├─ writing/           # boundaries、contracts、drafts、validation、revisions
+│  ├─ operations/        # 所有 Codex/分析任务的输入、输出和审计日志
+│  ├─ canon/             # 仅作者批准后的续章
+│  ├─ batches/           # frozen plans and provisional checkpoints
+│  └─ exports/           # latest + archive portable snapshots
+└─ book.yaml / README.md
 ```
 
 ## Edition-scoped 改写架构

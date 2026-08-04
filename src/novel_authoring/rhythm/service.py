@@ -29,6 +29,7 @@ from novel_authoring.rhythm.models import (
     OpeningMode,
     RhythmDiagnosticSnapshot,
 )
+from novel_authoring.storage.operations import ensure_operation, find_operation
 from novel_authoring.utils import json_dumps, sha256_bytes, stable_id, utc_now
 
 
@@ -321,8 +322,24 @@ def prepare_semantic_features(
             content_hash,
             sha256_bytes(schema_json.encode()),
         )
-        task_dir = workspace / "agent_tasks" / task_id
-        output_dir = workspace / "agent_outputs" / task_id
+        operation = ensure_operation(
+            database,
+            book_id,
+            selected,
+            task_id,
+            "CHAPTER_SEMANTIC_FEATURES",
+            {"chapter_id": str(chapter["chapter_id"])},
+        )
+        task_dir = (
+            operation.input
+            if operation is not None
+            else workspace / "agent_tasks" / task_id
+        )
+        output_dir = (
+            operation.output
+            if operation is not None
+            else workspace / "agent_outputs" / task_id
+        )
         task_dir.mkdir(parents=True, exist_ok=True)
         output_dir.mkdir(parents=True, exist_ok=True)
         metadata = {
@@ -380,7 +397,10 @@ def import_semantic_features(
     if book is None:
         raise RhythmWorkflowError(f"未知 book_id：{book_id}")
     root = Path(str(book["workspace_root"]))
+    operation = find_operation(database, book_id, "base", task_id)
     candidates = [root / "agent_tasks" / task_id / "task.json"]
+    if operation is not None:
+        candidates.insert(0, operation.input / "task.json")
     candidates.extend(root.glob(f"editions/*/agent_tasks/{task_id}/task.json"))
     task_path = next((path for path in candidates if path.is_file()), None)
     if task_path is None:
@@ -388,7 +408,12 @@ def import_semantic_features(
     metadata = json.loads(task_path.read_text(encoding="utf-8"))
     selected = str(metadata.get("edition_id", "base"))
     workspace = edition_workspace(database, book_id, selected)
-    path = output_path or workspace / "agent_outputs" / task_id / "output.json"
+    operation = find_operation(database, book_id, selected, task_id)
+    path = output_path or (
+        operation.output / "output.json"
+        if operation is not None
+        else workspace / "agent_outputs" / task_id / "output.json"
+    )
     try:
         output = ChapterSemanticFeaturesOutput.model_validate_json(
             path.read_text(encoding="utf-8")

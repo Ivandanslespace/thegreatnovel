@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 from pathlib import Path
 from typing import Any, cast
 
@@ -45,8 +44,8 @@ from novel_authoring.metrics.service import (
     ObservationResolver,
 )
 from novel_authoring.storage.layout import BookLayout
+from novel_authoring.storage.library import LibraryAddOptions, add_book
 from novel_authoring.storage.registry import BookRegistry
-from novel_authoring.utils import sha256_file
 from novel_authoring.web.dependencies import create_csrf_token, verify_csrf
 from novel_authoring.web.routes.atlas import (
     GRAPH_TYPES,
@@ -124,6 +123,21 @@ def _library_root_for_database(database: Database, explicit: Path | None) -> Pat
     return book_root.parent if (book_root / "book.yaml").is_file() else None
 
 
+def _database_for_book(app: Any, book_id: str) -> Database:
+    """Resolve a canonical book database instead of reusing the boot DB."""
+
+    checked = _check_id(book_id)
+    root = app.state.library_root
+    if root is not None:
+        paths = BookLayout(root).for_book(checked)
+        if paths.database.is_file():
+            return Database(paths.database)
+        raise HTTPException(status_code=404, detail="书籍运行库不存在")
+    if app.state.book_id is None or str(app.state.book_id) == checked:
+        return cast(Database, app.state.database)
+    raise HTTPException(status_code=404, detail="书籍不在当前 Web 运行库")
+
+
 def _library_payload(layout: BookLayout, registry: BookRegistry) -> list[dict[str, Any]]:
     records = registry.list()
     payload: list[dict[str, Any]] = []
@@ -189,47 +203,6 @@ def _library_paths_payload(
             "archive_exports": str(edition.archive_exports),
         },
     }
-
-
-def _copy_import_source(source: Path, destination: Path) -> tuple[list[str], dict[str, Any]]:
-    """Copy a new source into ``source/`` without following symlinks."""
-
-    source = source.expanduser().resolve()
-    if source.is_symlink():
-        raise ValueError("导入来源不能是 symlink/reparse point")
-    if not source.is_file() and not source.is_dir():
-        raise ValueError(f"导入来源必须是文件或目录: {source}")
-    destination.mkdir(parents=True, exist_ok=True)
-    source_files: list[str] = []
-    if source.is_file():
-        target = destination / source.name
-        if target.exists():
-            raise ValueError(f"目标来源已存在: {target}")
-        shutil.copy2(source, target)
-        source_files.append(source.name)
-        return source_files, {
-            "root": "source",
-            "files": source_files,
-            "sha256": sha256_file(target),
-            "byte_size": target.stat().st_size,
-        }
-
-    for current in sorted(source.rglob("*"), key=lambda item: item.as_posix().casefold()):
-        if current.is_symlink():
-            raise ValueError(f"导入来源包含 symlink/reparse point: {current}")
-        relative = current.relative_to(source)
-        target = destination / relative
-        if current.is_dir():
-            target.mkdir(parents=True, exist_ok=True)
-            continue
-        if not current.is_file():
-            raise ValueError(f"导入来源包含不支持的文件: {current}")
-        if target.exists():
-            raise ValueError(f"目标来源已存在: {target}")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(current, target)
-        source_files.append(relative.as_posix())
-    return source_files, {"root": "source", "files": source_files}
 
 
 def create_app(
@@ -307,36 +280,20 @@ def create_app(
         if not isinstance(source_value, str) or not source_value.strip():
             raise HTTPException(status_code=400, detail="需要 source_path")
         source = Path(source_value).expanduser().resolve()
-        layout = BookLayout(root)
-        paths = layout.for_book(book_id)
-        if paths.root.exists() and any(paths.root.iterdir()):
-            raise HTTPException(status_code=409, detail="目标书籍已存在；新导入不会覆盖既有书籍")
-        if source == paths.root or paths.root in source.parents:
-            raise HTTPException(status_code=400, detail="导入来源不能位于目标书籍目录内")
         try:
-            source_files, source_metadata = _copy_import_source(source, paths.source)
-            registry = BookRegistry(layout)
-            record = registry.ensure(
-                book_id,
-                title=str(payload.get("title") or book_id),
-                readiness_status="IMPORTED",
+            result = add_book(
+                LibraryAddOptions(
+                    book_id=book_id,
+                    title=str(payload.get("title") or book_id),
+                    source=source,
+                    library_root=root,
+                    confirm_order=bool(payload.get("confirm_order", False)),
+                    initialize_mode=str(payload.get("initialize_mode") or "deferred"),
+                )
             )
-            values = registry.read(book_id)
-            source_metadata["files"] = source_files
-            values["source"] = source_metadata
-            values["source_files"] = source_files
-            values["imported_at"] = values.get("updated_at")
-            registry.write(paths, values)
-            registry.write_readme(paths, values)
-            return {
-                "book_id": record.book_id,
-                "title": values["title"],
-                "root": str(paths.root),
-                "source": str(paths.source),
-                "source_files": source_files,
-                "source_read_only": True,
-                "readiness_status": values.get("readiness_status"),
-            }
+            value = result.to_dict()
+            value["source_read_only"] = True
+            return value
         except (OSError, ValueError) as exc:
             return _error(exc)
 
@@ -410,7 +367,9 @@ def create_app(
                 request,
                 {"run": {"run_id": "", "results": []}, "csrf_token": app.state.csrf_token},
             )
-        context = dashboard_context(database, _check_id(str(app.state.book_id)))
+        context = dashboard_context(
+            _database_for_book(app, str(app.state.book_id)), _check_id(str(app.state.book_id))
+        )
         context["csrf_token"] = app.state.csrf_token
         return _template(templates, "index.html", request, context)
 
@@ -475,8 +434,12 @@ def create_app(
         request: Request, path_book_id: str, edition_id: str, chapter_id: str
     ) -> Any:
         try:
+            checked_book = _check_id(path_book_id)
             context = chapter_context(
-                database, _check_id(path_book_id), _check_id(edition_id), _check_id(chapter_id)
+                _database_for_book(app, checked_book),
+                checked_book,
+                _check_id(edition_id),
+                _check_id(chapter_id),
             )
         except ValueError as exc:
             raise HTTPException(
@@ -659,6 +622,26 @@ def create_app(
 
     @app.get("/api/books")
     async def books_api() -> list[dict[str, Any]]:
+        if app.state.library_root is not None:
+            books: list[dict[str, Any]] = []
+            for record in BookRegistry(BookLayout(app.state.library_root)).list():
+                book_database = Database(record.root / "_system" / "state.sqlite3")
+                if not book_database.path.is_file():
+                    continue
+                book_database.initialize()
+                with book_database.connect() as connection:
+                    row = connection.execute(
+                        "SELECT * FROM books WHERE book_id=?", (record.book_id,)
+                    ).fetchone()
+                    if row is not None:
+                        books.append(dict(row))
+            return sorted(
+                books,
+                key=lambda item: (
+                    str(item.get("title", "")),
+                    str(item.get("book_id", "")),
+                ),
+            )
         database.initialize()
         with database.connect() as connection:
             rows = connection.execute("SELECT * FROM books ORDER BY title, book_id").fetchall()
@@ -666,17 +649,20 @@ def create_app(
 
     @app.get("/api/books/{path_book_id}/editions")
     async def editions_api(path_book_id: str) -> list[dict[str, Any]]:
+        checked_book = _check_id(path_book_id)
         return [
             item.model_dump(mode="json")
-            for item in list_editions(database, _check_id(path_book_id))
+            for item in list_editions(_database_for_book(app, checked_book), checked_book)
         ]
 
     @app.get("/api/books/{path_book_id}/editions/{edition_id}/chapters")
     async def chapters_api(path_book_id: str, edition_id: str) -> list[dict[str, Any]]:
-        database.initialize()
-        with database.connect() as connection:
+        checked_book = _check_id(path_book_id)
+        selected_database = _database_for_book(app, checked_book)
+        selected_database.initialize()
+        with selected_database.connect() as connection:
             return edition_chapters(
-                connection, _check_id(path_book_id), _check_id(edition_id)
+                connection, checked_book, _check_id(edition_id)
             )
 
     @app.get("/api/books/{path_book_id}/editions/{edition_id}/atlas")
@@ -849,8 +835,12 @@ def create_app(
         path_book_id: str, edition_id: str, chapter_id: str
     ) -> dict[str, Any]:
         try:
+            checked_book = _check_id(path_book_id)
             return chapter_context(
-                database, _check_id(path_book_id), _check_id(edition_id), _check_id(chapter_id)
+                _database_for_book(app, checked_book),
+                checked_book,
+                _check_id(edition_id),
+                _check_id(chapter_id),
             )
         except ValueError as exc:
             raise HTTPException(
@@ -862,17 +852,25 @@ def create_app(
     async def segments_api(
         path_book_id: str, edition_id: str, chapter_id: str
     ) -> list[dict[str, Any]]:
+        checked_book = _check_id(path_book_id)
         return cast(
             list[dict[str, Any]],
             chapter_context(
-                database, _check_id(path_book_id), _check_id(edition_id), _check_id(chapter_id)
+                _database_for_book(app, checked_book),
+                checked_book,
+                _check_id(edition_id),
+                _check_id(chapter_id),
             )["segments"],
         )
 
     @app.get("/api/books/{path_book_id}/editions/{edition_id}/chapters/{chapter_id}/metrics")
     async def metrics_api(path_book_id: str, edition_id: str, chapter_id: str) -> dict[str, Any]:
+        checked_book = _check_id(path_book_id)
         return chapter_context(
-            database, _check_id(path_book_id), _check_id(edition_id), _check_id(chapter_id)
+            _database_for_book(app, checked_book),
+            checked_book,
+            _check_id(edition_id),
+            _check_id(chapter_id),
         )
 
     @app.post(

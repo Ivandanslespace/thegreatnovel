@@ -41,6 +41,8 @@ from novel_authoring.revision.models import (
     RevisionSpec,
     RevisionUnit,
 )
+from novel_authoring.storage.layout import BookLayout
+from novel_authoring.storage.operations import ensure_operation
 from novel_authoring.utils import json_dumps, sha256_bytes, sha256_file, stable_id, utc_now
 from novel_authoring.validation.models import VALIDATOR_NAMES
 
@@ -80,15 +82,31 @@ def _workspace_book(database: Database, book_id: str) -> Path:
 
 
 def _campaign_root(database: Database, book_id: str, edition_id: str, campaign_id: str) -> Path:
-    root = (
-        _workspace_book(database, book_id)
-        / "editions"
-        / edition_id
-        / "revision_campaigns"
-        / campaign_id
-    )
+    book_root = _workspace_book(database, book_id)
+    if (book_root / "book.yaml").is_file():
+        root = BookLayout(book_root.parent).for_book(book_id).edition(edition_id).revisions / campaign_id
+    else:
+        root = book_root / "editions" / edition_id / "revision_campaigns" / campaign_id
     root.mkdir(parents=True, exist_ok=True)
     return root
+
+
+def _revision_operation(
+    database: Database,
+    book_id: str,
+    edition_id: str,
+    campaign_id: str,
+    stage: str,
+) -> Any:
+    operation_id = stable_id("revision-operation", campaign_id, stage)
+    return ensure_operation(
+        database,
+        book_id,
+        edition_id,
+        operation_id,
+        f"REVISION_{stage.upper()}",
+        {"campaign_id": campaign_id, "stage": stage},
+    )
 
 
 def _write_json(path: Path, value: Any) -> str:
@@ -532,7 +550,12 @@ def build_revision_impact(database: Database, book_id: str, campaign_id: str) ->
                     packet.created_at,
                 ),
             )
-    task_path = root / "agent_tasks" / "revision-impact-audit.json"
+    operation = _revision_operation(database, book_id, edition_id, campaign_id, "impact-audit")
+    task_path = (
+        operation.input / "task.json"
+        if operation is not None
+        else root / "agent_tasks" / "revision-impact-audit.json"
+    )
     audit_schema_json = json_dumps(ImpactAuditOutput.model_json_schema(), indent=2)
     audit_schema_hash = sha256_bytes(audit_schema_json.encode("utf-8"))
     audit_task_id = stable_id("revision-impact-audit-task", campaign_id, packet_hash)
@@ -604,8 +627,11 @@ def complete_revision_impact_audit(
         raise RevisionWorkflowError("影响包不存在")
     if decisions is None:
         raise RevisionWorkflowError("必须提供 ImpactAuditOutput；不能用空 decisions 自动完成")
+    operation = _revision_operation(database, book_id, edition_id, campaign_id, "impact-audit")
     task_path = (
-        _campaign_root(database, book_id, edition_id, campaign_id)
+        operation.input / "task.json"
+        if operation is not None
+        else _campaign_root(database, book_id, edition_id, campaign_id)
         / "agent_tasks"
         / "revision-impact-audit.json"
     )
@@ -1013,7 +1039,12 @@ def build_revision_plan(database: Database, book_id: str, campaign_id: str) -> d
     }
     plan_path = root / "revision_plan.json"
     _write_json(plan_path, plan)
-    task_path = root / "agent_tasks" / "revision-plan.json"
+    operation = _revision_operation(database, book_id, edition_id, campaign_id, "plan")
+    task_path = (
+        operation.input / "task.json"
+        if operation is not None
+        else root / "agent_tasks" / "revision-plan.json"
+    )
     _write_json(
         task_path,
         {
@@ -1075,8 +1106,17 @@ def prepare_revision_draft_task(
         status=cast(Any, str(row["status"])),
     )
     task_id = stable_id("revision-draft-task", campaign_id, unit_id, unit.base_content_sha256)
-    task_path = root / "agent_tasks" / f"{unit_id}.json"
-    schema_path = root / "schemas" / "revision-draft-output.schema.json"
+    operation = _revision_operation(database, book_id, unit.edition_id, campaign_id, f"draft-{unit_id}")
+    task_path = (
+        operation.input / "task.json"
+        if operation is not None
+        else root / "agent_tasks" / f"{unit_id}.json"
+    )
+    schema_path = (
+        operation.input / "revision-draft-output.schema.json"
+        if operation is not None
+        else root / "schemas" / "revision-draft-output.schema.json"
+    )
     schema_hash = _write_json(schema_path, RevisionDraftOutput.model_json_schema())
     packet_path = root / "impact_packet.json"
     plan_path = root / "revision_plan.json"
@@ -1122,7 +1162,14 @@ def import_revision_draft(
     if str(row["edition_id"]) != output.edition_id:
         raise RevisionWorkflowError("草稿 edition_id 与 campaign 不一致")
     root = _campaign_root(database, book_id, output.edition_id, output.campaign_id)
-    task_path = root / "agent_tasks" / f"{output.unit_id}.json"
+    operation = _revision_operation(
+        database, book_id, output.edition_id, output.campaign_id, f"draft-{output.unit_id}"
+    )
+    task_path = (
+        operation.input / "task.json"
+        if operation is not None
+        else root / "agent_tasks" / f"{output.unit_id}.json"
+    )
     if not task_path.is_file():
         raise RevisionWorkflowError("Revision Draft task 文件不存在；不能导入脱离任务的输出")
     try:
@@ -1188,7 +1235,15 @@ def import_revision_draft(
     replacement = (
         f"## {output.replacement_title.strip()}\n\n{output.replacement_markdown.strip()}\n"
     )
-    draft_path = root / "revision_drafts" / f"{output.unit_id}-r{next_revision}.md"
+    draft_dir = (
+        BookLayout(_workspace_book(database, book_id).parent)
+        .for_book(book_id)
+        .edition(output.edition_id)
+        .revisions
+        if (_workspace_book(database, book_id) / "book.yaml").is_file()
+        else root / "revision_drafts"
+    )
+    draft_path = draft_dir / f"{output.unit_id}-r{next_revision}.md"
     draft_path.parent.mkdir(parents=True, exist_ok=True)
     draft_path.write_text(replacement, encoding="utf-8")
     replacement_hash = sha256_file(draft_path)

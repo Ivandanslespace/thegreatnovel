@@ -36,7 +36,7 @@ dev = [
 ]
 
 [project.scripts]
-novel = "novel_authoring.cli:app"
+novel = "novel_authoring.cli.app:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/novel_authoring"]

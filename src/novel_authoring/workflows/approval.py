@@ -22,6 +22,8 @@ from novel_authoring.domain.models import (
 from novel_authoring.edition import edition_workspace, resolve_edition_id
 from novel_authoring.ingest.service import verify_sources
 from novel_authoring.planning.models import ChapterContract
+from novel_authoring.storage.layout import BookLayout
+from novel_authoring.storage.operations import book_root
 from novel_authoring.utils import json_dumps, sha256_bytes, sha256_file, stable_id, utc_now
 from novel_authoring.validation.service import ValidationWorkflowError, validate_draft
 
@@ -211,7 +213,13 @@ def approve_draft(
     if row["status"] != DraftStatus.VALIDATED.value:
         raise ApprovalWorkflowError(f"草稿尚未处于 VALIDATED：{row['status']}")
     workspace = edition_workspace(database, book_id, selected_edition)
-    source_root = workspace.parent if selected_edition == "base" else workspace.parents[2]
+    root = book_root(database, book_id)
+    canonical = (root / "book.yaml").is_file()
+    source_root = (
+        root.parent
+        if canonical
+        else (workspace.parent if selected_edition == "base" else workspace.parents[2])
+    )
     source_report = verify_sources(book_id, source_root)
     if not bool(source_report["ok"]):
         raise ApprovalWorkflowError("不可变源文件校验失败，拒绝写入正史")
@@ -234,7 +242,11 @@ def approve_draft(
     ordinal = contract.chapter
     heading = f"## 第{ordinal}章 {draft.chapter_title}".rstrip()
     canon_content = f"{heading}\n\n{draft.prose_markdown.strip()}\n"
-    canon_dir = workspace / "canon"
+    canon_dir = (
+        BookLayout(root.parent).for_book(book_id).edition(selected_edition).canon
+        if canonical
+        else workspace / "canon"
+    )
     canon_dir.mkdir(parents=True, exist_ok=True)
     canon_path = canon_dir / f"chapter-{ordinal:06d}-{commit_id}.md"
     content_hash = sha256_bytes(canon_content.encode())

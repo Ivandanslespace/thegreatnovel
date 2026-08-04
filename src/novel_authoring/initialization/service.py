@@ -14,6 +14,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from novel_authoring.db.database import Database
 from novel_authoring.edition import edition_chapters, resolve_edition_id
 from novel_authoring.storage.layout import BookLayout
+from novel_authoring.storage.manifest import authority_path, manifest_hash
+from novel_authoring.storage.operations import ensure_operation
 from novel_authoring.utils import json_dumps, sha256_file, stable_id, utc_now
 
 
@@ -257,8 +259,8 @@ def initialization_root(
 
 def _source_manifest_hash(database: Database, book_id: str) -> str:
     root = _book_workspace(database, book_id)
-    path = root / "source_manifest.json"
-    return sha256_file(path) if path.is_file() else ""
+    path = authority_path(root)
+    return manifest_hash(path) if path.is_file() else ""
 
 
 def _infer_volume(row: dict[str, Any]) -> str | None:
@@ -438,6 +440,29 @@ def _arc_schema() -> dict[str, Any]:
     return schema
 
 
+def _arc_operation_id(initialization_id: str, arc_id: str) -> str:
+    return f"{initialization_id}-arc-{arc_id}"
+
+
+def arc_output_path(
+    root: Path,
+    initialization_id: str,
+    book_id: str,
+    edition_id: str,
+    arc_id: str,
+) -> Path:
+    """Resolve an Arc result in the canonical operation workspace."""
+
+    book_root = next(
+        (candidate for candidate in (root, *root.parents) if (candidate / "book.yaml").is_file()),
+        None,
+    )
+    if book_root is None:
+        return root / "arc_outputs" / arc_id / "output.json"
+    edition = BookLayout(book_root.parent).for_book(book_id).edition(edition_id)
+    return edition.operation(_arc_operation_id(initialization_id, arc_id)).output / "output.json"
+
+
 def create_initialization(
     database: Database,
     book_id: str,
@@ -471,8 +496,6 @@ def create_initialization(
     root = initialization_root(database, book_id, selected, initialization_id)
     root.mkdir(parents=True, exist_ok=False)
     for name in (
-        "arc_tasks",
-        "arc_outputs",
         "entity_resolution",
         "synthesis",
         "metrics",
@@ -589,7 +612,19 @@ def create_initialization(
     )
     (root / "events.jsonl").write_text("", encoding="utf-8")
     for arc in arcs:
-        arc_task = root / "arc_tasks" / arc.arc_id
+        operation = ensure_operation(
+            database,
+            book_id,
+            selected,
+            _arc_operation_id(initialization_id, arc.arc_id),
+            "INITIALIZATION_ARC",
+            {"initialization_id": initialization_id, "arc_id": arc.arc_id},
+        )
+        arc_task = (
+            operation.input
+            if operation is not None
+            else root / "arc_tasks" / arc.arc_id
+        )
         (arc_task / "chapters").mkdir(parents=True)
         arc_chapters = [
             row for row in chapters if str(row["chapter_id"]) in set(arc.chapter_ids)
@@ -684,7 +719,13 @@ def _arc_outputs(root: Path, arc_manifest: ArcManifest) -> tuple[list[ArcExtract
     failed: list[str] = []
     pending: list[str] = []
     for arc in arc_manifest.arcs:
-        path = root / "arc_outputs" / arc.arc_id / "output.json"
+        path = arc_output_path(
+            root,
+            arc_manifest.initialization_id,
+            arc_manifest.book_id,
+            arc_manifest.edition_id,
+            arc.arc_id,
+        )
         if not path.is_file():
             pending.append(arc.arc_id)
             continue
@@ -695,7 +736,7 @@ def _arc_outputs(root: Path, arc_manifest: ArcManifest) -> tuple[list[ArcExtract
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             failed.append(arc.arc_id)
             _write_json(
-                root / "arc_outputs" / arc.arc_id / "validation_error.json",
+                path.parent / "validation_error.json",
                 {"arc_id": arc.arc_id, "error": str(exc), "updated_at": utc_now()},
             )
             continue
@@ -937,7 +978,6 @@ def refresh_initialization(
         review_queue=sorted(set([*pending, *failed])),
     )
     metrics_ready = metric_audit.get("status") == "COMPLETE"
-    visuals_ready = len(list((root / "visuals").glob("*.svg"))) >= 7
     if status == "READY":
         state = InitializationState.READY
     elif status == "READY_WITH_GAPS":
@@ -954,8 +994,6 @@ def refresh_initialization(
         state = InitializationState.SYNTHESIS_RUNNING
     elif not metrics_ready:
         state = InitializationState.METRIC_BOOTSTRAP_RUNNING
-    elif not visuals_ready:
-        state = InitializationState.VISUAL_RENDERING_RUNNING
     else:
         state = InitializationState.ATLAS_VALIDATION_RUNNING
     status_payload = {

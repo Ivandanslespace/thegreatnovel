@@ -5,8 +5,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from novel_authoring.db.migrations.registry import apply_pending
 from novel_authoring.db.schema import (
-    MIGRATIONS,
     SCHEMA_SQL,
     ensure_atlas_schema,
     ensure_edition_integrity_schema,
@@ -48,16 +48,7 @@ class Database:
                     "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
                     (1, utc_now()),
                 )
-            for version, sql in MIGRATIONS:
-                applied = connection.execute(
-                    "SELECT 1 FROM schema_migrations WHERE version = ?", (version,)
-                ).fetchone()
-                if applied is None:
-                    connection.executescript(sql)
-                    connection.execute(
-                        "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
-                        (version, utc_now()),
-                    )
+            apply_pending(connection, applied_at=utc_now())
             # Phase-A integrity upgrade remains idempotent for databases created
             # before composite edition keys were enforced.
             ensure_edition_integrity_schema(connection)

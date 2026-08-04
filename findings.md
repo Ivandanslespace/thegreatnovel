@@ -4,7 +4,7 @@
 
 - 本地、CLI 优先、Windows 兼容、Python 3.11+、src layout。
 - Codex 是 V1 的 LLM 边缘执行者；运行不要求 API Key。
-- 原始 `book` 永久不可变；续写与状态只进入 `workspace`。
+- 原始 `book` 永久不可变；新书、续写与状态只进入 `library/<book_id>`，旧 `workspace` 仅作 legacy 输入。
 - 六信息状态、三续写模式、Boundary Packet、Chapter Contract 和显式批准是硬边界。
 - 六项核心指标必须逐字遵守宪法公式与默认阈值，并保留可解释证据。
 - 完整流程必须可事件重放、快照、校验和审计。
@@ -78,3 +78,10 @@
 - Operation Workspace 新 handoff 使用 `editions/<edition>/operations/<operation_id>/{manifest,status,events,input,output,artifacts,logs}`；旧 handoff 保留兼容读取并标记 `legacy_imported`。
 - Portable Snapshot 使用 JSON canonical 动态视图，章节分块写入 `data/chapters`；SVG 只保留 explicit export，`latest` 目录可直接打开且不使用 `fetch`。
 - cleanup/retention 仅对 `REGENERABLE`/`ARCHIVE` 候选生成 dry-run；apply 需要精确 confirmation，并移动到可恢复 `.archive`，不自动删除 archive/latest/source/Canon/DB。
+
+## 2026-08-04 Book Library Consolidation Final Hardening 范围
+
+- 基线为 `d69ce8af69a0a9de34c0e867cc9262080432b51c`，当前唯一分支为 `小说续写_codex`；工作树仅有既有未跟踪 `audit/`。
+- 本轮用户明确禁止新分支、PR、worktree、指标/Atlas/续写算法/Web 新功能；所有改动必须保持 `book/`、Canon、Observation、Evidence、旧 Temp 和 audit 不变。
+- Hardening 重点是让 `library add` 成为唯一新书主入口、让所有新写入经过 BookLayout/Operation Workspace、修复 source manifest 权威性、SVG 可选化、portable chunk/hash、legacy cleanup schema、existing-target 安全和 CLI/DB 最小拆分。
+- 质量门已通过：普通 wheel 重装、全量 pytest `88 passed`、Ruff 全部通过、mypy `113` 个源文件无错误；主 CLI、features/rhythm/hooks/metrics/segments/workflow help 与 `web doctor` 均正常。

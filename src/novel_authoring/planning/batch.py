@@ -20,7 +20,9 @@ from novel_authoring.config import load_settings
 from novel_authoring.db.database import Database
 from novel_authoring.edition import edition_chapters, resolve_edition_id
 from novel_authoring.metrics.registry import load_registry
-from novel_authoring.utils import json_dumps, sha256_bytes, sha256_file, stable_id, utc_now
+from novel_authoring.storage.layout import BookLayout
+from novel_authoring.storage.manifest import authority_path, manifest_hash
+from novel_authoring.utils import json_dumps, sha256_bytes, stable_id, utc_now
 from novel_authoring.validation.models import VALIDATOR_NAMES
 
 
@@ -203,6 +205,13 @@ def _workspace(database: Database, book_id: str) -> Path:
     return Path(str(row["workspace_root"]))
 
 
+def _batch_root(database: Database, book_id: str, edition_id: str, batch_id: str) -> Path:
+    root = _workspace(database, book_id)
+    if (root / "book.yaml").is_file():
+        return BookLayout(root.parent).for_book(book_id).edition(edition_id).batches / batch_id
+    return root / "editions" / edition_id / "batches" / batch_id
+
+
 def _anchor(database: Database, book_id: str, edition_id: str) -> tuple[int, str, int, str]:
     with database.connect() as connection:
         projection = projection_from_connection(connection, book_id, edition_id)
@@ -271,8 +280,8 @@ def _batch_drift_reasons(
         reasons.append(f"current edition anchor unavailable: {exc}")
 
     workspace = _workspace(database, book_id)
-    source_manifest = workspace / "source_manifest.json"
-    current_source_hash = sha256_file(source_manifest) if source_manifest.is_file() else ""
+    source_manifest = authority_path(workspace)
+    current_source_hash = manifest_hash(source_manifest) if source_manifest.is_file() else ""
     if str(row["source_manifest_sha256"] or "") != current_source_hash:
         reasons.append("source manifest hash")
 
@@ -496,9 +505,9 @@ def create_batch(
     horizon_hash = str(atlas_row.get("horizon_hash") or horizon.get("horizon_hash") or "")
     if not horizon_hash:
         raise BatchError("Rolling Horizon 缺少 horizon_hash")
-    source_manifest_path = _workspace(database, book_id) / "source_manifest.json"
+    source_manifest_path = authority_path(_workspace(database, book_id))
     source_manifest_hash = (
-        sha256_file(source_manifest_path) if source_manifest_path.is_file() else ""
+        manifest_hash(source_manifest_path) if source_manifest_path.is_file() else ""
     )
     registry_hash = load_registry().registry_hash
     config_hash = _config_hash()
@@ -548,7 +557,7 @@ def create_batch(
         directives_hash,
         metric_bundle_hash,
     )
-    root = _workspace(database, book_id) / "editions" / selected / "batches" / batch_id
+    root = _batch_root(database, book_id, selected, batch_id)
     root.mkdir(parents=True, exist_ok=False)
     (root / "batch_plan.json").write_text(
         json_dumps(plan.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8"
@@ -668,11 +677,7 @@ def get_batch_projection(database: Database, batch_id: str) -> BatchProjection:
 def get_batch_plan(database: Database, batch_id: str) -> BatchPlan:
     projection = get_batch_projection(database, batch_id)
     path = (
-        _workspace(database, projection.book_id)
-        / "editions"
-        / projection.edition_id
-        / "batches"
-        / batch_id
+        _batch_root(database, projection.book_id, projection.edition_id, batch_id)
         / "batch_plan.json"
     )
     if not path.is_file():

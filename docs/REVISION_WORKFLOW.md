@@ -25,10 +25,10 @@ base → edition create (DRAFT)
 每个 campaign 的审计文件位于：
 
 ```text
-workspace/<book_id>/editions/<edition_id>/revision_campaigns/<campaign_id>/
+library/<book_id>/editions/<edition_id>/writing/revisions/<campaign_id>/
 ```
 
-其中包含 `revision_spec.json`、`impact_packet.json`、`revision_plan.json`、`agent_tasks/`、`agent_outputs/` 和改写输出 schema。Codex 输出必须是 `task_type=REVISION_DRAFT` 的 JSON；导入后状态只能是 `REVISION_DRAFT`，不会自动成为正史。
+其中包含 `revision_spec.json`、`impact_packet.json`、`revision_plan.json`、Operation Workspace 的 `input/`、`output/` 和改写输出 schema。Codex 输出必须是 `task_type=REVISION_DRAFT` 的 JSON；导入后状态只能是 `REVISION_DRAFT`，不会自动成为正史。
 
 ## 推荐命令
 

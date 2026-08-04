@@ -24,7 +24,7 @@ class BookRecord:
     active_edition_id: str
     layout_version: str
     readiness_status: str | None = None
-    legacy_locations: tuple[str, ...] = ()
+    legacy_locations: tuple[dict[str, Any] | str, ...] = ()
 
     @classmethod
     def from_mapping(cls, paths: BookPaths, mapping: dict[str, Any]) -> BookRecord:
@@ -49,7 +49,9 @@ class BookRecord:
             readiness_status=(
                 str(mapping["readiness_status"]) if mapping.get("readiness_status") else None
             ),
-            legacy_locations=tuple(str(item) for item in legacy if isinstance(item, str)),
+            legacy_locations=tuple(
+                item for item in legacy if isinstance(item, (str, dict))
+            ),
         )
 
 

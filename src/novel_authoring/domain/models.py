@@ -74,6 +74,8 @@ class SourceManifest(BaseModel):
     files: list[SourceFileEntry]
     conflicts: list[str] = Field(default_factory=list)
     created_at: str
+    compatibility_marker: str | None = None
+    mirror_of: str | None = None
 
 
 class ChapterSlice(BaseModel):

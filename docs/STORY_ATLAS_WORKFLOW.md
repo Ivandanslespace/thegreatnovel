@@ -9,7 +9,7 @@ Codex 负责跨篇章阅读、语义综合、矛盾解释、Narrative DNA 和可
 Atlas 只写入：
 
 ```text
-workspace/<book_id>/editions/<edition_id>/story_atlas/
+library/<book_id>/editions/<edition_id>/analysis/story_atlas/
 ├─ atlas_manifest.json
 ├─ narrative_dna.md
 ├─ current_world_model.md
@@ -21,7 +21,7 @@ workspace/<book_id>/editions/<edition_id>/story_atlas/
 ├─ future/{active_spine,alternative_spines,wildcard_possibilities,
 │         open_design_spaces,rolling_horizon}.yaml
 ├─ reports/{coverage,contradiction,world_model,readiness}_report.md
-└─ visuals/              # Mermaid/SVG 派生物，不是事实源
+└─ visuals/              # 可选 Mermaid/SVG 派生物；需显式 atlas export-visuals
 ```
 
 SQLite 的 `story_atlases` 只保存版本、父版本、source/projection/effective-content/

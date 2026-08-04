@@ -188,6 +188,7 @@ def export_snapshot(
                     f"portable-{stable_id('snapshot', book_id, selected, utc_now()).split('_', 1)[-1]}"
                 )
                 shutil.move(str(root), str(archived))
+                _prune_portable_archive(archive_root, keep=3)
         else:
             base_root = book_root / "exports" / "author_workbench_snapshot"
             root = base_root
@@ -375,7 +376,7 @@ $$('[data-tab]').forEach(b=>b.onclick=()=>{{$$('.tab').forEach(x=>x.classList.ad
         "output_root": str(root),
         "index": str(root / "index.html"),
         "snapshot_id": snapshot_id,
-        "snapshot_manifest": str(root / "snapshot_manifest.json"),
+        "snapshot_manifest": None if canonical_portable else str(root / "snapshot_manifest.json"),
         "manifest": None if portable_manifest is None else str(root / "manifest.json"),
         "portable_bundle": canonical_portable,
         "chapter_count": len(chapters),
@@ -395,89 +396,125 @@ def _write_portable_bundle(
 ) -> dict[str, Any]:
     """Write the fixed latest bundle without network or ``file://`` fetches."""
 
-    # SVG is an explicit export surface, not part of the canonical snapshot.
-    visuals_root = root / "visuals"
-    if visuals_root.is_dir():
-        shutil.rmtree(visuals_root)
-    atlas_visuals_root = root / "atlas" / "visuals"
-    if atlas_visuals_root.is_dir():
-        shutil.rmtree(atlas_visuals_root)
-    for svg in root.rglob("*.svg"):
-        svg.unlink()
+    # ``root`` is the generated ``exports/latest`` directory.  It is safe to
+    # rebuild because previous latest bundles were moved to archive before
+    # this function was called.  Keeping only the fixed contract here avoids
+    # stale legacy ``atlas/``, ``metrics/`` and ``snapshot_manifest.json``
+    # files leaking into a portable bundle.
+    for child in list(root.iterdir()):
+        if child.is_dir() and not child.is_symlink():
+            shutil.rmtree(child)
+        elif child.is_file() or child.is_symlink():
+            child.unlink()
+
     data_root = root / "data"
     chapters_root = data_root / "chapters"
+    metrics_root = data_root / "metrics"
+    atlas_root_path = data_root / "atlas"
     reports_root = data_root / "reports"
-    chapters_root.mkdir(parents=True, exist_ok=True)
-    reports_root.mkdir(parents=True, exist_ok=True)
+    assets_root = root / "assets"
+    for directory in (chapters_root, metrics_root, atlas_root_path, reports_root, assets_root):
+        directory.mkdir(parents=True, exist_ok=True)
+
     book_value = payload.get("book") or {"book_id": book_id, "edition_id": edition_id}
     atlas_value = _portable(payload.get("atlas") or {})
     metrics_value = _portable(payload.get("metrics") or {})
     reports_value = payload.get("reports") or {}
     chapters = payload.get("chapters") or []
     (data_root / "book.js").write_text(
-        "window.NOVEL_BOOK=" + _json_for_script(book_value) + ";\n",
+        "window.__NOVEL_SNAPSHOT__.registerBook(" + _json_for_script(book_value) + ");\n",
         encoding="utf-8",
         newline="\n",
     )
-    (data_root / "atlas.js").write_text(
-        "window.NOVEL_ATLAS=" + _json_for_script(atlas_value) + ";\n",
+    (atlas_root_path / "atlas.js").write_text(
+        "window.__NOVEL_SNAPSHOT__.registerAtlas(" + _json_for_script(atlas_value) + ");\n",
         encoding="utf-8",
         newline="\n",
     )
-    (data_root / "metrics.js").write_text(
-        "window.NOVEL_METRICS=" + _json_for_script(metrics_value) + ";\n",
+    (metrics_root / "metrics.js").write_text(
+        "window.__NOVEL_SNAPSHOT__.registerMetrics(" + _json_for_script(metrics_value) + ");\n",
         encoding="utf-8",
         newline="\n",
     )
-    (data_root / "reports.js").write_text(
-        "window.NOVEL_REPORTS=" + _json_for_script(reports_value) + ";\n",
+    (reports_root / "reports.js").write_text(
+        "window.__NOVEL_SNAPSHOT__.registerReports(" + _json_for_script(reports_value) + ");\n",
         encoding="utf-8",
         newline="\n",
     )
+
+    max_bytes = 512 * 1024
     chunk_files: list[str] = []
-    chunk_size = 25
-    for offset in range(0, len(chapters), chunk_size):
-        chunk_name = f"part-{offset // chunk_size + 1:03d}.js"
-        chunk_files.append(f"chapters/{chunk_name}")
-        chunk = chapters[offset : offset + chunk_size]
-        (chapters_root / chunk_name).write_text(
-            "window.NOVEL_CHAPTERS.push(" + _json_for_script(chunk) + ");\n",
-            encoding="utf-8",
-            newline="\n",
+    chunk_sizes: dict[str, int] = {}
+    current: list[Any] = []
+
+    def flush_chunk() -> None:
+        if not current:
+            return
+        chunk_number = len(chunk_files) + 1
+        relative = f"chapters/chunk-{chunk_number:03d}.js"
+        body = (
+            "window.__NOVEL_SNAPSHOT__.registerChapterChunk("
+            + _json_for_script(list(current))
+            + ");\n"
         )
+        target = chapters_root / f"chunk-{chunk_number:03d}.js"
+        target.write_text(body, encoding="utf-8", newline="\n")
+        chunk_files.append(relative)
+        chunk_sizes[f"data/{relative}"] = target.stat().st_size
+        current.clear()
+
+    for chapter in chapters:
+        candidate = [*current, chapter]
+        candidate_body = (
+            "window.__NOVEL_SNAPSHOT__.registerChapterChunk("
+            + _json_for_script(candidate)
+            + ");\n"
+        )
+        if current and len(candidate_body.encode("utf-8")) > max_bytes:
+            flush_chunk()
+        current.append(chapter)
+    flush_chunk()
+
+    (assets_root / "style.css").write_text(_portable_style_css(), encoding="utf-8", newline="\n")
+    (assets_root / "app.js").write_text(
+        _portable_app_js(), encoding="utf-8", newline="\n"
+    )
     html = _portable_index_html(book_value, chunk_files)
     (root / "index.html").write_text(html, encoding="utf-8", newline="\n")
     (root / "README.txt").write_text(
         "Portable Snapshot Bundle\n"
-        "此目录可以直接打开 index.html；页面只加载同目录 script，不使用 fetch、网络或服务端。\n"
-        "data/chapters 为章节分块；Story Atlas 图谱以 JSON 数据为 canonical source，SVG 需显式 export。\n",
+        "可直接打开 index.html；所有数据和脚本均在 bundle 内，不使用 fetch、网络或服务端。\n"
+        "章节按字节阈值分块；Atlas 图谱以 JSON 为 canonical source，SVG 仅由显式 atlas export-visuals 生成。\n",
         encoding="utf-8",
         newline="\n",
     )
     files = sorted(
         path.relative_to(root).as_posix()
         for path in root.rglob("*")
-        if path.is_file() and path.name not in {"manifest.json"}
+        if path.is_file() and path.name != "manifest.json"
     )
     manifest = {
-        "schema_version": "portable-snapshot-v1",
+        "schema_version": "portable-snapshot-v2",
         "bundle_kind": "PORTABLE_SNAPSHOT_BUNDLE",
         "book_id": book_id,
         "edition_id": edition_id,
         "latest": True,
         "generated_at": utc_now(),
         "index": "index.html",
+        "assets": {"app": "assets/app.js", "style": "assets/style.css"},
         "data": {
             "book": "data/book.js",
             "chapters": [f"data/{path}" for path in chunk_files],
-            "metrics": "data/metrics.js",
-            "atlas": "data/atlas.js",
-            "reports": "data/reports.js",
+            "metrics": "data/metrics/metrics.js",
+            "atlas": "data/atlas/atlas.js",
+            "reports": "data/reports/reports.js",
         },
+        "chapter_chunk_max_bytes": max_bytes,
+        "chapter_chunk_sizes": chunk_sizes,
         "files": files,
         "file_hashes": {relative: sha256_file(root / relative) for relative in files},
         "graphs": "JSON_CANONICAL_DYNAMIC_RENDER",
-        "svg_status": "REGENERABLE_EXPORT",
+        "svg_status": "REGENERABLE_EXPLICIT_EXPORT",
     }
     (root / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
@@ -487,7 +524,19 @@ def _write_portable_bundle(
     return manifest
 
 
-def _portable_index_html(book: Any, chunk_files: list[str]) -> str:
+def _prune_portable_archive(archive_root: Path, *, keep: int) -> None:
+    """Retain the newest generated portable archives without touching legacy archives."""
+
+    generated = sorted(
+        (path for path in archive_root.glob("portable-*") if path.is_dir()),
+        key=lambda path: path.stat().st_mtime_ns,
+        reverse=True,
+    )
+    for stale in generated[max(0, keep) :]:
+        shutil.rmtree(stale)
+
+
+def _portable_index_html_legacy(book: Any, chunk_files: list[str]) -> str:
     title = str(book.get("title") or book.get("book_id") or "Novel") if isinstance(book, dict) else "Novel"
     scripts = "\n".join(
         f'<script src="data/{path}"></script>' if not path.startswith("chapters/") else f'<script src="data/{path}"></script>'
@@ -513,3 +562,39 @@ function dependencyView(){{const runs=metrics.runs||[];return '<h2>DependencyVie
 function render(name){{document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===name));app.innerHTML=name==='TimelineView'?timelineView():name==='TopologyView'?topologyView():name==='DependencyView'?dependencyView():graphView()}}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>render(b.dataset.view));render('GraphView');
 </script></body></html>'''
+
+
+def _portable_style_css() -> str:
+    return """:root{color-scheme:light;--bg:#f5f7fb;--panel:#fff;--ink:#192236;--muted:#667085;--line:#dce3ef;--accent:#2457d6}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,"Microsoft YaHei",sans-serif}header{padding:16px 24px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}main{max-width:1400px;margin:18px auto;padding:0 18px}nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}button{border:1px solid #cbd5e1;background:var(--panel);border-radius:999px;padding:7px 12px;cursor:pointer}button.active{background:#e8efff;border-color:var(--accent);color:var(--accent)}section,.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.muted{color:var(--muted)}pre{white-space:pre-wrap;font:14px/1.7 inherit}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #edf0f5;text-align:left;padding:6px}.hidden{display:none}.reader{white-space:pre-wrap;line-height:1.9}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.stat strong{display:block;font-size:21px}@media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}}"""
+
+
+def _portable_app_js() -> str:
+    return r"""(function(){
+const state=window.__NOVEL_SNAPSHOT__=window.__NOVEL_SNAPSHOT__||{chapters:[],book:{},atlas:{},metrics:{},reports:{}};
+state.registerBook=function(value){state.book=value||{}};
+state.registerChapterChunk=function(value){if(Array.isArray(value))state.chapters.push.apply(state.chapters,value)};
+state.registerMetrics=function(value){state.metrics=value||{}};
+state.registerAtlas=function(value){state.atlas=value||{}};
+state.registerReports=function(value){state.reports=value||{}};
+function esc(value){return String(value??'').replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])})}
+function graphView(){const graphs=state.atlas.graphs||{};return '<h2>GraphView</h2><div class="grid">'+Object.entries(graphs).map(function(e){const n=e[0],g=e[1]||{};return '<section><h3>'+esc(n)+'</h3><p>'+(g.nodes||[]).length+' nodes · '+(g.edges||[]).length+' edges</p><pre>'+esc(JSON.stringify(g,null,2))+'</pre></section>'}).join('')+'</div>'}
+function timelineView(){return '<h2>TimelineView</h2><table><tr><th>Ordinal</th><th>Title</th><th>Content</th></tr>'+state.chapters.map(function(c){return '<tr><td>'+esc(c.ordinal)+'</td><td>'+esc(c.title||c.heading)+'</td><td>'+esc((c.content||'').slice(0,220))+'</td></tr>'}).join('')+'</table>'}
+function topologyView(){const graphs=state.atlas.graphs||{};return '<h2>TopologyView</h2><p class="muted">图谱由 JSON 动态渲染；没有静态 SVG 依赖。</p><div class="grid">'+Object.entries(graphs).map(function(e){const n=e[0],g=e[1]||{};return '<section><b>'+esc(n)+'</b><p>节点 '+(g.nodes||[]).length+' · 边 '+(g.edges||[]).length+'</p></section>'}).join('')+'</div>'}
+function dependencyView(){const m=state.metrics||{};return '<h2>DependencyView</h2><p>Metric runs: '+(m.runs||[]).length+' · Observations: '+(m.observations||[]).length+'</p><pre>'+esc(JSON.stringify({initialization_coverage:m.initialization_coverage||{},reports:Object.keys(state.reports||{})},null,2))+'</pre>'}
+function readerView(){if(!state.chapters.length)return '<p class="muted">没有章节数据。</p>';const c=state.chapters[0];return '<h2>章节阅读</h2><p class="muted">共 '+state.chapters.length+' 章；当前显示第 '+esc(c.ordinal)+' 章</p><article class="reader"><h3>'+esc(c.heading||c.title)+'</h3>'+esc(c.content||'')+'</article>'}
+function render(view){document.querySelectorAll('nav button').forEach(function(b){b.classList.toggle('active',b.dataset.view===view)});const app=document.getElementById('app');app.innerHTML=view==='TimelineView'?timelineView():view==='TopologyView'?topologyView():view==='DependencyView'?dependencyView():view==='ReaderView'?readerView():graphView()}
+function boot(){document.getElementById('book-meta').textContent=(state.book.title||state.book.book_id||'')+' · '+(state.book.edition_id||'base')+' · '+state.chapters.length+' chapters';document.querySelectorAll('nav button').forEach(function(b){b.onclick=function(){render(b.dataset.view)}});render('ReaderView')}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
+})();
+"""
+
+
+def _portable_index_html(book: Any, chunk_files: list[str]) -> str:
+    title = str(book.get("title") or book.get("book_id") or "Novel") if isinstance(book, dict) else "Novel"
+    scripts = ["data/book.js", *[f"data/{path}" for path in chunk_files], "data/metrics/metrics.js", "data/atlas/atlas.js", "data/reports/reports.js", "assets/app.js"]
+    script_tags = "\n".join(f'<script src="{path}"></script>' for path in scripts)
+    return f"""<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · Portable Snapshot</title><link rel="stylesheet" href="assets/style.css"></head><body><header><strong>小说作者 Portable Snapshot</strong> <span id="book-meta" class="muted"></span></header><main><nav><button data-view="ReaderView">ReaderView</button><button data-view="GraphView">GraphView</button><button data-view="TimelineView">TimelineView</button><button data-view="TopologyView">TopologyView</button><button data-view="DependencyView">DependencyView</button></nav><section id="app"></section></main>
+{script_tags}
+</body></html>"""

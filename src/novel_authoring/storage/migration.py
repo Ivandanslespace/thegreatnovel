@@ -14,6 +14,11 @@ from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from novel_authoring.storage.layout import BookLayout
+from novel_authoring.storage.manifest import (
+    authority_path,
+    manifest_hash,
+    write_compatibility_mirror,
+)
 from novel_authoring.storage.models import BookPaths, EditionPaths, LayoutError
 from novel_authoring.storage.registry import BookRegistry
 from novel_authoring.utils import json_dumps, sha256_bytes, sha256_file, utc_now
@@ -137,18 +142,39 @@ def plan_legacy_cleanup(
         except (OSError, UnicodeError, ValueError) as exc:
             raise LayoutError(f"legacy_locations.json 无法读取: {locations_file}: {exc}") from exc
         values = raw.get("legacy_locations", []) if isinstance(raw, dict) else []
+        if isinstance(raw, dict) and not values:
+            # Compatibility with the original migration metadata.  The
+            # upgraded report is emitted on the next successful migration or
+            # cleanup apply, while this read remains non-mutating.
+            for key, kind in (("source_root", "source"), ("workspace_root", "workspace")):
+                if raw.get(key):
+                    values.append({"path": raw[key], "kind": kind, "retained": True})
         if not isinstance(values, list):
             raise LayoutError("legacy_locations.json 的 legacy_locations 必须是列表")
         for value in values:
-            if not isinstance(value, str) or not value.strip():
+            if isinstance(value, str):
+                location = {"path": value, "kind": "workspace", "retained": True}
+            elif isinstance(value, dict):
+                location = value
+            else:
                 continue
-            candidate = Path(value).expanduser().resolve(strict=False)
+            raw_path = str(location.get("path") or "").strip()
+            if not raw_path or not bool(location.get("retained", True)):
+                continue
+            kind = str(location.get("kind") or "workspace").casefold()
+            candidate = Path(raw_path).expanduser().resolve(strict=False)
             item: dict[str, Any] = {
                 "path": str(candidate),
+                "kind": kind,
                 "exists": candidate.exists(),
                 "status": "READY",
                 "block_reasons": [],
             }
+            if kind == "audit":
+                item["status"] = "SKIPPED"
+                item["skip_reason"] = "audit_default_retained"
+                candidates.append(item)
+                continue
             if not candidate.exists():
                 item["status"] = "MISSING"
                 item["block_reasons"].append("legacy_path_missing")
@@ -207,6 +233,8 @@ def cleanup_legacy(
     moved: list[dict[str, str]] = []
     try:
         for index, item in enumerate(report.get("candidates", []), start=1):
+            if item.get("status") != "READY":
+                continue
             source = Path(str(item["path"])).resolve(strict=False)
             if not source.exists():
                 continue
@@ -235,8 +263,30 @@ def cleanup_legacy(
         except (OSError, UnicodeError, ValueError):
             metadata = {}
         if isinstance(metadata, dict):
-            metadata["legacy_retained"] = False
+            metadata.setdefault("schema_version", "legacy-locations-v1")
+            values = metadata.get("legacy_locations", [])
+            if isinstance(values, list):
+                moved_sources = {item["source"] for item in moved}
+                upgraded: list[dict[str, Any]] = []
+                for value in values:
+                    if isinstance(value, str):
+                        value = {"path": value, "kind": "workspace", "retained": True}
+                    if not isinstance(value, dict):
+                        continue
+                    entry = dict(value)
+                    if str(entry.get("path")) in moved_sources:
+                        entry["retained"] = False
+                        entry["archived_to"] = next(
+                            item["destination"]
+                            for item in moved
+                            if item["source"] == str(entry.get("path"))
+                        )
+                    upgraded.append(entry)
+                metadata["legacy_locations"] = upgraded
             metadata["legacy_archives"] = [item["destination"] for item in moved]
+            metadata.setdefault("migration_history", []).append(
+                {"cleanup_applied_at": utc_now(), "moved": moved}
+            )
             _write_json(locations_file, metadata)
     return result
 
@@ -271,8 +321,8 @@ def plan_legacy_migration(options: MigrationOptions) -> MigrationPlan:
     )
     if not (workspace / "state.sqlite3").is_file():
         plan.warnings.append("workspace_root/state.sqlite3 不存在；将无法保留数据库投影")
-    if paths.root.exists() and not options.allow_existing:
-        plan.warnings.append("target_root 已存在；apply 默认拒绝覆盖")
+    if paths.root.exists():
+        plan.warnings.append("target_root 已存在；apply 永远拒绝覆盖，allow_existing 仅为兼容参数")
     if not source_files:
         plan.warnings.append("source_root 没有可复制文件")
     return plan
@@ -288,7 +338,7 @@ def migrate_legacy(options: MigrationOptions) -> MigrationResult:
     plan = plan_legacy_migration(options)
     if not options.apply:
         return MigrationResult(plan=plan)
-    if plan.target_exists and not options.allow_existing:
+    if plan.target_exists:
         raise LayoutError(f"目标目录已存在，拒绝覆盖: {plan.target_root}")
 
     layout = BookLayout(Path(plan.library_root))
@@ -301,9 +351,7 @@ def migrate_legacy(options: MigrationOptions) -> MigrationResult:
     result: MigrationResult | None = None
     try:
         _materialize_stage(source, workspace, stage_paths)
-        _rewrite_source_manifest_anchor(
-            stage_paths.database, stage_paths.root / "source_manifest.json"
-        )
+        _rewrite_source_manifest_anchor(stage_paths.database, stage_paths.source_manifest)
         _rewrite_database_paths(
             stage_paths.database,
             # Persist final paths, not staging paths.  The staging directory is
@@ -315,13 +363,11 @@ def migrate_legacy(options: MigrationOptions) -> MigrationResult:
         _write_metadata(stage_paths, plan, source)
         final_root = paths.root
         if final_root.exists():
-            if not options.allow_existing:
-                raise LayoutError(f"目标目录已存在，拒绝覆盖: {final_root}")
-            _remove_exact(final_root, layout.library_root)
+            raise LayoutError(f"目标目录已存在，拒绝覆盖: {final_root}")
         stage_paths.root.rename(final_root)
-        final_manifest = final_root / "source_manifest.json"
+        final_manifest = authority_path(final_root)
         _rewrite_source_manifest(final_manifest, paths.source)
-        _copy_file(final_manifest, paths.source_manifest)
+        write_compatibility_mirror(paths)
         _rewrite_source_manifest_anchor(paths.database, final_manifest)
         # The staging parent is empty after the atomic switch.
         with suppress(OSError):
@@ -344,18 +390,7 @@ def migrate_legacy(options: MigrationOptions) -> MigrationResult:
         )
         _write_json(report, result.to_dict())
         _write_migration_markdown(report_markdown, result.to_dict())
-        _write_json(
-            paths.legacy_locations,
-            {
-                "book_id": paths.book_id,
-                "migrated_at": utc_now(),
-                "source_root": str(source),
-                "workspace_root": str(workspace),
-                "target_root": str(paths.root),
-                "legacy_retained": True,
-                "path_rewrites": plan.path_rewrites,
-            },
-        )
+        _write_legacy_locations(paths, plan, source, workspace)
         return result
     except Exception:
         if stage.exists() and layout.contains(stage):
@@ -607,6 +642,10 @@ def _copy_legacy_workspace(workspace: Path, target: BookPaths) -> None:
             _archive_tree(path, edition.archive_exports / "legacy-root-exports.zip")
         elif path.name == "snapshots" and path.is_dir():
             _copy_tree_no_symlink(path, edition.writing / "snapshots")
+        elif path.name in {"agent_tasks", "agent_outputs"} and path.is_dir():
+            # These directories are imported into operation workspaces below;
+            # never recreate them under a canonical book root.
+            continue
         elif path.is_dir():
             _copy_tree_no_symlink(path, edition.writing / path.name)
         elif path.is_file():
@@ -618,6 +657,49 @@ def _copy_legacy_workspace(workspace: Path, target: BookPaths) -> None:
             else:
                 destination = target.system / "legacy" / path.name
                 _copy_file(path, destination)
+    _import_legacy_agent_tasks(workspace, edition)
+
+
+def _import_legacy_agent_tasks(workspace: Path, edition: EditionPaths) -> None:
+    """Import old agent task/output pairs into auditable operations."""
+
+    task_root = workspace / "agent_tasks"
+    output_root = workspace / "agent_outputs"
+    task_ids = {
+        path.name
+        for base in (task_root, output_root)
+        if base.is_dir()
+        for path in base.iterdir()
+        if path.is_dir()
+    }
+    for task_id in sorted(task_ids):
+        operation = edition.operation(task_id)
+        for directory in operation.all_directories():
+            directory.mkdir(parents=True, exist_ok=True)
+        old_task = task_root / task_id
+        old_output = output_root / task_id
+        if old_task.is_dir():
+            _copy_tree_no_symlink(old_task, operation.input)
+        if old_output.is_dir():
+            _copy_tree_no_symlink(old_output, operation.output)
+        _write_json(
+            operation.manifest,
+            {
+                "operation_id": task_id,
+                "operation_kind": "LEGACY_IMPORTED_TASK",
+                "legacy_imported": True,
+                "legacy_task_root": str(old_task),
+                "legacy_output_root": str(old_output),
+                "imported_at": utc_now(),
+            },
+        )
+        if not operation.status.is_file():
+            _write_json(operation.status, {"status": "IMPORTED", "legacy_imported": True})
+        if not operation.events.is_file():
+            operation.events.write_text(
+                json_dumps({"event": "LEGACY_IMPORTED", "operation_id": task_id}) + "\n",
+                encoding="utf-8",
+            )
 
 
 def _copy_legacy_editions(old_editions: Path, target: BookPaths) -> None:
@@ -737,17 +819,29 @@ def _rewrite_source_manifest(path: Path, source_root: Path) -> None:
 
 
 def _rewrite_source_manifest_anchor(database: Path, manifest: Path) -> None:
-    """Update only the compatibility hash after changing its absolute root."""
+    """Update every persisted source-manifest anchor after relocation."""
 
     if not database.is_file() or not manifest.is_file():
         return
-    digest = sha256_file(manifest)
+    digest = manifest_hash(manifest)
     connection = sqlite3.connect(database)
     try:
-        connection.execute(
-            "UPDATE workflow_handoffs SET source_manifest_sha256=?",
-            (digest,),
-        )
+        tables = [
+            str(row[0])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            )
+        ]
+        for table in tables:
+            columns = {
+                str(row[1])
+                for row in connection.execute(f'PRAGMA table_info("{_quote(table)}")')
+            }
+            if "source_manifest_sha256" in columns:
+                connection.execute(
+                    f'UPDATE "{_quote(table)}" SET source_manifest_sha256=?',
+                    (digest,),
+                )
         connection.commit()
     finally:
         connection.close()
@@ -839,12 +933,69 @@ def _write_metadata(target: BookPaths, plan: MigrationPlan, source: Path) -> Non
             "sha256": plan.source_files[0]["sha256"] if len(plan.source_files) == 1 else None,
             "byte_size": plan.source_files[0]["byte_size"] if len(plan.source_files) == 1 else None,
         },
-        "legacy_locations": [plan.source_root, plan.workspace_root],
+        "legacy_locations": [
+            _legacy_location_entry(Path(plan.source_root), "source"),
+            _legacy_location_entry(Path(plan.workspace_root), "workspace"),
+        ],
         "readiness_status": "MIGRATED",
         "migrated_at": utc_now(),
     }
     registry.write(target, values)
     registry.write_readme(target, values)
+
+
+def _legacy_location_entry(path: Path, kind: str, *, retained: bool = True) -> dict[str, Any]:
+    return {
+        "path": str(path.expanduser().resolve(strict=False)),
+        "kind": kind,
+        "retained": retained,
+        "sha256_manifest": _legacy_location_hash(path),
+        "migrated_at": utc_now(),
+    }
+
+
+def _legacy_location_hash(path: Path) -> str:
+    if not path.exists():
+        return ""
+    try:
+        inventory = _source_inventory(path)
+    except (OSError, ValueError):
+        inventory = []
+    return sha256_bytes(json_dumps(inventory).encode("utf-8"))
+
+
+def _write_legacy_locations(
+    paths: BookPaths,
+    plan: MigrationPlan,
+    source: Path,
+    workspace: Path,
+) -> None:
+    """Persist the v1 legacy-location schema and an immutable history record."""
+
+    migrated_at = utc_now()
+    entries = [
+        {**_legacy_location_entry(source, "source"), "migrated_at": migrated_at},
+        {**_legacy_location_entry(workspace, "workspace"), "migrated_at": migrated_at},
+    ]
+    history = {
+        "migrated_at": migrated_at,
+        "source_root": str(source),
+        "workspace_root": str(workspace),
+        "target_root": str(paths.root),
+        "path_rewrites": plan.path_rewrites,
+    }
+    _write_json(
+        paths.legacy_locations,
+        {
+            "schema_version": "legacy-locations-v1",
+            "book_id": paths.book_id,
+            "legacy_locations": entries,
+            "migration_history": [history],
+        },
+    )
+    # Keep the full pre-consolidation record in an append-only history file;
+    # cleanup updates only the retained flags and archive references above.
+    _write_json(paths.system / "migration_history.json", [history])
 
 
 def _latest_initialization_id(root: Path) -> str | None:

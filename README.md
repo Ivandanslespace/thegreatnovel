@@ -1,12 +1,36 @@
 # 小说作者辅助与续写系统
 
-这是一个依据 `Novel_Authoring_System_Constitution_V2.md` 构建的本地、CLI 优先、Codex 驱动小说续写系统。它把“读取长篇原文、规划下一章、生成草稿、校验、作者批准”拆成可追溯的文件合同和事件状态，而不是让模型直接改小说。
+这是一个依据 `Novel_Authoring_System_Constitution_V2.md` 构建的本地、CLI 优先、Codex 驱动小说续写系统。所有新书和新运行产物都从 Book Library 开始，集中写入 `library/<book_id>/`；旧 `workspace/<book_id>/` 仅作为 legacy 读取和迁移输入，不再是新流程的默认写入位置。系统把“读取长篇原文、规划下一章、生成草稿、校验、作者批准”拆成可追溯的文件合同和事件状态，而不是让模型直接改小说。
 
-Python 负责不可变原文、SQLite/FTS5、确定性指标、硬门、候选/合同、十项校验、批准事务、快照与重建；Codex 桌面端通过 `workspace/<book_id>/editions/<edition_id>/handoffs` 文件合同读写任务。运行时不要求 OpenAI API Key。
+Python 负责不可变原文、SQLite/FTS5、确定性指标、硬门、候选/合同、十项校验、批准事务、快照与重建；Codex 桌面端通过 `library/<book_id>/editions/<edition_id>/operations/<operation_id>` 文件合同读写任务。运行时不要求 OpenAI API Key。
 
 Metric Observatory V2 增加严格指标注册表、缺失值/来源观察、段落证据和本地 Author Workbench。Workbench 使用 Local File Handoff Protocol：用户在 Windows Codex 桌面端手动复制指令并领取任务；Web 不调用 OpenAI API、不使用 Codex CLI 或 `codex exec`，也不启动 Codex 子进程。批准正史、改写 Campaign 与 Edition 激活仍须作者显式执行。
 
 最重要的边界：`book/` 永久只读；草稿不会自动成为正史；只有精确确认“批准写入正史”才能提交。
+
+## 新书主流程：Book Library first
+
+不要先运行旧的 `novel init`/`novel ingest`。从一个文件或来源目录建立完整 canonical 书库：
+
+```powershell
+$Novel = ".\\.venv\\Scripts\\novel.exe"
+& $Novel library add `
+  --book-id my-book `
+  --title "我的小说" `
+  --source ".\\book\\我的小说.md" `
+  --initialize-mode deferred
+```
+
+`library add` 会复制只读来源、核对复制前后 SHA-256、建立 `_system/state.sqlite3` 和 FTS、切分章节/Source Spans、生成 `_system/source_manifest.json`、`book.yaml`、README 和 `base` edition，并标记 `NEEDS_INITIALIZATION`。多文件来源先返回待确认计划，确认后补充 `--confirm-order`。随后可从下列入口继续：
+
+```powershell
+& $Novel library paths --book-id my-book
+& $Novel initialize create --book-id my-book --library-root .\\library
+& $Novel web serve --book-id my-book --library-root .\\library
+& $Novel atlas export-snapshot --book-id my-book --library-root .\\library
+```
+
+Web 的“导入新书”与 `library add` 共用同一个 storage service，不会只复制文件而留下未初始化的书库。
 
 ## 能力
 
@@ -42,7 +66,9 @@ python -m venv .venv
 
 详见 `docs/WINDOWS_QUICKSTART.md`。
 
-## 从零导入小说
+## 兼容旧工作流（legacy）
+
+以下命令保留用于读取和处理旧 workspace；检测到 canonical Book Library 时应优先改用 `library add` 或显式 `--library-root`。旧 workspace 不得作为新书运行产物的默认目标。
 
 以下命令均在项目根运行：
 
@@ -93,7 +119,7 @@ $BookId = "my-book"
 & $Novel features rebuild --book-id $BookId --edition-id base
 & $Novel rhythm diagnose --book-id $BookId --edition-id base
 & $Novel hooks diagnose --book-id $BookId --edition-id base
-& $Novel diagnose --book-id $BookId --input ".\workspace\$BookId\metric_inputs.json"
+& $Novel diagnose --book-id $BookId --input ".\library\$BookId\editions\base\analysis\metrics\metric_inputs.json"
 & $Novel plan-next --book-id $BookId
 ```
 
@@ -136,7 +162,7 @@ Codex 依据 Boundary Packet、Chapter Contract 与 `schema.json` 写正文 `out
 & $Novel approve --book-id $BookId --draft-id <draft-id> --confirm "批准写入正史"
 ```
 
-成功后一次事务产生 AUTHOR_APPROVED、状态变化、CANON_CHAPTER_COMMITTED、规范化查询记录、Canon Projection、Snapshot 与 `canon_commits`。重大兑现自动生成四类余波义务。原始 `book` 仍不改变，批准正文位于 `workspace/<book_id>/canon/`。
+成功后一次事务产生 AUTHOR_APPROVED、状态变化、CANON_CHAPTER_COMMITTED、规范化查询记录、Canon Projection、Snapshot 与 `canon_commits`。重大兑现自动生成四类余波义务。原始 `book` 仍不改变，批准正文位于 `library/<book_id>/editions/<edition_id>/canon/`。
 
 ## 重建、快照与导出
 

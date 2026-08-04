@@ -33,7 +33,14 @@ def create_snapshot(
         str(projection.through_event_seq),
         state_hash,
     )
-    snapshots_dir = edition_workspace(database, book_id, selected_edition) / "snapshots"
+    workspace = edition_workspace(database, book_id, selected_edition)
+    book_root = _workspace_for_book(database, book_id)
+    if (book_root / "book.yaml").is_file():
+        from novel_authoring.storage.layout import BookLayout
+
+        snapshots_dir = BookLayout(book_root.parent).for_book(book_id).snapshots
+    else:
+        snapshots_dir = workspace / "snapshots"
     snapshots_dir.mkdir(parents=True, exist_ok=True)
     snapshot_path = snapshots_dir / f"{snapshot_id}.json"
     artifact = {

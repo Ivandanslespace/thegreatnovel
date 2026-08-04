@@ -8,7 +8,8 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from novel_authoring.db.database import Database
-from novel_authoring.utils import json_dumps, sha256_bytes, sha256_file, utc_now
+from novel_authoring.storage.manifest import authority_path, manifest_hash
+from novel_authoring.utils import json_dumps, sha256_bytes, utc_now
 
 BASE_EDITION_ID = "base"
 ACTIVATE_PHRASE = "启用改写版本"
@@ -50,9 +51,9 @@ def _source_manifest_hash(connection: sqlite3.Connection, book_id: str) -> str:
     ).fetchone()
     if row is None:
         raise EditionWorkflowError(f"未知 book_id：{book_id}")
-    manifest_path = Path(str(row["workspace_root"])) / "source_manifest.json"
+    manifest_path = authority_path(Path(str(row["workspace_root"])))
     if manifest_path.is_file():
-        return sha256_file(manifest_path)
+        return manifest_hash(manifest_path)
     rows = connection.execute(
         """
         SELECT relative_path, sha256, order_index FROM source_documents
@@ -430,6 +431,10 @@ def edition_workspace(database: Database, book_id: str, edition_id: str) -> Path
     if row is None:
         raise EditionWorkflowError(f"未知 book_id：{book_id}")
     root = Path(str(row["workspace_root"]))
+    if (root / "book.yaml").is_file():
+        from novel_authoring.storage.layout import BookLayout
+
+        return BookLayout(root.parent).for_book(book_id).edition(edition_id).root
     if edition_id == BASE_EDITION_ID:
         return root
     path = root / "editions" / edition_id

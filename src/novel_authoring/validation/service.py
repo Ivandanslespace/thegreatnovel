@@ -11,6 +11,8 @@ from novel_authoring.db.database import Database
 from novel_authoring.domain.models import DraftStatus
 from novel_authoring.edition import edition_workspace, resolve_edition_id
 from novel_authoring.planning.models import ChapterContract
+from novel_authoring.storage.layout import BookLayout
+from novel_authoring.storage.operations import book_root
 from novel_authoring.utils import json_dumps, sha256_file, stable_id, utc_now
 from novel_authoring.validation.models import VALIDATOR_NAMES, ValidationBundle
 from novel_authoring.validation.validators import VALIDATORS, ValidationContext
@@ -91,7 +93,12 @@ def validate_draft(
         created_at=created_at,
     )
     workspace = edition_workspace(database, book_id, selected_edition)
-    validation_dir = workspace / "validation"
+    root = book_root(database, book_id)
+    validation_dir = (
+        BookLayout(root.parent).for_book(book_id).edition(selected_edition).validation
+        if (root / "book.yaml").is_file()
+        else workspace / "validation"
+    )
     validation_dir.mkdir(parents=True, exist_ok=True)
     artifact_path = validation_dir / f"{draft_id}.json"
     artifact_path.write_text(

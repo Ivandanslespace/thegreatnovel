@@ -19,6 +19,8 @@ from novel_authoring.metrics.registry import load_registry
 from novel_authoring.metrics.service import MetricsAssembler
 from novel_authoring.planning.aggregates import build_planning_aggregate
 from novel_authoring.planning.batch import get_batch_plan, get_batch_projection
+from novel_authoring.storage.layout import BookLayout
+from novel_authoring.storage.manifest import authority_path, manifest_hash
 from novel_authoring.utils import json_dumps, sha256_bytes, sha256_file, stable_id, utc_now
 
 
@@ -195,8 +197,8 @@ def _book_workspace(database: Database, book_id: str) -> Path:
 
 def _manifest_hash(database: Database, book_id: str) -> str:
     root = _book_workspace(database, book_id)
-    path = root / "source_manifest.json"
-    return sha256_file(path) if path.is_file() else ""
+    path = authority_path(root)
+    return manifest_hash(path) if path.is_file() else ""
 
 
 _OPERATION_INPUT_FILES = {
@@ -404,6 +406,13 @@ def create_handoff(
         ):
             raise HandoffWorkflowError("Batch handoff 的 Atlas 必须与 Batch 冻结锚点一致")
         batch_plan_path = (
+            BookLayout(workspace_root.parent)
+            .for_book(book_id)
+            .edition(selected)
+            .batches
+            / batch_id
+            / "batch_plan.json"
+        ) if (workspace_root / "book.yaml").is_file() else (
             workspace_root
             / "editions"
             / selected
@@ -431,7 +440,8 @@ def create_handoff(
     )
     canonical_layout = (workspace_root / "book.yaml").is_file()
     if canonical_layout:
-        task_directory = workspace_root / "editions" / selected / "operations" / handoff_id
+        edition_paths = BookLayout(workspace_root.parent).for_book(book_id).edition(selected)
+        task_directory = edition_paths.operation(handoff_id).root
         input_directory = task_directory / "input"
         output_directory = task_directory / "output"
         artifacts = task_directory / "artifacts"
@@ -452,6 +462,11 @@ def create_handoff(
         artifacts.mkdir(parents=True, exist_ok=False)
     artifacts = task_directory / "artifacts"
     atlas_output_directory = artifacts / "story_atlas"
+    initialization_contract_root = (
+        edition_paths.initialization
+        if canonical_layout
+        else workspace_root / "editions" / selected / "initialization"
+    )
     task = {
         "handoff_id": handoff_id,
         "task_type": handoff_type.value,
@@ -508,25 +523,18 @@ def create_handoff(
         task.update(
             {
                 "initialization_contract": {
-                    "root": str(
-                        workspace_root
-                        / "editions"
-                        / selected
-                        / ("analysis" if canonical_layout else "")
-                        / "initialization"
-                    ),
+                    "root": str(initialization_contract_root),
                     "required_files": [
                         "initialization_manifest.json",
                         "source_coverage.json",
                         "arc_manifest.json",
                         "status.json",
                         "events.jsonl",
-                        "arc_tasks/",
-                        "arc_outputs/",
+                        "operations/<initialization_id>-arc-*/input/",
+                        "operations/<initialization_id>-arc-*/output/",
                         "entity_resolution/",
                         "synthesis/",
                         "metrics/",
-                        "visuals/",
                         "reports/",
                     ],
                     "pipeline": [
@@ -540,7 +548,7 @@ def create_handoff(
                         "Current Story Atlas",
                         "Future Possibility Space",
                         "Semantic Metric Bootstrap",
-                        "Visual Asset Rendering",
+                        "Optional Visual Asset Export (explicit atlas export-visuals)",
                     ],
                 },
                 "planning_aggregate_required": False,

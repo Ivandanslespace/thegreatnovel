@@ -173,3 +173,16 @@
 - 已完成真实 `cable-survival-demo` 迁移和 Portable Snapshot；迁移对账为 294 chapters、295 source spans、294 chapter features、11,760 observations、11,760 evidence links、326 historical runs、2,608 run results、0 Canon Commit。
 - 迁移验证：SQLite integrity `ok`、foreign key violations `0`、projection rebuild 可读、Web doctor 依赖通过、旧 Temp 路径在 DB path columns 中残留 `0`。
 - 已补充 storage layout/registry/migration/cleanup/retention、canonical handoff/Web library/portable export 和相应测试；当前待办是普通 wheel 重装后的全量质量门、最终 diff、仅当前分支 push 及完成邮件。
+
+## Session: 2026-08-04 Book Library Consolidation Final Hardening
+
+### Phase 0: 基线与缺口审计
+
+- **Status:** in_progress
+- 已读取 Final Hardening 合同、planning/karpathy/GitHub 发布技能；因用户明确禁止 PR，不执行发布技能的 PR 步骤。
+- 已确认基线 `d69ce8af69a0a9de34c0e867cc9262080432b51c`、分支 `小说续写_codex`、远端 `happyivanencoding/thegreatnovel`。
+- 四个子代理均完成只读审计；主线程已完成 library add/Web 共用 service、canonical Operation Workspace、manifest 镜像、portable bundle、legacy cleanup、CLI facade、独立迁移模块和 SVG 可选化。
+- 真实演示书维护验收：源文件 SHA `95810246d1296163fc02320446060e78addd9fa5cba56bbdd1292634a099ee6e`；294 chapters、295 source spans、11,760 observations、11,760 evidence links、294 chapter features、0 Canon Commit；权威 manifest/mirror 一致。
+- Portable latest 已固定为 `index.html`、`manifest.json`、`README.txt`、`assets/`、`data/book.js`、分块 chapters、metrics/atlas/reports；无 `fetch`、无 SVG，manifest file hashes 可复核。
+- 定向 hardening 9/9、全量 pytest `88 passed`；Ruff 与 mypy 通过。普通 wheel 已用项目指定 Python 重装；CLI help 与 `novel web doctor` 通过。
+- **Status:** ready_for_final_git_and_email

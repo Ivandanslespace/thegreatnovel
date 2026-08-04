@@ -19,6 +19,8 @@ from novel_authoring.planning.models import (
     ContinuationBoundaryPacket,
     EarlierSummary,
 )
+from novel_authoring.storage.layout import BookLayout
+from novel_authoring.storage.operations import book_root
 from novel_authoring.utils import json_dumps, sha256_bytes, stable_id, utc_now
 
 
@@ -450,7 +452,12 @@ def build_boundary_packet(
     )
     packet_json = json_dumps(packet.model_dump(mode="json"), indent=2)
     packet_hash = sha256_bytes(packet_json.encode())
-    boundaries = workspace / "boundaries"
+    root = book_root(database, book_id)
+    boundaries = (
+        BookLayout(root.parent).for_book(book_id).edition(selected_edition).boundaries
+        if (root / "book.yaml").is_file()
+        else workspace / "boundaries"
+    )
     boundaries.mkdir(parents=True, exist_ok=True)
     json_path = boundaries / f"{packet_id}.json"
     markdown_path = boundaries / f"{packet_id}.md"

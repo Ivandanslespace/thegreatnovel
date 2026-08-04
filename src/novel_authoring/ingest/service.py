@@ -8,6 +8,8 @@ from novel_authoring.db.database import Database
 from novel_authoring.domain.models import SourceFileEntry, SourceManifest
 from novel_authoring.ingest.chapters import split_chapters
 from novel_authoring.ingest.encoding import decode_source
+from novel_authoring.storage.manifest import authority_path, verify_mirror
+from novel_authoring.storage.models import BookPaths
 from novel_authoring.utils import json_dumps, sha256_bytes, sha256_file, stable_id, utc_now
 
 
@@ -73,10 +75,19 @@ def scan_sources(book_id: str, source_root: Path, settings: Settings) -> SourceM
     )
 
 
-def write_manifest(manifest: SourceManifest, workspace_book: Path) -> Path:
+def write_manifest(
+    manifest: SourceManifest,
+    workspace_book: Path,
+    *,
+    manifest_path: Path | None = None,
+) -> Path:
     workspace_book.mkdir(parents=True, exist_ok=True)
-    path = workspace_book / "source_manifest.json"
-    path.write_text(json_dumps(manifest.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8")
+    path = manifest_path or workspace_book / "source_manifest.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json_dumps(manifest.model_dump(mode="json", exclude_none=True), indent=2) + "\n",
+        encoding="utf-8",
+    )
     return path
 
 
@@ -99,8 +110,13 @@ def ingest_book(
     settings: Settings,
     confirm_order: bool = False,
     manifest_path: Path | None = None,
+    canonical_paths: BookPaths | None = None,
 ) -> IngestResult:
-    workspace_book = workspace_root.resolve() / book_id
+    workspace_book = (
+        canonical_paths.root.resolve()
+        if canonical_paths is not None
+        else workspace_root.resolve() / book_id
+    )
     scanned = scan_sources(book_id, source_root, settings)
     effective = scanned
     if manifest_path is not None:
@@ -110,7 +126,11 @@ def ingest_book(
         effective = supplied
     if confirm_order:
         effective = effective.model_copy(update={"confirmed": True, "status": "ready"})
-    persisted_manifest = write_manifest(effective, workspace_book)
+    persisted_manifest = write_manifest(
+        effective,
+        workspace_book,
+        manifest_path=canonical_paths.source_manifest if canonical_paths is not None else None,
+    )
     if not effective.files:
         raise SourceAmbiguityError(f"没有可导入源文件；manifest: {persisted_manifest}")
     if not effective.confirmed:
@@ -118,21 +138,31 @@ def ingest_book(
             f"多文件顺序尚未确认；请编辑 manifest 或使用 --confirm-order：{persisted_manifest}"
         )
 
-    for directory in (
-        "agent_tasks",
-        "agent_outputs",
-        "boundaries",
-        "candidates",
-        "contracts",
-        "drafts",
-        "validation",
-        "canon",
-        "snapshots",
-        "exports",
-    ):
-        (workspace_book / directory).mkdir(parents=True, exist_ok=True)
+    if canonical_paths is None:
+        for directory_name in (
+            "agent_tasks",
+            "agent_outputs",
+            "boundaries",
+            "candidates",
+            "contracts",
+            "drafts",
+            "validation",
+            "canon",
+            "snapshots",
+            "exports",
+        ):
+            (workspace_book / directory_name).mkdir(parents=True, exist_ok=True)
+    else:
+        for canonical_directory in canonical_paths.all_directories():
+            canonical_directory.mkdir(parents=True, exist_ok=True)
+        for edition_directory in canonical_paths.edition("base").all_directories():
+            edition_directory.mkdir(parents=True, exist_ok=True)
 
-    database = Database(workspace_book / "state.sqlite3")
+    database = Database(
+        canonical_paths.database
+        if canonical_paths is not None
+        else workspace_book / "state.sqlite3"
+    )
     database.initialize()
     now = utc_now()
     result = IngestResult(book_id=book_id, manifest_path=persisted_manifest)
@@ -295,14 +325,53 @@ def ingest_book(
 
 
 def verify_sources(book_id: str, workspace_root: Path) -> dict[str, object]:
-    workspace_book = workspace_root.resolve() / book_id
-    manifest_path = workspace_book / "source_manifest.json"
+    candidate_root = workspace_root.resolve()
+    workspace_book = (
+        candidate_root
+        if (candidate_root / "book.yaml").is_file()
+        else candidate_root / book_id
+    )
+    manifest_path = authority_path(workspace_book)
     manifest = load_manifest(manifest_path)
     source_root = Path(manifest.source_root)
+    if (workspace_book / "book.yaml").is_file():
+        if manifest.book_id != book_id:
+            return {
+                "book_id": book_id,
+                "ok": False,
+                "error": "source manifest book_id 不匹配",
+                "files": [],
+                "manifest": verify_mirror(workspace_book),
+            }
+        try:
+            source_root.resolve().relative_to((workspace_book / "source").resolve())
+        except ValueError:
+            return {
+                "book_id": book_id,
+                "ok": False,
+                "error": "canonical source_root 越出 BookLayout source/",
+                "files": [],
+                "manifest": verify_mirror(workspace_book),
+            }
     results: list[dict[str, object]] = []
     ok = True
+    declared = {item.relative_path for item in manifest.files}
     for entry in sorted(manifest.files, key=lambda item: item.order_index):
-        path = source_root / Path(entry.relative_path)
+        relative = Path(entry.relative_path)
+        if relative.is_absolute() or ".." in relative.parts:
+            ok = False
+            results.append(
+                {
+                    "relative_path": entry.relative_path,
+                    "expected_sha256": entry.sha256,
+                    "actual_sha256": None,
+                    "exists": False,
+                    "match": False,
+                    "error": "relative_path 越界",
+                }
+            )
+            continue
+        path = source_root / relative
         exists = path.is_file()
         actual = sha256_file(path) if exists else None
         match = exists and actual == entry.sha256
@@ -316,4 +385,22 @@ def verify_sources(book_id: str, workspace_root: Path) -> dict[str, object]:
                 "match": match,
             }
         )
-    return {"book_id": book_id, "ok": ok, "files": results}
+    extras: list[str] = []
+    if source_root.is_dir():
+        extras = sorted(
+            path.relative_to(source_root).as_posix()
+            for path in source_root.rglob("*")
+            if path.is_file() and path.relative_to(source_root).as_posix() not in declared
+        )
+        if extras:
+            ok = False
+    mirror = verify_mirror(workspace_book) if (workspace_book / "book.yaml").is_file() else None
+    if mirror is not None and not mirror.get("match", False):
+        ok = False
+    return {
+        "book_id": book_id,
+        "ok": ok,
+        "files": results,
+        "extra_files": extras,
+        "manifest": mirror,
+    }

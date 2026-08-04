@@ -15,6 +15,7 @@ from novel_authoring.metrics.gates import evaluate_hard_gates
 from novel_authoring.planning.aggregates import build_planning_aggregate
 from novel_authoring.planning.boundary import PlanningError, _workspace, build_boundary_packet
 from novel_authoring.planning.models import CandidateOutput, CandidateProposal, ThreadPriority
+from novel_authoring.storage.operations import ensure_operation, find_operation
 from novel_authoring.utils import json_dumps, sha256_bytes, stable_id, utc_now
 
 STRUCTURE_FIELDS = (
@@ -206,8 +207,24 @@ def prepare_candidate_task(
     )
     task_id = stable_id("plan", seed, sha256_bytes(schema_json.encode()))
     workspace = edition_workspace(database, book_id, selected_edition)
-    task_dir = workspace / "agent_tasks" / task_id
-    output_dir = workspace / "agent_outputs" / task_id
+    operation = ensure_operation(
+        database,
+        book_id,
+        selected_edition,
+        task_id,
+        "PLAN_NEXT",
+        {"boundary_packet_id": boundary["packet_id"]},
+    )
+    task_dir = (
+        operation.input
+        if operation is not None
+        else workspace / "agent_tasks" / task_id
+    )
+    output_dir = (
+        operation.output
+        if operation is not None
+        else workspace / "agent_outputs" / task_id
+    )
     task_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
     input_text = "\n".join(
@@ -301,7 +318,12 @@ def import_candidate_output(
 ) -> dict[str, object]:
     database.initialize()
     workspace = _workspace(database, book_id)
-    task_path = workspace / "agent_tasks" / task_id / "task.json"
+    operation = find_operation(database, book_id, edition_id or "base", task_id)
+    task_path = (
+        operation.input / "task.json"
+        if operation is not None
+        else workspace / "agent_tasks" / task_id / "task.json"
+    )
     if not task_path.exists() and edition_id is None:
         candidates = list((workspace / "editions").glob(f"*/agent_tasks/{task_id}/task.json"))
         if candidates:
@@ -312,9 +334,18 @@ def import_candidate_output(
     metadata = json.loads(task_path.read_text(encoding="utf-8"))
     selected_edition = str(edition_id or metadata.get("edition_id", "base"))
     workspace = edition_workspace(database, book_id, selected_edition)
-    task_path = workspace / "agent_tasks" / task_id / "task.json"
+    operation = find_operation(database, book_id, selected_edition, task_id)
+    task_path = (
+        operation.input / "task.json"
+        if operation is not None
+        else workspace / "agent_tasks" / task_id / "task.json"
+    )
     metadata = json.loads(task_path.read_text(encoding="utf-8"))
-    path = output_path or workspace / "agent_outputs" / task_id / "output.json"
+    path = output_path or (
+        operation.output / "output.json"
+        if operation is not None
+        else workspace / "agent_outputs" / task_id / "output.json"
+    )
     try:
         output = CandidateOutput.model_validate_json(path.read_text(encoding="utf-8"))
     except (OSError, ValidationError) as exc:

@@ -2,13 +2,13 @@
 
 本仓库唯一永久开发分支是 `小说续写_codex`。所有生产代码、测试、文档和本地 Web 交付均直接在该分支完成；不得创建新分支、Pull Request 或额外 worktree。允许创建保护性 tag，但不得把功能分散到其他长期分支。每次交付前必须确认当前分支、工作树和远端 `origin/小说续写_codex` 一致，并只推送该分支。
 
-主 Agent 负责拆解、调度、整合、验收和最终提交；子代理只能执行自包含的只读审计，或在明确隔离的 workspace/artifact 目录内工作，不得修改生产代码、`book/`、Canon、远端分支或启动 Codex 子进程/API。
+主 Agent 负责拆解、调度、整合、验收和最终提交；子代理只能执行自包含的只读审计，或在明确隔离的 Operation Workspace/artifact 目录内工作，不得修改生产代码、`book/`、Canon、远端分支或启动 Codex 子进程/API。不得创建额外 worktree；生产代码由主 Agent 在当前分支串行修改。
 
 ## Existing Novel Initialization Is Atlas-First
 
 对已有长篇的正式初始化不是一次普通 ingest，也不是直接进入续写。初始化必须按下列可审计流水线执行：
 
-`Source Coverage -> Arc Segmentation -> Arc Extraction -> Entity Resolution -> Cross-Arc Synthesis -> Contradiction Audit -> Narrative DNA -> Current Story Atlas -> Future Possibility Space -> Semantic Metric Bootstrap -> Visual Asset Rendering`
+`Source Coverage -> Arc Segmentation -> Arc Extraction -> Entity Resolution -> Cross-Arc Synthesis -> Contradiction Audit -> Narrative DNA -> Current Story Atlas -> Future Possibility Space -> Semantic Metric Bootstrap -> Optional Visual Asset Export`
 
 `ingest` 只负责建立不可变源、章节和 source spans；它不等于初始化完成。正式续写的最低状态是 `WORLD_MODEL_READY_WITH_GAPS`，50/100 章 Batch 的最低状态是 `WORLD_MODEL_READY`。未来路线允许存在空白；但当前主角状态、当前核心规则、当前能力边界、当前主要线程和续写边界缺失时必须阻断。
 
@@ -32,7 +32,7 @@
 ## 项目硬边界
 
 1. 最高产品规范是 `Novel_Authoring_System_Constitution_V2.md`；根 `CONSTITUTION.md` 不属于本系统。
-2. `book/` 原文永久只读。所有索引、任务、草稿、续章、报告与导出写入 `workspace/<book_id>/`。
+2. `book/` 原文永久只读。所有新书、索引、任务、草稿、续章、报告与导出必须写入 `library/<book_id>/`，并通过 `BookLayout` 解析路径。旧 `workspace/<book_id>/` 只允许 legacy 读取、`migrate-legacy` 输入和 `cleanup-legacy` 前的保留历史；不得作为新运行产物写入目标。
 3. Codex 不得脱离 Continuation Boundary Packet 和 Chapter Contract 自由续写；详细流程见 `.agents/skills/continue-novel/SKILL.md`。
 4. 草稿默认停在 `VALIDATED`。未经作者当前明确说“批准写入正史”，不得运行 `novel approve` 或产生 Canon Commit。
 5. 不得把 `INFERENCE`、`CANDIDATE`、`PROSE_ONLY` 静默升级为 `CANON`；所有正史变化必须可回指原文或作者批准事件。

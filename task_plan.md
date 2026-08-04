@@ -1,5 +1,26 @@
 # Task Plan: 小说作者辅助与续写系统 V1
 
+## Final Hardening 当前任务
+
+基线：`d69ce8af69a0a9de34c0e867cc9262080432b51c`；唯一分支：`小说续写_codex`。
+本轮只修复 Book Library 的路径、导入、导出、Operation Workspace、SVG 可选化、清理与
+代码结构矛盾；不增加指标、Atlas、续写算法或 Web 新产品功能，不修改 `book/`、Canon、
+Observation、Evidence 或旧 Temp/audit 用户数据。
+
+### Hardening 验收清单
+
+- [x] AGENTS/README 统一为 library-first；明确禁止新分支/worktree
+- [x] `novel library add` 完整一步式导入；`import` 为 deprecated alias；Web 共用 service
+- [x] 所有新写入入口经 BookLayout；旧 workspace/agent_tasks/agent_outputs 仅兼容读取
+- [x] extraction/metrics/features/initialization/atlas/continuation/revision/batch 统一 Operation Workspace
+- [x] SVG 不再是 Atlas required artifact；显式静态图导出仍可用
+- [x] Portable Snapshot 使用 script 注册、分块数据、无 fetch、manifest hashes
+- [x] legacy_locations 新 Schema、兼容升级、cleanup 安全测试
+- [x] existing target 永不 rmtree；默认拒绝或显式 merge/归档确认
+- [x] `_system/source_manifest.json` 成为唯一权威，根镜像带兼容标记且 hash 一致
+- [x] CLI 拆分 facade；DB migration 每个 SQL 独立模块
+- [ ] Hardening 测试、真实书验收、质量门、直接 push 和完成邮件
+
 ## Goal
 
 严格依据 `Novel_Authoring_System_Constitution_V2.md`，交付可安装、可测试、可追溯且不修改 `book` 原文的 Codex 驱动本地续写系统 V1。

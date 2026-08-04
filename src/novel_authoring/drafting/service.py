@@ -11,6 +11,8 @@ from novel_authoring.domain.models import DraftStatus
 from novel_authoring.edition import edition_workspace, resolve_edition_id
 from novel_authoring.planning.boundary import _workspace
 from novel_authoring.planning.models import ChapterContract
+from novel_authoring.storage.layout import BookLayout
+from novel_authoring.storage.operations import book_root, ensure_operation, find_operation
 from novel_authoring.utils import json_dumps, sha256_bytes, stable_id, utc_now
 
 
@@ -52,13 +54,35 @@ def prepare_draft_task(
         raise DraftWorkflowError("同一章节合同最多允许初稿加两轮修订")
     contract = ChapterContract.model_validate_json(str(row["contract_json"]))
     workspace = edition_workspace(database, book_id, selected_edition)
-    boundary_path = workspace / "boundaries" / f"{contract.boundary_packet_id}.md"
+    root = book_root(database, book_id)
+    boundary_dir = (
+        BookLayout(root.parent).for_book(book_id).edition(selected_edition).boundaries
+        if (root / "book.yaml").is_file()
+        else workspace / "boundaries"
+    )
+    boundary_path = boundary_dir / f"{contract.boundary_packet_id}.md"
     if not boundary_path.exists():
         raise DraftWorkflowError("Boundary Packet 不存在，禁止准备正文任务")
     schema_json = json_dumps(DraftOutput.model_json_schema(), indent=2)
     task_id = stable_id("draft-task", contract_id, str(revision), str(row["contract_sha256"]))
-    task_dir = workspace / "agent_tasks" / task_id
-    output_dir = workspace / "agent_outputs" / task_id
+    operation = ensure_operation(
+        database,
+        book_id,
+        selected_edition,
+        task_id,
+        "DRAFT",
+        {"contract_id": contract_id, "revision": revision},
+    )
+    task_dir = (
+        operation.input
+        if operation is not None
+        else workspace / "agent_tasks" / task_id
+    )
+    output_dir = (
+        operation.output
+        if operation is not None
+        else workspace / "agent_outputs" / task_id
+    )
     task_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
     input_text = "\n".join(
@@ -120,7 +144,12 @@ def import_draft_output(
     workspace = _workspace(database, book_id)
     if edition_id is not None:
         workspace = edition_workspace(database, book_id, edition_id)
-    task_path = workspace / "agent_tasks" / task_id / "task.json"
+    operation = find_operation(database, book_id, edition_id or "base", task_id)
+    task_path = (
+        operation.input / "task.json"
+        if operation is not None
+        else workspace / "agent_tasks" / task_id / "task.json"
+    )
     if not task_path.exists() and edition_id is None:
         candidates = list((workspace / "editions").glob(f"*/agent_tasks/{task_id}/task.json"))
         if candidates:
@@ -131,9 +160,18 @@ def import_draft_output(
     metadata = json.loads(task_path.read_text(encoding="utf-8"))
     selected_edition = str(metadata.get("edition_id", "base"))
     workspace = edition_workspace(database, book_id, selected_edition)
-    task_path = workspace / "agent_tasks" / task_id / "task.json"
+    operation = find_operation(database, book_id, selected_edition, task_id)
+    task_path = (
+        operation.input / "task.json"
+        if operation is not None
+        else workspace / "agent_tasks" / task_id / "task.json"
+    )
     metadata = json.loads(task_path.read_text(encoding="utf-8"))
-    path = output_path or workspace / "agent_outputs" / task_id / "output.json"
+    path = output_path or (
+        operation.output / "output.json"
+        if operation is not None
+        else workspace / "agent_outputs" / task_id / "output.json"
+    )
     try:
         output = DraftOutput.model_validate_json(path.read_text(encoding="utf-8"))
     except (OSError, ValidationError) as exc:

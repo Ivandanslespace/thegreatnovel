@@ -25,6 +25,7 @@ from novel_authoring.edition import edition_chapters, resolve_edition_id
 from novel_authoring.initialization.service import (
     InitializationError,
     SourceCoverage,
+    arc_output_path,
     initialization_root,
 )
 from novel_authoring.metrics.models import (
@@ -43,6 +44,7 @@ from novel_authoring.metrics.service import (
     ObservationInput,
 )
 from novel_authoring.rhythm.service import rebuild_features
+from novel_authoring.storage.manifest import authority_path, manifest_hash
 from novel_authoring.utils import json_dumps, sha256_file, utc_now
 
 CHAPTER_METRIC_IDS = (
@@ -178,8 +180,10 @@ def _check_anchor(
 ) -> dict[str, Any]:
     init_manifest = _init_payload(root)
     current_effective = _effective_hash(chapters)
-    source_manifest = Path(str(database.scalar("SELECT workspace_root FROM books WHERE book_id=?", (book_id,)))) / "source_manifest.json"
-    current_source = sha256_file(source_manifest) if source_manifest.is_file() else ""
+    source_manifest = authority_path(
+        Path(str(database.scalar("SELECT workspace_root FROM books WHERE book_id=?", (book_id,))))
+    )
+    current_source = manifest_hash(source_manifest) if source_manifest.is_file() else ""
     if str(init_manifest.get("source_manifest_sha256", "")) != current_source:
         raise InitializationError("Source manifest hash 已变化，拒绝生成/导入 Metric Bootstrap")
     if str(init_manifest.get("effective_content_sha256", "")) != current_effective:
@@ -488,7 +492,13 @@ def _records_for_prepare(
             arc_by_chapter[str(chapter_id)] = str(arc["arc_id"])
     output_by_arc: dict[str, dict[str, Any]] = {}
     for output_arc_id in set(arc_by_chapter.values()):
-        path = root / "arc_outputs" / output_arc_id / "output.json"
+        path = arc_output_path(
+            root,
+            str(arc_manifest.get("initialization_id", "")),
+            book_id,
+            edition_id,
+            output_arc_id,
+        )
         if path.is_file():
             try:
                 output_by_arc[output_arc_id] = json.loads(path.read_text(encoding="utf-8"))
@@ -1047,7 +1057,13 @@ def metric_bootstrap_status(
         arc_items = arc_payload.get("arcs", []) if isinstance(arc_payload, dict) else []
         for arc in arc_items:
             arc_id = str(arc.get("arc_id", ""))
-            output_path = root / "arc_outputs" / arc_id / "output.json"
+            output_path = arc_output_path(
+                root,
+                str(arc_payload.get("initialization_id", "")),
+                book_id,
+                selected,
+                arc_id,
+            )
             if not output_path.is_file():
                 continue
             arc_output_count += 1

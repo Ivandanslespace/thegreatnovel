@@ -24,6 +24,7 @@ from novel_authoring.canon.projection import projection_from_connection
 from novel_authoring.db.database import Database
 from novel_authoring.edition import edition_chapters, resolve_edition_id
 from novel_authoring.storage.layout import BookLayout
+from novel_authoring.storage.manifest import authority_path, manifest_hash
 from novel_authoring.utils import json_dumps, sha256_bytes, sha256_file, stable_id, utc_now
 
 GRAPH_FILE_TYPES = {
@@ -48,13 +49,6 @@ REQUIRED_ARTIFACTS = (
     "graphs/regions.json",
     "graphs/plot_threads.json",
     "graphs/stage_transitions.json",
-    "visuals/character_graph.svg",
-    "visuals/faction_graph.svg",
-    "visuals/ability_graph.svg",
-    "visuals/resource_chain.svg",
-    "visuals/region_topology.svg",
-    "visuals/plot_thread_graph.svg",
-    "visuals/stage_ladder.svg",
     "future/active_spine.yaml",
     "future/alternative_spines.yaml",
     "future/wildcard_possibilities.yaml",
@@ -85,8 +79,8 @@ def _book_workspace(database: Database, book_id: str) -> Path:
 
 def _source_manifest_hash(database: Database, book_id: str) -> str:
     root = _book_workspace(database, book_id)
-    path = root / "source_manifest.json"
-    return sha256_file(path) if path.is_file() else ""
+    path = authority_path(root)
+    return manifest_hash(path) if path.is_file() else ""
 
 
 def atlas_root(database: Database, book_id: str, edition_id: str | None = None) -> Path:
