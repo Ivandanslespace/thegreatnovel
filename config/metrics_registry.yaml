@@ -1,0 +1,173 @@
+registry_version: 1
+metrics:
+  pressure:
+    metric_id: pressure
+    display_name: Pressure
+    description: 当前章节或窗口的结构压力诊断
+    scope: CHAPTER
+    formula_id: constitution-v2-pressure
+    result_range: [0, 100]
+    required_components: [threat, scarcity, deadline, uncertainty, social_conflict, failure_accumulation]
+    optional_components: []
+    components:
+      threat: {display_name: 即时威胁, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      scarcity: {display_name: 资源稀缺, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      deadline: {display_name: 截止压力, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      uncertainty: {display_name: 结果不确定性, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      social_conflict: {display_name: 社会冲突, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      failure_accumulation: {display_name: 失败累积, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+  narrative_debt:
+    metric_id: narrative_debt
+    display_name: Narrative Debt
+    description: 承诺年龄、重要性和推进不足形成的叙事债务
+    scope: PROMISE
+    formula_id: constitution-v2-narrative-debt
+    result_range: [0, 150]
+    required_components: [importance, reader_visibility, promise_progress, age, dormancy, reminder_count, readiness, dependency_state]
+    optional_components: []
+    components:
+      importance: {display_name: 重要性, value_type: number, minimum: 0, maximum: 1, allowed_source_kinds: [DETERMINISTIC, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      reader_visibility: {display_name: 读者可见度, value_type: number, minimum: 0, maximum: 1, allowed_source_kinds: [DETERMINISTIC, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      promise_progress: {display_name: 承诺进展, value_type: number, minimum: 0, maximum: 1, allowed_source_kinds: [DETERMINISTIC, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      age: {display_name: 等待章节数, value_type: number, minimum: 0, maximum: 10000, allowed_source_kinds: [DETERMINISTIC], evidence_required: false}
+      dormancy: {display_name: 休眠时长, value_type: number, minimum: 0, maximum: 10000, allowed_source_kinds: [DETERMINISTIC], evidence_required: false}
+      reminder_count: {display_name: 提醒次数, value_type: number, minimum: 0, maximum: 10000, allowed_source_kinds: [DETERMINISTIC], evidence_required: false}
+      readiness: {display_name: 兑现准备度, value_type: number, minimum: 0, maximum: 1, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      dependency_state: {display_name: 依赖状态, value_type: text, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+  progress:
+    metric_id: progress
+    display_name: Progress
+    description: 不可逆状态变化与目标推进
+    scope: CHAPTER
+    formula_id: constitution-v2-progress
+    result_range: [0, 100]
+    required_components: [permanent_growth, world_state_change, relationship_change, knowledge_change, goal_advance, strategy_expansion]
+    optional_components: []
+    components:
+      permanent_growth: {display_name: 永久成长, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      world_state_change: {display_name: 世界状态变化, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      relationship_change: {display_name: 关系变化, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      knowledge_change: {display_name: 知识变化, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      goal_advance: {display_name: 目标推进, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      strategy_expansion: {display_name: 策略扩展, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+  payoff:
+    metric_id: payoff
+    display_name: Payoff
+    description: 兑现成熟度、因果、余波和未来损伤
+    scope: CHAPTER
+    formula_id: constitution-v2-payoff
+    result_range: [0, 100]
+    required_components: [maturity, impact, novelty, causality, after_value, structural_fit, repetition_fatigue, future_damage]
+    optional_components: []
+    components:
+      maturity: {display_name: 成熟度, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      impact: {display_name: 影响, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      novelty: {display_name: 新鲜度, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      causality: {display_name: 因果性, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      after_value: {display_name: 兑现后价值, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      structural_fit: {display_name: 结构适配, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      repetition_fatigue: {display_name: 重复疲劳, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      future_damage: {display_name: 未来损伤, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+  repetition_fatigue:
+    metric_id: repetition_fatigue
+    display_name: Repetition Fatigue
+    description: 结构相似度与时间衰减诊断
+    scope: WINDOW
+    formula_id: constitution-v2-repetition
+    result_range: [0, 100]
+    required_components: [history]
+    optional_components: []
+    components:
+      history: {display_name: 结构历史, value_type: object, allowed_source_kinds: [DETERMINISTIC], evidence_required: false}
+  risk_credibility:
+    metric_id: risk_credibility
+    display_name: Risk Credibility
+    description: 风险是否产生真实代价与限制
+    scope: CHAPTER
+    formula_id: constitution-v2-risk-credibility
+    result_range: [0, 100]
+    required_components: [realized_cost_rate, consequence_clarity, opposition_effectiveness, protection_limit_visibility, information_limits]
+    optional_components: []
+    components:
+      realized_cost_rate: {display_name: 已实现代价率, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      consequence_clarity: {display_name: 后果清晰度, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      opposition_effectiveness: {display_name: 对手有效性, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      protection_limit_visibility: {display_name: 保护边界, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      information_limits: {display_name: 信息限制, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+  agency:
+    metric_id: agency
+    display_name: Agency
+    description: 角色主动决策与行动能力
+    scope: CHAPTER
+    formula_id: constitution-v2-agency
+    result_range: [0, 100]
+    required_components: [agency]
+    optional_components: []
+    components:
+      agency: {display_name: 主动性, value_type: object, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+  legibility:
+    metric_id: legibility
+    display_name: Legibility
+    description: 目标、规则、后果与来源的可读性
+    scope: CHAPTER
+    formula_id: constitution-v2-legibility
+    result_range: [0, 100]
+    required_components: [goal_clarity, rule_clarity, consequence_clarity, information_provenance]
+    optional_components: []
+    components:
+      goal_clarity: {display_name: 目标清晰, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      rule_clarity: {display_name: 规则清晰, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      consequence_clarity: {display_name: 后果清晰, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      information_provenance: {display_name: 信息来源, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+  outcome_uncertainty:
+    metric_id: outcome_uncertainty
+    display_name: Outcome Uncertainty
+    description: 危险、对手、动机、结果和世界真相的不确定度
+    scope: CHAPTER
+    formula_id: constitution-v2-outcome-uncertainty
+    result_range: [0, 100]
+    required_components: [danger_unknown, opponent_plan_unknown, motivation_unknown, reward_or_result_unknown, world_truth_unknown]
+    optional_components: []
+    components:
+      danger_unknown: {display_name: 危险未知, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      opponent_plan_unknown: {display_name: 对手计划未知, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      motivation_unknown: {display_name: 动机未知, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      reward_or_result_unknown: {display_name: 结果未知, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      world_truth_unknown: {display_name: 世界真相未知, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+  resource_pressure:
+    metric_id: resource_pressure
+    display_name: Resource Pressure
+    description: 资源短缺、成本和近期需求压力
+    scope: CHAPTER
+    formula_id: constitution-v2-resource-pressure
+    result_range: [0, 100]
+    required_components: [current_shortfall, cost_income_imbalance, recently_blocked_actions, near_future_demand, reader_salience]
+    optional_components: []
+    components:
+      current_shortfall: {display_name: 当前短缺, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      cost_income_imbalance: {display_name: 成本收入失衡, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      recently_blocked_actions: {display_name: 近期受阻行动, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: false}
+      near_future_demand: {display_name: 近期需求, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+      reader_salience: {display_name: 读者显著性, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [SEMANTIC_ESTIMATE, AUTHOR_INPUT, AUTHOR_OVERRIDE], evidence_required: true}
+  rhythm_diagnostics:
+    metric_id: rhythm_diagnostics
+    display_name: Long-span Rhythm Diagnostics
+    description: 标题、开头结尾、功能、情绪、伏笔动作诊断，不生成文学总分
+    scope: WINDOW
+    formula_id: diagnostic-only-rhythm-v1
+    result_range: [0, 1]
+    required_components: [snapshot]
+    optional_components: []
+    components:
+      snapshot: {display_name: 节奏快照, value_type: object, allowed_source_kinds: [DETERMINISTIC, SEMANTIC_ESTIMATE], evidence_required: false}
+  candidate_score:
+    metric_id: candidate_score
+    display_name: Candidate Score
+    description: 现有候选解释性评分，保持既有权重
+    scope: CANDIDATE
+    formula_id: constitution-v2-candidate-score
+    result_range: [0, 100]
+    required_components: [score]
+    optional_components: []
+    components:
+      score: {display_name: 候选评分, value_type: number, minimum: 0, maximum: 100, allowed_source_kinds: [DERIVED], evidence_required: false}

@@ -15,6 +15,20 @@ from novel_authoring.metrics.formulas import (
     style_fit,
     thread_need,
 )
+from novel_authoring.metrics.models import (
+    MetricComponentStatus,
+    MetricResultV2,
+    MetricRun,
+    MetricRunResult,
+    MetricRunStatus,
+    MetricSemanticObservationsOutput,
+)
+from novel_authoring.metrics.registry import MetricsRegistry, load_registry
+from novel_authoring.metrics.service import (
+    AuthorMetricInputService,
+    MetricObservationService,
+    MetricsAssembler,
+)
 
 __all__ = [
     "MetricInputBundle",
@@ -34,4 +48,15 @@ __all__ = [
     "risk_credibility",
     "style_fit",
     "thread_need",
+    "MetricComponentStatus",
+    "MetricResultV2",
+    "MetricRun",
+    "MetricRunResult",
+    "MetricRunStatus",
+    "MetricSemanticObservationsOutput",
+    "MetricsRegistry",
+    "load_registry",
+    "AuthorMetricInputService",
+    "MetricsAssembler",
+    "MetricObservationService",
 ]

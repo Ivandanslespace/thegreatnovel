@@ -361,6 +361,17 @@ def import_candidate_output(
     ]
     ranking = {str(item["candidate_id"]): index for index, item in enumerate(passed, 1)}
     with database.connect() as connection:
+        v2_run = connection.execute(
+            "SELECT * FROM metric_runs WHERE book_id=? AND edition_id=? "
+            "ORDER BY created_at DESC LIMIT 1",
+            (book_id, selected_edition),
+        ).fetchone()
+        rhythm_snapshot = connection.execute(
+            "SELECT snapshot_id FROM rhythm_diagnostic_snapshots WHERE book_id=? AND edition_id=? "
+            "ORDER BY as_of_chapter DESC, created_at DESC LIMIT 1",
+            (book_id, selected_edition),
+        ).fetchone()
+    with database.connect() as connection:
         for item in evaluated:
             candidate = item["candidate"]
             assert isinstance(candidate, CandidateProposal)
@@ -401,8 +412,9 @@ def import_candidate_output(
                 candidate_id, book_id, task_id, rank, primary_thread_id,
                     primary_function, secondary_functions_json, plan_json,
                     score_json, gate_report_json, selection_status, status,
-                    created_at, version, edition_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANDIDATE', ?, 1, ?)
+                    created_at, version, edition_id, metric_run_id, metric_bundle_hash,
+                    rhythm_snapshot_id, registry_hash, config_hash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CANDIDATE', ?, 1, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     candidate_id,
@@ -418,6 +430,11 @@ def import_candidate_output(
                     selection,
                     utc_now(),
                     selected_edition,
+                    None if v2_run is None else str(v2_run["run_id"]),
+                    None if v2_run is None else str(v2_run["input_bundle_hash"]),
+                    None if rhythm_snapshot is None else str(rhythm_snapshot["snapshot_id"]),
+                    None if v2_run is None else str(v2_run["registry_hash"]),
+                    None if v2_run is None else str(v2_run["config_hash"]),
                 ),
             )
     return {

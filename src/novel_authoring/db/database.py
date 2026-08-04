@@ -56,14 +56,11 @@ class Database:
                         "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
                         (version, utc_now()),
                     )
-            # Phase-A integrity upgrade.  This is idempotent and intentionally
-            # does not add a new public migration row: existing clients rely on
-            # the V1 [1..5] migration contract while the physical table rebuild
-            # is safe to run on every initialization.
+            # Phase-A integrity upgrade remains idempotent for databases created
+            # before composite edition keys were enforced.
             ensure_edition_integrity_schema(connection)
-            # Phase-B derived rhythm diagnostics are additive and likewise
-            # installed idempotently without changing the public V1
-            # migration-number contract.
+            # Legacy promise columns are additive; all new Phase-B/C storage is
+            # installed by the formal Migration 6 above.
             ensure_rhythm_schema(connection)
             # 迁移只负责结构；每次初始化再幂等回填已有 book 的 base edition。
             # 使用局部导入避免 db -> edition -> projection -> db 的导入环。

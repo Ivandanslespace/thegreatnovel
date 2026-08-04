@@ -114,13 +114,20 @@ def build_chapter_contract(
     path = contracts_dir / f"{contract_id}.json"
     path.write_text(contract_json + "\n", encoding="utf-8")
     with database.connect() as connection:
+        candidate_anchor = connection.execute(
+            "SELECT metric_run_id, metric_bundle_hash, rhythm_snapshot_id, registry_hash, "
+            "config_hash "
+            "FROM candidate_plans WHERE book_id=? AND candidate_id=? AND edition_id=?",
+            (book_id, candidate_id, selected_edition),
+        ).fetchone()
         connection.execute(
             """
             INSERT OR REPLACE INTO chapter_contracts(
                 contract_id, book_id, candidate_id, target_chapter_ordinal,
                 mode, contract_json, contract_sha256, status, created_at, version
-                , edition_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'READY', ?, 1, ?)
+                , edition_id, metric_run_id, metric_bundle_hash, rhythm_snapshot_id,
+                registry_hash, config_hash
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'READY', ?, 1, ?, ?, ?, ?, ?, ?)
             """,
             (
                 contract_id,
@@ -132,6 +139,11 @@ def build_chapter_contract(
                 contract_hash,
                 utc_now(),
                 selected_edition,
+                None if candidate_anchor is None else candidate_anchor["metric_run_id"],
+                None if candidate_anchor is None else candidate_anchor["metric_bundle_hash"],
+                None if candidate_anchor is None else candidate_anchor["rhythm_snapshot_id"],
+                None if candidate_anchor is None else candidate_anchor["registry_hash"],
+                None if candidate_anchor is None else candidate_anchor["config_hash"],
             ),
         )
     return {
