@@ -18,6 +18,9 @@
 10. Workbench 改写任务只能使用 Local File Handoff Protocol：Codex 桌面端手动领取
     `workflow_handoffs`，按 `requested_stage` 执行并写回 result/status；Web 不启动 Codex、
     不批准 Campaign、也不激活 Edition。
+11. 改写读取当前 edition 的 Story Atlas 仅作为带 hash 的软上下文；Atlas 的未来路线、
+    INFERENCE 和 CANDIDATE 不能被改写当作 CANON，Atlas refresh 必须生成新的 child 版本，
+    不覆盖 base 或旧 edition artifact。
 
 ## 推荐命令
 

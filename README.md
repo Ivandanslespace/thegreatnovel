@@ -20,7 +20,7 @@ Metric Observatory V2 增加严格指标注册表、缺失值/来源观察、段
 - 十项生成后校验、重大兑现的四类 Aftershock Obligations、审计导出。
 - edition-aware `chapter_features`、长跨度节奏快照与 `HOLD/ADVANCE/RESOLVE/OVERDUE` 伏笔动作队列；
 - 版本化改写的 edition 物化隔离、Variant source span/FTS、Campaign 锚点与 r1/r2/r3 草稿审计。
-- Migration 7 的 provenance-aware `metric_runs`、`metric_observations`、段落 `chapter_segments`、Planning Aggregate、严格 `workflow_handoffs` 与 `WAITING_FOR_USER`；默认本地 Web 入口为 `novel web serve`。
+- Migration 8 的 provenance-aware `metric_runs`、`metric_observations`、段落 `chapter_segments`、Planning Aggregate、严格 `workflow_handoffs`、`WAITING_FOR_USER`、版本化 Soft Story Atlas 与 Batch Provisional Projection；默认本地 Web 入口为 `novel web serve`。
 
 ## Windows 安装
 
@@ -168,6 +168,26 @@ Codex 依据 Boundary Packet、Chapter Contract 与 `schema.json` 写正文 `out
 ```
 
 演示数据只写入指定 `workspace`，不复制真实正文、不调用 Codex/OpenAI、没有 API Key，且包含 base/derived edition、缺失/冲突/stale 指标、Rhythm 警告、过期 Promise、READY/COMPLETED handoff 和 VALIDATED Draft。
+
+## Story Atlas 与 Batch Continuation
+
+Story Atlas 是 edition-scoped 的软索引：Canon 仍只来自 append-only 事件与 Projection，
+Atlas 文件通过 `atlas_manifest.json`、source span、版本和 hash 登记到 SQLite；登记时会
+复制到 `story_atlas/versions/<atlas_id>`，已登记版本不可覆盖。Future Possibility Space
+与 CURRENT/NEAR/MID/FAR Rolling Horizon 只作为审计和规划输入，不会自动批准正史。
+
+```powershell
+& $Novel atlas validate --book-id $BookId
+& $Novel atlas register --book-id $BookId --artifact-root <atlas-staging-root>
+& $Novel batch create --book-id $BookId --target-chapters 10 --chunk-size 5
+& $Novel batch chunk-context --book-id $BookId --batch-id <batch-id> --chunk-order 1
+& $Novel batch checkpoint --book-id $BookId --batch-id <batch-id>
+```
+
+Batch 按连续 chunk 推进，每章必须带 Boundary、Chapter Contract 和十项 Validator 报告；
+临时结果只进入 Provisional Projection。输入 hash、Atlas 或 Horizon 漂移会将 Batch 标记
+为 `STALE` 并停止继续，不会写入 Canon。详细合同见
+`docs/STORY_ATLAS_WORKFLOW.md` 与 `docs/BATCH_CONTINUATION_WORKFLOW.md`。
 
 导出目录包含 `manifest.json`、`canon_projection.json`、`audit.json` 和 `approved_canon.md`；不会复制或改写原始小说。
 

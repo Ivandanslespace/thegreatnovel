@@ -142,3 +142,39 @@ th, td { padding: .6rem; border-bottom: 1px solid var(--line); text-align: left;
   .metric-mini-grid { grid-template-columns: repeat(2, 1fr); }
   .review-grid { grid-template-columns: 1fr; }
 }
+
+.atlas-nav { display: flex; flex-wrap: wrap; gap: .45rem; margin: 1rem 0; }
+.atlas-nav a, .filter-list a { border: 1px solid var(--line); border-radius: 999px; color: var(--muted); padding: .35rem .65rem; text-decoration: none; }
+.atlas-nav a.active, .atlas-nav a:hover, .filter-list a:hover { background: var(--accent-soft); color: var(--ink); }
+.atlas-layout { display: grid; gap: 1rem; grid-template-columns: minmax(170px, .25fr) minmax(0, 1fr); }
+.atlas-sidebar, .atlas-main { min-width: 0; }
+.filter-list, .legend { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1rem; }
+.legend span { font-size: .78rem; padding: .2rem .45rem; }
+.legend-canon { border-bottom: 2px solid var(--accent); }
+.legend-inference { border-bottom: 2px dashed var(--accent); }
+.legend-candidate { border-bottom: 2px dotted var(--accent); }
+.legend-speculative { opacity: .55; }
+.atlas-filter-form label { display: grid; gap: .3rem; margin-bottom: .6rem; }
+.atlas-canvas { background: var(--panel); border: 1px solid var(--line); border-radius: .6rem; min-height: 420px; width: 100%; }
+.atlas-edge { stroke: var(--muted); stroke-width: 1.5; }
+.atlas-edge.inference { stroke-dasharray: 6 4; }
+.atlas-edge.candidate { stroke-dasharray: 2 5; opacity: .65; }
+.atlas-edge.prose_only { opacity: .35; }
+.atlas-svg-node { cursor: pointer; outline: none; }
+.atlas-svg-node circle { fill: var(--panel); stroke: var(--accent); stroke-width: 2; }
+.atlas-svg-node text { fill: var(--ink); font-size: 13px; }
+.atlas-svg-node.inference circle { stroke-dasharray: 6 4; }
+.atlas-svg-node.candidate circle { stroke-dasharray: 2 5; opacity: .7; }
+.atlas-svg-node:focus circle { stroke: var(--warning); stroke-width: 4; }
+.atlas-node-grid { display: grid; gap: .6rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-top: 1rem; }
+.atlas-node-card { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: .45rem; color: var(--ink); cursor: pointer; display: grid; gap: .35rem; padding: .7rem; text-align: left; }
+.atlas-node-card span, .atlas-node-card small { color: var(--muted); }
+.atlas-node-card.inference { border-left-style: dashed; }
+.atlas-node-card.candidate { border-left-style: dotted; opacity: .82; }
+.atlas-detail { margin-top: 1rem; }
+.atlas-overview-grid, .horizon-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.horizon-card { border-top: 3px solid var(--accent); padding-top: .5rem; }
+.horizon-card li { margin-bottom: .8rem; }
+.horizon-card span { color: var(--muted); display: block; font-size: .8rem; }
+.horizon-far { opacity: .78; }
+@media (max-width: 760px) { .atlas-layout { grid-template-columns: 1fr; } }

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 SCHEMA_SQL = r"""
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -870,6 +870,160 @@ CREATE TABLE IF NOT EXISTS workflow_waiting_for_user (
 );
 """
 
+MIGRATION_8_SQL = r"""
+CREATE TABLE IF NOT EXISTS story_atlases (
+    atlas_id TEXT PRIMARY KEY,
+    book_id TEXT NOT NULL REFERENCES books(book_id),
+    edition_id TEXT NOT NULL REFERENCES editions(edition_id),
+    atlas_version INTEGER NOT NULL,
+    parent_atlas_id TEXT REFERENCES story_atlases(atlas_id),
+    base_event_seq INTEGER NOT NULL,
+    base_projection_hash TEXT NOT NULL,
+    source_manifest_sha256 TEXT NOT NULL,
+    effective_content_sha256 TEXT NOT NULL DEFAULT '',
+    registry_hash TEXT NOT NULL DEFAULT '',
+    config_hash TEXT NOT NULL DEFAULT '',
+    analyzer_versions_hash TEXT NOT NULL DEFAULT '',
+    horizon_id TEXT,
+    horizon_hash TEXT NOT NULL DEFAULT '',
+    artifact_root TEXT NOT NULL,
+    manifest_path TEXT NOT NULL,
+    artifact_manifest_sha256 TEXT NOT NULL,
+    atlas_content_hash TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'ACTIVE',
+    readiness_status TEXT NOT NULL DEFAULT 'READY_WITH_GAPS',
+    readiness_json TEXT NOT NULL DEFAULT '{}',
+    author_accepted INTEGER NOT NULL DEFAULT 0,
+    accepted_by TEXT,
+    accepted_at TEXT,
+    created_at TEXT NOT NULL,
+    invalidated_at TEXT,
+    version INTEGER NOT NULL DEFAULT 1,
+    UNIQUE(book_id, edition_id, atlas_version)
+);
+CREATE INDEX IF NOT EXISTS idx_story_atlases_scope
+    ON story_atlases(book_id, edition_id, status, atlas_version DESC);
+
+CREATE TABLE IF NOT EXISTS story_atlas_usage (
+    usage_id TEXT PRIMARY KEY,
+    atlas_id TEXT NOT NULL REFERENCES story_atlases(atlas_id),
+    book_id TEXT NOT NULL,
+    edition_id TEXT NOT NULL,
+    atlas_version INTEGER NOT NULL DEFAULT 1,
+    atlas_hash TEXT NOT NULL DEFAULT '',
+    batch_id TEXT,
+    handoff_id TEXT,
+    usage_kind TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_story_atlas_usage_atlas
+    ON story_atlas_usage(atlas_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS story_atlas_actions (
+    action_id TEXT PRIMARY KEY,
+    atlas_id TEXT NOT NULL REFERENCES story_atlases(atlas_id),
+    book_id TEXT NOT NULL,
+    edition_id TEXT NOT NULL,
+    action_type TEXT NOT NULL,
+    target_id TEXT,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    actor TEXT NOT NULL DEFAULT 'AUTHOR',
+    created_at TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_story_atlas_actions_atlas
+    ON story_atlas_actions(atlas_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS batch_working_projections (
+    batch_id TEXT PRIMARY KEY,
+    book_id TEXT NOT NULL REFERENCES books(book_id),
+    edition_id TEXT NOT NULL REFERENCES editions(edition_id),
+    atlas_id TEXT REFERENCES story_atlases(atlas_id),
+    atlas_version INTEGER,
+    atlas_hash TEXT NOT NULL DEFAULT '',
+    horizon_hash TEXT NOT NULL DEFAULT '',
+    base_event_seq INTEGER NOT NULL,
+    base_projection_hash TEXT NOT NULL,
+    source_manifest_sha256 TEXT NOT NULL DEFAULT '',
+    input_effective_content_sha256 TEXT NOT NULL DEFAULT '',
+    registry_hash TEXT NOT NULL DEFAULT '',
+    config_hash TEXT NOT NULL DEFAULT '',
+    author_directives_hash TEXT NOT NULL DEFAULT '',
+    metric_bundle_hash TEXT NOT NULL DEFAULT '',
+    current_projection_hash TEXT NOT NULL,
+    current_chapter_ordinal INTEGER NOT NULL,
+    target_chapter_count INTEGER NOT NULL,
+    chunk_size INTEGER NOT NULL DEFAULT 5,
+    checkpoint_interval INTEGER NOT NULL DEFAULT 10,
+    status TEXT NOT NULL DEFAULT 'PLANNED',
+    state_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_batch_working_projections_scope
+    ON batch_working_projections(book_id, edition_id, status, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS batch_chunk_states (
+    chunk_id TEXT PRIMARY KEY,
+    batch_id TEXT NOT NULL REFERENCES batch_working_projections(batch_id),
+    chunk_order INTEGER NOT NULL,
+    start_chapter_ordinal INTEGER NOT NULL,
+    end_chapter_ordinal INTEGER NOT NULL,
+    input_projection_hash TEXT NOT NULL,
+    output_projection_hash TEXT NOT NULL,
+    provisional_state_hash TEXT NOT NULL DEFAULT '',
+    boundary_hash TEXT NOT NULL DEFAULT '',
+    contract_ids_json TEXT NOT NULL DEFAULT '[]',
+    validation_report_ids_json TEXT NOT NULL DEFAULT '[]',
+    failure_reason TEXT,
+    input_state_json TEXT NOT NULL DEFAULT '{}',
+    output_state_json TEXT NOT NULL DEFAULT '{}',
+    validator_summary_json TEXT NOT NULL DEFAULT '{}',
+    atlas_refresh_required INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'PLANNED',
+    created_at TEXT NOT NULL,
+    completed_at TEXT,
+    version INTEGER NOT NULL DEFAULT 1,
+    UNIQUE(batch_id, chunk_order)
+);
+CREATE INDEX IF NOT EXISTS idx_batch_chunk_states_order
+    ON batch_chunk_states(batch_id, chunk_order);
+
+CREATE TABLE IF NOT EXISTS batch_checkpoints (
+    checkpoint_id TEXT PRIMARY KEY,
+    batch_id TEXT NOT NULL REFERENCES batch_working_projections(batch_id),
+    chapter_ordinal INTEGER NOT NULL,
+    projection_hash TEXT NOT NULL,
+    atlas_version INTEGER,
+    atlas_hash TEXT NOT NULL DEFAULT '',
+    horizon_hash TEXT NOT NULL DEFAULT '',
+    rhythm_snapshot_id TEXT,
+    report_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_batch_checkpoints_order
+    ON batch_checkpoints(batch_id, chapter_ordinal DESC);
+
+CREATE TABLE IF NOT EXISTS story_atlas_review_queue (
+    review_id TEXT PRIMARY KEY,
+    atlas_id TEXT NOT NULL REFERENCES story_atlases(atlas_id),
+    book_id TEXT NOT NULL,
+    edition_id TEXT NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'OPEN',
+    created_at TEXT NOT NULL,
+    resolved_at TEXT,
+    version INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_story_atlas_review_queue
+    ON story_atlas_review_queue(book_id, edition_id, status, created_at DESC);
+"""
+
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (2, MIGRATION_2_SQL),
     (3, MIGRATION_3_SQL),
@@ -877,6 +1031,7 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
     (5, MIGRATION_5_SQL),
     (6, MIGRATION_6_SQL),
     (7, MIGRATION_7_SQL),
+    (8, MIGRATION_8_SQL),
 )
 
 
@@ -1152,3 +1307,71 @@ def ensure_workbench_schema(connection: sqlite3.Connection) -> None:
         "author_directives_hash TEXT",
         "author_directives_hash",
     )
+
+
+def ensure_atlas_schema(connection: sqlite3.Connection) -> None:
+    """Keep early Migration-8 databases compatible without rewriting history."""
+    additions = (
+        ("parent_atlas_id TEXT", "parent_atlas_id"),
+        ("effective_content_sha256 TEXT NOT NULL DEFAULT ''", "effective_content_sha256"),
+        ("registry_hash TEXT NOT NULL DEFAULT ''", "registry_hash"),
+        ("config_hash TEXT NOT NULL DEFAULT ''", "config_hash"),
+        ("analyzer_versions_hash TEXT NOT NULL DEFAULT ''", "analyzer_versions_hash"),
+        ("horizon_id TEXT", "horizon_id"),
+        ("horizon_hash TEXT NOT NULL DEFAULT ''", "horizon_hash"),
+        ("atlas_content_hash TEXT NOT NULL DEFAULT ''", "atlas_content_hash"),
+        ("accepted_by TEXT", "accepted_by"),
+        ("accepted_at TEXT", "accepted_at"),
+    )
+    for definition, column in additions:
+        _add_column_if_missing(connection, "story_atlases", definition, column)
+    for definition, column in (
+        ("atlas_version INTEGER NOT NULL DEFAULT 1", "atlas_version"),
+        ("atlas_hash TEXT NOT NULL DEFAULT ''", "atlas_hash"),
+    ):
+        _add_column_if_missing(connection, "story_atlas_usage", definition, column)
+    for definition, column in (
+        ("atlas_version INTEGER", "atlas_version"),
+        ("atlas_hash TEXT NOT NULL DEFAULT ''", "atlas_hash"),
+        ("horizon_hash TEXT NOT NULL DEFAULT ''", "horizon_hash"),
+        ("source_manifest_sha256 TEXT NOT NULL DEFAULT ''", "source_manifest_sha256"),
+        (
+            "input_effective_content_sha256 TEXT NOT NULL DEFAULT ''",
+            "input_effective_content_sha256",
+        ),
+        ("registry_hash TEXT NOT NULL DEFAULT ''", "registry_hash"),
+        ("config_hash TEXT NOT NULL DEFAULT ''", "config_hash"),
+        ("author_directives_hash TEXT NOT NULL DEFAULT ''", "author_directives_hash"),
+        ("metric_bundle_hash TEXT NOT NULL DEFAULT ''", "metric_bundle_hash"),
+    ):
+        _add_column_if_missing(connection, "batch_working_projections", definition, column)
+    for definition, column in (
+        ("atlas_hash TEXT NOT NULL DEFAULT ''", "atlas_hash"),
+        ("horizon_hash TEXT NOT NULL DEFAULT ''", "horizon_hash"),
+    ):
+        _add_column_if_missing(connection, "batch_checkpoints", definition, column)
+    for definition, column in (
+        ("provisional_state_hash TEXT NOT NULL DEFAULT ''", "provisional_state_hash"),
+        ("boundary_hash TEXT NOT NULL DEFAULT ''", "boundary_hash"),
+        ("contract_ids_json TEXT NOT NULL DEFAULT '[]'", "contract_ids_json"),
+        ("validation_report_ids_json TEXT NOT NULL DEFAULT '[]'", "validation_report_ids_json"),
+        ("failure_reason TEXT", "failure_reason"),
+    ):
+        _add_column_if_missing(connection, "batch_chunk_states", definition, column)
+    for definition, column in (
+        ("atlas_id TEXT", "atlas_id"),
+        ("atlas_version INTEGER", "atlas_version"),
+        ("atlas_manifest_hash TEXT", "atlas_manifest_hash"),
+        ("horizon_hash TEXT", "horizon_hash"),
+        ("batch_id TEXT", "batch_id"),
+        ("batch_plan_hash TEXT", "batch_plan_hash"),
+        ("readiness_status TEXT", "readiness_status"),
+    ):
+        _add_column_if_missing(connection, "workflow_handoffs", definition, column)
+    for definition, column in (
+        ("atlas_id TEXT", "atlas_id"),
+        ("atlas_version INTEGER", "atlas_version"),
+        ("atlas_manifest_hash TEXT", "atlas_manifest_hash"),
+        ("horizon_hash TEXT", "horizon_hash"),
+    ):
+        _add_column_if_missing(connection, "planning_aggregates", definition, column)

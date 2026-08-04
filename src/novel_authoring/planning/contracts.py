@@ -61,6 +61,8 @@ def build_chapter_contract(
         "packet_id": packet_id,
         "next_chapter": next_chapter,
         "projection": boundary_json["base_projection_hash"],
+        "story_atlas_anchor": boundary_json.get("story_atlas_anchor", {}),
+        "batch_anchor": boundary_json.get("batch_anchor", {}),
     }
     contract_id = stable_id("contract", json_dumps(contract_seed))
     contract = ChapterContract(
@@ -72,6 +74,8 @@ def build_chapter_contract(
             "last_canon_chapter": boundary_json["current_position"]["last_canon_chapter"],
             "base_event_seq": boundary_json["base_event_seq"],
             "base_projection_hash": boundary_json["base_projection_hash"],
+            "story_atlas_anchor": boundary_json.get("story_atlas_anchor", {}),
+            "batch_anchor": boundary_json.get("batch_anchor", {}),
         },
         candidate_id=candidate_id,
         primary_thread=candidate.primary_thread_id,

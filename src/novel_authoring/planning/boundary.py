@@ -4,6 +4,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from novel_authoring.atlas.service import latest_atlas
 from novel_authoring.canon.projection import rebuild_projection
 from novel_authoring.db.database import Database
 from novel_authoring.edition import (
@@ -94,6 +95,8 @@ def _markdown(packet: ContinuationBoundaryPacket) -> str:
         "章节节奏特征": packet.rhythm_features,
         "长跨度节奏诊断": packet.rhythm_diagnostics,
         "伏笔动作队列": packet.hook_diagnostics,
+        "Story Atlas anchor": packet.story_atlas_anchor,
+        "Batch anchor": packet.batch_anchor,
         "警告": packet.warnings,
     }
     for title, value in sections.items():
@@ -126,6 +129,7 @@ def build_boundary_packet(
     *,
     recent_full_chapters: int = 3,
     edition_id: str | None = None,
+    batch_id: str | None = None,
 ) -> dict[str, object]:
     database.initialize()
     workspace_root = _workspace(database, book_id)
@@ -138,6 +142,30 @@ def build_boundary_packet(
     conflicts = _fact_conflicts(projection)
     if conflicts:
         raise PlanningError("存在未解决的 CANON 冲突，禁止建立续写边界")
+    atlas_row = latest_atlas(database, book_id, selected_edition)
+    atlas_anchor = (
+        {
+            "atlas_id": str(atlas_row["atlas_id"]),
+            "atlas_version": int(atlas_row["atlas_version"]),
+            "atlas_manifest_hash": str(atlas_row["artifact_manifest_sha256"] or ""),
+            "atlas_content_hash": str(atlas_row["atlas_content_hash"] or ""),
+            "horizon_hash": str(atlas_row["horizon_hash"] or ""),
+            "readiness_status": str(atlas_row["readiness_status"]),
+        }
+        if atlas_row is not None
+        else {}
+    )
+    batch_anchor: dict[str, Any] = {}
+    if batch_id is not None:
+        from novel_authoring.planning.batch import get_batch_projection
+
+        batch_projection = get_batch_projection(database, batch_id)
+        if (
+            batch_projection.book_id != book_id
+            or batch_projection.edition_id != selected_edition
+        ):
+            raise PlanningError("batch_id 不属于当前 Boundary 的 book/edition")
+        batch_anchor = batch_projection.model_dump(mode="json")
     with database.connect() as connection:
         if selected_edition == "base":
             recent_rows = connection.execute(
@@ -368,6 +396,8 @@ def build_boundary_packet(
             "rhythm_features": rhythm_features,
             "rhythm_diagnostics": rhythm_diagnostics,
             "hook_diagnostics": hook_diagnostics,
+            "story_atlas_anchor": atlas_anchor,
+            "batch_anchor": batch_anchor,
             },
         }
     )
@@ -414,6 +444,8 @@ def build_boundary_packet(
         rhythm_features=rhythm_features,
         rhythm_diagnostics=rhythm_diagnostics,
         hook_diagnostics=hook_diagnostics,
+        story_atlas_anchor=atlas_anchor,
+        batch_anchor=batch_anchor,
         warnings=warnings,
     )
     packet_json = json_dumps(packet.model_dump(mode="json"), indent=2)

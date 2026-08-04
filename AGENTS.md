@@ -19,6 +19,17 @@
 4. 草稿默认停在 `VALIDATED`。未经作者当前明确说“批准写入正史”，不得运行 `novel approve` 或产生 Canon Commit。
 5. 不得把 `INFERENCE`、`CANDIDATE`、`PROSE_ONLY` 静默升级为 `CANON`；所有正史变化必须可回指原文或作者批准事件。
 
+6. Story Atlas 是版本化软理解层，不是 Truth、Canon、固定大纲或数据库正史。Atlas
+   节点/关系必须区分 `information_status`、`constraint_level`、`horizon`、
+   `confidence` 和真实 `source_span`；新版本使用新 ID/版本并保留父版本，旧 artifact
+   不得覆盖。
+7. Future Possibility Space 必须保留 Active/Alternative/Wildcard/Open Design，
+   Rolling Horizon 的 FAR 不得写逐章大纲或固定结局；FAR 覆盖至少为
+   `max(current_written_chapters*2, batch_target_chapters*2)`。
+8. Batch Continuation 默认 chunk=5、checkpoint=10。每章必须沿用 Boundary、Chapter
+   Contract 和十项校验；Batch Provisional Projection、Atlas accepted 或
+   `BATCH_VALIDATED` 都不得写入 Canon 或替代作者批准。
+
 版本化改写另遵循 `.agents/skills/revise-novel/SKILL.md`：改写只能写派生 edition，必须经过影响审计、计划、`REVISION_DRAFT`、校验和逐字批准；`批准改写版本` 与 `启用改写版本` 分离，base/真实 `book/` 不得被覆盖。
 
 长跨度节奏诊断遵循 `.agents/skills/analyze-novel-rhythm/SKILL.md`：先建立 edition-aware

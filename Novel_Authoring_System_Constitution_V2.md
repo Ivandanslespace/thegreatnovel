@@ -29,6 +29,21 @@
 2. **写得动**：知道当前最值得推进的线程，以及下一章应该主要做什么。
 3. **追得下去**：长期管理压力、爽点、悬念债务、进展、风险和重复疲劳。
 
+长篇续写还必须把“已发生的事实”和“对未来的理解”分层管理。系统的主架构是：
+
+```text
+Deterministic Canon Kernel
++ Versioned Soft Story Atlas
++ Future Possibility Space
++ Rolling Narrative Horizon
++ Batch Provisional Projection
+```
+
+Canon Kernel 只由可回溯原文证据、作者指令或显式批准事件驱动；Story Atlas 是可
+修订的最佳理解，不是 Truth、数据库正史、世界模拟器或固定大纲；未来路线必须
+保留 Alternative、Wildcard、Unknown 和开放设计空间；Batch 的临时状态永远不能
+绕过单章 Boundary、Chapter Contract、十项校验和作者批准。
+
 公式的职责是发现失衡、分配注意力和给候选方案排序；公式无权直接创造事实，也无权代替作者决定小说的意义。
 
 ---
@@ -337,6 +352,32 @@ World Truth
 - 同类冷却和疲劳。
 
 “换资源名”不算新结构。
+
+## 4.11 Story Atlas、未来可能性与滚动视界
+
+Story Atlas 是对当前小说的版本化软理解。它可以记录 `CANON`、`AUTHOR_INTENT`、
+`APPROVED_OUTLINE`、`INFERENCE`、`CANDIDATE` 和 `PROSE_ONLY`，并为节点、关系、
+阶段和路线记录 `constraint_level`、`horizon`、`confidence` 与证据。`CANON + HARD`
+必须有真实 `source_span`；`INFERENCE + SOFT` 可以被新证据推翻；`CANDIDATE +
+SPECULATIVE` 不得进入 Canon，也不能被当作作者已选大纲。
+
+Atlas 文件在 `workspace/<book_id>/editions/<edition_id>/story_atlas/` 下按版本保存；
+SQLite 只登记版本、状态、hash、source/projection anchor、使用记录、作者接受记录和
+review queue，不把未来图谱伪装成正史表。新 Atlas 必须使用新 ID/版本并保留 parent，
+旧版本不可覆盖。作者接受 Atlas 仍不等于批准写入正史。
+
+Future Possibility Space 至少区分 Active Spine、结构不同的 Alternative Spines、
+Wildcard Possibilities 和 Open Design Spaces。Rolling Horizon 分为 CURRENT、NEAR、
+MID、FAR：NEAR/MID 可以给出阶段与局部目标，FAR 只能描述阶段阶梯、规模、控制缺口
+和开放问题，不得生成逐章大纲或固定结局。FAR 覆盖终点至少为：
+
+```text
+max(当前已写章节数 × 2, Batch 目标章节数 × 2)
+```
+
+当当前章节、Canon projection、来源或 Batch checkpoint 变化时，必须刷新 Atlas/Horizon
+的版本/hash anchor；未来不完整只能产生 `READY_WITH_GAPS`，只有当前世界边界无法
+确认才进入 `BLOCKED`。
 
 ---
 

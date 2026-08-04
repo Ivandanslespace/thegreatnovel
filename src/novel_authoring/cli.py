@@ -6,6 +6,15 @@ from typing import Annotated, Optional
 
 import typer
 
+from novel_authoring.atlas.models import AtlasAction
+from novel_authoring.atlas.service import (
+    AtlasError,
+    get_atlas_overview,
+    list_atlas_history,
+    record_atlas_action,
+    register_atlas,
+    validate_atlas,
+)
 from novel_authoring.canon.projection import projection_from_connection, rebuild_projection
 from novel_authoring.canon.state import create_snapshot, projection_counts
 from novel_authoring.config import load_settings
@@ -47,6 +56,14 @@ from novel_authoring.metrics.service import (
     import_semantic_output,
 )
 from novel_authoring.planning.aggregates import build_planning_aggregate
+from novel_authoring.planning.batch import (
+    complete_chunk,
+    create_batch,
+    create_checkpoint,
+    get_batch_plan,
+    get_batch_projection,
+    get_chunk_context,
+)
 from novel_authoring.planning.boundary import PlanningError, build_boundary_packet
 from novel_authoring.planning.candidates import import_candidate_output, prepare_candidate_task
 from novel_authoring.planning.contracts import build_chapter_contract
@@ -95,11 +112,14 @@ from novel_authoring.workflows.extraction import (
 )
 from novel_authoring.workflows.handoffs import (
     HandoffStatus,
+    HandoffType,
     HandoffWorkflowError,
     cancel_handoff,
     claim_handoff,
+    create_batch_continuation_handoff,
     create_continuation_handoff,
     create_revision_handoff,
+    create_story_atlas_handoff,
     get_handoff,
     mark_stale,
     update_handoff_status,
@@ -127,6 +147,8 @@ hooks_app = typer.Typer(help="伏笔 Age/Dormancy/Readiness 动作诊断")
 metrics_app = typer.Typer(help="provenance-aware 指标观测与运行")
 metrics_semantic_app = typer.Typer(help="语义指标观察文件合同")
 observation_app = typer.Typer(help="append-only Metric Observation 解析与撤回")
+atlas_app = typer.Typer(help="Versioned Soft Story Atlas")
+batch_app = typer.Typer(help="滚动 Batch Continuation 与 Provisional Projection")
 demo_app = typer.Typer(help="合成演示数据")
 segments_app = typer.Typer(help="effective edition 段落与证据")
 workflow_app = typer.Typer(help="Local File Handoff Protocol")
@@ -147,6 +169,8 @@ app.add_typer(hooks_app, name="hooks")
 app.add_typer(metrics_app, name="metrics")
 metrics_app.add_typer(metrics_semantic_app, name="semantic")
 app.add_typer(observation_app, name="observation")
+app.add_typer(atlas_app, name="atlas")
+app.add_typer(batch_app, name="batch")
 app.add_typer(demo_app, name="demo")
 app.add_typer(segments_app, name="segments")
 app.add_typer(workflow_app, name="workflow")
@@ -540,6 +564,7 @@ def boundary_build_command(
     workspace: Workspace = Path("workspace"),
     config: ConfigPath = None,
     edition_id: EditionId = None,
+    batch_id: Annotated[Optional[str], typer.Option("--batch-id")] = None,
 ) -> None:
     """在任何正文步骤之前建立并保存续写边界包。"""
     settings = load_settings(config)
@@ -550,6 +575,7 @@ def boundary_build_command(
             book_id,
             recent_full_chapters=settings.recent_full_chapters,
             edition_id=edition_id,
+            batch_id=batch_id,
         )
     except (PlanningError, OSError, ValueError) as exc:
         typer.echo(str(exc), err=True)
@@ -1569,6 +1595,186 @@ def segments_show_command(
     _emit(list_segments(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), book_id, edition_id=edition_id, chapter_id=chapter_id))
 
 
+def _book_database(workspace: Path, book_id: str) -> Database:
+    return Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+
+
+@atlas_app.command("show")
+def atlas_show_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    try:
+        database = _book_database(workspace, book_id)
+        selected = edition_id or "base"
+        _emit(get_atlas_overview(database, book_id, selected))
+    except (AtlasError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@atlas_app.command("register")
+def atlas_register_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    artifact_root: Annotated[Optional[Path], typer.Option("--artifact-root")] = None,
+    allow_gaps: bool = typer.Option(True, "--allow-gaps/--require-ready"),
+) -> None:
+    """验证并登记一个不可变 Story Atlas 版本；不会写入 Canon。"""
+    try:
+        _emit(
+            register_atlas(
+                _book_database(workspace, book_id),
+                book_id,
+                edition_id or "base",
+                root=artifact_root,
+                allow_gaps=allow_gaps,
+            )
+        )
+    except (AtlasError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@atlas_app.command("validate")
+def atlas_validate_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    try:
+        result = validate_atlas(_book_database(workspace, book_id), book_id, edition_id or "base")
+        _emit(result.model_dump(mode="json"))
+        if not result.ok:
+            raise typer.Exit(code=3)
+    except (AtlasError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@atlas_app.command("history")
+def atlas_history_command(
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    _emit(list_atlas_history(_book_database(workspace, book_id), book_id, edition_id or "base"))
+
+
+@atlas_app.command("action")
+def atlas_action_command(
+    book_id: BookId = typer.Option(...),
+    action_type: str = typer.Option(..., "--action-type"),
+    target_id: Optional[str] = typer.Option(None, "--target-id"),
+    payload_json: str = typer.Option("{}", "--payload-json"),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    try:
+        payload = json.loads(payload_json)
+        action = AtlasAction.model_validate(
+            {"action_type": action_type, "target_id": target_id, "payload": payload}
+        )
+        _emit(
+            record_atlas_action(
+                _book_database(workspace, book_id), book_id, edition_id or "base", action
+            )
+        )
+    except (AtlasError, ValueError, OSError, json.JSONDecodeError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@batch_app.command("create")
+def batch_create_command(
+    book_id: BookId = typer.Option(...),
+    target_chapter_count: int = typer.Option(..., "--target-chapters"),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+    atlas_id: Optional[str] = typer.Option(None, "--atlas-id"),
+    chunk_size: int = typer.Option(5, "--chunk-size"),
+    checkpoint_interval: int = typer.Option(10, "--checkpoint-interval"),
+) -> None:
+    try:
+        _emit(
+            create_batch(
+                _book_database(workspace, book_id),
+                book_id,
+                target_chapter_count=target_chapter_count,
+                edition_id=edition_id,
+                atlas_id=atlas_id,
+                chunk_size=chunk_size,
+                checkpoint_interval=checkpoint_interval,
+            )
+        )
+    except Exception as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@batch_app.command("show")
+def batch_show_command(
+    batch_id: str = typer.Option(..., "--batch-id"),
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+) -> None:
+    database = _book_database(workspace, book_id)
+    _emit({"projection": get_batch_projection(database, batch_id).model_dump(mode="json"), "plan": get_batch_plan(database, batch_id).model_dump(mode="json")})
+
+
+@batch_app.command("chunk-context")
+def batch_chunk_context_command(
+    batch_id: str = typer.Option(..., "--batch-id"),
+    chunk_order: int = typer.Option(..., "--chunk-order"),
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+) -> None:
+    _emit(get_chunk_context(_book_database(workspace, book_id), batch_id, chunk_order))
+
+
+@batch_app.command("complete-chunk")
+def batch_complete_chunk_command(
+    batch_id: str = typer.Option(..., "--batch-id"),
+    chunk_order: int = typer.Option(..., "--chunk-order"),
+    provisional_state_file: Path = typer.Option(..., "--provisional-state-file"),
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+    validator_summary_file: Optional[Path] = typer.Option(None, "--validator-summary-file"),
+    atlas_refresh_required: bool = typer.Option(False, "--atlas-refresh-required"),
+) -> None:
+    try:
+        state = json.loads(provisional_state_file.read_text(encoding="utf-8"))
+        summary = (
+            {}
+            if validator_summary_file is None
+            else json.loads(validator_summary_file.read_text(encoding="utf-8"))
+        )
+        _emit(
+            complete_chunk(
+                _book_database(workspace, book_id),
+                batch_id,
+                chunk_order,
+                provisional_state=state,
+                validator_summary=summary,
+                atlas_refresh_required=atlas_refresh_required,
+            )
+        )
+    except Exception as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@batch_app.command("checkpoint")
+def batch_checkpoint_command(
+    batch_id: str = typer.Option(..., "--batch-id"),
+    book_id: BookId = typer.Option(...),
+    workspace: Workspace = Path("workspace"),
+) -> None:
+    _emit(create_checkpoint(_book_database(workspace, book_id), batch_id))
+
+
 @workflow_app.command("continuation")
 def workflow_continuation_command(
     book_id: BookId = typer.Option(...), requested_stage: str = typer.Option("DRAFT_AND_VALIDATE", "--stage"),
@@ -1589,6 +1795,94 @@ def workflow_revision_command(
         _emit(create_revision_handoff(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), book_id, edition_id=edition_id, requested_stage=requested_stage))
     except (HandoffWorkflowError, ValueError, OSError) as exc:
         typer.echo(str(exc), err=True); raise typer.Exit(code=3) from exc
+
+
+@workflow_app.command("atlas-bootstrap")
+def workflow_atlas_bootstrap_command(
+    book_id: BookId = typer.Option(...),
+    requested_stage: str = typer.Option("ATLAS_BOOTSTRAP", "--stage"),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    try:
+        _emit(
+            create_story_atlas_handoff(
+                Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"),
+                book_id,
+                requested_stage=requested_stage,
+                edition_id=edition_id,
+            )
+        )
+    except (HandoffWorkflowError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@workflow_app.command("atlas-refresh")
+def workflow_atlas_refresh_command(
+    book_id: BookId = typer.Option(...),
+    requested_stage: str = typer.Option("ATLAS_REFRESH", "--stage"),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    try:
+        _emit(
+            create_story_atlas_handoff(
+                Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"),
+                book_id,
+                handoff_type=HandoffType.STORY_ATLAS_REFRESH,
+                requested_stage=requested_stage,
+                edition_id=edition_id,
+            )
+        )
+    except (HandoffWorkflowError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@workflow_app.command("world-model-review")
+def workflow_world_model_review_command(
+    book_id: BookId = typer.Option(...),
+    requested_stage: str = typer.Option("WORLD_MODEL_REVIEW", "--stage"),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    try:
+        _emit(
+            create_story_atlas_handoff(
+                Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"),
+                book_id,
+                handoff_type=HandoffType.WORLD_MODEL_REVIEW,
+                requested_stage=requested_stage,
+                edition_id=edition_id,
+            )
+        )
+    except (HandoffWorkflowError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+
+
+@workflow_app.command("batch")
+def workflow_batch_command(
+    book_id: BookId = typer.Option(...),
+    batch_id: str = typer.Option(..., "--batch-id"),
+    requested_stage: str = typer.Option("BATCH_CONTINUATION", "--stage"),
+    workspace: Workspace = Path("workspace"),
+    edition_id: EditionId = None,
+) -> None:
+    try:
+        _emit(
+            create_batch_continuation_handoff(
+                Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"),
+                book_id,
+                batch_id=batch_id,
+                requested_stage=requested_stage,
+                edition_id=edition_id,
+            )
+        )
+    except (HandoffWorkflowError, ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
 
 
 @workflow_app.command("show")

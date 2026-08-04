@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>Story Atlas · {{ book_id }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">小说作者工作台</a>
+    <span class="muted">Story Atlas · 事实确定，理解开放</span>
+    <button class="theme-toggle" type="button" data-theme-toggle>主题</button>
+  </header>
+  <main class="shell atlas-page">
+    <section class="page-heading">
+      <div><p class="eyebrow">Versioned Soft Story Atlas</p><h1>Story Atlas</h1><p class="muted">Atlas 不是 Canon，也不是固定结局；它记录当前最好的世界理解、证据与未知。</p></div>
+      <div class="actions"><a class="button" href="/">章节</a><a class="button" href="/books/{{ book_id }}/editions/{{ edition_id }}/atlas/history">Atlas History</a></div>
+    </section>
+    {% if not overview.available %}
+    <section class="panel callout disputed"><h2>当前 edition 尚无 Story Atlas</h2><p>请先创建 <code>STORY_ATLAS_BOOTSTRAP</code> Local File Handoff。Web 不会启动 Codex 或调用 API。</p><p class="muted">当前页面只展示 Atlas artifact；缺少 Atlas 不会阻断普通章节工作台。</p></section>
+    {% else %}
+    <section class="stat-grid atlas-stat-grid">
+      <article class="stat-card"><span>Atlas Version</span><strong>{{ overview.manifest.atlas_version }}</strong></article>
+      <article class="stat-card"><span>Readiness</span><strong>{{ overview.readiness.status }}</strong></article>
+      <article class="stat-card"><span>Source Coverage</span><strong>{{ '%.0f'|format(overview.readiness.source_coverage * 100) }}%</strong></article>
+      <article class="stat-card"><span>FAR End</span><strong>第 {{ overview.manifest.far_horizon_end_chapter }} 章</strong></article>
+    </section>
+    <nav class="atlas-nav" aria-label="Story Atlas 页面">
+      <a class="{% if view == 'overview' %}active{% endif %}" href="/books/{{ book_id }}/editions/{{ edition_id }}/atlas">总览</a>
+      {% for graph_type in graph_types %}<a class="{% if view == graph_type %}active{% endif %}" href="/books/{{ book_id }}/editions/{{ edition_id }}/atlas/{{ graph_type }}">{{ graph_type }}</a>{% endfor %}
+      <a class="{% if view == 'horizon' %}active{% endif %}" href="/books/{{ book_id }}/editions/{{ edition_id }}/atlas/horizon">Rolling Horizon</a>
+      <a class="{% if view == 'history' %}active{% endif %}" href="/books/{{ book_id }}/editions/{{ edition_id }}/atlas/history">History</a>
+    </nav>
+    {% if overview.errors %}<section class="panel callout disputed"><h2>Atlas 校验错误</h2><ul>{% for error in overview.errors %}<li>{{ error }}</li>{% endfor %}</ul><p>错误 Atlas 只能诊断，不能接受作者操作或进入新 Handoff。</p></section>{% endif %}
+    {% if overview.warnings %}<section class="panel callout"><h2>Atlas gaps</h2><ul>{% for warning in overview.warnings %}<li>{{ warning }}</li>{% endfor %}</ul></section>{% endif %}
+    <section class="atlas-layout">
+      <aside class="panel atlas-sidebar">
+        <h2>Information Status</h2>
+        <div class="filter-list">{% for item in information_statuses %}<a href="?status={{ item }}{% if horizon %}&horizon={{ horizon }}{% endif %}{% if q %}&q={{ q }}{% endif %}">{{ item }}</a>{% endfor %}</div>
+        <h2>Horizon</h2>
+        <div class="filter-list">{% for item in horizons %}<a href="?horizon={{ item }}{% if status %}&status={{ status }}{% endif %}{% if q %}&q={{ q }}{% endif %}">{{ item }}</a>{% endfor %}</div>
+        <form method="get" class="atlas-filter-form"><label>搜索<input type="search" name="q" value="{{ q or '' }}" placeholder="节点、描述或类型"></label><button class="button" type="submit">筛选</button></form>
+        <div class="legend"><span class="legend-canon">CANON · 实线</span><span class="legend-inference">INFERENCE · 虚线</span><span class="legend-candidate">CANDIDATE · 点线</span><span class="legend-speculative">SPECULATIVE/FAR · 半透明</span></div>
+      </aside>
+      <section class="panel atlas-main">
+        {% if view in graph_types and graph %}
+        <div class="panel-heading"><div><p class="eyebrow">Graph View</p><h2>{{ graph.graph_type }}</h2></div><span class="badge">{{ graph.total_nodes }} nodes · {{ graph.total_edges }} edges</span></div>
+        <svg class="atlas-canvas" data-atlas-canvas data-graph='{{ graph|tojson }}' role="img" aria-label="{{ graph.graph_type }} graph"></svg>
+        <div class="atlas-node-grid" data-atlas-node-list>{% for node in graph.nodes %}<button type="button" class="atlas-node-card status-{{ node.information_status|lower }}" data-atlas-node='{{ node|tojson }}'><strong>{{ node.name }}</strong><span>{{ node.node_type }} · {{ node.information_status }} · {{ node.horizon }}</span><small>{{ node.description }}</small></button>{% else %}<p class="muted">当前筛选没有节点。</p>{% endfor %}</div>
+        <aside class="atlas-detail panel" data-atlas-detail><h2>节点详情</h2><p class="muted">点击图谱节点查看证据、关系、置信度和未来路线。</p></aside>
+        {% elif view == 'horizon' %}
+        <div class="panel-heading"><div><p class="eyebrow">Future Possibility Space</p><h2>Rolling Horizon</h2></div></div>
+        {% if overview.rolling_horizon %}<div class="horizon-grid">{% for key in ['current', 'near', 'mid', 'far'] %}{% set band = overview.rolling_horizon[key] %}<article class="horizon-card horizon-{{ key }}"><h3>{{ key|upper }}</h3><p>{% if band.start_chapter %}第 {{ band.start_chapter }}—{{ band.end_chapter }} 章{% else %}开放阶段锚点{% endif %}</p><ul>{% for item in band.items %}<li><strong>{{ item.title }}</strong><span>{{ item.information_status }} · {{ item.constraint_level }}</span><p>{{ item.summary }}</p></li>{% else %}<li class="muted">暂无结构化条目</li>{% endfor %}</ul></article>{% endfor %}</div>{% else %}<p class="muted">没有 rolling_horizon.yaml。</p>{% endif %}
+        {% elif view == 'history' %}
+        <h2>Atlas History</h2><table><thead><tr><th>版本</th><th>状态</th><th>Readiness</th><th>Base Hash</th><th>创建时间</th></tr></thead><tbody>{% for item in overview.history %}<tr><td>{{ item.atlas_version }}</td><td>{{ item.status }}</td><td>{{ item.readiness_status }}</td><td><code>{{ item.base_projection_hash[:12] }}</code></td><td>{{ item.created_at }}</td></tr>{% else %}<tr><td colspan="5">暂无历史</td></tr>{% endfor %}</tbody></table>
+        {% else %}
+        <div class="atlas-overview-grid"><article><h2>Narrative DNA</h2><p class="muted">{{ overview.manifest.notes|join('；') or '由 Codex 分阶段阅读与综合生成，保留 reasoning/evidence，不是公式分数。' }}</p></article><article><h2>Current World</h2><p>图谱：{{ overview.graphs|length }} 类；当前章节：第 {{ overview.manifest.current_chapter_ordinal }} 章。</p></article><article><h2>Future Possibility Space</h2><p>Active Spine、Alternative Spines、Wildcard 和 Open Design Spaces 保持分离，不预设固定结局。</p></article><article><h2>Readiness</h2><ul>{% for gap in overview.readiness.gaps %}<li>{{ gap }}</li>{% else %}<li>当前没有登记 gap。</li>{% endfor %}</ul></article></div>
+        {% endif %}
+      </section>
+    </section>
+    {% endif %}
+  </main>
+  <script src="{{ url_for('static', path='app.js') }}" defer></script>
+</body>
+</html>

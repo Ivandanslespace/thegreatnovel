@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from novel_authoring.atlas.service import latest_atlas
 from novel_authoring.canon.projection import projection_from_connection
 from novel_authoring.config import load_settings
 from novel_authoring.db.database import Database
@@ -31,6 +32,10 @@ class PlanningMetricBundle(BaseModel):
     projection_hash: str
     rhythm_snapshot_id: str | None = None
     rhythm_snapshot_hash: str | None = None
+    atlas_id: str | None = None
+    atlas_version: int | None = None
+    atlas_manifest_hash: str | None = None
+    horizon_hash: str | None = None
 
     @property
     def bundle_hash(self) -> str:
@@ -49,6 +54,10 @@ class PlanningMetricBundle(BaseModel):
             "projection_hash": self.projection_hash,
             "rhythm_snapshot_id": self.rhythm_snapshot_id,
             "rhythm_snapshot_hash": self.rhythm_snapshot_hash,
+            "atlas_id": self.atlas_id,
+            "atlas_version": self.atlas_version,
+            "atlas_manifest_hash": self.atlas_manifest_hash,
+            "horizon_hash": self.horizon_hash,
         }
         return sha256_bytes(json_dumps(payload).encode("utf-8"))
 
@@ -126,11 +135,23 @@ def build_planning_aggregate(
     thread_run_ids: list[str] | None = None,
     author_policy: dict[str, Any] | None = None,
     rhythm_snapshot_id: str | None = None,
+    atlas_id: str | None = None,
 ) -> dict[str, Any]:
     """Persist a stable, reference-only planning aggregate."""
     database.initialize()
     registry_hash = load_registry().registry_hash
     config_hash = sha256_bytes(json_dumps(load_settings().metrics).encode("utf-8"))
+    current_atlas = latest_atlas(database, book_id, edition_id)
+    selected_atlas_id = atlas_id or (
+        None if current_atlas is None else str(current_atlas["atlas_id"])
+    )
+    atlas_version = None if current_atlas is None else int(current_atlas["atlas_version"])
+    atlas_manifest_hash = (
+        None
+        if current_atlas is None
+        else str(current_atlas["artifact_manifest_sha256"] or "")
+    )
+    horizon_hash = None if current_atlas is None else str(current_atlas["horizon_hash"] or "")
     with database.connect() as connection:
         projection = projection_from_connection(connection, book_id, edition_id)
         if edition_state_run_id is None:
@@ -216,6 +237,10 @@ def build_planning_aggregate(
         projection_hash=projection.sha256(),
         rhythm_snapshot_id=rhythm_snapshot_id,
         rhythm_snapshot_hash=snapshot_hash,
+        atlas_id=selected_atlas_id,
+        atlas_version=atlas_version,
+        atlas_manifest_hash=atlas_manifest_hash,
+        horizon_hash=horizon_hash,
     )
     aggregate_id = stable_id("planning-aggregate", book_id, edition_id, bundle.bundle_hash)
     created_at = utc_now()
@@ -232,8 +257,9 @@ def build_planning_aggregate(
                 recent_chapter_run_ids_json, window_run_ids_json, promise_run_ids_json,
                 thread_run_ids_json, metric_run_ids_json, author_policy_json,
                 registry_hash, config_hash, projection_hash, rhythm_snapshot_id,
-                rhythm_snapshot_hash, bundle_hash, status, stale_reason, created_at, version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                rhythm_snapshot_hash, atlas_id, atlas_version, atlas_manifest_hash,
+                horizon_hash, bundle_hash, status, stale_reason, created_at, version
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             ON CONFLICT(aggregate_id) DO UPDATE SET status='ACTIVE', invalidated_at=NULL
             """,
             (
@@ -252,6 +278,10 @@ def build_planning_aggregate(
                 aggregate.projection_hash,
                 aggregate.rhythm_snapshot_id,
                 aggregate.rhythm_snapshot_hash,
+                aggregate.atlas_id,
+                aggregate.atlas_version,
+                aggregate.atlas_manifest_hash,
+                aggregate.horizon_hash,
                 aggregate.bundle_hash,
                 aggregate.status,
                 aggregate.stale_reason,

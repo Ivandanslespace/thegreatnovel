@@ -18,6 +18,8 @@ except ImportError:  # pragma: no cover - exercised only without web extras
     StaticFiles = None  # type: ignore[misc, assignment]
     Jinja2Templates = None  # type: ignore[misc, assignment]
 
+from novel_authoring.atlas.models import AtlasAction
+from novel_authoring.atlas.service import AtlasError, record_atlas_action
 from novel_authoring.db.database import Database
 from novel_authoring.edition import edition_chapters, list_editions
 from novel_authoring.metrics.registry import load_registry
@@ -29,6 +31,13 @@ from novel_authoring.metrics.service import (
     ObservationResolver,
 )
 from novel_authoring.web.dependencies import create_csrf_token, verify_csrf
+from novel_authoring.web.routes.atlas import (
+    GRAPH_TYPES,
+    atlas_context,
+    atlas_entry_detail,
+    atlas_graph_view,
+    public_atlas_overview,
+)
 from novel_authoring.web.routes.jobs import list_handoffs
 from novel_authoring.web.routes.metrics import save_author_input
 from novel_authoring.web.routes.pages import (
@@ -41,6 +50,7 @@ from novel_authoring.web.routes.pages import (
 )
 from novel_authoring.web.routes.workflow import prepare_continuation, prepare_revision
 from novel_authoring.web.schemas import (
+    AtlasActionRequest,
     AuthorInputRequest,
     HandoffRequest,
     RecomputeRequest,
@@ -129,6 +139,42 @@ def create_app(database: Database, *, book_id: str | None = None) -> Any:
         context = dashboard_context(database, _check_id(str(app.state.book_id)))
         context["csrf_token"] = app.state.csrf_token
         return _template(templates, "index.html", request, context)
+
+    @app.get(
+        "/books/{path_book_id}/editions/{edition_id}/atlas",
+        response_class=HTMLResponse,
+    )
+    @app.get(
+        "/books/{path_book_id}/editions/{edition_id}/story-atlas",
+        response_class=HTMLResponse,
+    )
+    @app.get(
+        "/books/{path_book_id}/editions/{edition_id}/atlas/{atlas_view}",
+        response_class=HTMLResponse,
+    )
+    async def atlas_page(
+        request: Request,
+        path_book_id: str,
+        edition_id: str,
+        atlas_view: str = "overview",
+    ) -> Any:
+        try:
+            context = atlas_context(
+                database,
+                _check_id(path_book_id),
+                _check_id(edition_id),
+                view=_check_id(atlas_view),
+                status=request.query_params.get("status"),
+                horizon=request.query_params.get("horizon"),
+                query=request.query_params.get("q"),
+            )
+        except AtlasError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "NOT_FOUND", "message": str(exc), "details": {}},
+            ) from exc
+        context["csrf_token"] = app.state.csrf_token
+        return _template(templates, "atlas.html", request, context)
 
     @app.get(
         "/books/{path_book_id}/editions/{edition_id}/chapters/{chapter_id}",
@@ -341,6 +387,102 @@ def create_app(database: Database, *, book_id: str | None = None) -> Any:
             return edition_chapters(
                 connection, _check_id(path_book_id), _check_id(edition_id)
             )
+
+    @app.get("/api/books/{path_book_id}/editions/{edition_id}/atlas")
+    @app.get("/api/books/{path_book_id}/editions/{edition_id}/story-atlas")
+    async def atlas_overview_api(path_book_id: str, edition_id: str) -> dict[str, Any]:
+        return public_atlas_overview(
+            database, _check_id(path_book_id), _check_id(edition_id)
+        )
+
+    @app.get(
+        "/api/books/{path_book_id}/editions/{edition_id}/atlas/graphs/{graph_type}"
+    )
+    async def atlas_graph_api(
+        path_book_id: str,
+        edition_id: str,
+        graph_type: str,
+        status: str | None = None,
+        horizon: str | None = None,
+        node_type: str | None = None,
+        q: str | None = None,
+        limit: int = 250,
+    ) -> dict[str, Any]:
+        try:
+            if graph_type not in GRAPH_TYPES:
+                raise AtlasError(f"不支持的 Atlas graph_type：{graph_type}")
+            return atlas_graph_view(
+                database,
+                _check_id(path_book_id),
+                _check_id(edition_id),
+                graph_type,
+                status=status,
+                horizon=horizon,
+                node_type=node_type,
+                query=q,
+                limit=limit,
+            )
+        except AtlasError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "NOT_FOUND", "message": str(exc), "details": {}},
+            ) from exc
+
+    @app.get(
+        "/api/books/{path_book_id}/editions/{edition_id}/atlas/graphs/{graph_type}/nodes/{entry_id}"
+    )
+    async def atlas_node_api(
+        path_book_id: str, edition_id: str, graph_type: str, entry_id: str
+    ) -> dict[str, Any]:
+        try:
+            return atlas_entry_detail(
+                database,
+                _check_id(path_book_id),
+                _check_id(edition_id),
+                graph_type,
+                _check_id(entry_id),
+            )
+        except AtlasError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "NOT_FOUND", "message": str(exc), "details": {}},
+            ) from exc
+
+    @app.get("/api/books/{path_book_id}/editions/{edition_id}/atlas/history")
+    async def atlas_history_api(path_book_id: str, edition_id: str) -> dict[str, Any]:
+        overview = public_atlas_overview(
+            database, _check_id(path_book_id), _check_id(edition_id)
+        )
+        return {"history": overview.get("history", [])}
+
+    @app.post("/api/books/{path_book_id}/editions/{edition_id}/atlas/actions")
+    async def atlas_action_api(
+        path_book_id: str,
+        edition_id: str,
+        request: Request,
+        payload: AtlasActionRequest,
+    ) -> Any:
+        verify_csrf(request, None)
+        try:
+            action = AtlasAction.model_validate(
+                {
+                    "action_type": payload.action_type,
+                    "target_id": payload.target_id,
+                    "payload": payload.payload,
+                    "actor": "AUTHOR",
+                }
+            )
+            return record_atlas_action(
+                database,
+                _check_id(path_book_id),
+                _check_id(edition_id),
+                action,
+                atlas_id=payload.expected_atlas_id,
+                expected_atlas_version=payload.expected_atlas_version,
+                expected_manifest_hash=payload.expected_manifest_hash,
+            )
+        except (AtlasError, ValueError) as exc:
+            return _error(exc)
 
     @app.get("/api/books/{path_book_id}/editions/{edition_id}/chapters/{chapter_id}")
     async def chapter_detail_api(

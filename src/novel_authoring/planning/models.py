@@ -54,6 +54,8 @@ class ContinuationBoundaryPacket(BaseModel):
     rhythm_features: list[dict[str, Any]] = Field(default_factory=list)
     rhythm_diagnostics: dict[str, Any] = Field(default_factory=dict)
     hook_diagnostics: dict[str, Any] = Field(default_factory=dict)
+    story_atlas_anchor: dict[str, Any] = Field(default_factory=dict)
+    batch_anchor: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 
 

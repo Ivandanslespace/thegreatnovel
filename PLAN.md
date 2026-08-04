@@ -7,16 +7,33 @@
 
 ## 2026-08-04 增量审核计划
 
-本轮基线：`b29d86b300dfdf493ebdfbf131a74c3390c6df35`，工作分支：
+提示中的历史基线为 `b29d86b300dfdf493ebdfbf131a74c3390c6df35`；实际开始时 HEAD
+为其后的 `a3929b59b45f1c1de56ab9f6ccc6bc125e3178ca`（`feat: complete metrics and
+author workbench vertical slice`），本轮不回退，以实际最新实现为准。工作分支：
 `小说续写_codex_metrics_web_qoder_fix`。远程：
 `https://github.com/happyivanencoding/thegreatnovel`。
 `book/`、`inspirations/`、`workspace/`、
 `.venv/`、缓存和本地导出产物继续只读/不提交。
 
+### 2026-08-04 Story Atlas + Batch Continuation 架构增量
+
+本轮把产品中心扩展为 Deterministic Canon Kernel + Versioned Soft Story Atlas + Future
+Possibility Space + Rolling Narrative Horizon + Batch Provisional Projection。Atlas 软文件
+与 SQLite 版本索引分离；Bootstrap/Refresh/World Model Review 和 Batch Continuation
+通过 Local File Handoff 交给 Codex 桌面端，Web 不启动模型进程。完成条件包括新 skill、
+CLI/Web/API、migration 8、版本不可覆盖、真实 source span、FAR 约束、批次逐章十项
+校验、checkpoint 锚点、测试/质量门和新远程推送。
+
 ### 2026-08-04 Phase G–J 增量计划
 
 实际质量门基线：`pytest 63 passed`；`ruff check src tests` 通过；
 `mypy src`（strict）通过。当前未提交的 `audit/` 保留，不纳入本轮修改。
+
+本轮 Story Atlas + Batch Continuation 收口质量门：`pytest 71 passed`；
+`ruff check src tests` 通过；`mypy src` 通过；普通 wheel 安装、CLI help 与
+`novel web doctor` 均通过。实际远程为
+`https://github.com/happyivanencoding/thegreatnovel`，`audit/` 仍为未跟踪用户文件，
+不纳入提交。
 
 #### Phase G：Metric Core Correctness
 

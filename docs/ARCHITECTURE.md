@@ -2,7 +2,7 @@
 
 ## 目标与边界
 
-系统是单机、CLI 优先的 Python 3.11+ 应用。它不运行远程 LLM SDK：Codex 通过文件任务包参与抽取、候选规划和正文写作，所有进入正史的变化由确定性 Python 代码校验和提交。
+系统是单机、CLI 优先的 Python 3.11+ 应用。它不运行远程 LLM SDK：Codex 通过文件任务包参与抽取、候选规划、Story Atlas 综合和正文写作，所有进入正史的变化由确定性 Python 代码校验和提交。
 
 唯一产品规范为根目录 `Novel_Authoring_System_Constitution_V2.md`。原始 `book/` 是不可变输入，所有派生物写入 `workspace/<book_id>/`。
 
@@ -21,6 +21,13 @@ Approved events ──► deterministic Canon Projection ──► snapshot/rebu
   │
   ▼
 metrics + top-3 threads + Continuation Boundary Packet
+  │
+  ├─ Versioned Soft Story Atlas
+  │    ├─ Narrative DNA + Current World Model
+  │    ├─ Future Possibility Space
+  │    └─ Rolling Horizon (CURRENT/NEAR/MID/FAR)
+  │
+  ├─ Batch Provisional Projection (chunk/checkpoint)
   │
   ▼
 Codex candidate task ──► exactly 3 candidates ──► hard gates + score
@@ -52,6 +59,8 @@ AUTHOR_APPROVED + state events + CANON_CHAPTER_COMMITTED
 | 抽取整理 | `workflows/extraction.py` | task packet、来源证据验证、隔离导入、事实 reconcile |
 | 指标 | `metrics/` | 纯公式、硬门、证据化结果持久化 |
 | 规划 | `planning/` | 线程排序、Boundary、三候选差异、Chapter Contract |
+| Story Atlas | `atlas/` + `workspace/.../story_atlas/` | 版本化软理解、图谱、Narrative DNA、未来可能性、Readiness 与 Horizon hash |
+| Batch | `planning/batch.py` + `batch_*` 表 | chunk 计划、临时 projection、逐章十项校验和 checkpoint |
 | 草稿 | `drafting/` | 正文任务、导入、哈希、revision 和状态 |
 | 校验 | `validation/` | 十项报告、validation run 与 VALIDATED 状态 |
 | 批准 | `workflows/approval.py` | 明确确认、漂移校验、事务 Canon Commit、余波义务 |
@@ -66,6 +75,7 @@ AUTHOR_APPROVED + state events + CANON_CHAPTER_COMMITTED
 - 三个 CANDIDATE 计划；
 - DRAFT 正文；
 - 尚未 reconcile 的冲突记录。
+- Story Atlas 的 `INFERENCE`、`CANDIDATE`、`PROSE_ONLY`、FAR possibility 和 Batch Provisional Projection。
 
 这些内容可以持久化，但不能被 Canon Projection 当作正史。
 
@@ -76,6 +86,10 @@ AUTHOR_APPROVED + state events + CANON_CHAPTER_COMMITTED
 - `explicit_revision` 模式下有修订来源和作者批准的更正事件。
 
 Canon Projection 只应用 `status=COMMITTED` 且 `information_state=CANON` 的受支持事件。
+
+Story Atlas 的 CANON 节点/关系必须引用真实 `source_span`；SQLite 只登记 Atlas 版本、
+hash、anchor、usage、author action 和 review queue，软图谱文件不物化为 Canon 表。Atlas
+版本不可覆盖，作者接受 Atlas 不会产生 Canon Commit。
 
 ## Codex 文件合同
 
@@ -133,7 +147,10 @@ workspace/<book_id>/
 ├─ validation/           # 十项校验 bundle
 ├─ canon/                # 仅作者批准后的续章
 ├─ snapshots/            # 投影快照
-└─ exports/              # 投影和审计导出
+├─ exports/              # 投影和审计导出
+└─ editions/<edition_id>/
+   ├─ story_atlas/       # immutable versioned soft Atlas artifacts
+   └─ batches/            # frozen plans and provisional checkpoints
 ```
 
 ## Edition-scoped 改写架构

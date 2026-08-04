@@ -1,0 +1,4 @@
+interface:
+  display_name: "Continue Novel Batch"
+  short_description: "Roll multi-chapter continuation through chunks and checkpoints"
+  default_prompt: "Run batch continuation one chapter at a time, preserve provisional state, and stop at checkpoints for review."

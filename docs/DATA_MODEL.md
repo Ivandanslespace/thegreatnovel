@@ -6,7 +6,7 @@
 
 SQLite schema 由 `schema_migrations` 显式升级。V1 当前迁移覆盖事件完整性、规划边界、草稿任务/投影基线和 validation run。
 
-Migration 6 追加 `chapter_features`、`rhythm_diagnostic_snapshots`、`chapter_segments`、
+Migration 8 追加版本化 Story Atlas 与 Batch Provisional Projection；Migration 6 追加 `chapter_features`、`rhythm_diagnostic_snapshots`、`chapter_segments`、
 `metric_observations`、`metric_evidence_links`、`metric_runs`、`metric_run_results`、
 `workflow_handoffs` 和 `workflow_handoff_events`。handoff event 是任务执行日志，永不写入 Canon Event Store。
 
@@ -22,6 +22,30 @@ Migration 6 追加 `chapter_features`、`rhythm_diagnostic_snapshots`、`chapter
 | PROSE_ONLY | 只存在于文本表达的未确认内容 | 否 |
 
 禁止 INFERENCE/CANDIDATE/PROSE_ONLY 静默升级为 CANON。事实升级必须由带来源的 reconcile 或作者显式批准触发。
+
+## Story Atlas 与 Batch 层
+
+`story_atlases` 是 Atlas 的 SQLite 索引，不是软图谱内容表。每个版本记录 `atlas_id`、
+`atlas_version`、`parent_atlas_id`、base event/projection/source/effective-content anchor、
+registry/config/analyzer hash、`atlas_content_hash`、Horizon anchor、readiness 和 author
+acceptance。相同 ID 的不同内容会被拒绝，旧版本不会被 upsert 覆盖。
+
+Atlas artifact 位于 edition workspace 的 `story_atlas/`，图谱节点/关系至少有：
+
+```text
+stable_id + information_status + constraint_level + horizon
++ confidence + evidence.source_span_ids + lifecycle_status
+```
+
+`CANON` 必须引用当前 book/edition 可查到的真实 `source_spans`；`INFERENCE`、
+`CANDIDATE` 和 `PROSE_ONLY` 不进入 Canon Projection。`FuturePossibilitySpace` 的
+Active/Alternative/Wildcard/Open Design 与 `RollingHorizon` 存为版本化 YAML，FAR 不
+允许逐章 ordinal。SQLite 只保存 action、usage、review queue 和版本索引。
+
+`batch_working_projections`、`batch_chunk_states`、`batch_checkpoints` 保存冻结的 Atlas/
+Horizon/hash anchor、连续 chunk、逐章 provisional state、Boundary/Contract/Validator
+引用和 checkpoint；Provisional state 明确禁止 Canon commit，`BATCH_VALIDATED` 也不
+改变 `events` 或任何 Canon 表。
 
 抽取阶段的非事实结构同样通过通用 reconcile 显式处理；`accept-source` 要求 source span，`accept-author` 留下作者确认事件，`reject` 保留拒绝审计。知识边不得先于其引用的 CANON fact 被接受。
 

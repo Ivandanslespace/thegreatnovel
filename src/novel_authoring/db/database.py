@@ -8,6 +8,7 @@ from pathlib import Path
 from novel_authoring.db.schema import (
     MIGRATIONS,
     SCHEMA_SQL,
+    ensure_atlas_schema,
     ensure_edition_integrity_schema,
     ensure_rhythm_schema,
     ensure_workbench_schema,
@@ -66,6 +67,7 @@ class Database:
             # Keep early v7 databases compatible with the final handoff schema
             # without changing the recorded migration history.
             ensure_workbench_schema(connection)
+            ensure_atlas_schema(connection)
             # 迁移只负责结构；每次初始化再幂等回填已有 book 的 base edition。
             # 使用局部导入避免 db -> edition -> projection -> db 的导入环。
             from novel_authoring.edition import backfill_base_editions

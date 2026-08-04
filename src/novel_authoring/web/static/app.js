@@ -155,4 +155,121 @@
         .catch(function () { button.textContent = "复制失败"; });
     });
   });
+
+  function atlasPathParts() {
+    const parts = window.location.pathname.split("/").filter(Boolean);
+    return { bookId: parts[1] || "", editionId: parts[3] || "" };
+  }
+
+  function atlasCsrfToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.content : "";
+  }
+
+  function atlasAction(actionType, node, graphData) {
+    const parts = atlasPathParts();
+    const atlas = graphData.atlas || {};
+    return fetch("/api/books/" + encodeURIComponent(parts.bookId) + "/editions/" + encodeURIComponent(parts.editionId) + "/atlas/actions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": atlasCsrfToken() },
+      body: JSON.stringify({
+        action_type: actionType,
+        target_id: node.node_id,
+        payload: { target_type: node.node_type },
+        expected_atlas_id: atlas.atlas_id || null,
+        expected_atlas_version: atlas.atlas_version || null,
+        expected_manifest_hash: atlas.artifact_manifest_sha256 || null,
+      }),
+    }).then(function (response) {
+      return response.json().then(function (body) {
+        if (!response.ok) throw new Error((body.error && body.error.message) || "作者操作失败");
+        return body;
+      });
+    });
+  }
+
+  function showAtlasDetail(detail, node, graphData) {
+    while (detail.firstChild) detail.removeChild(detail.firstChild);
+    const heading = document.createElement("h2");
+    heading.textContent = node.name || node.node_id;
+    detail.appendChild(heading);
+    const status = document.createElement("p");
+    status.textContent = (node.information_status || "UNKNOWN") + " · " + (node.constraint_level || "") + " · " + (node.horizon || "") + " · confidence=" + (node.confidence || "UNKNOWN");
+    detail.appendChild(status);
+    const description = document.createElement("p");
+    description.textContent = node.description || "当前没有额外说明。";
+    detail.appendChild(description);
+    const evidence = document.createElement("p");
+    const evidenceData = node.evidence || {};
+    const evidenceIds = [].concat(evidenceData.source_span_ids || [], evidenceData.chapter_ids || [], evidenceData.canon_fact_ids || [], evidenceData.event_ids || []);
+    evidence.textContent = "Evidence: " + (evidenceIds.join(", ") || "UNKNOWN");
+    detail.appendChild(evidence);
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    [
+      ["ACCEPT_SOFT_ANCHOR", "接受 Soft Anchor"],
+      ["REJECT_FUTURE_CANDIDATE", "拒绝 Future Candidate"],
+      ["ADD_AUTHOR_INTENT", "标记 Author Intent"],
+      ["ADD_REVIEW_QUEUE", "加入 Review Queue"],
+    ].forEach(function (item) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "button";
+      button.textContent = item[1];
+      button.addEventListener("click", function () {
+        atlasAction(item[0], node, graphData).then(function () {
+          button.textContent = "已记录";
+          button.disabled = true;
+        }).catch(function (error) { button.textContent = error.message; });
+      });
+      actions.appendChild(button);
+    });
+    detail.appendChild(actions);
+  }
+
+  document.querySelectorAll("[data-atlas-canvas]").forEach(function (svg) {
+    let graphData;
+    try { graphData = JSON.parse(svg.dataset.graph || "{}"); } catch (error) { return; }
+    const nodes = graphData.nodes || [];
+    const edges = graphData.edges || [];
+    const width = 900;
+    const height = Math.max(420, Math.ceil(nodes.length / 4) * 130);
+    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    const positions = {};
+    nodes.forEach(function (node, index) {
+      positions[node.node_id] = { x: 120 + (index % 4) * 220, y: 70 + Math.floor(index / 4) * 120 };
+    });
+    edges.forEach(function (edge) {
+      const from = positions[edge.from_id];
+      const to = positions[edge.to_id];
+      if (!from || !to) return;
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", from.x); line.setAttribute("y1", from.y);
+      line.setAttribute("x2", to.x); line.setAttribute("y2", to.y);
+      line.setAttribute("class", "atlas-edge " + String(edge.information_status || "unknown").toLowerCase());
+      svg.appendChild(line);
+    });
+    const detail = document.querySelector("[data-atlas-detail]");
+    nodes.forEach(function (node) {
+      const position = positions[node.node_id];
+      const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      group.setAttribute("class", "atlas-svg-node " + String(node.information_status || "unknown").toLowerCase());
+      group.setAttribute("tabindex", "0");
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", position.x); circle.setAttribute("cy", position.y); circle.setAttribute("r", "24");
+      const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      label.setAttribute("x", position.x); label.setAttribute("y", position.y + 46); label.setAttribute("text-anchor", "middle");
+      label.textContent = node.name || node.node_id;
+      group.appendChild(circle); group.appendChild(label); svg.appendChild(group);
+      if (detail) {
+        group.addEventListener("click", function () { showAtlasDetail(detail, node, graphData); });
+        group.addEventListener("keydown", function (event) { if (event.key === "Enter" || event.key === " ") showAtlasDetail(detail, node, graphData); });
+      }
+    });
+    document.querySelectorAll("[data-atlas-node]").forEach(function (card) {
+      let node;
+      try { node = JSON.parse(card.dataset.atlasNode || "{}"); } catch (error) { return; }
+      card.addEventListener("click", function () { if (detail) showAtlasDetail(detail, node, graphData); });
+    });
+  });
 }());

@@ -1,6 +1,15 @@
 default_mode: faithful_continuation
 recent_full_chapters: 3
 
+atlas:
+  schema_version: story-atlas-v1
+  source_coverage_minimum: 0.95
+  near_horizon_chapters: 20
+  mid_horizon_chapters: 100
+  far_horizon_multiplier: 2
+  batch_chunk_size: 5
+  batch_checkpoint_interval: 10
+
 ingest:
   extensions: [.txt, .md]
   encodings: [utf-8, utf-8-sig, gb18030]

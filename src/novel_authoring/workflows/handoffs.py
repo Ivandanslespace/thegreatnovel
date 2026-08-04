@@ -9,6 +9,7 @@ from typing import Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from novel_authoring.atlas.service import atlas_usage, latest_atlas, validate_atlas
 from novel_authoring.canon.projection import projection_from_connection
 from novel_authoring.config import load_settings
 from novel_authoring.db.database import Database
@@ -17,6 +18,7 @@ from novel_authoring.ingest.service import verify_sources
 from novel_authoring.metrics.registry import load_registry
 from novel_authoring.metrics.service import MetricsAssembler
 from novel_authoring.planning.aggregates import build_planning_aggregate
+from novel_authoring.planning.batch import get_batch_plan, get_batch_projection
 from novel_authoring.utils import json_dumps, sha256_bytes, sha256_file, stable_id, utc_now
 
 
@@ -37,6 +39,10 @@ class HandoffType(StrEnum):
     REVISION = "REVISION"
     METRIC_SEMANTIC_ANALYSIS = "METRIC_SEMANTIC_ANALYSIS"
     CHAPTER_FEATURE_ANALYSIS = "CHAPTER_FEATURE_ANALYSIS"
+    STORY_ATLAS_BOOTSTRAP = "STORY_ATLAS_BOOTSTRAP"
+    STORY_ATLAS_REFRESH = "STORY_ATLAS_REFRESH"
+    WORLD_MODEL_REVIEW = "WORLD_MODEL_REVIEW"
+    BATCH_CONTINUATION = "BATCH_CONTINUATION"
 
 
 class HandoffWorkflowError(RuntimeError):
@@ -72,6 +78,16 @@ class WorkflowHandoffResult(BaseModel):
     base_projection_hash: str
     metric_run_ids: list[str] = Field(default_factory=list)
     metric_bundle_hash: str | None = None
+    atlas_id: str | None = None
+    atlas_version: int | None = None
+    atlas_manifest_hash: str | None = None
+    horizon_hash: str | None = None
+    readiness_status: str | None = None
+    batch_id: str | None = None
+    batch_plan_hash: str | None = None
+    chunk_ids: list[str] = Field(default_factory=list)
+    review_queue_ids: list[str] = Field(default_factory=list)
+    atlas_refresh_required: bool = False
     completed_at: str | None = None
 
     @model_validator(mode="after")
@@ -87,11 +103,27 @@ class WorkflowHandoffResult(BaseModel):
                 raise ValueError("IMPACT_AND_PLAN 完成结果必须包含 campaign_id")
             if not self.artifact_paths:
                 raise ValueError("IMPACT_AND_PLAN 完成结果必须包含 artifact_paths")
+        atlas_type = self.handoff_type.upper()
+        if atlas_type in {
+            HandoffType.STORY_ATLAS_BOOTSTRAP.value,
+            HandoffType.STORY_ATLAS_REFRESH.value,
+        } and not self.artifact_paths:
+            raise ValueError(f"{atlas_type} 完成结果必须包含 Atlas artifact_paths")
+        if atlas_type == HandoffType.BATCH_CONTINUATION.value and not self.batch_id:
+            raise ValueError("BATCH_CONTINUATION 完成结果必须包含 batch_id")
+        if atlas_type == HandoffType.BATCH_CONTINUATION.value and not self.chunk_ids:
+            raise ValueError("BATCH_CONTINUATION 完成结果必须包含 chunk_ids")
+        if atlas_type == HandoffType.WORLD_MODEL_REVIEW.value and not self.review_queue_ids:
+            raise ValueError("WORLD_MODEL_REVIEW 完成结果必须包含 review_queue_ids")
         compatible = {
             "PLAN_ONLY": {"PLAN_ONLY", "PLANNED", "CANDIDATES"},
             "DRAFT_AND_VALIDATE": {"DRAFT_AND_VALIDATE", "VALIDATED_DRAFT", "VALIDATED"},
             "IMPACT_AND_PLAN": {"IMPACT_AND_PLAN", "IMPACTED", "PLANNED", "VALIDATED_CAMPAIGN"},
             "DRAFT_SELECTED_UNITS": {"DRAFT_SELECTED_UNITS", "VALIDATED_CAMPAIGN", "VALIDATED"},
+            "ATLAS_BOOTSTRAP": {"ATLAS_BOOTSTRAP", "STORY_ATLAS_READY", "VALIDATED_ATLAS"},
+            "ATLAS_REFRESH": {"ATLAS_REFRESH", "STORY_ATLAS_READY", "VALIDATED_ATLAS"},
+            "WORLD_MODEL_REVIEW": {"WORLD_MODEL_REVIEW", "REVIEWED", "VALIDATED_ATLAS"},
+            "BATCH_CONTINUATION": {"BATCH_CONTINUATION", "BATCH_VALIDATED", "VALIDATED"},
         }
         if requested in compatible and completed not in compatible[requested]:
             raise ValueError(f"requested_stage={requested} 与 completed_stage={completed} 不兼容")
@@ -236,6 +268,8 @@ def create_handoff(
     edition_id: str | None = None,
     metric_run_id: str | None = None,
     require_complete_metrics: bool = False,
+    atlas_id: str | None = None,
+    batch_id: str | None = None,
 ) -> dict[str, Any]:
     database.initialize()
     selected = resolve_edition_id(database, book_id, edition_id)
@@ -278,14 +312,66 @@ def create_handoff(
             (book_id, selected),
         ).fetchone()
     rhythm_snapshot_id = None if rhythm_row is None else str(rhythm_row["snapshot_id"])
-    if rhythm_snapshot_id is None:
+    rhythm_required = handoff_type in {
+        HandoffType.CONTINUATION,
+        HandoffType.REVISION,
+        HandoffType.BATCH_CONTINUATION,
+    }
+    if rhythm_snapshot_id is None and rhythm_required:
         raise HandoffWorkflowError("当前 edition 没有 Rhythm Snapshot，不能冻结 handoff")
+    current_atlas = latest_atlas(database, book_id, selected)
+    if atlas_id is not None:
+        with database.connect() as connection:
+            current_atlas = connection.execute(
+                "SELECT * FROM story_atlases WHERE atlas_id=? AND book_id=? "
+                "AND edition_id=?",
+                (atlas_id, book_id, selected),
+            ).fetchone()
+        current_atlas = None if current_atlas is None else dict(current_atlas)
+    if handoff_type is HandoffType.BATCH_CONTINUATION:
+        if not batch_id:
+            raise HandoffWorkflowError("BATCH_CONTINUATION handoff 必须绑定 batch_id")
+        try:
+            batch_projection = get_batch_projection(database, batch_id)
+            batch_plan = get_batch_plan(database, batch_id)
+        except (OSError, ValueError, RuntimeError) as exc:
+            raise HandoffWorkflowError(f"Batch handoff 无法读取 batch_id：{exc}") from exc
+        if batch_projection.book_id != book_id or batch_projection.edition_id != selected:
+            raise HandoffWorkflowError("batch_id 不属于当前 book/edition")
+        if current_atlas is None or str(current_atlas["atlas_id"]) != str(
+            batch_projection.atlas_id
+        ):
+            raise HandoffWorkflowError("Batch handoff 的 Atlas 必须与 Batch 冻结锚点一致")
+        batch_plan_path = (
+            workspace_root
+            / "editions"
+            / selected
+            / "batches"
+            / batch_id
+            / "batch_plan.json"
+        )
+        if not batch_plan_path.is_file():
+            raise HandoffWorkflowError("Batch plan 文件不存在")
+        batch_plan_hash = sha256_file(batch_plan_path)
+    else:
+        batch_projection = None
+        batch_plan = None
+        batch_plan_hash = None
+    atlas_version = None if current_atlas is None else int(current_atlas["atlas_version"])
+    atlas_manifest_hash = (
+        None
+        if current_atlas is None
+        else str(current_atlas["artifact_manifest_sha256"] or "")
+    )
+    horizon_hash = None if current_atlas is None else str(current_atlas["horizon_hash"] or "")
+    readiness_status = None if current_atlas is None else str(current_atlas["readiness_status"])
     handoff_id = stable_id(
         "handoff", book_id, selected, handoff_type.value, requested_stage, utc_now()
     )
     task_directory = workspace_root / "editions" / selected / "handoffs" / handoff_id
     artifacts = task_directory / "artifacts"
     artifacts.mkdir(parents=True, exist_ok=False)
+    atlas_output_directory = artifacts / "story_atlas"
     task = {
         "handoff_id": handoff_id,
         "task_type": handoff_type.value,
@@ -305,6 +391,25 @@ def create_handoff(
         "registry_hash": metric_context.get("registry_hash", ""),
         "config_hash": metric_context.get("config_hash", ""),
         "author_directives_hash": directives_hash,
+        "current_atlas_id": None if current_atlas is None else current_atlas["atlas_id"],
+        "current_atlas_version": atlas_version,
+        "current_atlas_manifest_hash": atlas_manifest_hash,
+        "current_horizon_hash": horizon_hash,
+        "readiness_status": readiness_status,
+        "batch_id": batch_id,
+        "batch_plan_hash": batch_plan_hash,
+        "atlas_output_directory": str(atlas_output_directory),
+        "atlas_required_artifacts": [
+            "atlas_manifest.json",
+            "narrative_dna.md",
+            "current_world_model.md",
+            "world_rules.yaml",
+            "unresolved_assumptions.yaml",
+            "expansion_grammar.yaml",
+            "graphs/*.json",
+            "future/*.yaml",
+            "reports/*.md",
+        ],
         "allowed_paths": [str(artifacts.resolve()), str(task_directory.resolve())],
         "forbidden_actions": [
             "不得修改book",
@@ -313,17 +418,46 @@ def create_handoff(
             "不得启用Edition",
             "不得删除历史草稿",
             "不得绕过Validator",
+            "不得把 Story Atlas 的 INFERENCE/CANDIDATE/SPECULATIVE 内容写入 Canon",
+            "不得把 FAR Horizon 写成逐章固定大纲",
         ],
         "expected_outputs": ["events.jsonl", "result.json", "status.json"],
         "task_schema_version": "handoff-v1",
     }
-    skill_name = "continue-novel" if handoff_type == HandoffType.CONTINUATION else "revise-novel"
+    if batch_projection is not None and batch_plan is not None:
+        task["batch_target_chapter_count"] = batch_plan.target_chapter_count
+        task["batch_current_chapter_ordinal"] = batch_projection.current_chapter_ordinal
+        task["batch_status"] = batch_projection.status.value
+    skill_name = {
+        HandoffType.CONTINUATION: "continue-novel",
+        HandoffType.REVISION: "revise-novel",
+        HandoffType.STORY_ATLAS_BOOTSTRAP: "bootstrap-story-atlas",
+        HandoffType.STORY_ATLAS_REFRESH: "bootstrap-story-atlas",
+        HandoffType.WORLD_MODEL_REVIEW: "bootstrap-story-atlas",
+        HandoffType.BATCH_CONTINUATION: "continue-novel-batch",
+    }.get(handoff_type, "continue-novel")
+    atlas_instruction = ""
+    if handoff_type in {
+        HandoffType.STORY_ATLAS_BOOTSTRAP,
+        HandoffType.STORY_ATLAS_REFRESH,
+        HandoffType.WORLD_MODEL_REVIEW,
+    }:
+        atlas_instruction = (
+            "Atlas 输出必须先写入 task artifacts/story_atlas，再由 Python 校验并登记；"
+            "不得直接修改 Canon。"
+        )
+    elif handoff_type is HandoffType.BATCH_CONTINUATION:
+        atlas_instruction = (
+            "Batch 必须按 chunk_size=5 滚动执行、每章更新 Batch Provisional Projection；"
+            "每10章进入 checkpoint，最终停在 BATCH_VALIDATED，不得自动批准正史。"
+        )
     prompt = (
         "$process-novel-handoff\n\n"
         "请先使用仓库内的 $process-novel-handoff Skill，领取并验证 "
         f"handoff_id={handoff_id}。\n\n"
         f"领取成功后，根据 task.json 调用 ${skill_name}，严格执行 "
         f"requested_stage={requested_stage}。\n\n"
+        f"{atlas_instruction}\n\n"
         "严格读取任务目录中的 task.json、prompt.md、metric_context.json、"
         "context_manifest.json 和 output_schema.json。\n"
         "不得修改 book；不得批准写入正史；不得批准改写 Campaign；不得启用 Edition。\n"
@@ -341,6 +475,14 @@ def create_handoff(
         "registry_hash": task["registry_hash"],
         "config_hash": task["config_hash"],
         "author_directives_hash": task["author_directives_hash"],
+        "current_atlas_id": task["current_atlas_id"],
+        "current_atlas_version": task["current_atlas_version"],
+        "current_atlas_manifest_hash": task["current_atlas_manifest_hash"],
+        "current_horizon_hash": task["current_horizon_hash"],
+        "readiness_status": task["readiness_status"],
+        "batch_id": task["batch_id"],
+        "batch_plan_hash": task["batch_plan_hash"],
+        "atlas_required_artifacts": task["atlas_required_artifacts"],
         "effective_content_sha256": task["effective_content_sha256"],
         "edition_status": edition_status,
         "frozen_at": task["created_at"],
@@ -381,6 +523,10 @@ def create_handoff(
         "IMPACT_AND_PLAN": {
             "required_non_empty": ["campaign_id", "artifact_paths"]
         },
+        "ATLAS_BOOTSTRAP": {"required_non_empty": ["artifact_paths"]},
+        "ATLAS_REFRESH": {"required_non_empty": ["artifact_paths"]},
+        "WORLD_MODEL_REVIEW": {"required_non_empty": ["review_queue_ids"]},
+        "BATCH_CONTINUATION": {"required_non_empty": ["batch_id", "chunk_ids"]},
     }
     status_json = {
         "handoff_id": handoff_id,
@@ -416,10 +562,11 @@ def create_handoff(
                 source_manifest_sha256, metric_run_id, metric_bundle_hash, rhythm_snapshot_id,
                 registry_hash, config_hash, effective_content_sha256, edition_status,
                 planning_aggregate_id, planning_aggregate_hash,
-                author_directives_hash,
+                author_directives_hash, atlas_id, atlas_version, atlas_manifest_hash,
+                horizon_hash, batch_id, batch_plan_hash, readiness_status,
                 created_at, version
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                      ?)
+                      ?, ?, ?, ?, ?, ?, ?, 1)
             """,
             (
                 handoff_id,
@@ -447,9 +594,25 @@ def create_handoff(
                 task["planning_aggregate_id"],
                 task["planning_aggregate_hash"],
                 task["author_directives_hash"],
+                task["current_atlas_id"],
+                task["current_atlas_version"],
+                task["current_atlas_manifest_hash"],
+                task["current_horizon_hash"],
+                task["batch_id"],
+                task["batch_plan_hash"],
+                task["readiness_status"],
                 task["created_at"],
-                1,
             ),
+        )
+    if task["current_atlas_id"]:
+        atlas_usage(
+            database,
+            atlas_id=str(task["current_atlas_id"]),
+            book_id=book_id,
+            edition_id=selected,
+            usage_kind="HANDOFF_CREATED",
+            batch_id=batch_id,
+            handoff_id=handoff_id,
         )
     append_event(database, handoff_id, "READY_FOR_CODEX", {"requested_stage": requested_stage})
     return {
@@ -466,6 +629,38 @@ def create_continuation_handoff(database: Database, book_id: str, **kwargs: Any)
 
 def create_revision_handoff(database: Database, book_id: str, **kwargs: Any) -> dict[str, Any]:
     return create_handoff(database, book_id, handoff_type=HandoffType.REVISION, **kwargs)
+
+
+def create_story_atlas_handoff(
+    database: Database,
+    book_id: str,
+    *,
+    handoff_type: HandoffType = HandoffType.STORY_ATLAS_BOOTSTRAP,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    if handoff_type not in {
+        HandoffType.STORY_ATLAS_BOOTSTRAP,
+        HandoffType.STORY_ATLAS_REFRESH,
+        HandoffType.WORLD_MODEL_REVIEW,
+    }:
+        raise HandoffWorkflowError("create_story_atlas_handoff 的类型必须是 Story Atlas handoff")
+    return create_handoff(database, book_id, handoff_type=handoff_type, **kwargs)
+
+
+def create_batch_continuation_handoff(
+    database: Database,
+    book_id: str,
+    *,
+    batch_id: str,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    return create_handoff(
+        database,
+        book_id,
+        handoff_type=HandoffType.BATCH_CONTINUATION,
+        batch_id=batch_id,
+        **kwargs,
+    )
 
 
 def _drift_reasons(
@@ -533,6 +728,65 @@ def _drift_reasons(
         ).fetchone()
         if rhythm is None:
             reasons.append("rhythm snapshot missing")
+    if row["atlas_id"]:
+        atlas = connection.execute(
+            "SELECT * FROM story_atlases WHERE atlas_id=? AND book_id=? AND edition_id=?",
+            (str(row["atlas_id"]), book_id, edition_id),
+        ).fetchone()
+        if atlas is None or str(atlas["status"]) != "ACTIVE":
+            reasons.append("Atlas missing or inactive")
+        else:
+            if row["atlas_version"] is not None and int(atlas["atlas_version"]) != int(
+                row["atlas_version"]
+            ):
+                reasons.append("Atlas version changed")
+            if row["atlas_manifest_hash"] and str(atlas["artifact_manifest_sha256"]) != str(
+                row["atlas_manifest_hash"]
+            ):
+                reasons.append("Atlas manifest hash changed")
+            if row["horizon_hash"] and str(atlas["horizon_hash"] or "") != str(
+                row["horizon_hash"]
+            ):
+                reasons.append("Rolling Horizon hash changed")
+            try:
+                validation = validate_atlas(
+                    database,
+                    book_id,
+                    edition_id,
+                    root=Path(str(atlas["artifact_root"])),
+                )
+                if validation.errors:
+                    reasons.append("Atlas validation failed")
+            except (OSError, RuntimeError, ValueError):
+                reasons.append("Atlas validation unavailable")
+    if row["batch_id"]:
+        batch = connection.execute(
+            "SELECT * FROM batch_working_projections WHERE batch_id=? AND book_id=? "
+            "AND edition_id=?",
+            (str(row["batch_id"]), book_id, edition_id),
+        ).fetchone()
+        if batch is None:
+            reasons.append("Batch missing")
+        else:
+            if row["batch_plan_hash"]:
+                plan_path = (
+                    _book_workspace(database, book_id)
+                    / "editions"
+                    / edition_id
+                    / "batches"
+                    / str(row["batch_id"])
+                    / "batch_plan.json"
+                )
+                if not plan_path.is_file() or sha256_file(plan_path) != str(
+                    row["batch_plan_hash"]
+                ):
+                    reasons.append("Batch plan hash changed")
+            if row["atlas_id"] and str(batch["atlas_id"] or "") != str(row["atlas_id"]):
+                reasons.append("Batch Atlas anchor changed")
+            if row["horizon_hash"] and str(batch["horizon_hash"] or "") != str(
+                row["horizon_hash"]
+            ):
+                reasons.append("Batch Horizon anchor changed")
     return list(dict.fromkeys(reasons))
 
 

@@ -62,3 +62,14 @@ class UserResponseRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     response: dict[str, Any]
+
+
+class AtlasActionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action_type: str
+    target_id: str | None = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+    expected_atlas_id: str | None = None
+    expected_atlas_version: int | None = Field(default=None, ge=1)
+    expected_manifest_hash: str | None = None

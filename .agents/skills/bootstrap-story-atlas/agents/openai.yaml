@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bootstrap Story Atlas"
+  short_description: "Build an auditable versioned soft Story Atlas"
+  default_prompt: "Run the staged Story Atlas bootstrap or refresh workflow with source evidence, readiness, and immutable artifacts."

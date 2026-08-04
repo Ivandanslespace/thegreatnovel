@@ -15,6 +15,12 @@ description: 严格依据 Novel_Authoring_System_Constitution_V2.md，在本项�
 6. 一个合同最多保留初稿加两轮修订；每轮产生新 draft，不覆盖旧草稿。
 7. 长跨度节奏是证据层，不是新的文学总分：功能/标题/首尾补充 Repetition Fatigue，
    高压连续补充 Pressure Curve，Age/Dormancy/Readiness 补充 Narrative Debt 与 Thread Priority。
+8. 若当前 edition 有 Story Atlas，先读取其 manifest、Readiness、Current World Model、NEAR
+   Horizon 和 open questions；Atlas 的 `INFERENCE`/`CANDIDATE`/`FAR` 只能作为软约束，
+   不得把它们写成 CANON。Atlas hash/projection/source 漂移时重新建立 handoff。
+9. Batch 续写必须改用 `$continue-novel-batch`；不可把多章要求合并成一个正文 prompt，
+   每章仍必须有 Boundary、Chapter Contract 和十项校验，Batch Provisional Projection
+   不得进入批准事务。
 
 以下示例假定在项目根运行 PowerShell，并设置：
 

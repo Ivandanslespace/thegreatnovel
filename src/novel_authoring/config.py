@@ -38,6 +38,7 @@ class Settings(BaseModel):
     ingest: IngestConfig
     metrics: dict[str, Any] = Field(default_factory=dict)
     rhythm: dict[str, Any] = Field(default_factory=dict)
+    atlas: dict[str, Any] = Field(default_factory=dict)
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
