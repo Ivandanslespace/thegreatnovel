@@ -1074,9 +1074,10 @@ def export_command(
     workspace: Workspace = Path("workspace"),
     output_dir: Annotated[Optional[Path], typer.Option("--output-dir")] = None,
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     """导出投影、审计记录与已批准续写；不复制或修改原始 book。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         from novel_authoring.edition import BASE_EDITION_ID, resolve_edition_id
 
@@ -1095,9 +1096,10 @@ def export_command(
 def edition_list_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """列出 base 与所有派生 edition。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit([item.model_dump(mode="json") for item in list_editions(database, book_id)])
     except (EditionWorkflowError, OSError, ValueError) as exc:
@@ -1111,12 +1113,13 @@ def edition_create_command(
     edition_id: str = typer.Option(..., "--edition-id"),
     display_name: str = typer.Option(..., "--display-name", "--name"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
     parent_edition_id: Annotated[
         Optional[str], typer.Option("--parent-edition-id", "--parent")
     ] = None,
 ) -> None:
     """从当前或指定父 edition 冻结锚点并建立 DRAFT。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         result = create_edition(
             database,
@@ -1136,12 +1139,13 @@ def edition_activate_command(
     book_id: BookId = typer.Option(...),
     edition_id: str = typer.Option(..., "--edition-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
     confirmation: Annotated[
         str, typer.Option("--confirm", help=f"必须逐字输入：{ACTIVATE_PHRASE}")
     ] = "",
 ) -> None:
     """显式启用已 VALIDATED 的 edition；不会修改 base。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         result = activate_edition(database, book_id, edition_id, confirmation=confirmation)
         _emit(result.model_dump(mode="json"))
@@ -1155,9 +1159,10 @@ def edition_archive_command(
     book_id: BookId = typer.Option(...),
     edition_id: str = typer.Option(..., "--edition-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """归档派生 edition；base 永不删除。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(archive_edition(database, book_id, edition_id).model_dump(mode="json"))
     except (EditionWorkflowError, OSError, ValueError) as exc:
@@ -1170,9 +1175,10 @@ def edition_show_command(
     book_id: BookId = typer.Option(...),
     edition_id: str = typer.Option(..., "--edition-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """显示一个 edition 的冻结锚点与生命周期状态。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(get_edition(database, book_id, edition_id).model_dump(mode="json"))
     except (EditionWorkflowError, OSError, ValueError) as exc:
@@ -1186,9 +1192,10 @@ def edition_export_command(
     edition_id: str = typer.Option(..., "--edition-id"),
     workspace: Workspace = Path("workspace"),
     output_dir: Annotated[Optional[Path], typer.Option("--output-dir")] = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     """导出指定 edition 的完整替换版与改写审计。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(export_edition(database, book_id, edition_id, output_dir))
     except (EditionExportError, OSError, ValueError) as exc:
@@ -1202,11 +1209,21 @@ def revision_create_command(
     spec: Path = typer.Option(..., "--spec"),
     edition_id: str = typer.Option(..., "--edition-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
+    campaign_id: Annotated[Optional[str], typer.Option("--campaign-id")] = None,
 ) -> None:
     """校验并持久化 RevisionSpec。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
-        _emit(create_revision_campaign(database, book_id, spec, edition_id=edition_id))
+        _emit(
+            create_revision_campaign(
+                database,
+                book_id,
+                spec,
+                edition_id=edition_id,
+                campaign_id=campaign_id,
+            )
+        )
     except (RevisionWorkflowError, OSError, ValueError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=3) from exc
@@ -1217,9 +1234,10 @@ def revision_impact_command(
     book_id: BookId = typer.Option(...),
     campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """执行 deterministic FTS/source scan 并生成 Codex 语义审计任务。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(build_revision_impact(database, book_id, campaign_id))
     except (RevisionWorkflowError, OSError, ValueError) as exc:
@@ -1233,9 +1251,10 @@ def revision_impact_complete_command(
     campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
     decisions: Annotated[Optional[Path], typer.Option("--decisions")] = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     """导入语义审计处置 JSON；未处置项不会被默认视为已完成。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         value: list[dict[str, object]] | None = None
         if decisions is not None:
@@ -1251,9 +1270,10 @@ def revision_plan_command(
     book_id: BookId = typer.Option(...),
     campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """把影响包编译为有依赖顺序的 Revision Plan/Units。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(build_revision_plan(database, book_id, campaign_id))
     except (RevisionWorkflowError, OSError, ValueError) as exc:
@@ -1266,9 +1286,10 @@ def revision_contract_build_nested_command(
     book_id: BookId = typer.Option(...),
     campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """为 campaign 构建 Revision Plan/Unit 合同（revision plan 的兼容别名）。"""
-    revision_plan_command(book_id, campaign_id, workspace)
+    revision_plan_command(book_id, campaign_id, workspace, library_root)
 
 
 @revision_app.command("draft-task")
@@ -1277,9 +1298,10 @@ def revision_draft_task_command(
     campaign_id: str = typer.Option(..., "--campaign-id"),
     unit_id: str = typer.Option(..., "--unit-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """为一个 Revision Unit 生成 REVISION_DRAFT 任务与 schema。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(prepare_revision_draft_task(database, book_id, campaign_id, unit_id))
     except (RevisionWorkflowError, OSError, ValueError) as exc:
@@ -1292,9 +1314,10 @@ def revision_import_command(
     book_id: BookId = typer.Option(...),
     output: Path = typer.Option(..., "--output"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """验证并导入 REVISION_DRAFT；只进入 revision_drafts。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(import_revision_draft(database, book_id, output))
     except (RevisionWorkflowError, OSError, ValueError) as exc:
@@ -1307,9 +1330,10 @@ def revision_validate_command(
     book_id: BookId = typer.Option(...),
     campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """运行十项改写校验及既有十项校验审计面。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         result = validate_revision_campaign(database, book_id, campaign_id)
         _emit(result)
@@ -1325,9 +1349,10 @@ def revision_preview_command(
     book_id: BookId = typer.Option(...),
     campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """显示改写差异、variants、事件与未解决影响项。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(revision_preview(database, book_id, campaign_id))
     except (RevisionWorkflowError, OSError, ValueError) as exc:
@@ -1340,9 +1365,10 @@ def revision_status_command(
     book_id: BookId = typer.Option(...),
     campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """显示 campaign、impact、unit、variant 和未解决项状态。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(revision_preview(database, book_id, campaign_id))
     except (RevisionWorkflowError, OSError, ValueError) as exc:
@@ -1355,12 +1381,13 @@ def revision_approve_command(
     book_id: BookId = typer.Option(...),
     campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
     confirmation: str = typer.Option(
         "", "--confirm", help=f"必须逐字输入：{REVISION_APPROVAL_PHRASE}"
     ),
 ) -> None:
     """批准改写 campaign；只写入目标 edition，且不自动激活。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         preview = revision_preview(database, book_id, campaign_id)
         _emit({"approval_preview": preview})
@@ -1379,9 +1406,10 @@ def revision_discard_command(
     book_id: BookId = typer.Option(...),
     draft_id: str = typer.Option(..., "--draft-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """丢弃改写草稿；不会生成 chapter variant。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(discard_revision_draft(database, book_id, draft_id))
     except (RevisionWorkflowError, OSError, ValueError) as exc:
@@ -1395,9 +1423,10 @@ def revision_draft_prepare_nested_command(
     campaign_id: str = typer.Option(..., "--campaign-id"),
     unit_id: str = typer.Option(..., "--unit-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """Nested alias for revision draft prepare."""
-    revision_draft_task_command(book_id, campaign_id, unit_id, workspace)
+    revision_draft_task_command(book_id, campaign_id, unit_id, workspace, library_root)
 
 
 @revision_draft_app.command("import")
@@ -1405,9 +1434,10 @@ def revision_draft_import_nested_command(
     book_id: BookId = typer.Option(...),
     output: Path = typer.Option(..., "--output"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """Nested alias for revision draft import."""
-    revision_import_command(book_id, output, workspace)
+    revision_import_command(book_id, output, workspace, library_root)
 
 
 @revision_draft_app.command("validate")
@@ -1415,9 +1445,10 @@ def revision_draft_validate_nested_command(
     book_id: BookId = typer.Option(...),
     campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """Nested alias for final campaign validation."""
-    revision_validate_command(book_id, campaign_id, workspace)
+    revision_validate_command(book_id, campaign_id, workspace, library_root)
 
 
 @revision_draft_app.command("show")
@@ -1425,9 +1456,10 @@ def revision_draft_show_nested_command(
     book_id: BookId = typer.Option(...),
     campaign_id: str = typer.Option(..., "--campaign-id"),
     workspace: Workspace = Path("workspace"),
+    library_root: LibraryRoot = None,
 ) -> None:
     """Nested alias for revision preview/show."""
-    revision_preview_command(book_id, campaign_id, workspace)
+    revision_preview_command(book_id, campaign_id, workspace, library_root)
 
 
 @features_app.command("prepare")
@@ -1471,9 +1503,10 @@ def features_rebuild_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     """按当前 edition 章节正文确定性重建有效特征。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(rebuild_features(database, book_id, edition_id=edition_id))
     except (RhythmWorkflowError, OSError, ValueError) as exc:
@@ -1487,9 +1520,10 @@ def features_show_command(
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
     chapter_id: Annotated[Optional[str], typer.Option("--chapter-id")] = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     """显示当前 content hash 对应的有效特征行与证据来源。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(show_features(database, book_id, edition_id=edition_id, chapter_id=chapter_id))
     except (RhythmWorkflowError, OSError, ValueError) as exc:
@@ -1503,9 +1537,10 @@ def rhythm_diagnose_command(
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
     as_of_chapter: Annotated[Optional[int], typer.Option("--as-of-chapter")] = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     """输出章节功能、标题、首尾、情绪连续诊断及伏笔队列。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(
             diagnose_rhythm(
@@ -1525,9 +1560,10 @@ def rhythm_show_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     """读取指定 edition 最近一次节奏诊断快照。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(show_latest_rhythm(database, book_id, edition_id=edition_id))
     except (RhythmWorkflowError, OSError, ValueError) as exc:
@@ -1540,9 +1576,10 @@ def hooks_diagnose_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     """输出 HOLD/ADVANCE/RESOLVE/OVERDUE 伏笔动作队列。"""
-    database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
+    database = _book_database(workspace, book_id, library_root)
     try:
         _emit(diagnose_hooks(database, book_id, edition_id=edition_id))
     except (RhythmWorkflowError, OSError, ValueError) as exc:
@@ -1555,9 +1592,10 @@ def hooks_show_command(
     book_id: BookId = typer.Option(...),
     workspace: Workspace = Path("workspace"),
     edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     """show 是 diagnose 的只读别名，保持动作队列结构不变。"""
-    hooks_diagnose_command(book_id, workspace, edition_id)
+    hooks_diagnose_command(book_id, workspace, edition_id, library_root)
 
 
 @metrics_app.command("rebuild")
@@ -1891,10 +1929,11 @@ def observation_retract_command(
 
 @segments_app.command("rebuild")
 def segments_rebuild_command(
-    book_id: BookId = typer.Option(...), workspace: Workspace = Path("workspace"), edition_id: EditionId = None
+    book_id: BookId = typer.Option(...), workspace: Workspace = Path("workspace"), edition_id: EditionId = None,
+    library_root: LibraryRoot = None,
 ) -> None:
     try:
-        _emit(rebuild_segments(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), book_id, edition_id=edition_id))
+        _emit(rebuild_segments(_book_database(workspace, book_id, library_root), book_id, edition_id=edition_id))
     except (ValueError, OSError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=3) from exc
@@ -1904,8 +1943,9 @@ def segments_rebuild_command(
 def segments_show_command(
     book_id: BookId = typer.Option(...), workspace: Workspace = Path("workspace"), edition_id: EditionId = None,
     chapter_id: Annotated[Optional[str], typer.Option("--chapter-id")] = None,
+    library_root: LibraryRoot = None,
 ) -> None:
-    _emit(list_segments(Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3"), book_id, edition_id=edition_id, chapter_id=chapter_id))
+    _emit(list_segments(_book_database(workspace, book_id, library_root), book_id, edition_id=edition_id, chapter_id=chapter_id))
 
 
 def _book_database(

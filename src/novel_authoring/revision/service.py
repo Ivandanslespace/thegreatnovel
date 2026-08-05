@@ -1738,7 +1738,20 @@ def approve_revision_campaign(
             "SELECT * FROM revision_units WHERE campaign_id=? ORDER BY unit_order", (campaign_id,)
         ).fetchall()
         drafts_rows = connection.execute(
-            "SELECT * FROM revision_drafts WHERE campaign_id=? AND status='VALIDATED' ORDER BY created_at",
+            """
+            SELECT *
+            FROM revision_drafts AS draft
+            WHERE draft.campaign_id=?
+              AND draft.status='VALIDATED'
+              AND draft.revision_number=(
+                  SELECT MAX(latest.revision_number)
+                  FROM revision_drafts AS latest
+                  WHERE latest.campaign_id=draft.campaign_id
+                    AND latest.unit_id=draft.unit_id
+                    AND latest.status='VALIDATED'
+              )
+            ORDER BY draft.created_at
+            """,
             (campaign_id,),
         ).fetchall()
     if not units_rows or len(drafts_rows) != len(units_rows):
@@ -2290,6 +2303,7 @@ def revision_preview(database: Database, book_id: str, campaign_id: str) -> dict
             connection, book_id, edition_id=str(campaign["edition_id"])
         )
         source_manifest = _source_manifest_hash(database, book_id)
+        anchor_current = _campaign_anchor_is_current(connection, book_id, campaign)
     return {
         "campaign_id": campaign_id,
         "book_id": book_id,
@@ -2304,9 +2318,7 @@ def revision_preview(database: Database, book_id: str, campaign_id: str) -> dict
         "current_projection": {
             "event_seq": current_projection.through_event_seq,
             "projection_hash": current_projection.sha256(),
-            "anchor_current": _campaign_anchor_is_current(
-                connection, book_id, campaign
-            ),
+            "anchor_current": anchor_current,
         },
         "source_manifest_sha256": source_manifest,
         "source_manifest_current": source_manifest == str(campaign["source_manifest_sha256"]),
