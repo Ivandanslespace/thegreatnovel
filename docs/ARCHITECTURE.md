@@ -50,7 +50,7 @@ AUTHOR_APPROVED + state events + CANON_CHAPTER_COMMITTED
 
 | 组件 | 位置 | 职责 |
 |---|---|---|
-| CLI | `src/novel_authoring/cli/` | 分域 Typer 命令、参数与非零失败码；根 `cli.py` 仅为 deprecated facade |
+| CLI | `src/novel_authoring/cli/` | 已建立 package boundary；`legacy.py` 仍是兼容实现，根 `cli.py` 仅为 deprecated facade |
 | 配置 | `config/default.yaml`、`config.py` | 宪法权重、阈值、编码和切章正则 |
 | 数据库 | `db/schema.py`、`db/database.py` | SQLite schema、迁移、事务连接 |
 | 不可变导入 | `ingest/` | manifest、编码、切章、来源跨度、FTS5、哈希复核 |
@@ -65,6 +65,8 @@ AUTHOR_APPROVED + state events + CANON_CHAPTER_COMMITTED
 | 校验 | `validation/` | 十项报告、validation run 与 VALIDATED 状态 |
 | 批准 | `workflows/approval.py` | 明确确认、漂移校验、事务 Canon Commit、余波义务 |
 | 导出 | `workflows/exporting.py` | 投影、审计、批准正文与 source verify manifest |
+
+CLI 的 package boundary 已建立，但现有命令仍部分由 `cli/legacy.py` 提供兼容实现；本架构不声称 CLI 已完全模块化，后续领域拆分不是当前验收前提。
 
 ## 信任边界
 

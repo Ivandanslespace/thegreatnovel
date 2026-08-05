@@ -4,6 +4,8 @@
 
 Python 负责不可变原文、SQLite/FTS5、确定性指标、硬门、候选/合同、十项校验、批准事务、快照与重建；Codex 桌面端通过 `library/<book_id>/editions/<edition_id>/operations/<operation_id>` 文件合同读写任务。运行时不要求 OpenAI API Key。
 
+CLI package boundary 已建立：入口位于 `src/novel_authoring/cli/`，`legacy.py` 仍是冻结的兼容实现，根 `cli.py` 仅保留兼容 facade。本轮不声称 CLI 已完全模块化；后续领域拆分不是本次验收前提。
+
 Metric Observatory V2 增加严格指标注册表、缺失值/来源观察、段落证据和本地 Author Workbench。Workbench 使用 Local File Handoff Protocol：用户在 Windows Codex 桌面端手动复制指令并领取任务；Web 不调用 OpenAI API、不使用 Codex CLI 或 `codex exec`，也不启动 Codex 子进程。批准正史、改写 Campaign 与 Edition 激活仍须作者显式执行。
 
 最重要的边界：`book/` 永久只读；草稿不会自动成为正史；只有精确确认“批准写入正史”才能提交。
