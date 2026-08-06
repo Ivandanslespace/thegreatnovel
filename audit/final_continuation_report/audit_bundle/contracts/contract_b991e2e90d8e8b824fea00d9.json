@@ -1,0 +1,99 @@
+{
+  "boundary_packet_id": "boundary_ad5bb77726ed63ee23e6afbb",
+  "candidate_id": "candidate_5d28497d5e0a03eb1b5d7070",
+  "canon_constraints": [
+    "保留两只怪物均为Lv8蓝色",
+    "保留牛头王抗机枪子弹",
+    "保留落雷哥布林以法杖引发雷暴",
+    "苏牧只使用已出现的长枪、黄金血脉和现场信息"
+  ],
+  "chapter": 295,
+  "commit_updates": [
+    "苏牧公开行动状态",
+    "赵德荣伤势与防线位置",
+    "雷暴局部边界",
+    "灰光地下线程进度",
+    "promise_e4f784097c5ea7e1a5ff2560推进",
+    "aftershock_obligations"
+  ],
+  "continuation_boundary": {
+    "base_event_seq": 64,
+    "base_projection_hash": "8c26e592893c7908c77a94e3526a6664126213ec66671bfc943cf1a33c8a7226",
+    "last_canon_chapter": 294
+  },
+  "contract_id": "contract_b991e2e90d8e8b824fea00d9",
+  "ending_state": "局部救援成功、雷暴短暂失效、地下存在开始回应；两只Lv8怪物和防线缺口留给后续。",
+  "forbidden_repetitions": [
+    "不得再次以单纯硬扛作为完整解决",
+    "不得以连续震惊代替防线变化",
+    "不得用击杀高等级怪物制造无代价大爽点"
+  ],
+  "knowledge_constraints": [
+    "苏牧只能使用直接感知到的地底动静",
+    "只能从雷暴落点和法杖动作推断局部节奏",
+    "其他人只能依据可见动作和后果反应"
+  ],
+  "mode": "faithful_continuation",
+  "must_not_resolve": [
+    "不得击杀或完全压制牛头王",
+    "不得击杀落雷哥布林",
+    "不得揭示灰光完整身份",
+    "不得修复赵德荣铁鎚"
+  ],
+  "narrative_debt": {
+    "advance": [
+      "promise_e4f784097c5ea7e1a5ff2560",
+      "promise_ff9becdefdd3e9452b18f217"
+    ],
+    "fully_pay": [
+      "promise_e4f784097c5ea7e1a5ff2560"
+    ],
+    "new_major_hooks_allowed": 1
+  },
+  "payoff_plan": {
+    "causal_sources": [
+      "第283章：赵德荣铁鎚錘柄弯曲。",
+      "第282章：落雷哥布林以法杖蓝色宝石引发雷暴。",
+      "第279章：苏牧感知到营地下方的大型存在移动。",
+      "第281章：苏牧保持观察且长枪未出手。"
+    ],
+    "must_change_behavior": [
+      "苏牧公开行动状态",
+      "赵德荣伤势与防线位置",
+      "雷暴局部边界",
+      "灰光地下线程进度",
+      "promise_e4f784097c5ea7e1a5ff2560推进",
+      "aftershock_obligations"
+    ],
+    "state_changes": [
+      "苏牧从观察者变为公开介入者",
+      "赵德荣退出最前排并重新分区",
+      "雷暴出现可利用空档",
+      "地下存在响应黄金血脉"
+    ]
+  },
+  "pressure": {
+    "before": 82.0,
+    "target_after": 70.0
+  },
+  "primary_function": "partial_payoff",
+  "primary_thread": "thread_a90327d3f39355457af89ebe",
+  "progress": {
+    "minimum_score": 25.0,
+    "required_irreversible_change": "苏牧公开行动改变防线分工，赵德荣不再承担原来的单点硬扛位置，雷暴出现局部边界。"
+  },
+  "reader_question": "苏牧等到的临界点是什么，他能在不击败牛头王的情况下救下赵德荣吗？",
+  "required_cost": "黄金血脉短暂外显并暴露气息，长枪承受雷击擦伤，苏牧放弃继续隐藏实力。",
+  "required_irreversible_change": "苏牧公开行动改变防线分工，赵德荣不再承担原来的单点硬扛位置，雷暴出现局部边界。",
+  "secondary_functions": [
+    "choice",
+    "discovery"
+  ],
+  "style_constraints": {
+    "dialogue_ratio": "low",
+    "emotional_distance": "动作细节密集，苏牧内心克制",
+    "exposition_density": "medium-high",
+    "pov": "第三人称限知，主要贴近苏牧并短切战场",
+    "tense": "过去时"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "source_id": "book-01-82fe54fd",
+  "total_lines": 17716,
+  "total_characters": 236632,
+  "nonempty_lines": 8862,
+  "segments": 100,
+  "chapter_characters": {
+    "min": 1067,
+    "median": 2098,
+    "max": 4056
+  },
+  "line_level_signals": {
+    "system_card_lines": 922,
+    "dialogue_lines": 1223,
+    "question_exclamation_lines": 1033,
+    "ellipsis_lines": 1136
+  },
+  "method": "deterministic line-level scan; not a literary quality score"
+}

@@ -1,0 +1,15 @@
+Captured: 2026-08-04T09:36:31+02:00 before audit artifacts, with post-audit migration note.
+OS: Microsoft Windows NT 10.0.26220.0
+PowerShell: 7.6.3
+Python: Python 3.11.9
+uv: uv 0.11.5 (95eaa68c8 2026-04-08 x86_64-pc-windows-msvc)
+Working directory: C:\dev\小说续写系统
+CLI: C:\dev\小说续写系统\.venv\Scripts\novel.exe
+Formal database: C:\dev\小说续写系统\workspace\real-book-smoke\state.sqlite3
+Active book: real-book-smoke
+Formal workspace install: pre-existing .venv; no uv sync performed during audit.
+Project install evidence: pyproject.toml and uv.lock are copied under audit_bundle/instructions/project_metadata.
+Audit runtime temp: C:\Users\jingx\AppData\Local\Temp\novel_authoring_audit_runtime
+Test temp: C:\Users\jingx\AppData\Local\Temp\novel_authoring_audit_20260804
+Formal database current SHA256: 13C86BA5F2FB667A4008A5FC62C2B03C251362B7771B0B6AB9E6EB88EC6CB5D2
+Audit finding: novel status uses Database.initialize; it applied schema migration 5 and backfilled base edition in the formal database after pre-report Git capture. No rollback was performed.

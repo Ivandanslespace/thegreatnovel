@@ -1,0 +1,53 @@
+[
+  {
+    "state_id": "character_state_2e30de71285014819b9af0dc",
+    "book_id": "real-book-smoke",
+    "character_id": "entity_af32bbef7e9bf181fbcf7648",
+    "as_of_event_seq": null,
+    "status": "CANON",
+    "goals_json": "[\"判断更高层威胁何时真正进入战场\", \"保留应对灰光与地底存在的能力\"]",
+    "knowledge_json": "[\"知道营地下方有大型存在移动\", \"知道眼前两只Lv8蓝色单位正在压垮防线\"]",
+    "resources_json": "{\"golden_bloodline\": \"处于压制但有躁动迹象\", \"long_gun\": \"在身侧待命\"}",
+    "relationships_json": "{\"defense_line\": \"尚未公开承担核心支援责任\"}",
+    "emotion_json": "{\"surface\": \"冷静\", \"underlayer\": \"等待临界点\"}",
+    "plans_json": "[\"不提前暴露底牌，等到能改变战场结构的时机再介入\"]",
+    "source_span_id": "span_9dc0f78566cee00f94288dad",
+    "created_at": "2026-08-04T05:37:40.830194+00:00",
+    "version": 2,
+    "edition_id": "base"
+  },
+  {
+    "state_id": "character_state_2b01dba4b391a8c047de27bb",
+    "book_id": "real-book-smoke",
+    "character_id": "entity_d4f565a53c85a44529c4461a",
+    "as_of_event_seq": null,
+    "status": "CANON",
+    "goals_json": "[\"挡住牛头王薩烏塔，给队友争取时间\"]",
+    "knowledge_json": "[\"知道自己的岩石化状态正在被牛头王击裂\"]",
+    "resources_json": "{\"hammer\": \"锤柄弯曲\", \"rock_form\": \"已开启\"}",
+    "relationships_json": "{\"fang-lin\": \"队友支援\", \"liu-yang\": \"队友保护\"}",
+    "emotion_json": "{\"drive\": \"不退\", \"surface\": \"疼痛与虚弱\"}",
+    "plans_json": "[\"继续正面牵制，除非被迫撤退\"]",
+    "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+    "created_at": "2026-08-04T05:37:40.831193+00:00",
+    "version": 2,
+    "edition_id": "base"
+  },
+  {
+    "state_id": "character_state_39db8a80439b9feab7977969",
+    "book_id": "real-book-smoke",
+    "character_id": "entity_942d7b500c24d5919b7c23de",
+    "as_of_event_seq": null,
+    "status": "CANON",
+    "goals_json": "[\"救治伤员\", \"保护银斑豹幼崽\"]",
+    "knowledge_json": "[\"知道毒貓王的伤口会迅速扩散\", \"知道幼崽对密林深处的存在有本能恐惧\"]",
+    "resources_json": "{\"recovery_potion\": \"至少使用过一瓶\", \"silver_leopard_cub\": \"在身边\"}",
+    "relationships_json": "{\"silver-leopard-cub\": \"刚建立契约后的保护关系\"}",
+    "emotion_json": "{\"surface\": \"克制\", \"underlayer\": \"复杂与警觉\"}",
+    "plans_json": "[\"继续在防线内侧处理伤员，不轻易进入正面战场\"]",
+    "source_span_id": "span_9dc0f78566cee00f94288dad",
+    "created_at": "2026-08-04T05:37:40.831193+00:00",
+    "version": 2,
+    "edition_id": "base"
+  }
+]

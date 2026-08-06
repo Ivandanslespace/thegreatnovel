@@ -1,0 +1,68 @@
+{
+  "book_id": "real-book-smoke",
+  "boundary_packet_id": "boundary_ad5bb77726ed63ee23e6afbb",
+  "boundary_path": "C:\\dev\\小说续写系统\\workspace\\real-book-smoke\\boundaries\\boundary_ad5bb77726ed63ee23e6afbb.json",
+  "created_at": "2026-08-04T05:39:18.797203+00:00",
+  "schema_sha256": "a5c93dd6f02c3607d6f4c03be0ec67830a23c1ff3fb4962b5fa9ff61cf375f81",
+  "task_id": "plan_ed92d57df50bf6152d90adf6",
+  "task_type": "plan-next",
+  "thread_priorities": [
+    {
+      "evidence": [
+        "active promises=1",
+        "chapters since advance=294",
+        "importance=0.98"
+      ],
+      "goal": "在多波次袭击中保持营地防线不被两只Lv8蓝色单位突破",
+      "inputs": {
+        "deadline_urgency": 0.0,
+        "diversity_bonus": 50.0,
+        "goal_blockage": 70.0,
+        "narrative_debt": 120.59399987628846,
+        "payoff_readiness": 30.0,
+        "protagonist_relevance": 98.0,
+        "recency_neglect": 100.0
+      },
+      "score": 68.94255997030923,
+      "thread_id": "thread_a90327d3f39355457af89ebe"
+    },
+    {
+      "evidence": [
+        "active promises=1",
+        "chapters since advance=294",
+        "importance=0.95"
+      ],
+      "goal": "查明灰光、地底移动存在与黄金血脉之间的联系，并找到可利用的局部弱点",
+      "inputs": {
+        "deadline_urgency": 0.0,
+        "diversity_bonus": 50.0,
+        "goal_blockage": 90.0,
+        "narrative_debt": 115.52971527497165,
+        "payoff_readiness": 10.0,
+        "protagonist_relevance": 95.0,
+        "recency_neglect": 100.0
+      },
+      "score": 66.6271316659932,
+      "thread_id": "thread_430da8570538d2bf5cc56994"
+    },
+    {
+      "evidence": [
+        "active promises=0",
+        "chapters since advance=294",
+        "importance=0.82"
+      ],
+      "goal": "确认密林异常、动物逃亡和黄金血脉躁动是否属于同一条因果链",
+      "inputs": {
+        "deadline_urgency": 0.0,
+        "diversity_bonus": 50.0,
+        "goal_blockage": 80.0,
+        "narrative_debt": 0.0,
+        "payoff_readiness": 20.0,
+        "protagonist_relevance": 82.0,
+        "recency_neglect": 100.0
+      },
+      "score": 38.00000000000001,
+      "thread_id": "thread_2572c7ac14fc703f8533fda2"
+    }
+  ]
+}

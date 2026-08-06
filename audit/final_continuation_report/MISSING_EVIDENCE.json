@@ -1,0 +1,61 @@
+{
+  "status": "WARNING",
+  "items": [
+    {
+      "id": "missing-original-run-id",
+      "status": "NOT_AVAILABLE",
+      "item": "原始 continuation run_id",
+      "impact": "无法用单一 run_id 关联 extract、plan、draft、validation 的全部运行日志",
+      "available_substitutes": ["extract_595984bc5d9b8eda9f84e407", "plan_ed92d57df50bf6152d90adf6", "draft-task_3028f1b23f5c7e992d00a04f", "validation_7484fd836836abab8a2c60e1"]
+    },
+    {
+      "id": "missing-original-test-exit-codes",
+      "status": "NOT_AVAILABLE",
+      "item": "原续写运行期间的 pytest/ruff/mypy 原始退出码",
+      "impact": "审计时通过的测试不能被倒推为原续写时已执行",
+      "available_substitutes": ["audit_bundle/tests/test_exit_codes.json", "audit_bundle/tests/*.log"]
+    },
+    {
+      "id": "missing-canon-commit",
+      "status": "NOT_AVAILABLE",
+      "item": "Canon Commit",
+      "impact": "当前没有可审计的正史写入事件；这同时证明本轮没有写入正史",
+      "available_substitutes": ["state/events.json", "state/drafts_db_export.json"]
+    },
+    {
+      "id": "missing-snapshot",
+      "status": "NOT_AVAILABLE",
+      "item": "正式 snapshot",
+      "impact": "无法引用原运行时不可变快照作为重放基点",
+      "available_substitutes": ["database/state.sqlite3.readonly", "state/projection_metadata.json"]
+    },
+    {
+      "id": "missing-original-export",
+      "status": "NOT_AVAILABLE",
+      "item": "原续写运行产生的正式 export",
+      "impact": "临时副本 export 只能证明当前代码可导出，不能证明原运行输出已封存",
+      "available_substitutes": ["audit_bundle/exports/reproduction_export"]
+    },
+    {
+      "id": "missing-pre-migration-db-hash",
+      "status": "NOT_AVAILABLE",
+      "item": "审计前正式 state.sqlite3 的 SHA-256",
+      "impact": "无法对 migration 5/backfill 造成的数据库字节变化做完整前后比对",
+      "available_substitutes": ["repository/pre_report_git_status.txt", "database/migration_and_edition_state.json"]
+    },
+    {
+      "id": "missing-complete-repetition-history",
+      "status": "NOT_AVAILABLE",
+      "item": "完整结构化爽点/重复历史",
+      "impact": "Repetition Fatigue=0 只是空历史策略的结果，不是全书无重复的证明",
+      "available_substitutes": ["metrics/metric_results.json", "boundaries/boundary_ad5bb77726ed63ee23e6afbb.json"]
+    },
+    {
+      "id": "unverified-long-gun-mechanism",
+      "status": "INFERENCE",
+      "item": "长枪改变雷击落点并形成三秒雷暴缺口",
+      "impact": "正文存在未在 CANON 事实中找到直接规定的机制推断",
+      "available_substitutes": ["contracts/contract_b991e2e90d8e8b824fea00d9.json", "drafts/draft_5680fe3201e6010bacf83b91.md"]
+    }
+  ]
+}

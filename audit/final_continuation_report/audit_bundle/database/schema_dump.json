@@ -1,0 +1,374 @@
+[
+  {
+    "type": "index",
+    "name": "idx_chapters_book_ordinal",
+    "tbl_name": "chapters",
+    "sql": "CREATE INDEX idx_chapters_book_ordinal ON chapters(book_id, ordinal)"
+  },
+  {
+    "type": "index",
+    "name": "idx_editions_book_status",
+    "tbl_name": "editions",
+    "sql": "CREATE INDEX idx_editions_book_status ON editions(book_id, status)"
+  },
+  {
+    "type": "index",
+    "name": "idx_entities_book_name",
+    "tbl_name": "entities",
+    "sql": "CREATE INDEX idx_entities_book_name ON entities(book_id, name)"
+  },
+  {
+    "type": "index",
+    "name": "idx_events_book_seq",
+    "tbl_name": "events",
+    "sql": "CREATE INDEX idx_events_book_seq ON events(book_id, event_seq)"
+  },
+  {
+    "type": "index",
+    "name": "idx_facts_book_status",
+    "tbl_name": "facts",
+    "sql": "CREATE INDEX idx_facts_book_status ON facts(book_id, status, active)"
+  },
+  {
+    "type": "index",
+    "name": "idx_revision_campaigns_edition",
+    "tbl_name": "revision_campaigns",
+    "sql": "CREATE INDEX idx_revision_campaigns_edition\nON revision_campaigns(book_id, edition_id, status)"
+  },
+  {
+    "type": "index",
+    "name": "idx_revision_commits_campaign",
+    "tbl_name": "revision_commits",
+    "sql": "CREATE INDEX idx_revision_commits_campaign\nON revision_commits(campaign_id, committed_at)"
+  },
+  {
+    "type": "index",
+    "name": "idx_revision_drafts_campaign_status",
+    "tbl_name": "revision_drafts",
+    "sql": "CREATE INDEX idx_revision_drafts_campaign_status\nON revision_drafts(campaign_id, status)"
+  },
+  {
+    "type": "index",
+    "name": "idx_revision_impact_items_campaign",
+    "tbl_name": "revision_impact_items",
+    "sql": "CREATE INDEX idx_revision_impact_items_campaign\nON revision_impact_items(campaign_id, classification, status)"
+  },
+  {
+    "type": "index",
+    "name": "idx_revision_units_campaign_order",
+    "tbl_name": "revision_units",
+    "sql": "CREATE INDEX idx_revision_units_campaign_order\nON revision_units(campaign_id, unit_order)"
+  },
+  {
+    "type": "index",
+    "name": "idx_source_spans_chapter",
+    "tbl_name": "source_spans",
+    "sql": "CREATE INDEX idx_source_spans_chapter ON source_spans(chapter_id)"
+  },
+  {
+    "type": "index",
+    "name": "idx_threads_book_status",
+    "tbl_name": "threads",
+    "sql": "CREATE INDEX idx_threads_book_status ON threads(book_id, status)"
+  },
+  {
+    "type": "index",
+    "name": "idx_validation_draft",
+    "tbl_name": "validation_reports",
+    "sql": "CREATE INDEX idx_validation_draft ON validation_reports(draft_id, passed)"
+  },
+  {
+    "type": "index",
+    "name": "idx_validation_run",
+    "tbl_name": "validation_reports",
+    "sql": "CREATE INDEX idx_validation_run\nON validation_reports(draft_id, run_id, validator)"
+  },
+  {
+    "type": "index",
+    "name": "uq_active_chapter_variant",
+    "tbl_name": "chapter_variants",
+    "sql": "CREATE UNIQUE INDEX uq_active_chapter_variant\nON chapter_variants(edition_id, base_chapter_id) WHERE active=1"
+  },
+  {
+    "type": "table",
+    "name": "author_directives",
+    "tbl_name": "author_directives",
+    "sql": "CREATE TABLE author_directives (\n    directive_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, directive_type TEXT NOT NULL,\n    content TEXT NOT NULL, mode TEXT NOT NULL, status TEXT NOT NULL, priority INTEGER NOT NULL DEFAULT 100,\n    source TEXT NOT NULL, created_at TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "books",
+    "tbl_name": "books",
+    "sql": "CREATE TABLE books (\n    book_id TEXT PRIMARY KEY,\n    title TEXT NOT NULL,\n    mode TEXT NOT NULL,\n    source_root TEXT NOT NULL,\n    workspace_root TEXT NOT NULL,\n    created_at TEXT NOT NULL,\n    updated_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1\n, active_edition_id TEXT)"
+  },
+  {
+    "type": "table",
+    "name": "boundary_packets",
+    "tbl_name": "boundary_packets",
+    "sql": "CREATE TABLE boundary_packets (\n    packet_id TEXT PRIMARY KEY,\n    book_id TEXT NOT NULL,\n    base_event_seq INTEGER NOT NULL,\n    base_projection_hash TEXT NOT NULL,\n    file_path TEXT NOT NULL,\n    packet_json TEXT NOT NULL,\n    packet_sha256 TEXT NOT NULL,\n    status TEXT NOT NULL,\n    created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "candidate_plans",
+    "tbl_name": "candidate_plans",
+    "sql": "CREATE TABLE candidate_plans (\n    candidate_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, task_id TEXT, rank INTEGER,\n    primary_thread_id TEXT, primary_function TEXT NOT NULL, secondary_functions_json TEXT NOT NULL DEFAULT '[]',\n    plan_json TEXT NOT NULL, score_json TEXT NOT NULL, gate_report_json TEXT NOT NULL,\n    selection_status TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "canon_commits",
+    "tbl_name": "canon_commits",
+    "sql": "CREATE TABLE canon_commits (\n    commit_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, draft_id TEXT NOT NULL UNIQUE,\n    event_start_seq INTEGER, event_end_seq INTEGER, chapter_id TEXT NOT NULL,\n    author_approval TEXT NOT NULL, committed_at TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "capabilities",
+    "tbl_name": "capabilities",
+    "sql": "CREATE TABLE capabilities (\n    capability_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, owner_id TEXT NOT NULL,\n    name TEXT NOT NULL, absolute_capacity REAL, effective_capacity REAL,\n    relative_standing REAL, limits_json TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL,\n    source_span_id TEXT, created_at TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "chapter_contracts",
+    "tbl_name": "chapter_contracts",
+    "sql": "CREATE TABLE chapter_contracts (\n    contract_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, candidate_id TEXT,\n    target_chapter_ordinal INTEGER NOT NULL, mode TEXT NOT NULL, contract_json TEXT NOT NULL,\n    contract_sha256 TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "chapter_fts",
+    "tbl_name": "chapter_fts",
+    "sql": "CREATE VIRTUAL TABLE chapter_fts USING fts5(\n    chapter_id UNINDEXED,\n    book_id UNINDEXED,\n    heading,\n    content,\n    tokenize='trigram'\n)"
+  },
+  {
+    "type": "table",
+    "name": "chapter_fts_config",
+    "tbl_name": "chapter_fts_config",
+    "sql": "CREATE TABLE 'chapter_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID"
+  },
+  {
+    "type": "table",
+    "name": "chapter_fts_content",
+    "tbl_name": "chapter_fts_content",
+    "sql": "CREATE TABLE 'chapter_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3)"
+  },
+  {
+    "type": "table",
+    "name": "chapter_fts_data",
+    "tbl_name": "chapter_fts_data",
+    "sql": "CREATE TABLE 'chapter_fts_data'(id INTEGER PRIMARY KEY, block BLOB)"
+  },
+  {
+    "type": "table",
+    "name": "chapter_fts_docsize",
+    "tbl_name": "chapter_fts_docsize",
+    "sql": "CREATE TABLE 'chapter_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB)"
+  },
+  {
+    "type": "table",
+    "name": "chapter_fts_idx",
+    "tbl_name": "chapter_fts_idx",
+    "sql": "CREATE TABLE 'chapter_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID"
+  },
+  {
+    "type": "table",
+    "name": "chapter_variants",
+    "tbl_name": "chapter_variants",
+    "sql": "CREATE TABLE chapter_variants (\n    variant_id TEXT PRIMARY KEY,\n    book_id TEXT NOT NULL,\n    edition_id TEXT NOT NULL REFERENCES editions(edition_id),\n    campaign_id TEXT NOT NULL REFERENCES revision_campaigns(campaign_id),\n    unit_id TEXT NOT NULL REFERENCES revision_units(unit_id),\n    base_chapter_id TEXT NOT NULL,\n    base_source_span_id TEXT NOT NULL,\n    base_content_sha256 TEXT NOT NULL,\n    title TEXT NOT NULL,\n    replacement_content TEXT NOT NULL,\n    replacement_content_sha256 TEXT NOT NULL,\n    status TEXT NOT NULL,\n    supersedes_variant_id TEXT,\n    active INTEGER NOT NULL DEFAULT 0,\n    created_at TEXT NOT NULL,\n    approved_at TEXT,\n    revision_commit_id TEXT,\n    version INTEGER NOT NULL DEFAULT 1\n)"
+  },
+  {
+    "type": "table",
+    "name": "chapters",
+    "tbl_name": "chapters",
+    "sql": "CREATE TABLE chapters (\n    chapter_id TEXT PRIMARY KEY,\n    book_id TEXT NOT NULL REFERENCES books(book_id),\n    document_id TEXT NOT NULL REFERENCES source_documents(document_id),\n    ordinal INTEGER NOT NULL,\n    raw_heading TEXT NOT NULL,\n    chapter_number_text TEXT,\n    title TEXT NOT NULL,\n    volume_title TEXT,\n    start_line INTEGER NOT NULL,\n    end_line INTEGER NOT NULL,\n    start_char INTEGER NOT NULL,\n    end_char INTEGER NOT NULL,\n    content TEXT NOT NULL,\n    content_sha256 TEXT NOT NULL,\n    summary TEXT,\n    created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1, edition_id TEXT NOT NULL DEFAULT 'base',\n    UNIQUE(document_id, ordinal)\n)"
+  },
+  {
+    "type": "table",
+    "name": "character_states",
+    "tbl_name": "character_states",
+    "sql": "CREATE TABLE character_states (\n    state_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, character_id TEXT NOT NULL,\n    as_of_event_seq INTEGER, status TEXT NOT NULL, goals_json TEXT NOT NULL DEFAULT '[]',\n    knowledge_json TEXT NOT NULL DEFAULT '[]', resources_json TEXT NOT NULL DEFAULT '{}',\n    relationships_json TEXT NOT NULL DEFAULT '{}', emotion_json TEXT NOT NULL DEFAULT '{}',\n    plans_json TEXT NOT NULL DEFAULT '[]', source_span_id TEXT, created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "drafts",
+    "tbl_name": "drafts",
+    "sql": "CREATE TABLE drafts (\n    draft_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, contract_id TEXT NOT NULL,\n    candidate_id TEXT, file_path TEXT NOT NULL, content_sha256 TEXT NOT NULL,\n    status TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL,\n    approved_at TEXT, committed_at TEXT, version INTEGER NOT NULL DEFAULT 1\n, task_id TEXT, chapter_title TEXT NOT NULL DEFAULT '', output_json TEXT NOT NULL DEFAULT '{}', base_event_seq INTEGER NOT NULL DEFAULT 0, base_projection_hash TEXT NOT NULL DEFAULT '', validation_run_id TEXT, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "edition_entity_overlays",
+    "tbl_name": "edition_entity_overlays",
+    "sql": "CREATE TABLE edition_entity_overlays (\n    edition_id TEXT NOT NULL REFERENCES editions(edition_id),\n    entity_id TEXT NOT NULL,\n    display_name TEXT,\n    aliases_json TEXT NOT NULL DEFAULT '[]',\n    payload_json TEXT NOT NULL DEFAULT '{}',\n    created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1,\n    PRIMARY KEY(edition_id, entity_id)\n)"
+  },
+  {
+    "type": "table",
+    "name": "edition_projection_metadata",
+    "tbl_name": "edition_projection_metadata",
+    "sql": "CREATE TABLE edition_projection_metadata (\n    book_id TEXT NOT NULL REFERENCES books(book_id),\n    edition_id TEXT NOT NULL REFERENCES editions(edition_id),\n    through_event_seq INTEGER NOT NULL DEFAULT 0,\n    state_sha256 TEXT NOT NULL DEFAULT '',\n    state_json TEXT NOT NULL DEFAULT '{}',\n    updated_at TEXT NOT NULL,\n    PRIMARY KEY(book_id, edition_id)\n)"
+  },
+  {
+    "type": "table",
+    "name": "editions",
+    "tbl_name": "editions",
+    "sql": "CREATE TABLE editions (\n    edition_id TEXT PRIMARY KEY,\n    book_id TEXT NOT NULL REFERENCES books(book_id),\n    parent_edition_id TEXT REFERENCES editions(edition_id),\n    display_name TEXT NOT NULL,\n    status TEXT NOT NULL,\n    base_event_seq INTEGER NOT NULL,\n    base_projection_hash TEXT NOT NULL,\n    source_manifest_sha256 TEXT NOT NULL,\n    created_at TEXT NOT NULL,\n    activated_at TEXT,\n    archived_at TEXT,\n    version INTEGER NOT NULL DEFAULT 1,\n    UNIQUE(book_id, edition_id)\n)"
+  },
+  {
+    "type": "table",
+    "name": "entities",
+    "tbl_name": "entities",
+    "sql": "CREATE TABLE entities (\n    entity_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, entity_type TEXT NOT NULL,\n    name TEXT NOT NULL, aliases_json TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL,\n    source_span_id TEXT, confidence REAL, payload_json TEXT NOT NULL DEFAULT '{}',\n    created_at TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "events",
+    "tbl_name": "events",
+    "sql": "CREATE TABLE events (\n    event_seq INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT NOT NULL UNIQUE,\n    book_id TEXT NOT NULL, event_type TEXT NOT NULL, aggregate_type TEXT NOT NULL,\n    aggregate_id TEXT NOT NULL, payload_json TEXT NOT NULL, source_kind TEXT NOT NULL,\n    source_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1\n, information_state TEXT NOT NULL DEFAULT 'CANON', payload_sha256 TEXT NOT NULL DEFAULT '', prev_event_hash TEXT NOT NULL DEFAULT '', event_hash TEXT NOT NULL DEFAULT '', canon_commit_id TEXT, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "facts",
+    "tbl_name": "facts",
+    "sql": "CREATE TABLE facts (\n    fact_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, subject_id TEXT, predicate TEXT NOT NULL,\n    object_json TEXT NOT NULL, statement TEXT NOT NULL, status TEXT NOT NULL,\n    source_span_id TEXT, source_event_id TEXT, confidence REAL, valid_from_chapter TEXT,\n    valid_to_chapter TEXT, supersedes_fact_id TEXT, active INTEGER NOT NULL DEFAULT 1,\n    created_at TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "knowledge_edges",
+    "tbl_name": "knowledge_edges",
+    "sql": "CREATE TABLE knowledge_edges (\n    edge_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, character_id TEXT NOT NULL,\n    fact_id TEXT NOT NULL, knowledge_state TEXT NOT NULL, learned_event_id TEXT,\n    source_span_id TEXT, status TEXT NOT NULL, confidence REAL, created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "metric_results",
+    "tbl_name": "metric_results",
+    "sql": "CREATE TABLE metric_results (\n    result_id TEXT PRIMARY KEY,\n    book_id TEXT NOT NULL,\n    as_of_event_seq INTEGER NOT NULL,\n    metric_name TEXT NOT NULL,\n    score REAL NOT NULL,\n    inputs_json TEXT NOT NULL,\n    evidence_json TEXT NOT NULL,\n    threshold_interpretation TEXT NOT NULL,\n    recommended_action TEXT NOT NULL,\n    config_hash TEXT NOT NULL,\n    formula_id TEXT NOT NULL,\n    created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1, edition_id TEXT NOT NULL DEFAULT 'base',\n    UNIQUE(book_id, as_of_event_seq, metric_name, config_hash)\n)"
+  },
+  {
+    "type": "table",
+    "name": "payoff_events",
+    "tbl_name": "payoff_events",
+    "sql": "CREATE TABLE payoff_events (\n    payoff_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, thread_id TEXT, payoff_type TEXT NOT NULL,\n    subtype TEXT, score REAL, chapter_id TEXT, event_id TEXT, status TEXT NOT NULL,\n    aftershock_due_ordinal INTEGER, payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "projection_metadata",
+    "tbl_name": "projection_metadata",
+    "sql": "CREATE TABLE projection_metadata (\n    book_id TEXT PRIMARY KEY, through_event_seq INTEGER NOT NULL DEFAULT 0,\n    state_sha256 TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL\n, state_json TEXT NOT NULL DEFAULT '{}', edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "promises",
+    "tbl_name": "promises",
+    "sql": "CREATE TABLE promises (\n    promise_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, thread_id TEXT, statement TEXT NOT NULL,\n    importance REAL NOT NULL, reader_visibility REAL NOT NULL, progress REAL NOT NULL,\n    introduced_ordinal INTEGER NOT NULL, last_reminded_ordinal INTEGER, reminder_count INTEGER NOT NULL DEFAULT 0,\n    target_min_age INTEGER, target_max_age INTEGER NOT NULL, status TEXT NOT NULL,\n    source_span_id TEXT, payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "relationships",
+    "tbl_name": "relationships",
+    "sql": "CREATE TABLE relationships (\n    relationship_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, from_entity_id TEXT NOT NULL,\n    to_entity_id TEXT NOT NULL, status TEXT NOT NULL, trust REAL, alignment REAL,\n    dependence REAL, debt REAL, fear REAL, secret_exposure REAL, commitment REAL,\n    betrayal_cost REAL, power_delta REAL, payload_json TEXT NOT NULL DEFAULT '{}',\n    source_span_id TEXT, created_at TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "repetition_tags",
+    "tbl_name": "repetition_tags",
+    "sql": "CREATE TABLE repetition_tags (\n    tag_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, chapter_id TEXT, candidate_id TEXT,\n    event_source TEXT, solution_method TEXT, payoff_type TEXT, scene_topology TEXT,\n    emotional_outcome TEXT, ending_type TEXT, ordinal INTEGER NOT NULL, status TEXT NOT NULL,\n    payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "resources",
+    "tbl_name": "resources",
+    "sql": "CREATE TABLE resources (\n    resource_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, owner_id TEXT NOT NULL,\n    resource_type TEXT NOT NULL, name TEXT NOT NULL, quantity REAL, unit TEXT,\n    status TEXT NOT NULL, source_span_id TEXT, payload_json TEXT NOT NULL DEFAULT '{}',\n    created_at TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "revision_campaigns",
+    "tbl_name": "revision_campaigns",
+    "sql": "CREATE TABLE revision_campaigns (\n    campaign_id TEXT PRIMARY KEY,\n    book_id TEXT NOT NULL REFERENCES books(book_id),\n    edition_id TEXT NOT NULL REFERENCES editions(edition_id),\n    campaign_name TEXT NOT NULL,\n    revision_kind TEXT NOT NULL,\n    author_intent TEXT NOT NULL,\n    target_scope_json TEXT NOT NULL,\n    canon_changes_json TEXT NOT NULL DEFAULT '[]',\n    entity_changes_json TEXT NOT NULL DEFAULT '[]',\n    invariants_json TEXT NOT NULL DEFAULT '[]',\n    must_change_json TEXT NOT NULL DEFAULT '[]',\n    forbidden_changes_json TEXT NOT NULL DEFAULT '[]',\n    propagation_rules_json TEXT NOT NULL DEFAULT '[]',\n    style_policy_json TEXT NOT NULL DEFAULT '{}',\n    completion_policy_json TEXT NOT NULL DEFAULT '{}',\n    base_event_seq INTEGER NOT NULL,\n    base_projection_hash TEXT NOT NULL,\n    source_manifest_sha256 TEXT NOT NULL,\n    status TEXT NOT NULL,\n    created_at TEXT NOT NULL,\n    validated_at TEXT,\n    approved_at TEXT,\n    committed_at TEXT,\n    version INTEGER NOT NULL DEFAULT 1\n)"
+  },
+  {
+    "type": "table",
+    "name": "revision_commits",
+    "tbl_name": "revision_commits",
+    "sql": "CREATE TABLE revision_commits (\n    revision_commit_id TEXT PRIMARY KEY,\n    campaign_id TEXT NOT NULL REFERENCES revision_campaigns(campaign_id),\n    book_id TEXT NOT NULL,\n    edition_id TEXT NOT NULL,\n    unit_ids_json TEXT NOT NULL,\n    variant_ids_json TEXT NOT NULL,\n    event_start_seq INTEGER NOT NULL,\n    event_end_seq INTEGER NOT NULL,\n    author_approval TEXT NOT NULL,\n    committed_at TEXT NOT NULL,\n    projection_sha256 TEXT NOT NULL,\n    snapshot_id TEXT,\n    version INTEGER NOT NULL DEFAULT 1\n)"
+  },
+  {
+    "type": "table",
+    "name": "revision_drafts",
+    "tbl_name": "revision_drafts",
+    "sql": "CREATE TABLE revision_drafts (\n    draft_id TEXT PRIMARY KEY,\n    campaign_id TEXT NOT NULL REFERENCES revision_campaigns(campaign_id),\n    unit_id TEXT NOT NULL REFERENCES revision_units(unit_id),\n    book_id TEXT NOT NULL,\n    edition_id TEXT NOT NULL,\n    task_id TEXT NOT NULL,\n    file_path TEXT NOT NULL,\n    output_json TEXT NOT NULL,\n    replacement_sha256 TEXT NOT NULL,\n    base_content_sha256 TEXT NOT NULL,\n    status TEXT NOT NULL,\n    revision INTEGER NOT NULL DEFAULT 1,\n    validation_run_id TEXT,\n    created_at TEXT NOT NULL,\n    approved_at TEXT,\n    committed_at TEXT,\n    version INTEGER NOT NULL DEFAULT 1\n)"
+  },
+  {
+    "type": "table",
+    "name": "revision_impact_items",
+    "tbl_name": "revision_impact_items",
+    "sql": "CREATE TABLE revision_impact_items (\n    impact_id TEXT PRIMARY KEY,\n    packet_id TEXT NOT NULL REFERENCES revision_impact_packets(packet_id),\n    campaign_id TEXT NOT NULL,\n    book_id TEXT NOT NULL,\n    edition_id TEXT NOT NULL,\n    chapter_id TEXT,\n    source_span_id TEXT,\n    classification TEXT NOT NULL,\n    severity TEXT NOT NULL,\n    matched_terms_json TEXT NOT NULL DEFAULT '[]',\n    details_json TEXT NOT NULL DEFAULT '{}',\n    status TEXT NOT NULL DEFAULT 'OPEN',\n    waiver_reason TEXT,\n    created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1\n)"
+  },
+  {
+    "type": "table",
+    "name": "revision_impact_packets",
+    "tbl_name": "revision_impact_packets",
+    "sql": "CREATE TABLE revision_impact_packets (\n    packet_id TEXT PRIMARY KEY,\n    campaign_id TEXT NOT NULL UNIQUE REFERENCES revision_campaigns(campaign_id),\n    book_id TEXT NOT NULL,\n    edition_id TEXT NOT NULL,\n    file_path TEXT NOT NULL,\n    packet_json TEXT NOT NULL,\n    packet_sha256 TEXT NOT NULL,\n    deterministic_scan_completed INTEGER NOT NULL DEFAULT 0,\n    codex_semantic_audit_completed INTEGER NOT NULL DEFAULT 0,\n    complete INTEGER NOT NULL DEFAULT 0,\n    created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1\n)"
+  },
+  {
+    "type": "table",
+    "name": "revision_units",
+    "tbl_name": "revision_units",
+    "sql": "CREATE TABLE revision_units (\n    unit_id TEXT PRIMARY KEY,\n    campaign_id TEXT NOT NULL REFERENCES revision_campaigns(campaign_id),\n    book_id TEXT NOT NULL,\n    edition_id TEXT NOT NULL,\n    unit_order INTEGER NOT NULL,\n    base_chapter_id TEXT NOT NULL,\n    base_source_span_id TEXT NOT NULL,\n    base_content_sha256 TEXT NOT NULL,\n    original_heading TEXT NOT NULL,\n    original_content TEXT NOT NULL,\n    direct_change_requirements_json TEXT NOT NULL DEFAULT '[]',\n    downstream_requirements_json TEXT NOT NULL DEFAULT '[]',\n    facts_to_add_json TEXT NOT NULL DEFAULT '[]',\n    facts_to_supersede_json TEXT NOT NULL DEFAULT '[]',\n    relationships_to_update_json TEXT NOT NULL DEFAULT '[]',\n    knowledge_edges_to_update_json TEXT NOT NULL DEFAULT '[]',\n    must_preserve_json TEXT NOT NULL DEFAULT '[]',\n    forbidden_changes_json TEXT NOT NULL DEFAULT '[]',\n    style_constraints_json TEXT NOT NULL DEFAULT '{}',\n    adult_consent_constraints_json TEXT NOT NULL DEFAULT '{}',\n    expected_after_state_json TEXT NOT NULL DEFAULT '{}',\n    dependent_units_json TEXT NOT NULL DEFAULT '[]',\n    status TEXT NOT NULL DEFAULT 'PLANNED',\n    created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1\n)"
+  },
+  {
+    "type": "table",
+    "name": "revision_validation_reports",
+    "tbl_name": "revision_validation_reports",
+    "sql": "CREATE TABLE revision_validation_reports (\n    report_id TEXT PRIMARY KEY,\n    campaign_id TEXT NOT NULL,\n    unit_id TEXT,\n    book_id TEXT NOT NULL,\n    edition_id TEXT NOT NULL,\n    run_id TEXT NOT NULL,\n    validator TEXT NOT NULL,\n    severity TEXT NOT NULL,\n    passed INTEGER NOT NULL,\n    report_json TEXT NOT NULL,\n    created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1,\n    UNIQUE(run_id, validator, unit_id)\n)"
+  },
+  {
+    "type": "table",
+    "name": "schema_migrations",
+    "tbl_name": "schema_migrations",
+    "sql": "CREATE TABLE schema_migrations (\n    version INTEGER PRIMARY KEY,\n    applied_at TEXT NOT NULL\n)"
+  },
+  {
+    "type": "table",
+    "name": "snapshots",
+    "tbl_name": "snapshots",
+    "sql": "CREATE TABLE snapshots (\n    snapshot_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, through_event_seq INTEGER NOT NULL,\n    state_sha256 TEXT NOT NULL, state_json TEXT NOT NULL, file_path TEXT,\n    created_at TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "source_documents",
+    "tbl_name": "source_documents",
+    "sql": "CREATE TABLE source_documents (\n    document_id TEXT PRIMARY KEY,\n    book_id TEXT NOT NULL REFERENCES books(book_id),\n    relative_path TEXT NOT NULL,\n    sha256 TEXT NOT NULL,\n    encoding TEXT NOT NULL,\n    byte_size INTEGER NOT NULL,\n    line_count INTEGER NOT NULL,\n    order_index INTEGER NOT NULL,\n    order_confidence REAL NOT NULL,\n    status TEXT NOT NULL DEFAULT 'CANON',\n    imported_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1, edition_id TEXT NOT NULL DEFAULT 'base',\n    UNIQUE(book_id, relative_path),\n    UNIQUE(book_id, sha256)\n)"
+  },
+  {
+    "type": "table",
+    "name": "source_spans",
+    "tbl_name": "source_spans",
+    "sql": "CREATE TABLE source_spans (\n    span_id TEXT PRIMARY KEY,\n    book_id TEXT NOT NULL REFERENCES books(book_id),\n    document_id TEXT NOT NULL REFERENCES source_documents(document_id),\n    chapter_id TEXT REFERENCES chapters(chapter_id),\n    kind TEXT NOT NULL,\n    start_line INTEGER NOT NULL,\n    end_line INTEGER NOT NULL,\n    start_char INTEGER NOT NULL,\n    end_char INTEGER NOT NULL,\n    text_sha256 TEXT NOT NULL,\n    excerpt TEXT NOT NULL,\n    created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "sqlite_sequence",
+    "tbl_name": "sqlite_sequence",
+    "sql": "CREATE TABLE sqlite_sequence(name,seq)"
+  },
+  {
+    "type": "table",
+    "name": "style_profiles",
+    "tbl_name": "style_profiles",
+    "sql": "CREATE TABLE style_profiles (\n    profile_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, status TEXT NOT NULL,\n    pov TEXT, tense TEXT, sentence_rhythm_json TEXT NOT NULL DEFAULT '{}', dialogue_ratio REAL,\n    exposition_density TEXT, emotional_distance TEXT, voice_samples_json TEXT NOT NULL DEFAULT '[]',\n    forbidden_json TEXT NOT NULL DEFAULT '[]', source_span_id TEXT, created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "threads",
+    "tbl_name": "threads",
+    "sql": "CREATE TABLE threads (\n    thread_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, goal TEXT NOT NULL, stakes TEXT NOT NULL,\n    phase TEXT NOT NULL, introduced_chapter TEXT, last_advanced_chapter TEXT,\n    target_payoff_min INTEGER, target_payoff_max INTEGER, importance REAL NOT NULL,\n    reader_visibility REAL NOT NULL, progress REAL NOT NULL, dependencies_json TEXT NOT NULL DEFAULT '[]',\n    status TEXT NOT NULL, source_span_id TEXT, payload_json TEXT NOT NULL DEFAULT '{}',\n    created_at TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "timeline_entries",
+    "tbl_name": "timeline_entries",
+    "sql": "CREATE TABLE timeline_entries (\n    timeline_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, event_id TEXT, label TEXT NOT NULL,\n    story_time_start TEXT, story_time_end TEXT, order_key REAL, status TEXT NOT NULL,\n    source_span_id TEXT, payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL,\n    version INTEGER NOT NULL DEFAULT 1\n, edition_id TEXT NOT NULL DEFAULT 'base')"
+  },
+  {
+    "type": "table",
+    "name": "validation_reports",
+    "tbl_name": "validation_reports",
+    "sql": "CREATE TABLE validation_reports (\n    report_id TEXT PRIMARY KEY, book_id TEXT NOT NULL, draft_id TEXT NOT NULL,\n    validator TEXT NOT NULL, severity TEXT NOT NULL, passed INTEGER NOT NULL,\n    report_json TEXT NOT NULL, created_at TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1\n, run_id TEXT NOT NULL DEFAULT '', edition_id TEXT NOT NULL DEFAULT 'base')"
+  }
+]

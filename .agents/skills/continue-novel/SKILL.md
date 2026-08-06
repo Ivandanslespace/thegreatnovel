@@ -78,6 +78,10 @@ $BookId = "<book-id>"
 
 缺失 component 必须在 `review-novel-metrics` Skill 下以 AUTHOR_INPUT/UNKNOWN 处理；不得填 0 或 50。
 
+如果 handoff 的 `task.json` 存在 `distill_reference`，先读取其 `skill_root/SKILL.md` 和相关
+证据索引。它只提供来源可追溯的抽象写作控制，用于 `analyze`、`design`、`revise` 或 `check`；
+不得搬运来源正文、人物、设定、事件或独特措辞，也不得把 reference skill 的推断升级为 Canon。
+
 Boundary Packet 中的 `rhythm_features`、`rhythm_diagnostics` 与 `hook_diagnostics` 必须随候选任务传递。
 `same_function_streak`、标题/首尾重复和高压连续只产生建议或 WARNING；`HOLD/ADVANCE/RESOLVE/OVERDUE`
 用于调整线程优先级和合同约束，不得让模型自行伪造诊断结果。

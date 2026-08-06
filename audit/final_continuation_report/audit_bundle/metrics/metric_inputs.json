@@ -1,0 +1,95 @@
+{
+  "pressure": {
+    "threat": 95,
+    "scarcity": 85,
+    "deadline": 90,
+    "uncertainty": 78,
+    "social_conflict": 30,
+    "failure_accumulation": 85
+  },
+  "narrative_debt": {
+    "importance": 0.92,
+    "reader_visibility": 0.95,
+    "promise_progress": 0.10,
+    "age_chapters": 8,
+    "target_max_age": 8,
+    "reminder_count": 5
+  },
+  "progress": {
+    "permanent_growth": 20,
+    "world_state_change": 60,
+    "relationship_change": 25,
+    "knowledge_change": 55,
+    "goal_advance": 25,
+    "strategy_expansion": 30
+  },
+  "payoff": {
+    "maturity": 68,
+    "impact": 63,
+    "causality": 78,
+    "after_value": 82,
+    "repetition_fatigue": 20,
+    "structural_fit": 78,
+    "future_damage": 18
+  },
+  "repetition_history": [],
+  "risk_credibility": {
+    "realized_cost_rate": 75,
+    "consequence_clarity": 85,
+    "opposition_effectiveness": 90,
+    "protection_limit_visibility": 78,
+    "information_limits": 80
+  },
+  "agency": {
+    "value_balance": 0.82,
+    "consequence_difference": 0.86,
+    "information_adequacy": 0.76,
+    "opportunity_cost": 0.80,
+    "long_term_effect": 0.88
+  },
+  "legibility": {
+    "goal_clarity": 75,
+    "rule_clarity": 55,
+    "consequence_clarity": 88,
+    "information_provenance": 70
+  },
+  "outcome_uncertainty": {
+    "danger_unknown": 85,
+    "opponent_plan_unknown": 80,
+    "motivation_unknown": 75,
+    "reward_or_result_unknown": 85,
+    "world_truth_unknown": 70
+  },
+  "evidence": {
+    "Pressure": [
+      "第282—283章：落雷哥布林以雷暴覆盖营地，牛头王薩烏塔摧毁装甲车并持续推进。",
+      "第283章：趙德榮胸口出现裂纹、铁鎚錘柄弯曲，防线承受真实伤亡。"
+    ],
+    "Narrative Debt": [
+      "第275—283章反复出现灰光、地下移动物和苏牧感知到的更高层存在，但尚未得到局部回答。",
+      "第279—283章苏牧多次保持观察而未出手，读者问题已集中到他的等待理由。"
+    ],
+    "Progress": [
+      "第276章：探测手段失效，军方放弃重型车辆并强行穿越密林。",
+      "第280—283章：营地从行军状态转为多波次防守，敌方出现有组织的Lv8蓝色单位。"
+    ],
+    "Payoff": [
+      "本轮只适合对‘苏牧的等待与局部控制’进行部分兑现，不应一次解决两只Lv8蓝色怪物。"
+    ],
+    "Repetition Fatigue": [
+      "当前投影没有已导入的结构化爽点/结构历史，因此不伪造相似度；原文最近三章用于人工结构审查。"
+    ],
+    "Risk Credibility": [
+      "第281—283章：毒貓王、落雷哥布林和牛頭王连续造成中毒、灼烧、碾压及大量人员死亡。"
+    ],
+    "Agency": [
+      "第283章：赵德荣的正面硬扛已到武器弯曲的临界点，苏牧必须决定是否介入以及介入到什么程度。"
+    ],
+    "Legibility": [
+      "敌人、雷暴和防线崩溃清楚可见；但灰光、地底生物和苏牧黄金血脉的关联仍只具局部线索。"
+    ],
+    "Outcome Uncertainty": [
+      "两只Lv8蓝色单位的协同方式、苏牧等待的真实目标以及灰光是否会改变战场结果仍未揭示。"
+    ]
+  }
+}

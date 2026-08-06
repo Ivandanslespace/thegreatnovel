@@ -1,0 +1,12 @@
+{
+  "base_event_seq": 64,
+  "base_projection_hash": "8c26e592893c7908c77a94e3526a6664126213ec66671bfc943cf1a33c8a7226",
+  "book_id": "real-book-smoke",
+  "boundary_packet_id": "boundary_ad5bb77726ed63ee23e6afbb",
+  "contract_id": "contract_b991e2e90d8e8b824fea00d9",
+  "created_at": "2026-08-04T05:45:44.366222+00:00",
+  "revision": 1,
+  "schema_sha256": "4e34f1871b36bb3b6231fdfa82d9bfc6b29df9b5658a2b578541a34e1f9b9904",
+  "task_id": "draft-task_3028f1b23f5c7e992d00a04f",
+  "task_type": "draft"
+}

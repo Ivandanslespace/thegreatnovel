@@ -1,0 +1,2 @@
+1bdc60b (HEAD -> 小说续写_codex_revision, origin/小说续写_codex_revision) feat: add edition-scoped explicit revision workflow
+392f018 (origin/小说续写_codex, 小说续写_codex) feat: add auditable novel continuation system v1

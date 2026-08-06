@@ -1,0 +1,67 @@
+Pre-report Git and repository state capture
+Captured at: 2026-08-04T09:36:31.7195256+02:00 (Europe/Paris)
+Working directory: C:\dev\小说续写系统
+
+COMMAND: git rev-parse --show-toplevel
+EXIT CODE: 0
+OUTPUT:
+C:/dev/小说续写系统
+
+COMMAND: git branch --show-current
+EXIT CODE: 0
+OUTPUT:
+小说续写_codex_revision
+
+COMMAND: git rev-parse HEAD
+EXIT CODE: 0
+OUTPUT:
+1bdc60b31e6bbb412434d2cdcc10a4f2c3bfe802
+
+COMMAND: git status --short
+EXIT CODE: 0
+OUTPUT:
+
+COMMAND: git status
+EXIT CODE: 0
+OUTPUT:
+On branch 小说续写_codex_revision
+Your branch is up to date with 'origin/小说续写_codex_revision'.
+
+nothing to commit, working tree clean
+
+COMMAND: git remote -v
+EXIT CODE: 0
+OUTPUT:
+origin	https://github.com/Ivandanslespace/thegreatnovel.git (fetch)
+origin	https://github.com/Ivandanslespace/thegreatnovel.git (push)
+
+COMMAND: git log -n 15 --oneline --decorate
+EXIT CODE: 0
+OUTPUT:
+1bdc60b (HEAD -> 小说续写_codex_revision, origin/小说续写_codex_revision) feat: add edition-scoped explicit revision workflow
+392f018 (origin/小说续写_codex, 小说续写_codex) feat: add auditable novel continuation system v1
+
+COMMAND: git diff --stat
+EXIT CODE: 0
+OUTPUT:
+
+COMMAND: git diff --name-status
+EXIT CODE: 0
+OUTPUT:
+
+COMMAND: git diff
+EXIT CODE: 0
+OUTPUT:
+
+COMMAND: git diff --cached --stat
+EXIT CODE: 0
+OUTPUT:
+
+COMMAND: git diff --cached --name-status
+EXIT CODE: 0
+OUTPUT:
+
+Interpretation:
+- VERIFIED_PASS: the pre-report Git worktree was clean at capture time.
+- No commit, reset, checkout, stash, push, or PR operation was performed by this audit task before this capture.
+- The audit directory was created only after the commands above were captured.

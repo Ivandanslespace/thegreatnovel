@@ -1,0 +1,566 @@
+{
+  "book_id": "real-book-smoke",
+  "capabilities": {},
+  "character_states": {
+    "character_state_2b01dba4b391a8c047de27bb": {
+      "_edition_id": "base",
+      "_event_id": "event_a159cbd49ca6f8d1ccd99aaa",
+      "_event_seq": 58,
+      "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+      "_source_kind": "SOURCE_RECONCILE",
+      "character_id": "entity_d4f565a53c85a44529c4461a",
+      "emotion": {
+        "drive": "不退",
+        "surface": "疼痛与虚弱"
+      },
+      "goals": [
+        "挡住牛头王薩烏塔，给队友争取时间"
+      ],
+      "knowledge": [
+        "知道自己的岩石化状态正在被牛头王击裂"
+      ],
+      "plans": [
+        "继续正面牵制，除非被迫撤退"
+      ],
+      "reason": "人物伤势、资源与牵制目标由第283章直接展示",
+      "relationships": {
+        "fang-lin": "队友支援",
+        "liu-yang": "队友保护"
+      },
+      "resources": {
+        "hammer": "锤柄弯曲",
+        "rock_form": "已开启"
+      },
+      "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+      "state_id": "character_state_2b01dba4b391a8c047de27bb"
+    },
+    "character_state_2e30de71285014819b9af0dc": {
+      "_edition_id": "base",
+      "_event_id": "event_01e6c9be091d263a127a2461",
+      "_event_seq": 57,
+      "_source_id": "span_9dc0f78566cee00f94288dad",
+      "_source_kind": "SOURCE_RECONCILE",
+      "character_id": "entity_af32bbef7e9bf181fbcf7648",
+      "emotion": {
+        "surface": "冷静",
+        "underlayer": "等待临界点"
+      },
+      "goals": [
+        "判断更高层威胁何时真正进入战场",
+        "保留应对灰光与地底存在的能力"
+      ],
+      "knowledge": [
+        "知道营地下方有大型存在移动",
+        "知道眼前两只Lv8蓝色单位正在压垮防线"
+      ],
+      "plans": [
+        "不提前暴露底牌，等到能改变战场结构的时机再介入"
+      ],
+      "reason": "人物状态由第281章直接展示",
+      "relationships": {
+        "defense_line": "尚未公开承担核心支援责任"
+      },
+      "resources": {
+        "golden_bloodline": "处于压制但有躁动迹象",
+        "long_gun": "在身侧待命"
+      },
+      "source_span_id": "span_9dc0f78566cee00f94288dad",
+      "state_id": "character_state_2e30de71285014819b9af0dc"
+    },
+    "character_state_39db8a80439b9feab7977969": {
+      "_edition_id": "base",
+      "_event_id": "event_50a87e3fae444c54e9ad35b1",
+      "_event_seq": 59,
+      "_source_id": "span_9dc0f78566cee00f94288dad",
+      "_source_kind": "SOURCE_RECONCILE",
+      "character_id": "entity_942d7b500c24d5919b7c23de",
+      "emotion": {
+        "surface": "克制",
+        "underlayer": "复杂与警觉"
+      },
+      "goals": [
+        "救治伤员",
+        "保护银斑豹幼崽"
+      ],
+      "knowledge": [
+        "知道毒貓王的伤口会迅速扩散",
+        "知道幼崽对密林深处的存在有本能恐惧"
+      ],
+      "plans": [
+        "继续在防线内侧处理伤员，不轻易进入正面战场"
+      ],
+      "reason": "人物救治与保护行动由第281章直接展示",
+      "relationships": {
+        "silver-leopard-cub": "刚建立契约后的保护关系"
+      },
+      "resources": {
+        "recovery_potion": "至少使用过一瓶",
+        "silver_leopard_cub": "在身边"
+      },
+      "source_span_id": "span_9dc0f78566cee00f94288dad",
+      "state_id": "character_state_39db8a80439b9feab7977969"
+    }
+  },
+  "committed_chapters": {},
+  "edition_id": "base",
+  "entities": {
+    "entity_015c0a9fc72f48577a701a13": {
+      "_edition_id": "base",
+      "_event_id": "event_fb73367228cd61387f1866ca",
+      "_event_seq": 51,
+      "_source_id": "span_f357a7d7ec0710e528064df8",
+      "_source_kind": "SOURCE_RECONCILE",
+      "aliases": [
+        "灰光"
+      ],
+      "entity_id": "entity_015c0a9fc72f48577a701a13",
+      "entity_type": "anomalous_phenomenon",
+      "name": "灰濛濛的光芒",
+      "reason": "实体名称与当前行动由原文直接给出，已回指 source span",
+      "source_span_id": "span_f357a7d7ec0710e528064df8"
+    },
+    "entity_043dbf9fbf116d38337df7c1": {
+      "_edition_id": "base",
+      "_event_id": "event_f8073a7f71acfd8ae7fa9237",
+      "_event_seq": 48,
+      "_source_id": "span_90964e3ba79b29b082d68922",
+      "_source_kind": "SOURCE_RECONCILE",
+      "aliases": [],
+      "entity_id": "entity_043dbf9fbf116d38337df7c1",
+      "entity_type": "monster",
+      "name": "落雷哥布林",
+      "reason": "实体名称与当前行动由原文直接给出，已回指 source span",
+      "source_span_id": "span_90964e3ba79b29b082d68922"
+    },
+    "entity_4da682b3ec5f0566a9a12934": {
+      "_edition_id": "base",
+      "_event_id": "event_e4968473385df9858320210a",
+      "_event_seq": 50,
+      "_source_id": "span_f357a7d7ec0710e528064df8",
+      "_source_kind": "SOURCE_RECONCILE",
+      "aliases": [
+        "银斑豹幼崽"
+      ],
+      "entity_id": "entity_4da682b3ec5f0566a9a12934",
+      "entity_type": "creature",
+      "name": "銀斑豹幼崽",
+      "reason": "实体名称与当前行动由原文直接给出，已回指 source span",
+      "source_span_id": "span_f357a7d7ec0710e528064df8"
+    },
+    "entity_5e7269471604a19f9c030279": {
+      "_edition_id": "base",
+      "_event_id": "event_3d409b6619ec93499f7ba5bc",
+      "_event_seq": 44,
+      "_source_id": "span_9dc0f78566cee00f94288dad",
+      "_source_kind": "SOURCE_RECONCILE",
+      "aliases": [
+        "方琳"
+      ],
+      "entity_id": "entity_5e7269471604a19f9c030279",
+      "entity_type": "character",
+      "name": "方琳",
+      "reason": "实体名称与当前行动由原文直接给出，已回指 source span",
+      "source_span_id": "span_9dc0f78566cee00f94288dad"
+    },
+    "entity_93a2333510312713587ca423": {
+      "_edition_id": "base",
+      "_event_id": "event_13f64131d4ddc7a60930e86c",
+      "_event_seq": 43,
+      "_source_id": "span_9dc0f78566cee00f94288dad",
+      "_source_kind": "SOURCE_RECONCILE",
+      "aliases": [
+        "刘洋"
+      ],
+      "entity_id": "entity_93a2333510312713587ca423",
+      "entity_type": "character",
+      "name": "劉洋",
+      "reason": "实体名称与当前行动由原文直接给出，已回指 source span",
+      "source_span_id": "span_9dc0f78566cee00f94288dad"
+    },
+    "entity_942d7b500c24d5919b7c23de": {
+      "_edition_id": "base",
+      "_event_id": "event_fefe7bb6ffafd1116e1f6b4d",
+      "_event_seq": 46,
+      "_source_id": "span_9dc0f78566cee00f94288dad",
+      "_source_kind": "SOURCE_RECONCILE",
+      "aliases": [],
+      "entity_id": "entity_942d7b500c24d5919b7c23de",
+      "entity_type": "character",
+      "name": "林雨薇",
+      "reason": "实体名称与当前行动由原文直接给出，已回指 source span",
+      "source_span_id": "span_9dc0f78566cee00f94288dad"
+    },
+    "entity_af32bbef7e9bf181fbcf7648": {
+      "_edition_id": "base",
+      "_event_id": "event_2c66baf60cb1f0fa517e0025",
+      "_event_seq": 42,
+      "_source_id": "span_9dc0f78566cee00f94288dad",
+      "_source_kind": "SOURCE_RECONCILE",
+      "aliases": [
+        "苏牧"
+      ],
+      "entity_id": "entity_af32bbef7e9bf181fbcf7648",
+      "entity_type": "character",
+      "name": "蘇牧",
+      "reason": "实体名称与当前行动由原文直接给出，已回指 source span",
+      "source_span_id": "span_9dc0f78566cee00f94288dad"
+    },
+    "entity_d4f565a53c85a44529c4461a": {
+      "_edition_id": "base",
+      "_event_id": "event_4893b0d29d6f47d53100efa2",
+      "_event_seq": 49,
+      "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+      "_source_kind": "SOURCE_RECONCILE",
+      "aliases": [
+        "赵德荣"
+      ],
+      "entity_id": "entity_d4f565a53c85a44529c4461a",
+      "entity_type": "character",
+      "name": "趙德榮",
+      "reason": "实体名称与当前行动由原文直接给出，已回指 source span",
+      "source_span_id": "span_ec7b4a5974e1db9d3e39a707"
+    },
+    "entity_d854fb751f65eb5b2a6f8c7e": {
+      "_edition_id": "base",
+      "_event_id": "event_a874d98b489cc894ac8b99c5",
+      "_event_seq": 45,
+      "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+      "_source_kind": "SOURCE_RECONCILE",
+      "aliases": [
+        "普罗修"
+      ],
+      "entity_id": "entity_d854fb751f65eb5b2a6f8c7e",
+      "entity_type": "character",
+      "name": "普羅修",
+      "reason": "实体名称与当前行动由原文直接给出，已回指 source span",
+      "source_span_id": "span_ec7b4a5974e1db9d3e39a707"
+    },
+    "entity_e78acf940532f96c77e47009": {
+      "_edition_id": "base",
+      "_event_id": "event_d80dd6a014ddcfb321e2294c",
+      "_event_seq": 47,
+      "_source_id": "span_90964e3ba79b29b082d68922",
+      "_source_kind": "SOURCE_RECONCILE",
+      "aliases": [
+        "牛头王萨乌塔"
+      ],
+      "entity_id": "entity_e78acf940532f96c77e47009",
+      "entity_type": "monster",
+      "name": "牛頭王薩烏塔",
+      "reason": "实体名称与当前行动由原文直接给出，已回指 source span",
+      "source_span_id": "span_90964e3ba79b29b082d68922"
+    }
+  },
+  "facts": {
+    "fact_05f015b92224112c7ba15b5b": {
+      "_edition_id": "base",
+      "_event_id": "event_4f18d212ed5a6f048fc354c9",
+      "_event_seq": 38,
+      "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+      "_source_kind": "SOURCE_RECONCILE",
+      "fact_id": "fact_05f015b92224112c7ba15b5b",
+      "object": "铁鎚錘柄弯曲",
+      "predicate": "武器状态",
+      "reason": "原文直接陈述，已回指 source span",
+      "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+      "statement": "赵德荣用于格挡牛头王攻击的铁鎚錘柄已经弯曲，无法继续稳定握持。",
+      "subject_id": "entity_d4f565a53c85a44529c4461a"
+    },
+    "fact_1be162c155d935a4dce18eba": {
+      "_edition_id": "base",
+      "_event_id": "event_05d094f776d1a71a1a2bf139",
+      "_event_seq": 39,
+      "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+      "_source_kind": "SOURCE_RECONCILE",
+      "fact_id": "fact_1be162c155d935a4dce18eba",
+      "object": "翅膀大面积烧焦",
+      "predicate": "伤势",
+      "reason": "原文直接陈述，已回指 source span",
+      "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+      "statement": "普罗修的翅膀被雷电烧焦，行动受到影响。",
+      "subject_id": "entity_d854fb751f65eb5b2a6f8c7e"
+    },
+    "fact_2a94aea18c90a76e9c1d273e": {
+      "_edition_id": "base",
+      "_event_id": "event_ebfbb97bac55d33579fb2d32",
+      "_event_seq": 36,
+      "_source_id": "span_f6e98b851f24ffb4431228ee",
+      "_source_kind": "SOURCE_RECONCILE",
+      "fact_id": "fact_2a94aea18c90a76e9c1d273e",
+      "object": "营地下方有多个大型存在移动但尚未上来",
+      "predicate": "感知到",
+      "reason": "原文直接陈述，已回指 source span",
+      "source_span_id": "span_f6e98b851f24ffb4431228ee",
+      "statement": "苏牧能凭黄金血脉感知到营地下方有大型存在移动。",
+      "subject_id": "entity_af32bbef7e9bf181fbcf7648"
+    },
+    "fact_5e40a3aaa62d179255ea1f80": {
+      "_edition_id": "base",
+      "_event_id": "event_7aa678a43fe2b67ccfdb6c81",
+      "_event_seq": 37,
+      "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+      "_source_kind": "SOURCE_RECONCILE",
+      "fact_id": "fact_5e40a3aaa62d179255ea1f80",
+      "object": "岩石化已开启",
+      "predicate": "当前能力状态",
+      "reason": "原文直接陈述，已回指 source span",
+      "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+      "statement": "赵德荣开启岩石化天赋后，皮肤会变成灰黑色的石质状态。",
+      "subject_id": "entity_d4f565a53c85a44529c4461a"
+    },
+    "fact_6c72383ef2d4dec43dfcc798": {
+      "_edition_id": "base",
+      "_event_id": "event_e994379197659c9de4f065b7",
+      "_event_seq": 40,
+      "_source_id": "span_90964e3ba79b29b082d68922",
+      "_source_kind": "SOURCE_RECONCILE",
+      "fact_id": "fact_6c72383ef2d4dec43dfcc798",
+      "object": {
+        "level": 8,
+        "rarity": "蓝色"
+      },
+      "predicate": "等级与品级",
+      "reason": "原文直接陈述，已回指 source span",
+      "source_span_id": "span_90964e3ba79b29b082d68922",
+      "statement": "牛头王萨乌塔的等级为Lv8，品级为蓝色。",
+      "subject_id": "entity_e78acf940532f96c77e47009"
+    },
+    "fact_7b5ffa9cb8b1411ae1535797": {
+      "_edition_id": "base",
+      "_event_id": "event_babeb5941c0f625b9b865472",
+      "_event_seq": 41,
+      "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+      "_source_kind": "SOURCE_RECONCILE",
+      "fact_id": "fact_7b5ffa9cb8b1411ae1535797",
+      "object": "机枪子弹难以造成有效伤害",
+      "predicate": "防御",
+      "reason": "原文直接陈述，已回指 source span",
+      "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+      "statement": "牛头王萨乌塔的皮肤能弹开机枪子弹，普通枪械难以造成有效伤害。",
+      "subject_id": "entity_e78acf940532f96c77e47009"
+    },
+    "fact_7c64487006d7e09bb1e40935": {
+      "_edition_id": "base",
+      "_event_id": "event_20c6c13ce047e33fb7772ffc",
+      "_event_seq": 34,
+      "_source_id": "span_90964e3ba79b29b082d68922",
+      "_source_kind": "SOURCE_RECONCILE",
+      "fact_id": "fact_7c64487006d7e09bb1e40935",
+      "object": {
+        "level": 8,
+        "rarity": "蓝色"
+      },
+      "predicate": "等级与品级",
+      "reason": "原文直接陈述，已回指 source span",
+      "source_span_id": "span_90964e3ba79b29b082d68922",
+      "statement": "落雷哥布林的等级为Lv8，品级为蓝色。",
+      "subject_id": "entity_043dbf9fbf116d38337df7c1"
+    },
+    "fact_9e24b9e406af29f817011deb": {
+      "_edition_id": "base",
+      "_event_id": "event_94c3d5712e11b082cd0daef9",
+      "_event_seq": 33,
+      "_source_id": "span_90964e3ba79b29b082d68922",
+      "_source_kind": "SOURCE_RECONCILE",
+      "fact_id": "fact_9e24b9e406af29f817011deb",
+      "object": "覆盖营地的持续雷暴",
+      "predicate": "引发",
+      "reason": "原文直接陈述，已回指 source span",
+      "source_span_id": "span_90964e3ba79b29b082d68922",
+      "statement": "落雷哥布林通过法杖顶端的蓝色宝石引发覆盖营地的持续雷暴。",
+      "subject_id": "entity_043dbf9fbf116d38337df7c1"
+    },
+    "fact_b0d10e880d406addf3b5509a": {
+      "_edition_id": "base",
+      "_event_id": "event_dd0ab7b9eebb981a1f81ae64",
+      "_event_seq": 35,
+      "_source_id": "span_9dc0f78566cee00f94288dad",
+      "_source_kind": "SOURCE_RECONCILE",
+      "fact_id": "fact_b0d10e880d406addf3b5509a",
+      "object": "观察战场且暂不介入",
+      "predicate": "当前行动",
+      "reason": "原文直接陈述，已回指 source span",
+      "source_span_id": "span_9dc0f78566cee00f94288dad",
+      "statement": "苏牧在多波次袭击中保持观察，长枪暂未出手。",
+      "subject_id": "entity_af32bbef7e9bf181fbcf7648"
+    }
+  },
+  "knowledge": {
+    "knowledge_69a2a0bc3124018e5e80bbf1": {
+      "_edition_id": "base",
+      "_event_id": "event_c897f70ffa5098bd17d28fef",
+      "_event_seq": 64,
+      "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+      "_source_kind": "SOURCE_RECONCILE",
+      "character_id": "entity_af32bbef7e9bf181fbcf7648",
+      "confidence": 1.0,
+      "edge_id": "knowledge_69a2a0bc3124018e5e80bbf1",
+      "fact_id": "fact_05f015b92224112c7ba15b5b",
+      "knowledge_state": "现场可见",
+      "reason": "先接受引用的赵德荣状态事实，再整理知识边",
+      "source_span_id": "span_ec7b4a5974e1db9d3e39a707"
+    },
+    "knowledge_ea43548aaae411f1ce8ca321": {
+      "_edition_id": "base",
+      "_event_id": "event_272119a9d63355d75fe6b85c",
+      "_event_seq": 63,
+      "_source_id": "span_f6e98b851f24ffb4431228ee",
+      "_source_kind": "SOURCE_RECONCILE",
+      "character_id": "entity_af32bbef7e9bf181fbcf7648",
+      "confidence": 1.0,
+      "edge_id": "knowledge_ea43548aaae411f1ce8ca321",
+      "fact_id": "fact_2a94aea18c90a76e9c1d273e",
+      "knowledge_state": "直接感知",
+      "reason": "先接受引用的地底感知事实，再整理知识边",
+      "source_span_id": "span_f6e98b851f24ffb4431228ee"
+    }
+  },
+  "payoffs": {},
+  "promises": {
+    "promise_e4f784097c5ea7e1a5ff2560": {
+      "_edition_id": "base",
+      "_event_id": "event_3f4afd4b1f15587ca156c860",
+      "_event_seq": 56,
+      "_source_id": "span_9dc0f78566cee00f94288dad",
+      "_source_kind": "SOURCE_RECONCILE",
+      "importance": 0.9,
+      "introduced_ordinal": 0,
+      "progress": 0.05,
+      "promise_id": "promise_e4f784097c5ea7e1a5ff2560",
+      "reader_visibility": 0.95,
+      "reason": "原文以苏牧持续不动和战场临界直接建立，需由行动兑现",
+      "source_span_id": "span_9dc0f78566cee00f94288dad",
+      "statement": "苏牧持续等待后必须用一次有代价的行动证明等待目的。",
+      "target_max_age": 3,
+      "thread_id": "thread_a90327d3f39355457af89ebe"
+    },
+    "promise_ff9becdefdd3e9452b18f217": {
+      "_edition_id": "base",
+      "_event_id": "event_3142dc8993091d4a5f5f3143",
+      "_event_seq": 55,
+      "_source_id": "span_f357a7d7ec0710e528064df8",
+      "_source_kind": "SOURCE_RECONCILE",
+      "importance": 0.92,
+      "introduced_ordinal": 0,
+      "progress": 0.1,
+      "promise_id": "promise_ff9becdefdd3e9452b18f217",
+      "reader_visibility": 0.95,
+      "reason": "原文反复提出，需在近期给出局部回答",
+      "source_span_id": "span_f357a7d7ec0710e528064df8",
+      "statement": "灰光、动物园逃亡、地下移动物与苏牧黄金血脉的联系必须得到局部回答。",
+      "target_max_age": 8,
+      "thread_id": "thread_430da8570538d2bf5cc56994"
+    }
+  },
+  "relationships": {},
+  "repetition": {
+    "repetition_43f71a240b42a1641ba1b5f6": {
+      "_edition_id": "base",
+      "_event_id": "event_0d31ac6c6a94a47b89399a81",
+      "_event_seq": 62,
+      "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+      "_source_kind": "SOURCE_RECONCILE",
+      "emotional_outcome": "悲壮与临界感",
+      "ending_type": "武器损坏、下一击将至",
+      "event_source": "前排强者被迫正面承伤",
+      "payoff_type": "局部坚持但代价升级",
+      "reason": "记录最近一次前排强者以身体换取牵制结构",
+      "scene_topology": "单点正面硬扛，队友从后方支援",
+      "solution_method": "用身体和武器换取几秒牵制",
+      "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+      "tag_id": "repetition_43f71a240b42a1641ba1b5f6"
+    },
+    "repetition_6d22ce94663837528c2be634": {
+      "_edition_id": "base",
+      "_event_id": "event_ff8604dfa9a1a948ae976d0a",
+      "_event_seq": 61,
+      "_source_id": "span_90964e3ba79b29b082d68922",
+      "_source_kind": "SOURCE_RECONCILE",
+      "emotional_outcome": "压迫与失控",
+      "ending_type": "新一轮冲击未完",
+      "event_source": "密林中连续出现高等级怪物",
+      "payoff_type": "威胁升级而非兑现",
+      "reason": "记录最近一次多方向高等级怪物进入结构",
+      "scene_topology": "营地多方向防线",
+      "solution_method": "群体分线牵制与火力硬扛",
+      "source_span_id": "span_90964e3ba79b29b082d68922",
+      "tag_id": "repetition_6d22ce94663837528c2be634"
+    }
+  },
+  "resources": {},
+  "style_profiles": {
+    "style_65a97ecbdca06287e8a24ee2": {
+      "_edition_id": "base",
+      "_event_id": "event_b1b65c818b4b3b151bc01920",
+      "_event_seq": 60,
+      "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+      "_source_kind": "SOURCE_RECONCILE",
+      "dialogue_ratio": 0.1,
+      "emotional_distance": "外部动作细节密集，关键处转入克制的内心判断",
+      "exposition_density": "medium-high",
+      "pov": "第三人称限知并在群像战场间切换",
+      "profile_id": "style_65a97ecbdca06287e8a24ee2",
+      "reason": "文风样本直接来自最近一章",
+      "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+      "tense": "过去时叙述",
+      "voice_samples": [
+        "這不是他的選擇，是他沒有選擇。"
+      ]
+    }
+  },
+  "threads": {
+    "thread_2572c7ac14fc703f8533fda2": {
+      "_edition_id": "base",
+      "_event_id": "event_5c06008caf7295be1bf78516",
+      "_event_seq": 54,
+      "_source_id": "span_f357a7d7ec0710e528064df8",
+      "_source_kind": "SOURCE_RECONCILE",
+      "dependencies": [],
+      "goal": "确认密林异常、动物逃亡和黄金血脉躁动是否属于同一条因果链",
+      "importance": 0.82,
+      "phase": "escalation",
+      "progress": 0.2,
+      "reader_visibility": 0.85,
+      "reason": "由第275—280章黄金血脉躁动与动物异常连续线索建立的线程",
+      "source_span_id": "span_f357a7d7ec0710e528064df8",
+      "stakes": "未知力量可能改变苏牧的能力边界，也可能引来无法控制的敌意",
+      "thread_id": "thread_2572c7ac14fc703f8533fda2"
+    },
+    "thread_430da8570538d2bf5cc56994": {
+      "_edition_id": "base",
+      "_event_id": "event_33d7fc7fb72c88522ac8fba5",
+      "_event_seq": 53,
+      "_source_id": "span_f6e98b851f24ffb4431228ee",
+      "_source_kind": "SOURCE_RECONCILE",
+      "dependencies": [],
+      "goal": "查明灰光、地底移动存在与黄金血脉之间的联系，并找到可利用的局部弱点",
+      "importance": 0.95,
+      "phase": "escalation",
+      "progress": 0.1,
+      "reader_visibility": 0.95,
+      "reason": "由第279—283章连续感知与灰光线索直接建立的调查线程",
+      "source_span_id": "span_f6e98b851f24ffb4431228ee",
+      "stakes": "如果判断错误，苏牧无法在防线崩溃前保护队伍，也可能被更高层存在锁定",
+      "thread_id": "thread_430da8570538d2bf5cc56994"
+    },
+    "thread_a90327d3f39355457af89ebe": {
+      "_edition_id": "base",
+      "_event_id": "event_2caafdba46598580b4b06ebc",
+      "_event_seq": 52,
+      "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+      "_source_kind": "SOURCE_RECONCILE",
+      "dependencies": [],
+      "goal": "在多波次袭击中保持营地防线不被两只Lv8蓝色单位突破",
+      "importance": 0.98,
+      "phase": "crisis",
+      "progress": 0.3,
+      "reader_visibility": 0.98,
+      "reason": "由第280—283章连续战斗直接建立的防线生存线程",
+      "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+      "stakes": "核心队伍、军方营地和大量幸存者将遭到直接屠杀",
+      "thread_id": "thread_a90327d3f39355457af89ebe"
+    }
+  },
+  "through_event_seq": 64,
+  "timeline": {}
+}

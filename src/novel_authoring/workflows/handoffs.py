@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import secrets
+import shutil
 import sqlite3
 from enum import StrEnum
 from pathlib import Path
@@ -47,6 +48,7 @@ class HandoffType(StrEnum):
     STORY_ATLAS_RENDER = "STORY_ATLAS_RENDER"
     BATCH_CONTINUATION = "BATCH_CONTINUATION"
     NOVEL_INITIALIZATION = "NOVEL_INITIALIZATION"
+    NOVEL_DISTILLATION = "NOVEL_DISTILLATION"
 
 
 class HandoffWorkflowError(RuntimeError):
@@ -109,6 +111,12 @@ class WorkflowHandoffResult(BaseModel):
     generated_visuals: list[str] = Field(default_factory=list)
     readiness: str | None = None
     review_queue: list[str] = Field(default_factory=list)
+    distill_id: str | None = None
+    distill_source_ids: list[str] = Field(default_factory=list)
+    distill_dimensions: list[str] = Field(default_factory=list)
+    distill_mode: str | None = None
+    distill_depth: str | None = None
+    distill_skill_root: str | None = None
 
     @model_validator(mode="after")
     def validate_stage_contract(self) -> WorkflowHandoffResult:
@@ -138,6 +146,13 @@ class WorkflowHandoffResult(BaseModel):
             raise ValueError("WORLD_MODEL_REVIEW 完成结果必须包含 review_queue_ids")
         if atlas_type == HandoffType.NOVEL_INITIALIZATION.value and not self.initialization_id:
             raise ValueError("NOVEL_INITIALIZATION 完成结果必须包含 initialization_id")
+        if atlas_type == HandoffType.NOVEL_DISTILLATION.value:
+            if not self.distill_id:
+                raise ValueError("NOVEL_DISTILLATION 完成结果必须包含 distill_id")
+            if not self.distill_source_ids:
+                raise ValueError("NOVEL_DISTILLATION 完成结果必须包含 distill_source_ids")
+            if not self.distill_skill_root:
+                raise ValueError("NOVEL_DISTILLATION 完成结果必须包含 distill_skill_root")
         compatible = {
             "PLAN_ONLY": {"PLAN_ONLY", "PLANNED", "CANDIDATES"},
             "DRAFT_AND_VALIDATE": {"DRAFT_AND_VALIDATE", "VALIDATED_DRAFT", "VALIDATED"},
@@ -153,6 +168,14 @@ class WorkflowHandoffResult(BaseModel):
                 "WORLD_MODEL_READY",
                 "WORLD_MODEL_READY_WITH_GAPS",
                 "VALIDATED_INITIALIZATION",
+            },
+            "DISTILL": {"DISTILL", "DISTILLED", "VALIDATED_DISTILL", "VALIDATED"},
+            "NOVEL_DISTILLATION": {
+                "DISTILL",
+                "NOVEL_DISTILLATION",
+                "DISTILLED",
+                "VALIDATED_DISTILL",
+                "VALIDATED",
             },
         }
         if requested in compatible and completed not in compatible[requested]:
@@ -320,6 +343,7 @@ def create_handoff(
     require_complete_metrics: bool = False,
     atlas_id: str | None = None,
     batch_id: str | None = None,
+    distill_request: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     database.initialize()
     selected = resolve_edition_id(database, book_id, edition_id)
@@ -336,14 +360,17 @@ def create_handoff(
         directives_hash = _author_directives_hash(connection, book_id, selected)
     edition_status = None if edition_row is None else str(edition_row["status"])
     initialization_handoff = handoff_type is HandoffType.NOVEL_INITIALIZATION
-    if initialization_handoff:
-        # Existing-novel initialization is the upstream producer of the Atlas.
-        # It must not require a planning aggregate or a completed metric run.
+    distill_handoff = handoff_type is HandoffType.NOVEL_DISTILLATION
+    if initialization_handoff or distill_handoff:
+        # Initialization and distill are upstream analysis handoffs. They must
+        # not require a planning aggregate or a completed metric run.
         metric_context = {
-            "scope_type": "INITIALIZATION",
+            "scope_type": "INITIALIZATION" if initialization_handoff else "DISTILL",
             "scope_id": selected,
             "input_bundle_hash": "",
-            "semantic_metrics_deferred": True,
+            "semantic_metrics_deferred": initialization_handoff,
+            "registry_hash": load_registry().registry_hash,
+            "config_hash": sha256_bytes(json_dumps(load_settings().metrics).encode("utf-8")),
         }
         latest = None
         planning_aggregate = {"aggregate_id": None, "bundle_hash": None}
@@ -467,6 +494,31 @@ def create_handoff(
         if canonical_layout
         else workspace_root / "editions" / selected / "initialization"
     )
+    frozen_distill_request: dict[str, Any] | None = None
+    if distill_handoff:
+        if not isinstance(distill_request, dict):
+            raise HandoffWorkflowError("NOVEL_DISTILLATION handoff 缺少 distill_request")
+        prepared_root = Path(str(distill_request.get("prepared_root", ""))).resolve()
+        if not prepared_root.is_dir() or not (prepared_root / "manifest.json").is_file():
+            raise HandoffWorkflowError("distill preparation 目录或 manifest.json 不存在")
+        frozen_root = artifacts / "distill_input"
+        shutil.copytree(prepared_root, frozen_root)
+        frozen_distill_request = dict(distill_request)
+        frozen_distill_request["prepared_root"] = str(frozen_root)
+        frozen_distill_request["preparation_manifest"] = str(frozen_root / "manifest.json")
+        base_skill_root = str(distill_request.get("base_skill_root", "")).strip()
+        if base_skill_root:
+            base_root = Path(base_skill_root).resolve()
+            if not (base_root / "SKILL.md").is_file():
+                raise HandoffWorkflowError("distill update 的 base skill 缺少 SKILL.md")
+            frozen_base = frozen_root / "base_skill"
+            shutil.copytree(base_root, frozen_base)
+            frozen_distill_request["base_skill_root"] = str(frozen_base)
+    distill_reference: dict[str, Any] | None = None
+    if canonical_layout and not distill_handoff:
+        from novel_authoring.distill.service import latest_distill_reference
+
+        distill_reference = latest_distill_reference(edition_paths)
     task = {
         "handoff_id": handoff_id,
         "task_type": handoff_type.value,
@@ -519,6 +571,29 @@ def create_handoff(
         "expected_outputs": ["events.jsonl", "result.json", "status.json"],
         "task_schema_version": "handoff-v1",
     }
+    if distill_reference is not None:
+        task["distill_reference"] = distill_reference
+    if distill_handoff and frozen_distill_request is not None:
+        task.update(
+            {
+                "distill": frozen_distill_request,
+                "distill_contract": {
+                    "required_input": [
+                        "artifacts/distill_input/manifest.json",
+                        "artifacts/distill_input/chapter_index.json",
+                    ],
+                    "optional_input": ["artifacts/distill_input/base_skill/SKILL.md"],
+                    "required_output": [
+                        "artifacts/distill_skill/SKILL.md",
+                        "artifacts/distill_skill/distillation-report.md",
+                    ],
+                    "semantic_executor": "Windows Codex desktop",
+                    "publish_command": "novel distill import",
+                    "canon_boundary": "REFERENCE_ONLY",
+                },
+                "planning_aggregate_required": False,
+            }
+        )
     if initialization_handoff:
         task.update(
             {
@@ -569,6 +644,7 @@ def create_handoff(
         HandoffType.STORY_ATLAS_RENDER: "render-story-atlas-assets",
         HandoffType.BATCH_CONTINUATION: "continue-novel-batch",
         HandoffType.NOVEL_INITIALIZATION: "initialize-existing-novel",
+        HandoffType.NOVEL_DISTILLATION: "distill-novels",
     }.get(handoff_type, "continue-novel")
     atlas_instruction = ""
     if handoff_type in {
@@ -592,6 +668,18 @@ def create_handoff(
             "Arc Extraction、Entity Resolution、Cross-Arc Synthesis、Contradiction Audit、"
             "Narrative DNA、Atlas、语义指标和 SVG 渲染；"
             "不得依赖 Planning Aggregate，不得写入 Canon。"
+        )
+    elif handoff_type is HandoffType.NOVEL_DISTILLATION:
+        atlas_instruction = (
+            "先读取 task.json 的 distill 与 distill_contract；调用 $distill-novels，"
+            "只把抽象、可迁移的写作机制写入 artifacts/distill_skill/。"
+            "不得复制来源正文、不得把来源人物/设定/事件写入 Canon；完成后停在 DISTILLED，"
+            "由 Python 的 novel distill import 显式发布为 REFERENCE_ONLY。"
+        )
+    if distill_reference is not None:
+        atlas_instruction += (
+            " 当前 edition 还有一个已发布的 distill_reference；只能读取其抽象写作控制，"
+            "不得把来源事实当作 Canon。"
         )
     prompt = (
         "$process-novel-handoff\n\n"
@@ -672,6 +760,22 @@ def create_handoff(
         "NOVEL_INITIALIZATION": {
             "required_non_empty": ["initialization_id", "completed_arc_ids", "readiness"]
         },
+        "DISTILL": {
+            "required_non_empty": [
+                "distill_id",
+                "distill_source_ids",
+                "distill_dimensions",
+                "distill_skill_root",
+            ]
+        },
+        "NOVEL_DISTILLATION": {
+            "required_non_empty": [
+                "distill_id",
+                "distill_source_ids",
+                "distill_dimensions",
+                "distill_skill_root",
+            ]
+        },
     }
     if initialization_handoff:
         output_schema["required"].extend(
@@ -717,6 +821,28 @@ def create_handoff(
             "canon_committed",
             "edition_activated",
         ]
+    if distill_handoff:
+        output_schema["required"].extend(
+            [
+                "distill_id",
+                "distill_source_ids",
+                "distill_dimensions",
+                "distill_mode",
+                "distill_depth",
+                "distill_skill_root",
+            ]
+        )
+        output_schema["x-distill-result-fields"] = [
+            "distill_id",
+            "distill_source_ids",
+            "distill_dimensions",
+            "distill_mode",
+            "distill_depth",
+            "distill_skill_root",
+            "artifact_paths",
+            "canon_committed",
+            "edition_activated",
+        ]
     status_json = {
         "handoff_id": handoff_id,
         "status": HandoffStatus.READY_FOR_CODEX.value,
@@ -748,10 +874,20 @@ def create_handoff(
             _write_json(input_files[name], value)
     _write_json(status_path, status_json)
     _write_json(result_path, {})
-    context_manifest["file_hashes"] = {
+    file_hashes: dict[str, str] = {
         name: sha256_file(input_files[name])
         for name in ("task.json", "prompt.md", "metric_context.json", "output_schema.json")
     }
+    context_manifest["file_hashes"] = file_hashes
+    if distill_handoff:
+        frozen_input = artifacts / "distill_input"
+        file_hashes.update(
+            {
+                path.relative_to(task_directory).as_posix(): sha256_file(path)
+                for path in frozen_input.rglob("*")
+                if path.is_file()
+            }
+        )
     _write_json(input_files["context_manifest.json"], context_manifest)
     event_log_path.write_text("", encoding="utf-8")
     if canonical_layout:
@@ -1177,6 +1313,18 @@ def validate_handoff_result(
                 }
             )
             missing_fields = sorted(required_fields - set(result))
+        if str(row["handoff_type"]) == HandoffType.NOVEL_DISTILLATION.value:
+            required_fields.update(
+                {
+                    "distill_id",
+                    "distill_source_ids",
+                    "distill_dimensions",
+                    "distill_mode",
+                    "distill_depth",
+                    "distill_skill_root",
+                }
+            )
+            missing_fields = sorted(required_fields - set(result))
         if missing_fields:
             raise HandoffWorkflowError(
                 f"result.json 缺少必填字段：{', '.join(missing_fields)}"
@@ -1215,6 +1363,21 @@ def validate_handoff_result(
                 raise HandoffWorkflowError(f"required artifact 不存在：{raw_path}")
         if parsed.requested_stage.upper() != str(row["requested_stage"]).upper():
             raise HandoffWorkflowError("result requested_stage 不一致")
+        if str(row["handoff_type"]) == HandoffType.NOVEL_DISTILLATION.value:
+            distill_request = task.get("distill")
+            if not isinstance(distill_request, dict):
+                raise HandoffWorkflowError("distill handoff task 缺少 distill request")
+            if parsed.distill_id != str(distill_request.get("distill_id")):
+                raise HandoffWorkflowError("result distill_id 与冻结 handoff 不一致")
+            if parsed.distill_source_ids != list(distill_request.get("source_ids", [])):
+                raise HandoffWorkflowError("result distill_source_ids 与冻结 handoff 不一致")
+            if parsed.distill_dimensions != list(distill_request.get("dimensions", [])):
+                raise HandoffWorkflowError("result distill_dimensions 与冻结 handoff 不一致")
+            if parsed.distill_mode != str(distill_request.get("mode")):
+                raise HandoffWorkflowError("result distill_mode 与冻结 handoff 不一致")
+            if parsed.distill_depth != str(distill_request.get("depth")):
+                raise HandoffWorkflowError("result distill_depth 与冻结 handoff 不一致")
+            _allowed_artifact_path(task_directory, task, str(parsed.distill_skill_root))
         return parsed
 
 

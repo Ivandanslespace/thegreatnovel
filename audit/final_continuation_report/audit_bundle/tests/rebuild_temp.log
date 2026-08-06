@@ -1,0 +1,21 @@
+{
+  "book_id": "real-book-smoke",
+  "counts": {
+    "capabilities": 0,
+    "character_states": 3,
+    "committed_chapters": 0,
+    "entities": 10,
+    "facts": 9,
+    "knowledge": 2,
+    "payoffs": 0,
+    "promises": 2,
+    "relationships": 0,
+    "repetition": 2,
+    "resources": 0,
+    "style_profiles": 1,
+    "threads": 3,
+    "timeline": 0
+  },
+  "state_sha256": "500f9d545b95dcc747707fd9c196980b2618ed711cf1152938796e8f8a38edae",
+  "through_event_seq": 64
+}

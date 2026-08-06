@@ -1,0 +1,2756 @@
+{
+  "author_directives": [],
+  "book_id": "real-book-smoke",
+  "candidate_plans": [
+    {
+      "candidate_id": "candidate_5d28497d5e0a03eb1b5d7070",
+      "created_at": "2026-08-04T05:45:22.699691+00:00",
+      "gate_report_json": "{\"character_fit\": 88.60000000000001, \"hard_failures\": [], \"passed\": true, \"requires_character_bridge\": false, \"style_fit\": 84.6, \"style_review_required\": false}",
+      "primary_function": "partial_payoff",
+      "primary_thread_id": "thread_a90327d3f39355457af89ebe",
+      "rank": 1,
+      "score_json": "{\"evidence\": {\"agency_gain\": [\"Agency=82.29，苏牧选择介入范围并承担暴露底牌的成本。\"], \"debt_utility\": [\"同时推进苏牧等待承诺和灰光承诺，只完整支付前者。\"], \"future_damage\": [\"只制造空档并公开状态，保留后续战斗和灰光线。\"], \"payoff_or_setup_utility\": [\"Payoff=69.10，只适合中型局部兑现，不击杀两只Lv8怪物。\"], \"pressure_curve_fit\": [\"压力81.95处于高潮准备区，局部控制比继续堆压更合适。\"], \"progress_gain\": [\"公开行动、前排换位和雷暴边界改变后续选择。\"], \"repetition_fatigue\": [\"改变近期前排硬扛结构，重点转为雷暴边界和救援折返。\"], \"risk_fit\": [\"Risk Credibility=81.35，救援会造成暴露和受损。\"], \"structural_diversity\": [\"与另外两案的结构差异维度数：[9, 9]\"], \"style_fit\": [\"沿用群像战场、短句动作链和克制苏牧视角。\"], \"thread_need_fit\": [\"防线ThreadNeed=68.94，赵德荣武器失效且下一击有即时后果。\"]}, \"inputs\": {\"agency_gain\": 88.0, \"debt_utility\": 90.0, \"future_damage\": 20.0, \"payoff_or_setup_utility\": 84.0, \"pressure_curve_fit\": 88.0, \"progress_gain\": 82.0, \"repetition_fatigue\": 35.0, \"risk_fit\": 82.0, \"structural_diversity\": 100.0, \"style_fit\": 82.0, \"thread_need_fit\": 92.0}, \"reason\": \"综合评分最高且通过硬门；同一可选区间仍由作者审美决定\", \"score\": 82.06, \"structural_difference_counts\": [9, 9]}",
+      "selection_status": "SELECTED",
+      "status": "CANDIDATE",
+      "task_id": "plan_ed92d57df50bf6152d90adf6"
+    },
+    {
+      "candidate_id": "candidate_6777237d9608a2254dddf821",
+      "created_at": "2026-08-04T05:45:22.700690+00:00",
+      "gate_report_json": "{\"character_fit\": 86.10000000000001, \"hard_failures\": [], \"passed\": true, \"requires_character_bridge\": false, \"style_fit\": 82.6, \"style_review_required\": false}",
+      "primary_function": "discovery",
+      "primary_thread_id": "thread_430da8570538d2bf5cc56994",
+      "rank": 2,
+      "score_json": "{\"evidence\": {\"agency_gain\": [\"苏牧选择以救援窗口换高价值信息，机会成本极高。\"], \"debt_utility\": [\"直接偿还灰光局部回答，也让苏牧等待目的产生后果。\"], \"future_damage\": [\"只露出局部回应，不揭示身份，但赵德荣损失提高后续代价。\"], \"payoff_or_setup_utility\": [\"结果未知度80.25，需要局部答案而非完整真相。\"], \"pressure_curve_fit\": [\"提高信息压力但让威胁偏离营地，避免无因发大奖。\"], \"progress_gain\": [\"未知存在从地下声势变为可观察回应，改变后续路线。\"], \"repetition_fatigue\": [\"解决方式改为位置牵引和信息换代价。\"], \"risk_fit\": [\"赵德荣可能失去前排位置，诱饵会真实削弱防线。\"], \"structural_diversity\": [\"与另外两案的结构差异维度数：[9, 9]\"], \"style_fit\": [\"沿用腐臭、地面震动、灰光和克制判断。\"], \"thread_need_fit\": [\"灰光ThreadNeed=66.63且目标阻塞度90，调查价值最高。\"]}, \"inputs\": {\"agency_gain\": 90.0, \"debt_utility\": 95.0, \"future_damage\": 35.0, \"payoff_or_setup_utility\": 82.0, \"pressure_curve_fit\": 76.0, \"progress_gain\": 88.0, \"repetition_fatigue\": 30.0, \"risk_fit\": 78.0, \"structural_diversity\": 100.0, \"style_fit\": 80.0, \"thread_need_fit\": 86.0}, \"reason\": \"与最高分差小于 8，属于同一可选区间；默认未选但保留给作者\", \"score\": 79.70000000000003, \"structural_difference_counts\": [9, 9]}",
+      "selection_status": "NOT_SELECTED",
+      "status": "CANDIDATE",
+      "task_id": "plan_ed92d57df50bf6152d90adf6"
+    },
+    {
+      "candidate_id": "candidate_8741429eb7a7e0ca6a914122",
+      "created_at": "2026-08-04T05:45:22.700690+00:00",
+      "gate_report_json": "{\"character_fit\": 87.60000000000001, \"hard_failures\": [], \"passed\": true, \"requires_character_bridge\": false, \"style_fit\": 85.80000000000001, \"style_review_required\": false}",
+      "primary_function": "relationship_shift",
+      "primary_thread_id": "thread_2572c7ac14fc703f8533fda2",
+      "rank": 3,
+      "score_json": "{\"evidence\": {\"agency_gain\": [\"苏牧承担指挥责任与友军伤亡风险，社会成本明确。\"], \"debt_utility\": [\"推进苏牧等待，灰光线程只保留线索，不完全偿还最高债务。\"], \"future_damage\": [\"只改变合作和法杖状态，不解决地下真相。\"], \"payoff_or_setup_utility\": [\"局部战术成功提供中小回报，不能兑现世界谜题。\"], \"pressure_curve_fit\": [\"改变组织响应降低部分压力，但牛头王继续推进。\"], \"progress_gain\": [\"形成条件协同并损伤法杖控制，改变后续防线组织。\"], \"repetition_fatigue\": [\"仍在战斗现场且包含多点火力，重复风险中等。\"], \"risk_fit\": [\"错误判断会把雷暴引向密集点，风险可信但不无谓扩大。\"], \"structural_diversity\": [\"与另外两案的结构差异维度数：[9, 9]\"], \"style_fit\": [\"保留对讲机命令、群像战场和动作结果。\"], \"thread_need_fit\": [\"黄金血脉线程重要性82但无活跃承诺，作为第三方案推进。\"]}, \"inputs\": {\"agency_gain\": 78.0, \"debt_utility\": 82.0, \"future_damage\": 30.0, \"payoff_or_setup_utility\": 72.0, \"pressure_curve_fit\": 80.0, \"progress_gain\": 75.0, \"repetition_fatigue\": 45.0, \"risk_fit\": 70.0, \"structural_diversity\": 100.0, \"style_fit\": 84.0, \"thread_need_fit\": 84.0}, \"reason\": \"通过硬门但排名 3，保留为备选\", \"score\": 72.06999999999998, \"structural_difference_counts\": [9, 9]}",
+      "selection_status": "NOT_SELECTED",
+      "status": "CANDIDATE",
+      "task_id": "plan_ed92d57df50bf6152d90adf6"
+    }
+  ],
+  "canon_commits": [],
+  "chapter_contracts": [
+    {
+      "candidate_id": "candidate_5d28497d5e0a03eb1b5d7070",
+      "contract_id": "contract_b991e2e90d8e8b824fea00d9",
+      "contract_sha256": "0115fee7deb5b2ae8f9f151e85795910cecbfe9d1792929ab095f294d4b41d05",
+      "created_at": "2026-08-04T05:45:36.943102+00:00",
+      "mode": "faithful_continuation",
+      "status": "READY",
+      "target_chapter_ordinal": 295
+    }
+  ],
+  "chapters": [
+    {
+      "chapter_id": "chapter_e535a5c6e993ca255802ab98",
+      "content_sha256": "c2297cf8d578ad55deae0c40f7377d3ca5499ed9b8501dc8d7cc29996f0b7cf5",
+      "document_status": "CANON",
+      "ordinal": 1,
+      "raw_heading": "## 第1章 全民纜車求生",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "全民纜車求生"
+    },
+    {
+      "chapter_id": "chapter_c42f9e33cce5dcf8ecfb0928",
+      "content_sha256": "d4951ac3b45d43d9d5a6c19df648cd4126a60b2f27418601a7413fe3d53381cd",
+      "document_status": "CANON",
+      "ordinal": 2,
+      "raw_heading": "## 第2章 纜車等級也有三選一",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "纜車等級也有三選一"
+    },
+    {
+      "chapter_id": "chapter_67c7b417358809c75dc2849f",
+      "content_sha256": "ff0cb9f16a301f6579a116bf4600fec29af70075c01b115fc5c5a2057ede73d2",
+      "document_status": "CANON",
+      "ordinal": 3,
+      "raw_heading": "## 第3章 準備降落",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "準備降落"
+    },
+    {
+      "chapter_id": "chapter_9a75c11c33816ff55019e899",
+      "content_sha256": "c61c535b98ea6d37546e460ccbc2b82fe411f2ff91bfb9241df97b9aca9f5811",
+      "document_status": "CANON",
+      "ordinal": 4,
+      "raw_heading": "## 第4章 2級甲",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "2級甲"
+    },
+    {
+      "chapter_id": "chapter_0c4b4b61fcfc12bc68e3a578",
+      "content_sha256": "360129c7a86df5e21d3e49cd56eba350eafdfb284d31a8ab7bdf9ce675ceadf0",
+      "document_status": "CANON",
+      "ordinal": 5,
+      "raw_heading": "## 第5章 哥布林幼崽",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "哥布林幼崽"
+    },
+    {
+      "chapter_id": "chapter_ed5728f49332b14d6fa44fda",
+      "content_sha256": "0c92c3643dde86da97238a1931d94610566438640a69ba1233a7403f06437a21",
+      "document_status": "CANON",
+      "ordinal": 6,
+      "raw_heading": "## 第6章 白銀寶箱",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "白銀寶箱"
+    },
+    {
+      "chapter_id": "chapter_d0a40e8471392ab7372cfb74",
+      "content_sha256": "e04b57459d5aa9b306e6ac27693b57ec7be9e23ecb88b17eeee25e172b8c423c",
+      "document_status": "CANON",
+      "ordinal": 7,
+      "raw_heading": "## 第7章 二級纜車升級圖紙",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "二級纜車升級圖紙"
+    },
+    {
+      "chapter_id": "chapter_d517c8c749a9c90473aa7381",
+      "content_sha256": "2ec2568dd8240613b11d19f890197efc7a29b5886405ea3aeeddf0bded864ff6",
+      "document_status": "CANON",
+      "ordinal": 8,
+      "raw_heading": "## 第8章 燃油的作用",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "燃油的作用"
+    },
+    {
+      "chapter_id": "chapter_22cecb6022a5f9ca6bc60323",
+      "content_sha256": "bd48619a674ac18d29e7408014644bb14d86def506a81e991a2d7088a7510062",
+      "document_status": "CANON",
+      "ordinal": 9,
+      "raw_heading": "## 第9章 一級力量型突破符籙",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "一級力量型突破符籙"
+    },
+    {
+      "chapter_id": "chapter_346002fcd176ba48bf67db7c",
+      "content_sha256": "20c819241421ce462ae862a421e4939a795efacb397c014322422a8f5de4c7b5",
+      "document_status": "CANON",
+      "ordinal": 10,
+      "raw_heading": "## 第10章 降溫",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "降溫"
+    },
+    {
+      "chapter_id": "chapter_0e0fe2c46076ca066fd08632",
+      "content_sha256": "9e5f9aa35de154c11b3040b08a68f9ebab5d98e3bd55e9425fc46b5c49c72f9d",
+      "document_status": "CANON",
+      "ordinal": 11,
+      "raw_heading": "## 第11章 纜車2級，新三選一",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "纜車2級，新三選一"
+    },
+    {
+      "chapter_id": "chapter_b8f33a7c9c37efda9444b10a",
+      "content_sha256": "23a961756f6b125f2c37e6322600cd3b6c36c364a046a2252e0ab90368e9970b",
+      "document_status": "CANON",
+      "ordinal": 12,
+      "raw_heading": "## 第12章 夜晚的襲擊",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "夜晚的襲擊"
+    },
+    {
+      "chapter_id": "chapter_a7bfcddcb0d0890dc401ba26",
+      "content_sha256": "57a2fc2d23c4dd08b4a2bfc67a4867993e23bf201b4c065960731e1bd476a2e7",
+      "document_status": "CANON",
+      "ordinal": 13,
+      "raw_heading": "## 第13章 捕獸夾",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "捕獸夾"
+    },
+    {
+      "chapter_id": "chapter_fa85c186cda7751eb2f85d87",
+      "content_sha256": "6a224ec17ae97f113d81ea68e39682a21cec9c64bff24b9501017d6db64a5739",
+      "document_status": "CANON",
+      "ordinal": 14,
+      "raw_heading": "## 第14章 詭蝠",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "詭蝠"
+    },
+    {
+      "chapter_id": "chapter_e4f99d257b41719413329a3f",
+      "content_sha256": "9e2b30a682d3c1b66fcaf72c6a48dcabb6b6c25215855ba0b7bfb70363b03df1",
+      "document_status": "CANON",
+      "ordinal": 15,
+      "raw_heading": "## 第15章 製作台",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "製作台"
+    },
+    {
+      "chapter_id": "chapter_2d0c9ca00dae322cddca7e9a",
+      "content_sha256": "7ee86e35a9c9212298cf15f22f6b23a2c5448f4d823bcf725dd337124451e7a5",
+      "document_status": "CANON",
+      "ordinal": 16,
+      "raw_heading": "## 第16章 讓你啪嘰",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "讓你啪嘰"
+    },
+    {
+      "chapter_id": "chapter_e559c80f590ced965013e5c0",
+      "content_sha256": "e793cbd86ad2899cf7e77e3226f516d1e1c0ca37838ff6e48781910f77d7bb1f",
+      "document_status": "CANON",
+      "ordinal": 17,
+      "raw_heading": "## 第17章 力量暴增",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "力量暴增"
+    },
+    {
+      "chapter_id": "chapter_b060deef45eeadc23839fe9c",
+      "content_sha256": "333aa495e4f75f603bc6d026ee4e7075cf915f45ed551b49d47b43319e023220",
+      "document_status": "CANON",
+      "ordinal": 18,
+      "raw_heading": "## 第18章 等級2，新的三選一",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "等級2，新的三選一"
+    },
+    {
+      "chapter_id": "chapter_6944e11d95bd05098b889dcf",
+      "content_sha256": "37cc6796fdd64d043dcaddc38c845a984abc856abee234af5256efe44223b8e6",
+      "document_status": "CANON",
+      "ordinal": 19,
+      "raw_heading": "## 第19章 新情報，幸運轉盤",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "新情報，幸運轉盤"
+    },
+    {
+      "chapter_id": "chapter_24afd91d94d3facd2fdbcd83",
+      "content_sha256": "75248f64b5bbab5f89c0b4c46d5d3dcc13bc255cccb2a9ce5659c4a6c41c8621",
+      "document_status": "CANON",
+      "ordinal": 20,
+      "raw_heading": "## 第20章 紅豆度假村",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "紅豆度假村"
+    },
+    {
+      "chapter_id": "chapter_2067b33e8b672dc4f081323f",
+      "content_sha256": "71203581ea7886f0d8862fdd4a7ec3e9e5b4bf063393ed4042626b5671dbfa80",
+      "document_status": "CANON",
+      "ordinal": 21,
+      "raw_heading": "## 第21章 額外攻擊",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "額外攻擊"
+    },
+    {
+      "chapter_id": "chapter_25ea04e508e0ebcc0f7f160a",
+      "content_sha256": "b411c14e0626e553c5203321ee8d5c04f348946c5b3f23f856f33f93d9bbfd2c",
+      "document_status": "CANON",
+      "ordinal": 22,
+      "raw_heading": "## 第22章 差距",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "差距"
+    },
+    {
+      "chapter_id": "chapter_44179e3e3874e327a22f1991",
+      "content_sha256": "d7f267f010600aa14590780f030259be855a13f4e92959a5831a94089b6e9ec1",
+      "document_status": "CANON",
+      "ordinal": 23,
+      "raw_heading": "## 第23章 分解的隱藏作用",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "分解的隱藏作用"
+    },
+    {
+      "chapter_id": "chapter_24d0e40e2e47b95ad3f4c1a9",
+      "content_sha256": "27eb919b3db235c09c99fe0f89c22d280c3210c7004541a8afc18ed03997f1b5",
+      "document_status": "CANON",
+      "ordinal": 24,
+      "raw_heading": "## 第24章 收集",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "收集"
+    },
+    {
+      "chapter_id": "chapter_889367ba7a4b3984ae87b211",
+      "content_sha256": "2828ba5575584d697b2b8b5f0d364f1a6d041d0d38e0c23d5c983e5eb3ec80bf",
+      "document_status": "CANON",
+      "ordinal": 25,
+      "raw_heading": "## 第25章 灰色寶箱",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "灰色寶箱"
+    },
+    {
+      "chapter_id": "chapter_e87464c70d74bb7757f8a7d7",
+      "content_sha256": "f193b54ae8c0cb15fc57339f21e0b7a65866b21c3744e953d78dec7df7762c52",
+      "document_status": "CANON",
+      "ordinal": 26,
+      "raw_heading": "## 第26章 賓館和青銅寶箱",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "賓館和青銅寶箱"
+    },
+    {
+      "chapter_id": "chapter_1757675c641544acb99786b2",
+      "content_sha256": "cd56cebf1f92e9926bde044aa4c039bd4cf78089d843425ba72e02d04ccbadbb",
+      "document_status": "CANON",
+      "ordinal": 27,
+      "raw_heading": "## 第27章 被拿走的白銀寶箱",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "被拿走的白銀寶箱"
+    },
+    {
+      "chapter_id": "chapter_bb6e8b4ca038c438be663770",
+      "content_sha256": "efb641fe66ad7375f164ca076122a90b0320d9f9b223702f62929f877db1a2a4",
+      "document_status": "CANON",
+      "ordinal": 28,
+      "raw_heading": "## 第28章 合作",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "合作"
+    },
+    {
+      "chapter_id": "chapter_7b052a1e905bcffe5077ffa3",
+      "content_sha256": "3ae777430e4936e534db6a22f9f64d88e7bfcf9cd7e220148fb8ffb8eea12046",
+      "document_status": "CANON",
+      "ordinal": 29,
+      "raw_heading": "## 第29章 遊樂場，密集屍群",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "遊樂場，密集屍群"
+    },
+    {
+      "chapter_id": "chapter_6bd530c2ec238333e1ab1b40",
+      "content_sha256": "8b756afdb85acd6bbf434bb289c0759a356dee37c42fcc820ee4f30264d081a9",
+      "document_status": "CANON",
+      "ordinal": 30,
+      "raw_heading": "## 第30章 這是人能做到的？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "這是人能做到的？"
+    },
+    {
+      "chapter_id": "chapter_9ca937ac52da55232c28ea03",
+      "content_sha256": "a6c3e78c29db7bc388a8b3d3d71194076281a8680a36f716baec0eb6ffe4f909",
+      "document_status": "CANON",
+      "ordinal": 31,
+      "raw_heading": "## 第31章 靜音結界符",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "靜音結界符"
+    },
+    {
+      "chapter_id": "chapter_86cb7a9549c0af911ed912ad",
+      "content_sha256": "ef5045a393585f47d344945e948a86b1329f57258338aa7b08843af070e795d8",
+      "document_status": "CANON",
+      "ordinal": 32,
+      "raw_heading": "## 第32章 鬼屋",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "鬼屋"
+    },
+    {
+      "chapter_id": "chapter_f5205d6b86952302e6f2bbaf",
+      "content_sha256": "c09b54366425fdc2859fed367a982e8eb3e7c305a374f62a053bcf57ffc8295c",
+      "document_status": "CANON",
+      "ordinal": 33,
+      "raw_heading": "## 第33章 幸厄轉盤",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "幸厄轉盤"
+    },
+    {
+      "chapter_id": "chapter_58e0d79e61d91b69225cfaaa",
+      "content_sha256": "618c650561bc27a07614b277241da15bb0276a83ef91b4555d2ea35cb6c5de17",
+      "document_status": "CANON",
+      "ordinal": 34,
+      "raw_heading": "## 第34章 豐厚獎勵與底線",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "豐厚獎勵與底線"
+    },
+    {
+      "chapter_id": "chapter_514c20bb2cea013585b02d48",
+      "content_sha256": "a1393a65dcd98ee5da36ae9e017ae84b756264e795300834987c10c3c8befa78",
+      "document_status": "CANON",
+      "ordinal": 35,
+      "raw_heading": "## 第35章 這就是規則的力量",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "這就是規則的力量"
+    },
+    {
+      "chapter_id": "chapter_dd4c9842fe9a1cec3eb22788",
+      "content_sha256": "90b9fa745529aa0796b0bae3508c1753368a0e550b412357e4c9ad4be1429a51",
+      "document_status": "CANON",
+      "ordinal": 36,
+      "raw_heading": "## 第36章 一不小心全轉完了",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "一不小心全轉完了"
+    },
+    {
+      "chapter_id": "chapter_764373b5d06b71cb827f1f23",
+      "content_sha256": "60a9def650b7e3850a3b1f23b9ea9cbad94c468ce88b30ed7b28c1514cd67333",
+      "document_status": "CANON",
+      "ordinal": 37,
+      "raw_heading": "## 第37章 人怎麼能這麼好運成這樣",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "人怎麼能這麼好運成這樣"
+    },
+    {
+      "chapter_id": "chapter_7ecc9667061d69563518d6e6",
+      "content_sha256": "ba8b2665e60711db5e491766de20fd02275ca1e09ecf3f37caf6a974b7d7919f",
+      "document_status": "CANON",
+      "ordinal": 38,
+      "raw_heading": "## 第37章 怪呢？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "怪呢？"
+    },
+    {
+      "chapter_id": "chapter_1231c0e30d0cec23bdc3147d",
+      "content_sha256": "50b26f44f972244300716edb8d4c3185fe7f607c41b73ebf790d5111257934a7",
+      "document_status": "CANON",
+      "ordinal": 39,
+      "raw_heading": "## 第38章 資源轉盤",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "資源轉盤"
+    },
+    {
+      "chapter_id": "chapter_ac4778724046b7e6e692f63b",
+      "content_sha256": "4597ff2015e03857b0a01aea00daba8be0a0663ca96bc3b4b91073cfcda36756",
+      "document_status": "CANON",
+      "ordinal": 40,
+      "raw_heading": "## 第39章 紫色職業",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "紫色職業"
+    },
+    {
+      "chapter_id": "chapter_5fa74f3d25bd76aafb47cb72",
+      "content_sha256": "3e59fc1892e7ab88677a825c21e2207c4615d6d1915de908fcd45c3d60bd1207",
+      "document_status": "CANON",
+      "ordinal": 41,
+      "raw_heading": "## 第40章 無法拒絕的圖紙",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "無法拒絕的圖紙"
+    },
+    {
+      "chapter_id": "chapter_de9a98309d02ef2a0a592f72",
+      "content_sha256": "ae75661ae480f8c21a0f61ff5abbfd795f06f48434d767e9f894be0bff31e78b",
+      "document_status": "CANON",
+      "ordinal": 42,
+      "raw_heading": "## 第41章 驗牌",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "驗牌"
+    },
+    {
+      "chapter_id": "chapter_36334cde36520e2b95ff5cd4",
+      "content_sha256": "5aa0d1deca22b12b657059022adef7007eb298c3c53a574d562ec5eeba8014ea",
+      "document_status": "CANON",
+      "ordinal": 43,
+      "raw_heading": "## 第42章 日記",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "日記"
+    },
+    {
+      "chapter_id": "chapter_0acd6dc28d255c400720b0f6",
+      "content_sha256": "9721a50e3c063ef8f61da0ba445f6567393bb28b22cff942821f599ef237c380",
+      "document_status": "CANON",
+      "ordinal": 44,
+      "raw_heading": "## 第43章 內容",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "內容"
+    },
+    {
+      "chapter_id": "chapter_475df751102eb0584b3782ba",
+      "content_sha256": "1fe6c50a928ee84bd646c99992658aadae1c33a231a3baf35a679db93e542dd4",
+      "document_status": "CANON",
+      "ordinal": 45,
+      "raw_heading": "## 第44章 生活職業",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "生活職業"
+    },
+    {
+      "chapter_id": "chapter_f1e0b3b3280946fe07e1c446",
+      "content_sha256": "4f9af111899b62188f7b7f7ef214d0ea90a4b430ffb78a22574568780635a91b",
+      "document_status": "CANON",
+      "ordinal": 46,
+      "raw_heading": "## 第45章 爆炸聲",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "爆炸聲"
+    },
+    {
+      "chapter_id": "chapter_b6c1f868367e9cfe9236bf09",
+      "content_sha256": "87682b9479a9af866040aa7e8af44ee6546aad75420e4cdff061038cd72b5609",
+      "document_status": "CANON",
+      "ordinal": 47,
+      "raw_heading": "## 第46章 我怎麼聽他的話了？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "我怎麼聽他的話了？"
+    },
+    {
+      "chapter_id": "chapter_60b626cb1de3cd4dac2d8c08",
+      "content_sha256": "a1a76d333afdf60ec3df15449059896853476963e5e3158ed69135d391084fd0",
+      "document_status": "CANON",
+      "ordinal": 48,
+      "raw_heading": "## 第47章 果斷與收穫",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "果斷與收穫"
+    },
+    {
+      "chapter_id": "chapter_42f228a3421ddf5f1d0b19c0",
+      "content_sha256": "e642b9ab6c81569e74010042cacf0241dc54f648e05b32bf302fde9edc2c9dd8",
+      "document_status": "CANON",
+      "ordinal": 49,
+      "raw_heading": "## 第48章 奸商",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "奸商"
+    },
+    {
+      "chapter_id": "chapter_8c916ee336c89ae5acca91bc",
+      "content_sha256": "a577a7f8a9e5cbce5280c5497bd0f480f777f39370293488ae38a4b1130f067e",
+      "document_status": "CANON",
+      "ordinal": 50,
+      "raw_heading": "## 第49章 削的木箭",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "削的木箭"
+    },
+    {
+      "chapter_id": "chapter_0c99355d9635cafc25a2bf45",
+      "content_sha256": "89de5670e88c11d35ab64492e7752a9bf93ac0041aaf19f71d3053c186c03dcb",
+      "document_status": "CANON",
+      "ordinal": 51,
+      "raw_heading": "## 第50章 詭異",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "詭異"
+    },
+    {
+      "chapter_id": "chapter_95548fbbb2501723d524bde8",
+      "content_sha256": "d1c052feb7077479d14ca4d387cb00df95241f4300f9e60582550056372cd9cc",
+      "document_status": "CANON",
+      "ordinal": 52,
+      "raw_heading": "## 第51章 他來了",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "他來了"
+    },
+    {
+      "chapter_id": "chapter_232834162d9d8e0672684455",
+      "content_sha256": "00cb1fac71c76aca954edc9ce99135446f907f2d8483382a14ba3488c7bb0520",
+      "document_status": "CANON",
+      "ordinal": 53,
+      "raw_heading": "## 第52章 肝帝",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "肝帝"
+    },
+    {
+      "chapter_id": "chapter_2bafc6899ee166eb4de134ed",
+      "content_sha256": "f852ee5a2da117b15f8bb86ec3ad51248a69ed0300cfc2e3691d4dbfc36e72bd",
+      "document_status": "CANON",
+      "ordinal": 54,
+      "raw_heading": "## 第53章 纜車3級",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "纜車3級"
+    },
+    {
+      "chapter_id": "chapter_4194ea4f97d8c380b0cae8bd",
+      "content_sha256": "38f56d954ef643f367a6cef7256e4e6ff70f5ed886fde185ffe54b3f01130627",
+      "document_status": "CANON",
+      "ordinal": 55,
+      "raw_heading": "## 第54章 新功能",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "新功能"
+    },
+    {
+      "chapter_id": "chapter_50af837ef08229f5e3e26b47",
+      "content_sha256": "abdd6e9ddd7d1c5e988e7d7ceaf4be17b899b34a7ba67721b318638ccfa38ea9",
+      "document_status": "CANON",
+      "ordinal": 56,
+      "raw_heading": "## 第55章 來啊",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "來啊"
+    },
+    {
+      "chapter_id": "chapter_4eb39e56f9b5c565956ca9ce",
+      "content_sha256": "a362ec9da088cf5512eaef461e8be6a0b8d1b4d15ffee002314940eb7a42e61d",
+      "document_status": "CANON",
+      "ordinal": 57,
+      "raw_heading": "## 第56章 這也算？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "這也算？"
+    },
+    {
+      "chapter_id": "chapter_41e402408a7d7f57e15cdd1a",
+      "content_sha256": "004227ca83a2eb52a2bab9f20a5b5526186109bba1e9ff69d672142b2cab83a2",
+      "document_status": "CANON",
+      "ordinal": 58,
+      "raw_heading": "## 第57章 簡易氣罐爆炸裝置",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "簡易氣罐爆炸裝置"
+    },
+    {
+      "chapter_id": "chapter_2fe54626b44bebab3adf90e1",
+      "content_sha256": "23170753153190df933f4232cbf27431740ec67689f6a0801273d8e10499d18b",
+      "document_status": "CANON",
+      "ordinal": 59,
+      "raw_heading": "## 第58章 另一條纜線",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "另一條纜線"
+    },
+    {
+      "chapter_id": "chapter_fada8e868d9eb3034b371da5",
+      "content_sha256": "8a0fe049a41d2482b958710dd9cd3280a4e3cf9f8fe39c7cfd1c14e6a18d0ccc",
+      "document_status": "CANON",
+      "ordinal": 60,
+      "raw_heading": "## 第59章 準備",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "準備"
+    },
+    {
+      "chapter_id": "chapter_12d397a9bf2133763f357117",
+      "content_sha256": "33679c754dfca42ab429c5b3af21fd22a70a039679bbdcb7c4ed80ac9f9ba055",
+      "document_status": "CANON",
+      "ordinal": 61,
+      "raw_heading": "## 第60章 貓妖",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "貓妖"
+    },
+    {
+      "chapter_id": "chapter_853e5205d3ad1d9cd11198ab",
+      "content_sha256": "e4bb969a2da37188d2e1ff48eaaaeb6b0755d5b4aa0abbb9851aafdc7bbc93a8",
+      "document_status": "CANON",
+      "ordinal": 62,
+      "raw_heading": "## 第61章 哪有植物會流血的？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "哪有植物會流血的？"
+    },
+    {
+      "chapter_id": "chapter_5a007dff93889b68f4bb829f",
+      "content_sha256": "b8bea136f12e98023daa24dd0bef2263de608dfe93ea1e952b865b0d1d83d177",
+      "document_status": "CANON",
+      "ordinal": 63,
+      "raw_heading": "## 第62章 喝一口，加體質",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "喝一口，加體質"
+    },
+    {
+      "chapter_id": "chapter_4a4b63d77bbbb2956fda6dcb",
+      "content_sha256": "65d2cd74ff6f60b624c0b897c84d1ada612f20938b84be6956f97c9c0b927fa8",
+      "document_status": "CANON",
+      "ordinal": 64,
+      "raw_heading": "## 第63章 藍色猛毒貓妖",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "藍色猛毒貓妖"
+    },
+    {
+      "chapter_id": "chapter_39c925ff4c0d19f7fe418e57",
+      "content_sha256": "3f026fc539f729c92da423d5bb954066ee0b86ed5dfae61579be59d1cb7eff9a",
+      "document_status": "CANON",
+      "ordinal": 65,
+      "raw_heading": "## 第64章 擊殺",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "擊殺"
+    },
+    {
+      "chapter_id": "chapter_cf6b05dd46d995c012435532",
+      "content_sha256": "ac703655470fd04d5d29e44e09e64b3ce079e4be102e9181191da29439bef843",
+      "document_status": "CANON",
+      "ordinal": 66,
+      "raw_heading": "## 第65章 三級敏捷型突破符籙",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "三級敏捷型突破符籙"
+    },
+    {
+      "chapter_id": "chapter_4db0d86957c11dc46aef13dc",
+      "content_sha256": "e603c9de759ae258c0168e19ca132153c90912f30127d4b751312f3dadc63591",
+      "document_status": "CANON",
+      "ordinal": 67,
+      "raw_heading": "## 第66章 3級",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "3級"
+    },
+    {
+      "chapter_id": "chapter_bccab7a8a9dbd54759d96e99",
+      "content_sha256": "8e821737e5ab680f770297ad64d011a549e7b42c7c4228928b0dd995efeaaa6f",
+      "document_status": "CANON",
+      "ordinal": 68,
+      "raw_heading": "## 第67章 3級，新三選一",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "3級，新三選一"
+    },
+    {
+      "chapter_id": "chapter_9116180540a6207044770f8c",
+      "content_sha256": "50fde80f1617cd273cd2d20c0a70977f7003d2a43ccfff349a4b3ab0c8eaf445",
+      "document_status": "CANON",
+      "ordinal": 69,
+      "raw_heading": "## 第68章 轉職",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "轉職"
+    },
+    {
+      "chapter_id": "chapter_13d888dd23c9af9d8a0f583c",
+      "content_sha256": "b1196d0f9197740b61372b320a97a0940d151f048d8e719bdfbc9dc8e1eb2feb",
+      "document_status": "CANON",
+      "ordinal": 70,
+      "raw_heading": "## 第69章 眼不見為凈",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "眼不見為凈"
+    },
+    {
+      "chapter_id": "chapter_6558887b45dfc89de37990a3",
+      "content_sha256": "de9baa993307149a2e471f5ca2cfdb47cbfa0ff9122c5c0cee6f60d3f337ef09",
+      "document_status": "CANON",
+      "ordinal": 71,
+      "raw_heading": "## 第70章 第二職業欄位",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "第二職業欄位"
+    },
+    {
+      "chapter_id": "chapter_43a626b9e18544322a0e3778",
+      "content_sha256": "e87a2e05de98a2a6194da34e61957f9d6ab9149773240b5d7185799e0a8f9395",
+      "document_status": "CANON",
+      "ordinal": 72,
+      "raw_heading": "## 第71章 連招",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "連招"
+    },
+    {
+      "chapter_id": "chapter_1551a05d9144d937b7db552e",
+      "content_sha256": "a39f6a1d7785d5a7137dde792c1f1ab4cf10bcaa6730836ffcbe97d8714586cd",
+      "document_status": "CANON",
+      "ordinal": 73,
+      "raw_heading": "## 第72章 無解",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "無解"
+    },
+    {
+      "chapter_id": "chapter_9140dc36958c07960dac1d61",
+      "content_sha256": "8e465db469b513b4b5be67738e9c28f69db8e069f794924d322df5445f1453d4",
+      "document_status": "CANON",
+      "ordinal": 74,
+      "raw_heading": "## 第73章 外國人",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "外國人"
+    },
+    {
+      "chapter_id": "chapter_5fbeae7db28e0c8dda4c1846",
+      "content_sha256": "f9164ad1912c3c9d748b68239459a34c35dc83af169ad62f1eddabee27957580",
+      "document_status": "CANON",
+      "ordinal": 75,
+      "raw_heading": "## 第75章 被發現",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "被發現"
+    },
+    {
+      "chapter_id": "chapter_fae754968ccae0d9ed1ade3b",
+      "content_sha256": "d45da4dcc89d04ee2635c44b27de8265cb5ce75048c6eaae7ce4759ec2493577",
+      "document_status": "CANON",
+      "ordinal": 76,
+      "raw_heading": "## 第76章 亂了",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "亂了"
+    },
+    {
+      "chapter_id": "chapter_00ad521b919c24bac6a15230",
+      "content_sha256": "f123b881963b33375bcb7b03ca5f3b6c0f66d23152e4c77f56e0dfdf1548da6c",
+      "document_status": "CANON",
+      "ordinal": 77,
+      "raw_heading": "## 第77章 收穫、撤離",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "收穫、撤離"
+    },
+    {
+      "chapter_id": "chapter_47367aa7eebd669140232c8e",
+      "content_sha256": "32ecacbf4461e87081e8224d6d38d5f53e06c175d628ebd3f34ad9bab04dc146",
+      "document_status": "CANON",
+      "ordinal": 78,
+      "raw_heading": "## 第78章 這也有經驗？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "這也有經驗？"
+    },
+    {
+      "chapter_id": "chapter_47b072d575b99b6b95d51230",
+      "content_sha256": "5dd79ef7cdc40aba1bf54aa2a8aa1f1b2d8d532df0ca1d0684b8fc0f040de34c",
+      "document_status": "CANON",
+      "ordinal": 79,
+      "raw_heading": "## 第79章 藥酒配方",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "藥酒配方"
+    },
+    {
+      "chapter_id": "chapter_fa9352fc8e1878ee72f62b44",
+      "content_sha256": "fd59137804dbf62864f2c742c8204b1a8b74b7322084ed3f9c28daae9dea66ec",
+      "document_status": "CANON",
+      "ordinal": 80,
+      "raw_heading": "## 第80章 藥酒釀造",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "藥酒釀造"
+    },
+    {
+      "chapter_id": "chapter_1a89ae70cb73d8ded86c96c2",
+      "content_sha256": "4f7b566fb869af62d93867557ae8e9f95eecb1d3bdcc1c7e93565caaccd65164",
+      "document_status": "CANON",
+      "ordinal": 81,
+      "raw_heading": "## 第81章 軍事基地",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "軍事基地"
+    },
+    {
+      "chapter_id": "chapter_35ec56e7afffa2cd12be4422",
+      "content_sha256": "07f7e0d3b52fae9943a97bae9fb5df189778b2cba6373e64ed8d4dddf6dfe3d6",
+      "document_status": "CANON",
+      "ordinal": 82,
+      "raw_heading": "## 第82章 瘋狂增長的經驗",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "瘋狂增長的經驗"
+    },
+    {
+      "chapter_id": "chapter_91a9440d7be11d7f9e1a06b5",
+      "content_sha256": "86a0b50133e25853c8fd982f198fda10170038832b8387f28222b38887ba7835",
+      "document_status": "CANON",
+      "ordinal": 83,
+      "raw_heading": "## 第83章 好運",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "好運"
+    },
+    {
+      "chapter_id": "chapter_ad32fda783b09081f5cc63f7",
+      "content_sha256": "fae732d1aafdec2835225fb5203df2b6db4d145f680236eaac63ba45aac16169",
+      "document_status": "CANON",
+      "ordinal": 84,
+      "raw_heading": "## 第84章 血參藥酒、糧倉、木板",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "血參藥酒、糧倉、木板"
+    },
+    {
+      "chapter_id": "chapter_b2c6c2c01ed23014c83271ff",
+      "content_sha256": "882432382e643ed74c54985cc368c60193b8c0b1e97eb430ca04eab9cbaa8dbc",
+      "document_status": "CANON",
+      "ordinal": 85,
+      "raw_heading": "## 第85章 建築升級捲軸、詭火",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "建築升級捲軸、詭火"
+    },
+    {
+      "chapter_id": "chapter_26ba3cd87ce9d68e88646de5",
+      "content_sha256": "79890f45b599ee776cefa25ea9616fccaff9f6c0e3b8806bc30685783ee74502",
+      "document_status": "CANON",
+      "ordinal": 86,
+      "raw_heading": "## 第86章 纜車停了",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "纜車停了"
+    },
+    {
+      "chapter_id": "chapter_1f48e100ee5d9ef3f4ea35c2",
+      "content_sha256": "1da0e9dc170c4bac023e00c8ab3ee44e0a64cd2a620797f685bd52797d5cd535",
+      "document_status": "CANON",
+      "ordinal": 87,
+      "raw_heading": "## 第87章 打鬥聲",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "打鬥聲"
+    },
+    {
+      "chapter_id": "chapter_de3cefebabf7b99c2d73ac93",
+      "content_sha256": "4eb3826cce0676f7d7a66f3668178a6cc35f15e1fd252b880db4d32192345fa3",
+      "document_status": "CANON",
+      "ordinal": 88,
+      "raw_heading": "## 第88章 慘勝",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "慘勝"
+    },
+    {
+      "chapter_id": "chapter_bf318c24f0f498545c0680c4",
+      "content_sha256": "d21755967413918c74e8a1a96373bbb66b8e06ee6f77d785d36cc758512600fa",
+      "document_status": "CANON",
+      "ordinal": 89,
+      "raw_heading": "## 第89章 升級了？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "升級了？"
+    },
+    {
+      "chapter_id": "chapter_2835c233362bfbcf5be7f052",
+      "content_sha256": "2c4576c024de6daf0c7a6b39757bdd62e178c3a0522f146398ea1fe127c7ad6c",
+      "document_status": "CANON",
+      "ordinal": 90,
+      "raw_heading": "## 第90章 4級，新三選一",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "4級，新三選一"
+    },
+    {
+      "chapter_id": "chapter_0ee98cfa6afeec8863f73009",
+      "content_sha256": "fc432024b4a682738b0e44955a2a77deb128a2992e0427dfe8899fea893c3cce",
+      "document_status": "CANON",
+      "ordinal": 91,
+      "raw_heading": "## 第91章 這玩意兒，不會有靈性吧？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "這玩意兒，不會有靈性吧？"
+    },
+    {
+      "chapter_id": "chapter_c44f167916ec70625194be5a",
+      "content_sha256": "c3171582546261cf9935c38f0d35fa080043449fe8527f3cba2e1b979351e2b9",
+      "document_status": "CANON",
+      "ordinal": 92,
+      "raw_heading": "## 第92章 誇張的屬性",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "誇張的屬性"
+    },
+    {
+      "chapter_id": "chapter_6309f0aa9fe9b520f50f3c65",
+      "content_sha256": "3ba48b355db56f4e281aa00f0c4809afd417a3ae215847ce902f6a7da7b118ad",
+      "document_status": "CANON",
+      "ordinal": 93,
+      "raw_heading": "## 第93章 新公告，強制投放",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "新公告，強制投放"
+    },
+    {
+      "chapter_id": "chapter_71a142c7a6ddf23199e50fa3",
+      "content_sha256": "ebf19daf1cef314ad7ef561d66a71338cf999ad953c58b4f8dbfe58bd04c1a58",
+      "document_status": "CANON",
+      "ordinal": 94,
+      "raw_heading": "## 第94章 新情報",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "新情報"
+    },
+    {
+      "chapter_id": "chapter_629a9d86cb0f21a748e71f08",
+      "content_sha256": "2cf372574c52c0867a35a58227627848e1c82393f3c069bfe6bb578e3685d10c",
+      "document_status": "CANON",
+      "ordinal": 95,
+      "raw_heading": "## 第95章 前往軍事基地（二合一）",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "前往軍事基地（二合一）"
+    },
+    {
+      "chapter_id": "chapter_870e0c344c6ca4c578f5c2b8",
+      "content_sha256": "7d3ea4dbfab615d4297bb7d73cb3780408bd6a891a2f55a67a1828d5cfc43feb",
+      "document_status": "CANON",
+      "ordinal": 96,
+      "raw_heading": "## 第000章 關於章節錯亂的說明",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "關於章節錯亂的說明"
+    },
+    {
+      "chapter_id": "chapter_6604b78ca160a1b43606e6f3",
+      "content_sha256": "e26a1aefec9f7a164549cd86edb1ee45da67846e43253b8f7746a44f24c3ecd5",
+      "document_status": "CANON",
+      "ordinal": 97,
+      "raw_heading": "## 第97章 發生了什麼",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "發生了什麼"
+    },
+    {
+      "chapter_id": "chapter_7f3124fd3ed66dcd4c040eae",
+      "content_sha256": "64461bf6e60ad229f6b731c7d0727a72f62ffcc8895e11fd736532713e5589db",
+      "document_status": "CANON",
+      "ordinal": 98,
+      "raw_heading": "## 第98章 大量資源",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "大量資源"
+    },
+    {
+      "chapter_id": "chapter_0af4f89a63498530c1ef8edb",
+      "content_sha256": "b124603329ba264ce82e0b646556621510b180d71d1c9e00c09bf167d8414109",
+      "document_status": "CANON",
+      "ordinal": 99,
+      "raw_heading": "## 第99章 那是什麼東西？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "那是什麼東西？"
+    },
+    {
+      "chapter_id": "chapter_a026214df387d68c61a83c2a",
+      "content_sha256": "50446b5104472c3a4d8482bab9570d2955ca2c233f2c6921df585d491606ccca",
+      "document_status": "CANON",
+      "ordinal": 100,
+      "raw_heading": "## 第100章 舔食者",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "舔食者"
+    },
+    {
+      "chapter_id": "chapter_c5e3a2b9ae5ee5f963566a87",
+      "content_sha256": "f5e1e639a97021efbedcdbb3cfdd2ca15e946c01bc13f300d6be9774a7c01445",
+      "document_status": "CANON",
+      "ordinal": 101,
+      "raw_heading": "## 第101章 四級纜車升級捲軸",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "四級纜車升級捲軸"
+    },
+    {
+      "chapter_id": "chapter_aff356b8a4360584230a44e3",
+      "content_sha256": "b2731f48bb8da00c6c3a1f5ded606b542060e0ff17a0dfe0929db6809c3c7251",
+      "document_status": "CANON",
+      "ordinal": 102,
+      "raw_heading": "## 第102章 無需證明",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "無需證明"
+    },
+    {
+      "chapter_id": "chapter_0cc5b257c9a4d8be42ed1eb1",
+      "content_sha256": "e69b6df9dd663dc258a5c8d835a3cd67c4e9b018daec2bd6877cd56199dc3664",
+      "document_status": "CANON",
+      "ordinal": 103,
+      "raw_heading": "## 第103章 準備撤離",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "準備撤離"
+    },
+    {
+      "chapter_id": "chapter_7242e036864f4972c2b7087b",
+      "content_sha256": "85c24b97fe4913da6576a34af72fba3b18f5c8e06fb12b589193fc48097419ef",
+      "document_status": "CANON",
+      "ordinal": 104,
+      "raw_heading": "## 第104章 精緻的利己主義者",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "精緻的利己主義者"
+    },
+    {
+      "chapter_id": "chapter_76032e71de3241da1a3fe246",
+      "content_sha256": "6cbeb8dfc2ccb9533c72660712f5e3cb34e52b2409128dfb76d3da55f192669c",
+      "document_status": "CANON",
+      "ordinal": 105,
+      "raw_heading": "## 第105章 動容",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "動容"
+    },
+    {
+      "chapter_id": "chapter_a271a86f934c8938c22fb651",
+      "content_sha256": "945abe3eaa3e30ec732eca53b3918005e09e63413f7f92f625a66efe89f9ff55",
+      "document_status": "CANON",
+      "ordinal": 106,
+      "raw_heading": "## 第106章 以後不能這樣了",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "以後不能這樣了"
+    },
+    {
+      "chapter_id": "chapter_264bddc87f79d22ef0505dc5",
+      "content_sha256": "510409c81e0a29e48475f2a061b089a52bff7bbc68718bfb03b52e3b1c0a8b7c",
+      "document_status": "CANON",
+      "ordinal": 107,
+      "raw_heading": "## 第107章 【捲軸升級符】",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "【捲軸升級符】"
+    },
+    {
+      "chapter_id": "chapter_f0aca4bfde8e396dd2538b71",
+      "content_sha256": "8563836a52f7ca3fa13bae25ea34ad762c20425549c7ad33b0dba03f3cf0928e",
+      "document_status": "CANON",
+      "ordinal": 108,
+      "raw_heading": "## 第108章 4級纜車升級方向",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "4級纜車升級方向"
+    },
+    {
+      "chapter_id": "chapter_e32269b903c7f965815db4cc",
+      "content_sha256": "491b2a1128d1e58ac8dafbe3bf6df0ac3d8cb36695576e1bd990686b6776fd8c",
+      "document_status": "CANON",
+      "ordinal": 109,
+      "raw_heading": "## 第109章 頻道合併",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "頻道合併"
+    },
+    {
+      "chapter_id": "chapter_dcc02d7e6c939237485c9a15",
+      "content_sha256": "843910efbc58ddb9534ed9c5559ee3f36ae425cb2468400995cae636a5bbda9e",
+      "document_status": "CANON",
+      "ordinal": 110,
+      "raw_heading": "## 第110章 仇恨導向",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "仇恨導向"
+    },
+    {
+      "chapter_id": "chapter_abd8e59264e2c755d403f37e",
+      "content_sha256": "07adbb48bb6d67b14a31be936d6a602a34601b9058ee225394bf3bf22913cdae",
+      "document_status": "CANON",
+      "ordinal": 111,
+      "raw_heading": "## 第111章 心眼是真的多",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "心眼是真的多"
+    },
+    {
+      "chapter_id": "chapter_809797e28226262ad73ca97f",
+      "content_sha256": "f88dc89e08bfc36e0276864e3fbb3d59d0241207d1918a17ce69d440ff14dfd4",
+      "document_status": "CANON",
+      "ordinal": 112,
+      "raw_heading": "## 第112章 襲擊提前",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "襲擊提前"
+    },
+    {
+      "chapter_id": "chapter_d0818fb44dad96ff8fd60937",
+      "content_sha256": "21f745a46738cbed4c07968736844ecfae2e5aab445e1b062fcd0b4ee525e760",
+      "document_status": "CANON",
+      "ordinal": 113,
+      "raw_heading": "## 第113章 灰燼城外",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "灰燼城外"
+    },
+    {
+      "chapter_id": "chapter_c1f6e7d4956b520fa9302dc1",
+      "content_sha256": "2662f6c65f41d75141ae813a51b9c777fb2b566ce0e4c2d9d7ad76a1d86be5ab",
+      "document_status": "CANON",
+      "ordinal": 114,
+      "raw_heading": "## 第114章 危機",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "危機"
+    },
+    {
+      "chapter_id": "chapter_aed6a57b92890c8bcbaefa85",
+      "content_sha256": "6edc62a63cb7cc80052e91a0743b3dc731d8076b3a2b4b0a7957128f4f9e9ad0",
+      "document_status": "CANON",
+      "ordinal": 115,
+      "raw_heading": "## 第115章 等著",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "等著"
+    },
+    {
+      "chapter_id": "chapter_e0f4d36e4193a589a1271f0b",
+      "content_sha256": "5adf568173fed6672c51556bb084b99543f65d1b750e9780b97ade1e1ad5ecf4",
+      "document_status": "CANON",
+      "ordinal": 116,
+      "raw_heading": "## 第116章 灰燼城公共頻道",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "灰燼城公共頻道"
+    },
+    {
+      "chapter_id": "chapter_32ccbf59634d0db0e2870162",
+      "content_sha256": "a2f28b8a35d2bed762e12b8cf7a08112e407f9a3b58d9a026ee1806c25788cc9",
+      "document_status": "CANON",
+      "ordinal": 117,
+      "raw_heading": "## 第117章 聯繫",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "聯繫"
+    },
+    {
+      "chapter_id": "chapter_ca798261031057fc3271cb5b",
+      "content_sha256": "f1240d059eb52a53ea0ab46e7d5a49c881315d8ad707332c6d35b43788e217ac",
+      "document_status": "CANON",
+      "ordinal": 118,
+      "raw_heading": "## 第118章 猜測",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "猜測"
+    },
+    {
+      "chapter_id": "chapter_1ee8ba1f0d81a5469043f5a3",
+      "content_sha256": "62dab3d02ae8551299f54542adfecc899fcec8e92985c2f6077a99c8f1f2a8ca",
+      "document_status": "CANON",
+      "ordinal": 119,
+      "raw_heading": "## 第119章 纜車4級",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "纜車4級"
+    },
+    {
+      "chapter_id": "chapter_aa0de0b8929a6f311e51da17",
+      "content_sha256": "f6490465d2a64e9c8e8c429f539260f38894df6337861025e658010950031daa",
+      "document_status": "CANON",
+      "ordinal": 120,
+      "raw_heading": "## 第120章 纜車4級的三選一",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "纜車4級的三選一"
+    },
+    {
+      "chapter_id": "chapter_69a3e4fda2d13e39675088df",
+      "content_sha256": "d89d5331fb2a8c28e271b4aac6297e82ddaa21105d2d8af087a6b5892196a8d1",
+      "document_status": "CANON",
+      "ordinal": 121,
+      "raw_heading": "## 第121章 灰燼城",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "灰燼城"
+    },
+    {
+      "chapter_id": "chapter_62deacc4b2078bf588ccab3b",
+      "content_sha256": "ca155243c2c8907f98db76384f4c5880c287de317d601ec69218108cc0de627b",
+      "document_status": "CANON",
+      "ordinal": 122,
+      "raw_heading": "## 第122章 灰燼大學區域",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "灰燼大學區域"
+    },
+    {
+      "chapter_id": "chapter_3baf97ae3f754da6d6ef1e0a",
+      "content_sha256": "6010e8e6666186e3775a5ba274093bed6e64647c1934608a87a8c3c038dd22d9",
+      "document_status": "CANON",
+      "ordinal": 123,
+      "raw_heading": "## 第123章 爆率變高",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "爆率變高"
+    },
+    {
+      "chapter_id": "chapter_56f7f95e28959579cd812ab4",
+      "content_sha256": "60c98c483344e3cdd3ce128bda5a387f88a4749aedea83a071f72aac8b03d851",
+      "document_status": "CANON",
+      "ordinal": 124,
+      "raw_heading": "## 第124章 動靜",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "動靜"
+    },
+    {
+      "chapter_id": "chapter_c7a3f6369c9ff4112309ea83",
+      "content_sha256": "f458ae9c068a48cb6b8a770e3b46afbcb0015205ff2d2d683d44be22c25be94b",
+      "document_status": "CANON",
+      "ordinal": 125,
+      "raw_heading": "## 第125章 飛行能力？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "飛行能力？"
+    },
+    {
+      "chapter_id": "chapter_b1a6eb80f3afe6e12eb4c6b5",
+      "content_sha256": "399f77bca8a0572f4c0c4ebda47ed7dc6ddbb8979fbb9523ea25959b8753cfd8",
+      "document_status": "CANON",
+      "ordinal": 126,
+      "raw_heading": "## 第126章 大學生",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "大學生"
+    },
+    {
+      "chapter_id": "chapter_4132ec540e2578d3ce283f87",
+      "content_sha256": "cb8318c117ed396dae1a3959c38df6830a7c8b943362c387247e1a04de688306",
+      "document_status": "CANON",
+      "ordinal": 127,
+      "raw_heading": "## 第127章 被迫",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "被迫"
+    },
+    {
+      "chapter_id": "chapter_c0eec13ee347bd500f5901d7",
+      "content_sha256": "15cae7189d2e32701ed55d451364f569dd4dd8c8e815e3aca57c27398e77ea70",
+      "document_status": "CANON",
+      "ordinal": 128,
+      "raw_heading": "## 第128章 林小禾",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "林小禾"
+    },
+    {
+      "chapter_id": "chapter_2883034ee2642b984622482e",
+      "content_sha256": "f5b1bfd7d0a07e3d63101f9aab0f08675bb1abdab26f132983c8c162142ba7a3",
+      "document_status": "CANON",
+      "ordinal": 129,
+      "raw_heading": "## 第128章 尾隨",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "尾隨"
+    },
+    {
+      "chapter_id": "chapter_7aa09de3daf9cbecb5e73369",
+      "content_sha256": "b04dbf886d67f62e29cc8de38377919f55cbdca51bd772aecdc8da2f69322e3e",
+      "document_status": "CANON",
+      "ordinal": 130,
+      "raw_heading": "## 第129章 熟練",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "熟練"
+    },
+    {
+      "chapter_id": "chapter_ff2c5197342abc028b34de8e",
+      "content_sha256": "78dfd56da4e3c159ac9bab466b619c88714d6f3c0057f1188507e5ac8fa61d50",
+      "document_status": "CANON",
+      "ordinal": 131,
+      "raw_heading": "## 第130章 另一個尾巴",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "另一個尾巴"
+    },
+    {
+      "chapter_id": "chapter_4ec24d6fd2fb325e46ec3b24",
+      "content_sha256": "b1494244ecedb2a27801123adbb408113cfbb6c4f462a9d83346dee63d7b9b0b",
+      "document_status": "CANON",
+      "ordinal": 132,
+      "raw_heading": "## 第131章 誘餌",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "誘餌"
+    },
+    {
+      "chapter_id": "chapter_4df07fa5977ce24904cf7aa2",
+      "content_sha256": "0d3884b1db1ba590e4779167ce5effbd4648e063aef3aeddf0cccfff9e59bce6",
+      "document_status": "CANON",
+      "ordinal": 133,
+      "raw_heading": "## 第132章 黃金寶箱，開箱",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "黃金寶箱，開箱"
+    },
+    {
+      "chapter_id": "chapter_45188ca30d31ddc83bb54f2b",
+      "content_sha256": "a7235f8746a9b303303ddac4d8ed0a9e5c2ad9af5fa74562079822b7a85c7c82",
+      "document_status": "CANON",
+      "ordinal": 134,
+      "raw_heading": "## 第133章 怪物襲擊",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "怪物襲擊"
+    },
+    {
+      "chapter_id": "chapter_0490ad5acb136b88324581a6",
+      "content_sha256": "673d4b9c17653493a6228e37fc9ea2d5656aa678d17c30e7bdd60912fc555d23",
+      "document_status": "CANON",
+      "ordinal": 135,
+      "raw_heading": "## 第134章 破壁爬行者",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "破壁爬行者"
+    },
+    {
+      "chapter_id": "chapter_5a2529d10a0e0dc236dce35a",
+      "content_sha256": "1cf453268899b1bd7bf82a712958dca94b6a9b2c88e5b06b3a96d0e6dbe5bc26",
+      "document_status": "CANON",
+      "ordinal": 136,
+      "raw_heading": "## 第135章 救命？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "救命？"
+    },
+    {
+      "chapter_id": "chapter_9502748815eaae49925cac43",
+      "content_sha256": "e50036efd22a2028b9a459bcbd4bac42357b7f4472aeca44eb12f2cc835446a5",
+      "document_status": "CANON",
+      "ordinal": 137,
+      "raw_heading": "## 第136章 5級",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "5級"
+    },
+    {
+      "chapter_id": "chapter_761aaed9e08e5ec80bb4c2f5",
+      "content_sha256": "26b0561d62a1029cc6dc3455c26348630017843dd2894154233877d9d0892f11",
+      "document_status": "CANON",
+      "ordinal": 138,
+      "raw_heading": "## 第137章 5級，三選一",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "5級，三選一"
+    },
+    {
+      "chapter_id": "chapter_5e00c1f1bf1c0a8e84690b45",
+      "content_sha256": "b675b9dc6bf2ef23a932bd7e8d25c0f60a4828236b0789fdf5d8da5b1bf29997",
+      "document_status": "CANON",
+      "ordinal": 139,
+      "raw_heading": "## 第138章 傳單？軍隊？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "傳單？軍隊？"
+    },
+    {
+      "chapter_id": "chapter_20e5fdac5cbbf905ce0f8780",
+      "content_sha256": "6bd3fc8721445e8add504e7c54a521589db4b7ce743f7783b55229fd425600df",
+      "document_status": "CANON",
+      "ordinal": 140,
+      "raw_heading": "## 第139章 藤蔓",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "藤蔓"
+    },
+    {
+      "chapter_id": "chapter_67755f3866d705495527d2fa",
+      "content_sha256": "35c636033c3494f4e93d610fa407d0c9cf14d0d4da48073a80ab6c79130ecc8b",
+      "document_status": "CANON",
+      "ordinal": 141,
+      "raw_heading": "## 第140章 逃脫",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "逃脫"
+    },
+    {
+      "chapter_id": "chapter_c582ee6c10517e38b682ddae",
+      "content_sha256": "4e08cfc2881e6f90357e2decb412973cd183d007e47c9843392c1ff1b78cb9f7",
+      "document_status": "CANON",
+      "ordinal": 142,
+      "raw_heading": "## 第141章 正常水平",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "正常水平"
+    },
+    {
+      "chapter_id": "chapter_b9a33935d9dbd32ba71df0b8",
+      "content_sha256": "cd2727dcebfd4874ec6fe3ec89dea5625211a5cb2f4ab05bb4a242cdbe141238",
+      "document_status": "CANON",
+      "ordinal": 143,
+      "raw_heading": "## 第142章 救世公會",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "救世公會"
+    },
+    {
+      "chapter_id": "chapter_86a0a7aa01cb82e98a925781",
+      "content_sha256": "6d5c827d1df96d6e2b0e34366e18d546b87a044a3b8691c6fc952cc35c430e74",
+      "document_status": "CANON",
+      "ordinal": 144,
+      "raw_heading": "## 第143章 不識抬舉",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "不識抬舉"
+    },
+    {
+      "chapter_id": "chapter_f30007d300c36aea6cb05f3d",
+      "content_sha256": "b7dc6245e2196cf24bc7f737426fd95f642fd403e9becf62a081227df5040238",
+      "document_status": "CANON",
+      "ordinal": 145,
+      "raw_heading": "## 第144章 戰力評估",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "戰力評估"
+    },
+    {
+      "chapter_id": "chapter_3f58f5e019d6a2eb787cf064",
+      "content_sha256": "37db5fe59ac91ffae3d27709b7094999f67155d24e25babf86e9b2dd53e91717",
+      "document_status": "CANON",
+      "ordinal": 146,
+      "raw_heading": "## 第145章 新的藤蔓",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "新的藤蔓"
+    },
+    {
+      "chapter_id": "chapter_b59d932de0e1823ddc8e0fd3",
+      "content_sha256": "eb1e9e357857b2bdd0fe0aa59d34c9e65e8e64fbeb9e090bb7b354c7ac2d9e09",
+      "document_status": "CANON",
+      "ordinal": 147,
+      "raw_heading": "## 第146章 缺人",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "缺人"
+    },
+    {
+      "chapter_id": "chapter_5ca8f289b60bfc165ecbe8a2",
+      "content_sha256": "ae6eaa63baf4671ea5a36ee584c167f0e3ffb47feabea6c385cef6533654250f",
+      "document_status": "CANON",
+      "ordinal": 148,
+      "raw_heading": "## 第147章 強迫邀請",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "強迫邀請"
+    },
+    {
+      "chapter_id": "chapter_a8c527b8ca6f4b0dc824bd00",
+      "content_sha256": "220a9ba0fefc2725d2f0836bd8e8f88941e002f0518fdac1c0d464273427bf59",
+      "document_status": "CANON",
+      "ordinal": 149,
+      "raw_heading": "## 第148章 先看看他的戰力",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "先看看他的戰力"
+    },
+    {
+      "chapter_id": "chapter_e587323264abf73180e7851f",
+      "content_sha256": "52cac17d07ffa65f4d1bb5e93017fa73e3557e3a3c6ea738150b1e420a84b1c2",
+      "document_status": "CANON",
+      "ordinal": 150,
+      "raw_heading": "## 第149章 蘇牧的戰力",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "蘇牧的戰力"
+    },
+    {
+      "chapter_id": "chapter_5405d209e962e1f1ed66f1d1",
+      "content_sha256": "e4d0dd110d6498436b9947d4f70071e1065db0a9e8ce1b73c2d82f4fabbd04c0",
+      "document_status": "CANON",
+      "ordinal": 151,
+      "raw_heading": "## 第150章 炸開了",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "炸開了"
+    },
+    {
+      "chapter_id": "chapter_779112f55ef5adcbaa63b818",
+      "content_sha256": "26b11b0cdcee37892f2dcd1ef0c0cc8ef2c2c05764da82966cc937c216476efd",
+      "document_status": "CANON",
+      "ordinal": 152,
+      "raw_heading": "## 第151章 另想辦法",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "另想辦法"
+    },
+    {
+      "chapter_id": "chapter_7e95a7167a13cfa2d43c7ac0",
+      "content_sha256": "82abea654253ae384512005b8e531e5ae06ddc9ac23f6f1df37713516176026f",
+      "document_status": "CANON",
+      "ordinal": 153,
+      "raw_heading": "## 第152章 方案",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "方案"
+    },
+    {
+      "chapter_id": "chapter_95d0530a78bb32221b077ef9",
+      "content_sha256": "4139aa4e0b5921e5fee613ee591dabfee9b3f4fac50ea87a232a082412220fb6",
+      "document_status": "CANON",
+      "ordinal": 154,
+      "raw_heading": "## 第153章 林小禾的職業",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "林小禾的職業"
+    },
+    {
+      "chapter_id": "chapter_9fc0d474b656e6f4ac410724",
+      "content_sha256": "5ae2e9f5c5509561755bfbb70f92730199ee1e2f1ebcff9c9ec599456abca53e",
+      "document_status": "CANON",
+      "ordinal": 155,
+      "raw_heading": "## 第154章 空戰",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "空戰"
+    },
+    {
+      "chapter_id": "chapter_2cac9fb728ed15bc700ce7d0",
+      "content_sha256": "4dbca029a5a36ad7a157542eb7272fd0a93ae352f32f80ca4ff58f7d12c2b77c",
+      "document_status": "CANON",
+      "ordinal": 156,
+      "raw_heading": "## 第155章 這東西有智商",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "這東西有智商"
+    },
+    {
+      "chapter_id": "chapter_35944f9ac0c566f2b3ab14da",
+      "content_sha256": "061eb51ae4ea617c6cddf9af721d4e91ec0d8936adb34ab662b5cdc96281d3fd",
+      "document_status": "CANON",
+      "ordinal": 157,
+      "raw_heading": "## 第156章 成了",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "成了"
+    },
+    {
+      "chapter_id": "chapter_274910653cd07084dcbab02d",
+      "content_sha256": "d496a3c8903ac035c35d0596bc0d23746d60679760953448dd050a22bf2e6a3e",
+      "document_status": "CANON",
+      "ordinal": 158,
+      "raw_heading": "## 第157章 要的是打不準",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "要的是打不準"
+    },
+    {
+      "chapter_id": "chapter_17928f11222cba8cb1f06d0e",
+      "content_sha256": "aed0014189978b271dd5212d18ebe26e6f0410f61f1ae0c13992db42d3a934f1",
+      "document_status": "CANON",
+      "ordinal": 159,
+      "raw_heading": "## 第158章 暴漲的經驗",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "暴漲的經驗"
+    },
+    {
+      "chapter_id": "chapter_76563777c6aecc3f62645610",
+      "content_sha256": "e0b067cd4ed55a667e022f872e41499650bc9fd1cd480db3d62a56e20bda64bc",
+      "document_status": "CANON",
+      "ordinal": 160,
+      "raw_heading": "## 第159章 6級，三選一",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "6級，三選一"
+    },
+    {
+      "chapter_id": "chapter_a9f4d5acf2c45bc81aa00522",
+      "content_sha256": "1c406c661f337b866bb6124481f785a4b96d4a5defb110f1505b7ce88aa01396",
+      "document_status": "CANON",
+      "ordinal": 161,
+      "raw_heading": "## 第160章 誰殺得了這種東西？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "誰殺得了這種東西？"
+    },
+    {
+      "chapter_id": "chapter_e771b0cae60f129898fbe046",
+      "content_sha256": "4cc2eda746c7e5b1681ef74df99d1389c4e842bff4937b5a69656719837785d8",
+      "document_status": "CANON",
+      "ordinal": 162,
+      "raw_heading": "## 第161章 不見了",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "不見了"
+    },
+    {
+      "chapter_id": "chapter_d3d6f3bfac9e0e5dad052df9",
+      "content_sha256": "bdef1f9251185211869fc6c2183727cfe98cf8339063c50a8062d9dd21f1b7e0",
+      "document_status": "CANON",
+      "ordinal": 163,
+      "raw_heading": "## 第162章 巨人",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "巨人"
+    },
+    {
+      "chapter_id": "chapter_f846ce8bf96f56728835e5f9",
+      "content_sha256": "431e41f5b90b58092b04bfd7bc18d7bf58f213d8f431cbf603da7e3cdf12a653",
+      "document_status": "CANON",
+      "ordinal": 164,
+      "raw_heading": "## 第163章 居民樓",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "居民樓"
+    },
+    {
+      "chapter_id": "chapter_d6643c7f81538d247fefb38c",
+      "content_sha256": "4a61c832fcb6212b296952cb389f0a9a393206625d52c80a1936078a918978d8",
+      "document_status": "CANON",
+      "ordinal": 165,
+      "raw_heading": "## 第164章 尖叫",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "尖叫"
+    },
+    {
+      "chapter_id": "chapter_4aa3c363079400a4fb179564",
+      "content_sha256": "35371e5815ea0d1e19574ba048dcf0ac3edd33ee5d1bdc6cbfa8d4a6063b0c11",
+      "document_status": "CANON",
+      "ordinal": 166,
+      "raw_heading": "## 第165章 夜襲",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "夜襲"
+    },
+    {
+      "chapter_id": "chapter_d73ea2e112fa12cf9a243942",
+      "content_sha256": "ec1454b09066f47354d868ac576f096b18d0c5843749c3d40e3904923d2e6f4e",
+      "document_status": "CANON",
+      "ordinal": 167,
+      "raw_heading": "## 第166章 出手",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "出手"
+    },
+    {
+      "chapter_id": "chapter_ba5abca2a89efaaec9ede47e",
+      "content_sha256": "edd45f680f878efe65c8963f700b148d54286b477b5ad6a505067bd031da12aa",
+      "document_status": "CANON",
+      "ordinal": 168,
+      "raw_heading": "## 第167章 猜測？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "猜測？"
+    },
+    {
+      "chapter_id": "chapter_61aeb4be2599d28dd40826fc",
+      "content_sha256": "e6bc477d65e5351afa0fa9e63871c8f4853e485ebb6e6b30ba9ab4b0691130e1",
+      "document_status": "CANON",
+      "ordinal": 169,
+      "raw_heading": "## 第168章 到底是誰",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "到底是誰"
+    },
+    {
+      "chapter_id": "chapter_eaabf4ca7a7c58f7364ad3fd",
+      "content_sha256": "c0c2a3ba26ab6f4f7c52ffb593dda432122c3a5c7ea39af1f19ed660d4a53448",
+      "document_status": "CANON",
+      "ordinal": 170,
+      "raw_heading": "## 第169章 堅固的木質地板圖紙",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "堅固的木質地板圖紙"
+    },
+    {
+      "chapter_id": "chapter_4cadc35add147b54631242ac",
+      "content_sha256": "2ffb9d3081ff10d6440dabc0bbd176af86c13a5de2dafa89fd7bfbb94594c0d1",
+      "document_status": "CANON",
+      "ordinal": 171,
+      "raw_heading": "## 第170章 大部分目前的水平",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "大部分目前的水平"
+    },
+    {
+      "chapter_id": "chapter_a5ec1cb7645e32c1f30b503e",
+      "content_sha256": "2f4778d0e62f452f58aeddb0e25609963bdd34efd4ff5ac5a0892d1d52d090d3",
+      "document_status": "CANON",
+      "ordinal": 172,
+      "raw_heading": "## 第171章 屏障可能會出問題",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "屏障可能會出問題"
+    },
+    {
+      "chapter_id": "chapter_3ba0d59f8d1993bb970d3a12",
+      "content_sha256": "2440069c31c4b5d9adbfcdffb4da6b56260fcc943185dd62868cd578157692b2",
+      "document_status": "CANON",
+      "ordinal": 173,
+      "raw_heading": "## 第172章 離開",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "離開"
+    },
+    {
+      "chapter_id": "chapter_f7218f0101e7fbb5fc9611c1",
+      "content_sha256": "50627eddd18c5988b3969c51d918e65073874abfb846ba57b5912861c227a554",
+      "document_status": "CANON",
+      "ordinal": 174,
+      "raw_heading": "## 第173章 麵粉",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "麵粉"
+    },
+    {
+      "chapter_id": "chapter_4bd0339543802ee68fc29f30",
+      "content_sha256": "77ee466d643a6af2145d82ef539bf17d845f5ae75e23259374052a8595a71b93",
+      "document_status": "CANON",
+      "ordinal": 175,
+      "raw_heading": "## 第174章 覺醒者",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "覺醒者"
+    },
+    {
+      "chapter_id": "chapter_9d8e5e55dd8cc0ed3d18739b",
+      "content_sha256": "78682f2ceb989f99a788d14e8b548baed4eb055776623813c0d2a4f46398c300",
+      "document_status": "CANON",
+      "ordinal": 176,
+      "raw_heading": "## 第175章 刺殺",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "刺殺"
+    },
+    {
+      "chapter_id": "chapter_489c534e13e360388d540238",
+      "content_sha256": "ffc390c383e45c63f065d06713e03867c4931b7ac69edbac5a659820a701e26b",
+      "document_status": "CANON",
+      "ordinal": 177,
+      "raw_heading": "## 第176章 不是倖存者",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "不是倖存者"
+    },
+    {
+      "chapter_id": "chapter_278e93beacef1738be0f7a26",
+      "content_sha256": "5bc3cc3c924cd8facc7e31df4f409d25fe654a3b71b78fcc75af46b6563d3159",
+      "document_status": "CANON",
+      "ordinal": 178,
+      "raw_heading": "## 第177章 救我",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "救我"
+    },
+    {
+      "chapter_id": "chapter_492dc610327e8364074e5b48",
+      "content_sha256": "2adc38b567cdf4b0c4d58a4ab806280f91cbf99084c24399a6769c8e7ffebc57",
+      "document_status": "CANON",
+      "ordinal": 179,
+      "raw_heading": "## 第178章 暗區",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "暗區"
+    },
+    {
+      "chapter_id": "chapter_080c8e52cc3d60ca9d11e445",
+      "content_sha256": "1c0afa6576a8ad0764e7688bc0b7bb97d66bf39912298cc55da3c724c49ca8e8",
+      "document_status": "CANON",
+      "ordinal": 180,
+      "raw_heading": "## 第179章 軍方精英",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "軍方精英"
+    },
+    {
+      "chapter_id": "chapter_f7b30e23221631b0b800acd6",
+      "content_sha256": "d581df6d3c6c2aebc87e45dc961e4451ee9527e2d025b8c0f314bf9fd872cac3",
+      "document_status": "CANON",
+      "ordinal": 181,
+      "raw_heading": "## 第180章 潛入",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "潛入"
+    },
+    {
+      "chapter_id": "chapter_59b1712aab737c45ad84c5cc",
+      "content_sha256": "9b41418e132d0fbb0c6ec7c8faa0a3f7d77fc99b4c8fc8476e26e68c8f4963e8",
+      "document_status": "CANON",
+      "ordinal": 182,
+      "raw_heading": "## 第181章 不一樣的地方",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "不一樣的地方"
+    },
+    {
+      "chapter_id": "chapter_0026309ab54b3f132b6ee03f",
+      "content_sha256": "5fc9dfb9593da8fe5fa496d94f2ffd9623984ec81bc3a28ce8b252b389abccd2",
+      "document_status": "CANON",
+      "ordinal": 183,
+      "raw_heading": "## 第182章 經驗加成",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "經驗加成"
+    },
+    {
+      "chapter_id": "chapter_3fb3328beac0f62988057c06",
+      "content_sha256": "2e4a2010c4aacf828a6d9521a8214da09a4ee03c7dfad0e137b4187ef95000c6",
+      "document_status": "CANON",
+      "ordinal": 184,
+      "raw_heading": "## 第183章 不對勁",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "不對勁"
+    },
+    {
+      "chapter_id": "chapter_67b60ffd093c73ccdc675db8",
+      "content_sha256": "a6509d76553fa4d86f7001a1f71b059e3e23a231b5c621bce1a92df9e4ee6224",
+      "document_status": "CANON",
+      "ordinal": 185,
+      "raw_heading": "## 第184章 硬漢",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "硬漢"
+    },
+    {
+      "chapter_id": "chapter_e68a089b35d05e247a96cd0d",
+      "content_sha256": "a0d4ae295dfeb2651dee8988fd68c67d078565071bdd7050da60a25776e670d3",
+      "document_status": "CANON",
+      "ordinal": 186,
+      "raw_heading": "## 第185章 小心",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "小心"
+    },
+    {
+      "chapter_id": "chapter_0903930ea70ae0ead4ee62f9",
+      "content_sha256": "bbc8d483852b04b2f1d8204f72791c2686f14f83a590a1aa04cb588c80f471af",
+      "document_status": "CANON",
+      "ordinal": 187,
+      "raw_heading": "## 第186章 再次偷襲",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "再次偷襲"
+    },
+    {
+      "chapter_id": "chapter_387ee6b3c01c750bed61167e",
+      "content_sha256": "333374c1c28915c83150fb81f8d49d77ec28c8ac659e52fcd70aeeaaed179da8",
+      "document_status": "CANON",
+      "ordinal": 188,
+      "raw_heading": "## 第187章 強大的蘇牧",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "強大的蘇牧"
+    },
+    {
+      "chapter_id": "chapter_bcb8c0db3c3f28f3ba36255c",
+      "content_sha256": "7a64d5ecae4852cb7d4cc022c96b3574c0fdfc31a12be7f4b5cb183b9a9b2ead",
+      "document_status": "CANON",
+      "ordinal": 189,
+      "raw_heading": "## 第188章 你是從纜車上下來的？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "你是從纜車上下來的？"
+    },
+    {
+      "chapter_id": "chapter_092b74d32d55f4513e8df6d2",
+      "content_sha256": "5323ce5bc499d9a8ab6bde524edd28fd8eca05aff504b96b5b59ca8997dad78a",
+      "document_status": "CANON",
+      "ordinal": 190,
+      "raw_heading": "## 第189章 編號",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "編號"
+    },
+    {
+      "chapter_id": "chapter_62296ae2650eaeb4074e0c25",
+      "content_sha256": "b89d565b6d3d3414d562b7a70e2ce4c088850a8a4658714032e47920f881f728",
+      "document_status": "CANON",
+      "ordinal": 191,
+      "raw_heading": "## 第190章 合作.",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "合作."
+    },
+    {
+      "chapter_id": "chapter_97da3bdfdf1aeab41e665ab2",
+      "content_sha256": "9f487f30fdc160451f2fa480476e5214591ead3b104c1223be7ab4a95a4543ef",
+      "document_status": "CANON",
+      "ordinal": 192,
+      "raw_heading": "## 第191章 目標",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "目標"
+    },
+    {
+      "chapter_id": "chapter_c4ba4b1a7996f2361b4d49b9",
+      "content_sha256": "5f15ce3bfa87d0b5cac12871be8844f961fe7a74ab4a924279180e57b8b30889",
+      "document_status": "CANON",
+      "ordinal": 193,
+      "raw_heading": "## 第192章 追蹤",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "追蹤"
+    },
+    {
+      "chapter_id": "chapter_a16ba8d887dc8f1cf129043f",
+      "content_sha256": "3c8b183c3a7d842c6b145fef6bc816354a008f39429df7d3ffea246310134310",
+      "document_status": "CANON",
+      "ordinal": 194,
+      "raw_heading": "## 第193章 出現",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "出現"
+    },
+    {
+      "chapter_id": "chapter_287cd97474d04f90e0248ef7",
+      "content_sha256": "c0a0bb4be70f45a0c77ff30c7be321f99a77acb7e9b680544cad847ef10a84f1",
+      "document_status": "CANON",
+      "ordinal": 195,
+      "raw_heading": "## 第194章 目的",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "目的"
+    },
+    {
+      "chapter_id": "chapter_49ac7e364edc3e4fded5aa92",
+      "content_sha256": "3e26ed11f25ad735b82c4ff7a0589339b213ab00d8ad90c3c0e0a23c25dffacd",
+      "document_status": "CANON",
+      "ordinal": 196,
+      "raw_heading": "## 第195章 誘餌.",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "誘餌."
+    },
+    {
+      "chapter_id": "chapter_fcf0de19ad7659674601578d",
+      "content_sha256": "2b68e5ab867a3da601be94ded982e48331b92053157e8c7df733d466c88b1106",
+      "document_status": "CANON",
+      "ordinal": 197,
+      "raw_heading": "## 第196章 太小瞧我了",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "太小瞧我了"
+    },
+    {
+      "chapter_id": "chapter_00f9c6a01dd6fa601df20499",
+      "content_sha256": "b7b9683b3d08fbddf9e7b4c1a7e92c4189bc0d6df0d0a5181906ed5a2d513928",
+      "document_status": "CANON",
+      "ordinal": 198,
+      "raw_heading": "## 第197章 來了",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "來了"
+    },
+    {
+      "chapter_id": "chapter_79fac22207e8a1ee6649a98a",
+      "content_sha256": "735b3f83c4a8b63fbab2856c9972a190be632b097647fe5211757225ddac606f",
+      "document_status": "CANON",
+      "ordinal": 199,
+      "raw_heading": "## 第198章 這人不是黑殺的",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "這人不是黑殺的"
+    },
+    {
+      "chapter_id": "chapter_ee545655acfd36d7da2fabb4",
+      "content_sha256": "ea2c94afd22567b3ac515a0f24646dfef38b01b6ec007be8cdba41fbdadbb6cc",
+      "document_status": "CANON",
+      "ordinal": 200,
+      "raw_heading": "## 第199章 藤蔓的強度",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "藤蔓的強度"
+    },
+    {
+      "chapter_id": "chapter_518791683234f4e0290f3e48",
+      "content_sha256": "ecf0e81c7621dbfbeabdccc1194eb09277a4067c187e91e437ee71cecc16bf53",
+      "document_status": "CANON",
+      "ordinal": 201,
+      "raw_heading": "## 第200章 報仇",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "報仇"
+    },
+    {
+      "chapter_id": "chapter_734a0f4cebab5b37735af35b",
+      "content_sha256": "0e5070324881c7b9fe9c901641342e0943fe82e8dda85e2c769ba5ac8501547e",
+      "document_status": "CANON",
+      "ordinal": 202,
+      "raw_heading": "## 第201章 又一個奇物",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "又一個奇物"
+    },
+    {
+      "chapter_id": "chapter_9ba1325510891a8dc935afcd",
+      "content_sha256": "47c78f9fb1c6bab65fc1be64aa3ec85be38791c272e09628faa3591a6e6696d2",
+      "document_status": "CANON",
+      "ordinal": 203,
+      "raw_heading": "## 第202章 窮B",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "窮B"
+    },
+    {
+      "chapter_id": "chapter_7df3317fd3b0e90d12ee71eb",
+      "content_sha256": "ccd5d397a643c1a6d5c30ec2dffc40a4f25f854cdbec918985e69b4004b6a434",
+      "document_status": "CANON",
+      "ordinal": 204,
+      "raw_heading": "## 第203章 練級",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "練級"
+    },
+    {
+      "chapter_id": "chapter_2db6b9bb01c10cb29cf21b49",
+      "content_sha256": "4ebedbcd035d383762e8886c98209e14a0e11a27988c9e30d9eaca3b1fe86d25",
+      "document_status": "CANON",
+      "ordinal": 205,
+      "raw_heading": "## 第204章 資格",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "資格"
+    },
+    {
+      "chapter_id": "chapter_d6878e0ad5d919b2aac72854",
+      "content_sha256": "2f212f52580b9d104d551160e8dba1d78e2817c38b6337f3d8cc91f4a41349a1",
+      "document_status": "CANON",
+      "ordinal": 206,
+      "raw_heading": "## 第205章 7級",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "7級"
+    },
+    {
+      "chapter_id": "chapter_eeca2e92800559e3dcd71948",
+      "content_sha256": "d76515796a27c65d6b74fd481cd3770b1795655ac1750c5fdabb9f5f575918e3",
+      "document_status": "CANON",
+      "ordinal": 207,
+      "raw_heading": "## 第206章 7級，三選一",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "7級，三選一"
+    },
+    {
+      "chapter_id": "chapter_cac46d5d2d6ede03c1e19450",
+      "content_sha256": "c5190bf02bfdd53f663e622e406efa837c1ed375d44ea20b4e535070306c5cc5",
+      "document_status": "CANON",
+      "ordinal": 208,
+      "raw_heading": "## 第207章 目標，動物園",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "目標，動物園"
+    },
+    {
+      "chapter_id": "chapter_f3a154e1931af6caf6106de8",
+      "content_sha256": "0e6f0569c20c394ca959c1e3770d418f193dac9a19e51910a97906dda89ef977",
+      "document_status": "CANON",
+      "ordinal": 209,
+      "raw_heading": "## 第208章 另一支隊伍",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "另一支隊伍"
+    },
+    {
+      "chapter_id": "chapter_1229486a0b9336bad9acfe6c",
+      "content_sha256": "20e4fc9f9d5f4982fb8aa0df62e68e1d9c9d231f5578e4e37d8aa94b4861fe5b",
+      "document_status": "CANON",
+      "ordinal": 210,
+      "raw_heading": "## 第209章 隊伍目標",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "隊伍目標"
+    },
+    {
+      "chapter_id": "chapter_66fcf3a1f905711fbbbb25e4",
+      "content_sha256": "5e7a6b0360ce6767fec63effda113b39991b04a1aebcf381180f703f6b59dc31",
+      "document_status": "CANON",
+      "ordinal": 211,
+      "raw_heading": "## 第210章 什麼人？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "什麼人？"
+    },
+    {
+      "chapter_id": "chapter_d5bb5abe4747d2da102b0a47",
+      "content_sha256": "abf0f0977cb004b3ea4fa70178404658bb187d004f62ef54eda644211ca2caa8",
+      "document_status": "CANON",
+      "ordinal": 212,
+      "raw_heading": "## 第211章 損壞的投幣機",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "損壞的投幣機"
+    },
+    {
+      "chapter_id": "chapter_5ee6a68e888e55a3ed15d6e2",
+      "content_sha256": "ea87c9cfcffdd04a64743807d38cc866abbec8a8513ddcbe91f14665a7cfd5eb",
+      "document_status": "CANON",
+      "ordinal": 213,
+      "raw_heading": "## 第212章 這是什麼運氣？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "這是什麼運氣？"
+    },
+    {
+      "chapter_id": "chapter_9bfda5c7ab47095e2537ebf3",
+      "content_sha256": "2f31ccc13a0a10cf823986cfc34043fe7c9b947152e32603ed9c640f29255fde",
+      "document_status": "CANON",
+      "ordinal": 214,
+      "raw_heading": "## 第213章 銀斑豹幼崽",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "銀斑豹幼崽"
+    },
+    {
+      "chapter_id": "chapter_7fbc1ce64820d00026361728",
+      "content_sha256": "d64bb8200eb509a247d51604302da7e32fdeb19c761a8bc5bb8d4ea416589c2d",
+      "document_status": "CANON",
+      "ordinal": 215,
+      "raw_heading": "## 第214章 突然出現的棕熊",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "突然出現的棕熊"
+    },
+    {
+      "chapter_id": "chapter_b6cf427ee1c23ab8ff317a42",
+      "content_sha256": "0ebc1f162a3dd09b1d142e1ca059ce16022a7c4696e1a56d12b3c62a4cee3d33",
+      "document_status": "CANON",
+      "ordinal": 216,
+      "raw_heading": "## 第215章 秘境",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "秘境"
+    },
+    {
+      "chapter_id": "chapter_d12d3b9147e72566b7273da8",
+      "content_sha256": "816fa156b6710e0e366d510ecaa5f1e4b52db87b93dc63cce62e0fc6a024a954",
+      "document_status": "CANON",
+      "ordinal": 217,
+      "raw_heading": "## 第216章 出一個秘境位置",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "出一個秘境位置"
+    },
+    {
+      "chapter_id": "chapter_700f4593e0ac6e22f0118e62",
+      "content_sha256": "64a509e22b55bac844901681dd9f58c07bba1f4e29aeda82de5db6b1be65bf59",
+      "document_status": "CANON",
+      "ordinal": 218,
+      "raw_heading": "## 第217章 魔丸",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "魔丸"
+    },
+    {
+      "chapter_id": "chapter_2b6842db9fbba6e914be4f1c",
+      "content_sha256": "170b23f3edd583c764a028fc527d036757b8ef04c0cdf5ed146cab29a4ec5620",
+      "document_status": "CANON",
+      "ordinal": 219,
+      "raw_heading": "## 第218章 巧合",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "巧合"
+    },
+    {
+      "chapter_id": "chapter_b5f241ec985b59816bba4dbd",
+      "content_sha256": "75071f4d4f17097269af0513c41f6a8a0b2c5119279445e61e7dafe04cf6ccf5",
+      "document_status": "CANON",
+      "ordinal": 220,
+      "raw_heading": "## 第219章 秘境內",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "秘境內"
+    },
+    {
+      "chapter_id": "chapter_87d795158e9451dc0f7b1fd1",
+      "content_sha256": "de4a9d3a113ee8b2f9289a4609cee299e23153df0ae73528ceebddd13c8d9c41",
+      "document_status": "CANON",
+      "ordinal": 221,
+      "raw_heading": "## 第220章 熱鬧",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "熱鬧"
+    },
+    {
+      "chapter_id": "chapter_c24ee212c5a45e8273df791d",
+      "content_sha256": "0ceddde72fa577eedf7a90b586a97ac50ad5a4b93f4a31ef55b5c3c1497b390b",
+      "document_status": "CANON",
+      "ordinal": 222,
+      "raw_heading": "## 第221章 會不會是他們",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "會不會是他們"
+    },
+    {
+      "chapter_id": "chapter_192edbef13efecd2b6efa510",
+      "content_sha256": "34325d22557d4b0cb942cb8116466e4d685a3ee0cbb7c5f740ef226a4ae0e553",
+      "document_status": "CANON",
+      "ordinal": 223,
+      "raw_heading": "## 第222章 規則",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "規則"
+    },
+    {
+      "chapter_id": "chapter_8376cb63f87003fee9136343",
+      "content_sha256": "58b8fd8715eb9186ccf102c7e54a89b7c8c64ee1a0a6fbef003b68f608d20755",
+      "document_status": "CANON",
+      "ordinal": 224,
+      "raw_heading": "## 第223章 不同的選擇",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "不同的選擇"
+    },
+    {
+      "chapter_id": "chapter_6e73c54c2b45e44e1484dc20",
+      "content_sha256": "a36e86d5cb8f3cdbf07f74f33cbfec272afc386fc6fff53b19cdc8e8787e300c",
+      "document_status": "CANON",
+      "ordinal": 225,
+      "raw_heading": "## 第224章 遊戲繼續",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "遊戲繼續"
+    },
+    {
+      "chapter_id": "chapter_5142d828d67ef9685b3e2736",
+      "content_sha256": "aacb4bd0b51f373b03061942163138a17e5c8941f3c3d8764d24b370a1ba3323",
+      "document_status": "CANON",
+      "ordinal": 226,
+      "raw_heading": "## 第225章 太浪費時間了",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "太浪費時間了"
+    },
+    {
+      "chapter_id": "chapter_60d2260954654d2d60edd9a5",
+      "content_sha256": "810af71e76c40beaf25cfd3138376715318708e8bf80fea9f692c251ae398ab6",
+      "document_status": "CANON",
+      "ordinal": 227,
+      "raw_heading": "## 第226章 作弊？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "作弊？"
+    },
+    {
+      "chapter_id": "chapter_579c342d72f46bcd5d3ff4f1",
+      "content_sha256": "fad67380e75de31f759f68254991ebca708351fa3f8df837bce967bab0b172ba",
+      "document_status": "CANON",
+      "ordinal": 228,
+      "raw_heading": "## 第227章 通透",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "通透"
+    },
+    {
+      "chapter_id": "chapter_5daa82a95babeafc3cc6a849",
+      "content_sha256": "eed23fe6965b00b5289e57213e2160c2f1baf065834064bbb20c0a2df8c71775",
+      "document_status": "CANON",
+      "ordinal": 229,
+      "raw_heading": "## 第228章 8級，三選一",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "8級，三選一"
+    },
+    {
+      "chapter_id": "chapter_d36949f76988af556a1add3a",
+      "content_sha256": "68f3a7879e61c3c87e48a78a91adf42abfc54ebdd502f18e62be2ce0f2cc9e8a",
+      "document_status": "CANON",
+      "ordinal": 230,
+      "raw_heading": "## 第229章 我就賭，裡面沒有子彈",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "我就賭，裡面沒有子彈"
+    },
+    {
+      "chapter_id": "chapter_37c71eb3fbf5b46c5993cfed",
+      "content_sha256": "1056bd2a67aa6deb5bdcab02f86d7c4e2bef4c32a07a83eb2cba230321fc9d43",
+      "document_status": "CANON",
+      "ordinal": 231,
+      "raw_heading": "## 第230章 異空間的傳送門",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "異空間的傳送門"
+    },
+    {
+      "chapter_id": "chapter_45a21c34f8b88c163ab6bcd2",
+      "content_sha256": "3e3f4f5981afe9525eb1c083b34ec24895c264668c3952543148a30f00ce812d",
+      "document_status": "CANON",
+      "ordinal": 232,
+      "raw_heading": "## 第231章 魔丸又來了",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "魔丸又來了"
+    },
+    {
+      "chapter_id": "chapter_0cc8348f92e96a84cf95893d",
+      "content_sha256": "a4d94ded4cbbf3102a002c47dcceff8e054cc0326899c3bff4612bfcf829d3e2",
+      "document_status": "CANON",
+      "ordinal": 233,
+      "raw_heading": "## 第232章 殃及池魚",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "殃及池魚"
+    },
+    {
+      "chapter_id": "chapter_5b657bcac6c0fa570d780813",
+      "content_sha256": "8e8c2a373240fb57c44663393b220fe7fe0b42332f455c91a6ecd3fefd783c15",
+      "document_status": "CANON",
+      "ordinal": 234,
+      "raw_heading": "## 第233章 逃",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "逃"
+    },
+    {
+      "chapter_id": "chapter_59e9fd7d17669dd2ae42a97e",
+      "content_sha256": "d3abf243a462cf2eb06a93e52f924bc3f7c0a15e698b2e72d1d5e86efa03e64b",
+      "document_status": "CANON",
+      "ordinal": 235,
+      "raw_heading": "## 第224章 危機降臨",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "危機降臨"
+    },
+    {
+      "chapter_id": "chapter_8170397aa0756f52ea447a91",
+      "content_sha256": "a1ed999e349ddcb0b4873c0097c39ca3115eaf3cf40dbe512179f37453a637b5",
+      "document_status": "CANON",
+      "ordinal": 236,
+      "raw_heading": "## 第225章 無妄之災",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "無妄之災"
+    },
+    {
+      "chapter_id": "chapter_ae9c9c108ed8f54555fdfabf",
+      "content_sha256": "9f55283bcef84d923e7287a8668395e473744f3a21fd7413cf821bddeba031a1",
+      "document_status": "CANON",
+      "ordinal": 237,
+      "raw_heading": "## 第226章 超過我們等級太多了，看不到",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "超過我們等級太多了，看不到"
+    },
+    {
+      "chapter_id": "chapter_a3e9c938d23d5808fefec54f",
+      "content_sha256": "cd815b4863dac9ea4fe0838cdbe7b1136e1687a08aa8d22b023d32e198f782c3",
+      "document_status": "CANON",
+      "ordinal": 238,
+      "raw_heading": "## 第227章 八級",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "八級"
+    },
+    {
+      "chapter_id": "chapter_c4864f1ebd0bf7d76b367a3f",
+      "content_sha256": "cceaaf0e5ab250678c72b6c1d7312cc75029c5c13a5e9b9f8e9ca089189bd8ad",
+      "document_status": "CANON",
+      "ordinal": 239,
+      "raw_heading": "## 第228章 十九倍",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "十九倍"
+    },
+    {
+      "chapter_id": "chapter_e11df9cfdf349d8494b209a4",
+      "content_sha256": "94d109c745fbf18ea470d1ae870ba21288c5a4dcef58cc1276e1e16badbb812c",
+      "document_status": "CANON",
+      "ordinal": 240,
+      "raw_heading": "## 第229章 巨熊",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "巨熊"
+    },
+    {
+      "chapter_id": "chapter_f4fc82c85d574b891c0f8c20",
+      "content_sha256": "d035b582f147cf364e357226a11bb34e549a489d1bc9165698215666d76962c3",
+      "document_status": "CANON",
+      "ordinal": 241,
+      "raw_heading": "## 第230章 餘威",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "餘威"
+    },
+    {
+      "chapter_id": "chapter_165fe11c7ee1ed052ac13682",
+      "content_sha256": "a37e086ffba410f84f5063780946128b3ad243bf6392d2e4e05e68a4c4eba57e",
+      "document_status": "CANON",
+      "ordinal": 242,
+      "raw_heading": "## 第231章 北門",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "北門"
+    },
+    {
+      "chapter_id": "chapter_4f0eee8b13ad4c1e31194182",
+      "content_sha256": "e9c657942142fa162230366dab944e88613ecf2df1791eed614df006326b13ff",
+      "document_status": "CANON",
+      "ordinal": 243,
+      "raw_heading": "## 第232章 為何打不得",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "為何打不得"
+    },
+    {
+      "chapter_id": "chapter_96a30639bdbdbf8d51e0005e",
+      "content_sha256": "dff454dff55940b267726be5391655c89e193e6aa6e4b79ff491f3f9d891fe09",
+      "document_status": "CANON",
+      "ordinal": 244,
+      "raw_heading": "## 第233章 關注",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "關注"
+    },
+    {
+      "chapter_id": "chapter_9aa60b1844e04eb7354079b4",
+      "content_sha256": "4c6d3247c396183176d9be36952e1917dc5458c18566c5bcf85a39020b80807b",
+      "document_status": "CANON",
+      "ordinal": 245,
+      "raw_heading": "## 第234章 蛋液",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "蛋液"
+    },
+    {
+      "chapter_id": "chapter_4cb67710e555a26d18a6072b",
+      "content_sha256": "3247b27a9ada105da86d0238894db3b9aa492adf061a8f65fd09dda6ad2ff284",
+      "document_status": "CANON",
+      "ordinal": 246,
+      "raw_heading": "## 第235章 拖住、偷",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "拖住、偷"
+    },
+    {
+      "chapter_id": "chapter_5f5677c47389cbf48afde011",
+      "content_sha256": "8fe80ff3caabf5448c623bac72adb8dd8a5612c09d016eb3674fa8e7379eede4",
+      "document_status": "CANON",
+      "ordinal": 247,
+      "raw_heading": "## 第236章 到手、跑",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "到手、跑"
+    },
+    {
+      "chapter_id": "chapter_ae50768e1cc81d41f2195024",
+      "content_sha256": "487baa44400be0c79e7663ad736414fe0976ebc1eb77ce8ec7b796030630d2d0",
+      "document_status": "CANON",
+      "ordinal": 248,
+      "raw_heading": "## 第237章 人和人的差距，怎麼可以大到這種程度",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "人和人的差距，怎麼可以大到這種程度"
+    },
+    {
+      "chapter_id": "chapter_f8556f025075fd1f50c1fb6e",
+      "content_sha256": "22f029535cc9ceb682c5828b29096177c257d106abd22fc12a5986e80037c17a",
+      "document_status": "CANON",
+      "ordinal": 249,
+      "raw_heading": "## 第238章 分贓",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "分贓"
+    },
+    {
+      "chapter_id": "chapter_4036ef7a9ca9caa7fb268f5d",
+      "content_sha256": "898995605eaba3256236bbf677df98f55486e837c9f657f26df63ba2f8137ad8",
+      "document_status": "CANON",
+      "ordinal": 250,
+      "raw_heading": "## 第239章 心虛",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "心虛"
+    },
+    {
+      "chapter_id": "chapter_c18bc266cba986452168918a",
+      "content_sha256": "b761335ded1991312f92c9b5e433d4319c22dc508845493898776418c7645efe",
+      "document_status": "CANON",
+      "ordinal": 251,
+      "raw_heading": "## 第240章 假的，暴怒的熊",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "假的，暴怒的熊"
+    },
+    {
+      "chapter_id": "chapter_a807a5693dd3df880ebeeb41",
+      "content_sha256": "5d35d18fb1476f4077fc7e30a2aa71eef80eabaaf14a85c09795c3c6f4cff611",
+      "document_status": "CANON",
+      "ordinal": 252,
+      "raw_heading": "## 第241章 吃蛋液",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "吃蛋液"
+    },
+    {
+      "chapter_id": "chapter_bcb44fd9b35f85a4b9e92def",
+      "content_sha256": "14618a193f2c6b11967fc448a012db794a7c8dcf713d7ee3a91a9aa19a5fef2d",
+      "document_status": "CANON",
+      "ordinal": 253,
+      "raw_heading": "## 第242章 一路向北",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "一路向北"
+    },
+    {
+      "chapter_id": "chapter_c6e8b62440252f17adc35ea5",
+      "content_sha256": "2247d6ff5ec01a2b41038ade94c02c2f6c7b508257d636eabd0733e7ef7c2ba3",
+      "document_status": "CANON",
+      "ordinal": 254,
+      "raw_heading": "## 第243章 殺戮詛咒的逆天BUG",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "殺戮詛咒的逆天BUG"
+    },
+    {
+      "chapter_id": "chapter_0a4a129cbff965a3c19841a4",
+      "content_sha256": "f96e3f58b37f5d203213f9ea3c15d78275eb5270d072c05aae890f27eb30ab64",
+      "document_status": "CANON",
+      "ordinal": 255,
+      "raw_heading": "## 第244章 軍區，防線",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "軍區，防線"
+    },
+    {
+      "chapter_id": "chapter_e3d97c49ede8a4da17e330a3",
+      "content_sha256": "618b22b7eb373fcd20da1b01d009ba94ce49b0f13d9b51600eac327bb65962f5",
+      "document_status": "CANON",
+      "ordinal": 256,
+      "raw_heading": "## 第245章 團長",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "團長"
+    },
+    {
+      "chapter_id": "chapter_e865a13883a7e3b9828bd350",
+      "content_sha256": "124525cd7319ee5edf414bb22b2501145847213349ca0a75ee71f35d182e8563",
+      "document_status": "CANON",
+      "ordinal": 257,
+      "raw_heading": "## 第246章 震懾",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "震懾"
+    },
+    {
+      "chapter_id": "chapter_bbdee1d88773fd1ef5e65a39",
+      "content_sha256": "f5164e48d70d5f36122b0d8062d6ea877c184a559d2872b50ea238d847afa824",
+      "document_status": "CANON",
+      "ordinal": 258,
+      "raw_heading": "## 第247章 有情有義",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "有情有義"
+    },
+    {
+      "chapter_id": "chapter_dea8d8f50e0417ad63f6494c",
+      "content_sha256": "3878e47d161e1fbfe2c4e9a3aebd035184569c0f207c6eaf16de3df98fafdbaa",
+      "document_status": "CANON",
+      "ordinal": 259,
+      "raw_heading": "## 第248章 變得更強",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "變得更強"
+    },
+    {
+      "chapter_id": "chapter_3e59769eb7133fb6002e55b9",
+      "content_sha256": "116a8d28a442d245266f6403561cb56c911e3a5761d68c1b3cc292d0987bff06",
+      "document_status": "CANON",
+      "ordinal": 260,
+      "raw_heading": "## 第249章 被圍",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "被圍"
+    },
+    {
+      "chapter_id": "chapter_33018ff93625ef498f4445d0",
+      "content_sha256": "7b8acee48d121e0df12da4900d24cd049e8cbb05eff413d8d82e3e9c6c346d71",
+      "document_status": "CANON",
+      "ordinal": 261,
+      "raw_heading": "## 第250章 他來了.",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "他來了."
+    },
+    {
+      "chapter_id": "chapter_c846da8e60eaf9859faab9dd",
+      "content_sha256": "b775359ff092b47a485504503c4eab261e92e96d07e982e04ca8a5f4770efdbd",
+      "document_status": "CANON",
+      "ordinal": 262,
+      "raw_heading": "## 第251章 這他媽是想害死我？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "這他媽是想害死我？"
+    },
+    {
+      "chapter_id": "chapter_96297a923240d7549eeb12e3",
+      "content_sha256": "c02a1194b7691e7083463c2dabf5e3ad36b0b45cc6cf0dd5434d6bade9c519ac",
+      "document_status": "CANON",
+      "ordinal": 263,
+      "raw_heading": "## 第252章 嗯",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "嗯"
+    },
+    {
+      "chapter_id": "chapter_c863cf6b826cfa2c70f8d3ff",
+      "content_sha256": "d1b88473e954c1ab0b49f5031e01d48e5be58945099f8ce2d44cfc2137199cb8",
+      "document_status": "CANON",
+      "ordinal": 264,
+      "raw_heading": "## 第253章 吃掉它",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "吃掉它"
+    },
+    {
+      "chapter_id": "chapter_a3495775fbea7215be4a1bc1",
+      "content_sha256": "e1dad45ce69c456fdb7cd0eea0af1ad71e1e978fc70960bf2bf2d166032b9082",
+      "document_status": "CANON",
+      "ordinal": 265,
+      "raw_heading": "## 第254章 受傷的林雨薇",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "受傷的林雨薇"
+    },
+    {
+      "chapter_id": "chapter_f9c1c8774c971b41f2875007",
+      "content_sha256": "6425c063d0e5a631c5d33bb642763dcab605bffc85be064031041baf879ede81",
+      "document_status": "CANON",
+      "ordinal": 266,
+      "raw_heading": "## 第255章 後悔",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "後悔"
+    },
+    {
+      "chapter_id": "chapter_bddb428628572d3fc85ef405",
+      "content_sha256": "9e45b8e83024be673a856248525146aad8fcec056cc7483fa372f46366245367",
+      "document_status": "CANON",
+      "ordinal": 267,
+      "raw_heading": "## 第256章 想吃",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "想吃"
+    },
+    {
+      "chapter_id": "chapter_044b9523a97683baa642d550",
+      "content_sha256": "2b73e4d398aa3f3b55c9444c3df2b3aca02006f521a550546d11ea99e1e5f6a8",
+      "document_status": "CANON",
+      "ordinal": 268,
+      "raw_heading": "## 第257章 暴走的能量，真吃了",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "暴走的能量，真吃了"
+    },
+    {
+      "chapter_id": "chapter_7125a255227480ce06b9b13d",
+      "content_sha256": "948c7715c44e02ba62a57c3dc32eeca8452a3113447ddddd20e95b1dbee3e8dc",
+      "document_status": "CANON",
+      "ordinal": 269,
+      "raw_heading": "## 第258章 我是被動的",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "我是被動的"
+    },
+    {
+      "chapter_id": "chapter_333b0cea6f71182d86c03c3f",
+      "content_sha256": "90929cfffeff656ad4772c4475319f18aaadf34252edb29fb57f692e468cc86a",
+      "document_status": "CANON",
+      "ordinal": 270,
+      "raw_heading": "## 第259章 開會",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "開會"
+    },
+    {
+      "chapter_id": "chapter_a9180274c6767fedd8902945",
+      "content_sha256": "1d2e76af1b0bc8739ac682eae77ce2e6846ea3ae4f6ef214b8fcc1e63834bf07",
+      "document_status": "CANON",
+      "ordinal": 271,
+      "raw_heading": "## 第260章 群英匯聚",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "群英匯聚"
+    },
+    {
+      "chapter_id": "chapter_534995d2f303db30b1275746",
+      "content_sha256": "c8bc205898f0a1bbaffd0bd4d9f972b63e8668ed5bc6b41136b2e00c5213e0a4",
+      "document_status": "CANON",
+      "ordinal": 272,
+      "raw_heading": "## 第261章 狗頭、壯漢、綠皮膚、天使",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "狗頭、壯漢、綠皮膚、天使"
+    },
+    {
+      "chapter_id": "chapter_c5fd6e4960deb4904f592925",
+      "content_sha256": "0d3d7f7c268404fd251900151ce29feb144cfc42576d1c8b7f9b9385c4b8665d",
+      "document_status": "CANON",
+      "ordinal": 273,
+      "raw_heading": "## 第262章 後面的路",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "後面的路"
+    },
+    {
+      "chapter_id": "chapter_35b27db0565dcb5afbadcf5e",
+      "content_sha256": "0a31c52032080830c503401a62dd289196b91f061750bf0ee6f03d344bea4d96",
+      "document_status": "CANON",
+      "ordinal": 274,
+      "raw_heading": "## 第263章 怪物粗略難度分級",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "怪物粗略難度分級"
+    },
+    {
+      "chapter_id": "chapter_f5f6903852806c9d776f8f40",
+      "content_sha256": "837e5c53bd99427c8c39ab313f8971b41fa72595e57240e95f4fca1339b492d8",
+      "document_status": "CANON",
+      "ordinal": 275,
+      "raw_heading": "## 第264章 中二程序員",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "中二程序員"
+    },
+    {
+      "chapter_id": "chapter_1158cffe8a0df769c83a2164",
+      "content_sha256": "dfe50fd63b2d9eb1308bcf56e328acc183be1e555cc11a6be81efa0ebc34e261",
+      "document_status": "CANON",
+      "ordinal": 276,
+      "raw_heading": "## 第265章 介紹",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "介紹"
+    },
+    {
+      "chapter_id": "chapter_e958756186e9f18557d04cb7",
+      "content_sha256": "212aaaab6f2d8419fb43f8cdf9dcfd1d7a50cab7f9ca026e22709ae53451eb75",
+      "document_status": "CANON",
+      "ordinal": 277,
+      "raw_heading": "## 第266章 我有三個隊友",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "我有三個隊友"
+    },
+    {
+      "chapter_id": "chapter_b40a0e245564f991c2cb3877",
+      "content_sha256": "e275cf07e108032dbd47efa583bb91e1c6a4c90a82a9dd9ae32d86ffb738c7c3",
+      "document_status": "CANON",
+      "ordinal": 278,
+      "raw_heading": "## 第267章 出發",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "出發"
+    },
+    {
+      "chapter_id": "chapter_69f0a12520271446d284d77f",
+      "content_sha256": "8929d8b2bd7e45464766ed46d511490d9cb3a117b054338313a5160bdfe0adc7",
+      "document_status": "CANON",
+      "ordinal": 279,
+      "raw_heading": "## 第268章 巨人來襲",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "巨人來襲"
+    },
+    {
+      "chapter_id": "chapter_6d88c1d2ea3701521686122b",
+      "content_sha256": "b4cff07ef80dd37863e18bbaf4cabf0fb78d83042d777ab6e1c9934bb231cf47",
+      "document_status": "CANON",
+      "ordinal": 280,
+      "raw_heading": "## 第269章 自見分曉",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "自見分曉"
+    },
+    {
+      "chapter_id": "chapter_4120f3033f04129e00b4c375",
+      "content_sha256": "77e6454be2274d372274e66cf23d39000da2661766f2dd2a87c31ae7533bf9a5",
+      "document_status": "CANON",
+      "ordinal": 281,
+      "raw_heading": "## 第270章 考量",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "考量"
+    },
+    {
+      "chapter_id": "chapter_c81430476432158e9e46be4b",
+      "content_sha256": "8e364d7acbae2ab5bb76c841b7b4d16f08cdc691ab706c4460dd7ed37fa91173",
+      "document_status": "CANON",
+      "ordinal": 282,
+      "raw_heading": "## 第271章 不繞路",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "不繞路"
+    },
+    {
+      "chapter_id": "chapter_015a72a60db10dfc82fa8071",
+      "content_sha256": "e2680822f7c8c7cd3b6e2589ea165dddbec8a730f5e796f7f4051a17abdd6938",
+      "document_status": "CANON",
+      "ordinal": 283,
+      "raw_heading": "## 第272章 是動物",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "是動物"
+    },
+    {
+      "chapter_id": "chapter_7808f78bc6e9129011740621",
+      "content_sha256": "417f48caa8916068d8f972e1ab0d18afef7047f3f8eac4d54a77831ddb0192b3",
+      "document_status": "CANON",
+      "ordinal": 284,
+      "raw_heading": "## 第273章 簽訂契約？",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "簽訂契約？"
+    },
+    {
+      "chapter_id": "chapter_6561485466e2339a0d977923",
+      "content_sha256": "b08025276b5d2c8293d01830b8168d24a00da63d338a43ab460eb0b2807d2243",
+      "document_status": "CANON",
+      "ordinal": 285,
+      "raw_heading": "## 第274章 動物園發生了什麼",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "動物園發生了什麼"
+    },
+    {
+      "chapter_id": "chapter_c9b0f3f8b807fbeccbf0e9ed",
+      "content_sha256": "51a391b39cc6ef9193448919369d940e6ed041968a60786414da8fbbb4953862",
+      "document_status": "CANON",
+      "ordinal": 286,
+      "raw_heading": "## 第275章 移動",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "移動"
+    },
+    {
+      "chapter_id": "chapter_81fc403a3096db4f35905456",
+      "content_sha256": "10e22e44631a39a80ec19bfe7dc59b677c000750ba9899a7d14dae0eed531730",
+      "document_status": "CANON",
+      "ordinal": 287,
+      "raw_heading": "## 第276章 失效",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "失效"
+    },
+    {
+      "chapter_id": "chapter_1d4a62ee31d75f080d968a68",
+      "content_sha256": "bf730b54d7d587a6fee315cedcc804d8ef24b08721d64424a208b4743c1a2d2b",
+      "document_status": "CANON",
+      "ordinal": 288,
+      "raw_heading": "## 第277章 失望",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "失望"
+    },
+    {
+      "chapter_id": "chapter_2e7962f16ba5217930ac3ba5",
+      "content_sha256": "2bccc2177387ede24d15ed127694a7d639c3af8bc3dc6a5beb5c218a0a0fc392",
+      "document_status": "CANON",
+      "ordinal": 289,
+      "raw_heading": "## 第278章 出怪",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "出怪"
+    },
+    {
+      "chapter_id": "chapter_bfda2aa4bd829a6da508daa3",
+      "content_sha256": "59deefb763738ffdafb8714f18d1c1fd90af9c5d0debb5d60371703434952dc4",
+      "document_status": "CANON",
+      "ordinal": 290,
+      "raw_heading": "## 第279章 沒有危機",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "沒有危機"
+    },
+    {
+      "chapter_id": "chapter_4561499f2d9b59e35653c38b",
+      "content_sha256": "b712f0a0229ff0a2ae4cc7298dd9beeeaef2c7a0f32035e7cdc5de60c96134ff",
+      "document_status": "CANON",
+      "ordinal": 291,
+      "raw_heading": "## 第280章 突襲",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "突襲"
+    },
+    {
+      "chapter_id": "chapter_ff8e53eb1c5620e25942fd0d",
+      "content_sha256": "fb24360448ff77c17722c1a66ba8aa51846e4fb497d472fc513f000516198f98",
+      "document_status": "CANON",
+      "ordinal": 292,
+      "raw_heading": "## 第281章 毒貓王",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "毒貓王"
+    },
+    {
+      "chapter_id": "chapter_cee58ea39a6ac83381b9dcba",
+      "content_sha256": "78bfdc95c02edb7faa3157e049722982497ab5ecd2312d225fca348d5a24b062",
+      "document_status": "CANON",
+      "ordinal": 293,
+      "raw_heading": "## 第282章 落雷哥布林、牛頭王薩烏塔",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "落雷哥布林、牛頭王薩烏塔"
+    },
+    {
+      "chapter_id": "chapter_8a820259c3c2cc63a1c53a45",
+      "content_sha256": "30c6d82754c0b86535c793c133c34c72aceba52821ba92f899333a2ba9bbad73",
+      "document_status": "CANON",
+      "ordinal": 294,
+      "raw_heading": "## 第283章 牽制",
+      "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md",
+      "title": "牽制"
+    }
+  ],
+  "drafts": [
+    {
+      "approved_at": null,
+      "candidate_id": "candidate_5d28497d5e0a03eb1b5d7070",
+      "chapter_title": "最小介入",
+      "committed_at": null,
+      "content_sha256": "b8bf99f0e091acf12cafc3d3871fe403d0d4b52c8b10c29b9c69ec369ef3699d",
+      "contract_id": "contract_b991e2e90d8e8b824fea00d9",
+      "created_at": "2026-08-04T05:51:19.032951+00:00",
+      "draft_id": "draft_4c94560986c8ec4f866f7a73",
+      "revision": 1,
+      "status": "DRAFT",
+      "validation_run_id": "validation_0b526bdbd6e727d96e713348"
+    },
+    {
+      "approved_at": null,
+      "candidate_id": "candidate_5d28497d5e0a03eb1b5d7070",
+      "chapter_title": "最小介入",
+      "committed_at": null,
+      "content_sha256": "ef4db624521738d10acd613c564768c9e741b45bc033588a8c13f3c0895b0bdc",
+      "contract_id": "contract_b991e2e90d8e8b824fea00d9",
+      "created_at": "2026-08-04T05:52:55.631392+00:00",
+      "draft_id": "draft_a4958905225efb13bd94ae12",
+      "revision": 1,
+      "status": "DRAFT",
+      "validation_run_id": "validation_22ddce7991736049e19c7541"
+    },
+    {
+      "approved_at": null,
+      "candidate_id": "candidate_5d28497d5e0a03eb1b5d7070",
+      "chapter_title": "最小介入",
+      "committed_at": null,
+      "content_sha256": "f92ff47f9cf51cd373ae4ad4d845ad801dc14366c3c40ca768cd14b6bb153e65",
+      "contract_id": "contract_b991e2e90d8e8b824fea00d9",
+      "created_at": "2026-08-04T05:53:29.791749+00:00",
+      "draft_id": "draft_7d48639a5d97798e5bd1086f",
+      "revision": 1,
+      "status": "DRAFT",
+      "validation_run_id": "validation_5a6d448c9961318d5ebf1c59"
+    },
+    {
+      "approved_at": null,
+      "candidate_id": "candidate_5d28497d5e0a03eb1b5d7070",
+      "chapter_title": "最小介入",
+      "committed_at": null,
+      "content_sha256": "53ae38310184db738f51903778b66ded4b247335b1f638d5f6b8bc71c255a61e",
+      "contract_id": "contract_b991e2e90d8e8b824fea00d9",
+      "created_at": "2026-08-04T05:53:58.681519+00:00",
+      "draft_id": "draft_5680fe3201e6010bacf83b91",
+      "revision": 1,
+      "status": "VALIDATED",
+      "validation_run_id": "validation_7484fd836836abab8a2c60e1"
+    }
+  ]
+}

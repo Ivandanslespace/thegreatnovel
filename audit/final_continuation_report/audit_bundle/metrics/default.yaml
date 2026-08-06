@@ -1,0 +1,174 @@
+default_mode: faithful_continuation
+recent_full_chapters: 3
+
+ingest:
+  extensions: [.txt, .md]
+  encodings: [utf-8, utf-8-sig, gb18030]
+  chapter_patterns:
+    - '^\s*#{1,6}\s*第\s*(?P<number>[0-9０-９一二三四五六七八九十百千两兩零〇]+)\s*章(?:\s+|[:：、.\-—]*)?(?P<title>.*?)\s*$'
+    - '^\s*第\s*(?P<number>[0-9０-９一二三四五六七八九十百千两兩零〇]+)\s*章(?:\s+|[:：、.\-—]*)?(?P<title>.*?)\s*$'
+  volume_patterns:
+    - '^\s*#{1,6}\s*第\s*[0-9０-９一二三四五六七八九十百千两兩零〇]+\s*卷(?:\s+|[:：、.\-—]*)?(?P<title>.*?)\s*$'
+    - '^\s*第\s*[0-9０-９一二三四五六七八九十百千两兩零〇]+\s*卷(?:\s+|[:：、.\-—]*)?(?P<title>.*?)\s*$'
+
+metrics:
+  pressure:
+    weights:
+      threat: 0.25
+      scarcity: 0.20
+      deadline: 0.20
+      uncertainty: 0.15
+      social_conflict: 0.10
+      failure_accumulation: 0.10
+  narrative_debt:
+    age_ratio_cap: 1.5
+    reminder_step: 0.12
+    reminder_cap: 5
+    progress_exponent: 1.2
+    debt_cap: 150
+    genre_allowance: 1
+  progress:
+    weights:
+      permanent_growth: 0.20
+      world_state_change: 0.20
+      relationship_change: 0.15
+      knowledge_change: 0.15
+      goal_advance: 0.15
+      strategy_expansion: 0.15
+    stagnation_window: 8
+    low_progress_cutoff: 10
+    stagnation_alert: 62.5
+  payoff:
+    maturity_weights:
+      target_pressure: 0.25
+      setup_depth: 0.20
+      waiting_readiness: 0.20
+      cost_paid: 0.20
+      arc_phase_fit: 0.15
+    impact_weights:
+      relative_scale: 0.25
+      constraint_removal: 0.25
+      behavior_change: 0.20
+      future_capacity: 0.15
+      social_or_visual_proof: 0.15
+    causality_weights:
+      causal_chain_completeness: 0.30
+      rule_consistency: 0.25
+      meaningful_cost: 0.25
+      source_seeded_earlier: 0.20
+    after_value_weights:
+      new_gameplay_or_action_space: 0.30
+      decision_pattern_change: 0.25
+      higher_tier_need_opened: 0.25
+      social_or_world_effect: 0.20
+    score_weights:
+      maturity: 0.24
+      impact: 0.22
+      novelty: 0.14
+      causality: 0.16
+      after_value: 0.18
+      structural_fit: 0.06
+      repetition_fatigue: -0.12
+      future_damage: -0.10
+    ratio_epsilon: 0.000000001
+  payoff_cooldown:
+    groups:
+      small_same_type:
+        minimum_chapters: 5
+        reference_max_chapters: 10
+        one_time: false
+      major_same_subtype:
+        minimum_chapters: 30
+        reference_max_chapters: 60
+        one_time: false
+      system_level:
+        minimum_chapters: 80
+        reference_max_chapters: 150
+        one_time: false
+      low_tier_resource_liberation:
+        minimum_chapters: 0
+        reference_max_chapters: 0
+        one_time: true
+  resource_pressure:
+    weights:
+      current_shortfall: 0.30
+      cost_income_imbalance: 0.20
+      recently_blocked_actions: 0.20
+      near_future_demand: 0.15
+      reader_salience: 0.15
+  repetition:
+    tau: 12
+    recent_windows: [20, 50]
+    similarity_scale: [0, 1]
+    no_history_policy: zero_with_diagnostic
+    similarity_weights:
+      event_source_similarity: 0.30
+      solution_method_similarity: 0.25
+      payoff_type_similarity: 0.20
+      scene_topology_similarity: 0.15
+      emotional_outcome_similarity: 0.10
+  risk_credibility:
+    weights:
+      realized_cost_rate: 0.25
+      consequence_clarity: 0.20
+      opposition_effectiveness: 0.20
+      protection_limit_visibility: 0.20
+      information_limits: 0.15
+  agency:
+    passive_chapter_alert_min: 4
+    passive_chapter_alert_max: 6
+  legibility:
+    weights:
+      goal_clarity: 0.35
+      rule_clarity: 0.30
+      consequence_clarity: 0.20
+      information_provenance: 0.15
+    healthy_minimum: 65
+  outcome_uncertainty:
+    weights:
+      danger_unknown: 0.30
+      opponent_plan_unknown: 0.25
+      motivation_unknown: 0.20
+      reward_or_result_unknown: 0.15
+      world_truth_unknown: 0.10
+    healthy_minimum: 35
+    healthy_maximum: 75
+  character_fit:
+    weights:
+      motivation_alignment: 0.25
+      knowledge_alignment: 0.20
+      capability_alignment: 0.20
+      relationship_alignment: 0.20
+      emotional_continuity: 0.15
+    minimum: 75
+  style_fit:
+    weights:
+      pov_and_tense: 0.20
+      diction_register: 0.20
+      sentence_rhythm: 0.15
+      dialogue_voice: 0.15
+      exposition_density: 0.15
+      emotional_distance: 0.15
+  thread_need:
+    weights:
+      narrative_debt: 0.24
+      deadline_urgency: 0.18
+      payoff_readiness: 0.16
+      recency_neglect: 0.14
+      goal_blockage: 0.12
+      protagonist_relevance: 0.10
+      diversity_bonus: 0.06
+  candidate_score:
+    weights:
+      thread_need_fit: 0.20
+      pressure_curve_fit: 0.16
+      debt_utility: 0.16
+      progress_gain: 0.15
+      payoff_or_setup_utility: 0.12
+      agency_gain: 0.08
+      risk_fit: 0.05
+      structural_diversity: 0.05
+      style_fit: 0.03
+      repetition_fatigue: -0.12
+      future_damage: -0.08
+    tie_delta: 8

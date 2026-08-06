@@ -1,0 +1,43 @@
+{
+  "book_id": "real-book-smoke",
+  "created_at": "2026-08-04T07:51:45.308876+00:00",
+  "export_id": "export_e6df8c08bfcaf483945ac313",
+  "files": {
+    "approved_canon": "approved_canon.md",
+    "audit": "audit.json",
+    "canon_projection": "canon_projection.json"
+  },
+  "manifest": "C:\\Users\\jingx\\AppData\\Local\\Temp\\novel_authoring_audit_runtime\\export_audit_2\\export_e6df8c08bfcaf483945ac313\\manifest.json",
+  "path": "C:\\Users\\jingx\\AppData\\Local\\Temp\\novel_authoring_audit_runtime\\export_audit_2\\export_e6df8c08bfcaf483945ac313",
+  "projection_counts": {
+    "capabilities": 0,
+    "character_states": 3,
+    "committed_chapters": 0,
+    "entities": 10,
+    "facts": 9,
+    "knowledge": 2,
+    "payoffs": 0,
+    "promises": 2,
+    "relationships": 0,
+    "repetition": 2,
+    "resources": 0,
+    "style_profiles": 1,
+    "threads": 3,
+    "timeline": 0
+  },
+  "projection_sha256": "500f9d545b95dcc747707fd9c196980b2618ed711cf1152938796e8f8a38edae",
+  "source_verify": {
+    "book_id": "real-book-smoke",
+    "files": [
+      {
+        "actual_sha256": "95810246d1296163fc02320446060e78addd9fa5cba56bbdd1292634a099ee6e",
+        "exists": true,
+        "expected_sha256": "95810246d1296163fc02320446060e78addd9fa5cba56bbdd1292634a099ee6e",
+        "match": true,
+        "relative_path": "全民纜車求生，我一級一個三選一_正文全集.md"
+      }
+    ],
+    "ok": true
+  },
+  "through_event_seq": 64
+}

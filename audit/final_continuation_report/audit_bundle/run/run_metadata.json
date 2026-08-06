@@ -1,0 +1,20 @@
+{
+  "book_id": "real-book-smoke",
+  "edition_id": "base",
+  "continuation_run_id": "NOT_AVAILABLE",
+  "extract_task_id": "extract_595984bc5d9b8eda9f84e407",
+  "plan_task_id": "plan_ed92d57df50bf6152d90adf6",
+  "draft_task_id": "draft-task_3028f1b23f5c7e992d00a04f",
+  "boundary_packet_id": "boundary_ad5bb77726ed63ee23e6afbb",
+  "contract_id": "contract_b991e2e90d8e8b824fea00d9",
+  "final_draft_id": "draft_5680fe3201e6010bacf83b91",
+  "final_validation_run_id": "validation_7484fd836836abab8a2c60e1",
+  "canon_commit_id": "NOT_AVAILABLE: canon_commits count is 0",
+  "snapshot_id": "NOT_AVAILABLE: snapshots count is 0",
+  "export_id": "NOT_AVAILABLE in formal workspace",
+  "base_event_seq": 64,
+  "formal_status_at_audit": "latest draft VALIDATED; canon commits 0; snapshots 0; events 64",
+  "source_hash": "95810246d1296163fc02320446060e78addd9fa5cba56bbdd1292634a099ee6e",
+  "validation_time_projection_hash": "8c26e592893c7908c77a94e3526a6664126213ec66671bfc943cf1a33c8a7226",
+  "current_rebuilt_projection_hash": "500f9d545b95dcc747707fd9c196980b2618ed711cf1152938796e8f8a38edae"
+}

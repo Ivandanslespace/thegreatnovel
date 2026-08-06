@@ -1,0 +1,200 @@
+{
+  "$defs": {
+    "DraftStateChange": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_quotes": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Evidence Quotes",
+          "type": "array"
+        },
+        "kind": {
+          "enum": [
+            "fact",
+            "timeline",
+            "character_state",
+            "knowledge",
+            "relationship",
+            "resource",
+            "capability",
+            "thread",
+            "promise",
+            "payoff",
+            "repetition",
+            "style"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "record_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "record_id",
+        "payload",
+        "evidence_quotes"
+      ],
+      "title": "DraftStateChange",
+      "type": "object"
+    },
+    "KnowledgeClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "enum": [
+            "already_known",
+            "learned_in_draft"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "character_id": {
+          "title": "Character Id",
+          "type": "string"
+        },
+        "fact_id": {
+          "title": "Fact Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "character_id",
+        "fact_id",
+        "basis"
+      ],
+      "title": "KnowledgeClaim",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "chapter_title": {
+      "title": "Chapter Title",
+      "type": "string"
+    },
+    "character_bottom_line_violations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Character Bottom Line Violations",
+      "type": "array"
+    },
+    "character_fit_inputs": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Character Fit Inputs",
+      "type": "object"
+    },
+    "contract_evidence": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Contract Evidence",
+      "type": "object"
+    },
+    "contract_id": {
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "knowledge_claims": {
+      "items": {
+        "$ref": "#/$defs/KnowledgeClaim"
+      },
+      "title": "Knowledge Claims",
+      "type": "array"
+    },
+    "new_major_hooks": {
+      "default": 0,
+      "minimum": 0,
+      "title": "New Major Hooks",
+      "type": "integer"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "promises_advanced": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Promises Advanced",
+      "type": "array"
+    },
+    "promises_paid": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Promises Paid",
+      "type": "array"
+    },
+    "prose_markdown": {
+      "minLength": 1,
+      "title": "Prose Markdown",
+      "type": "string"
+    },
+    "state_changes": {
+      "items": {
+        "$ref": "#/$defs/DraftStateChange"
+      },
+      "minItems": 1,
+      "title": "State Changes",
+      "type": "array"
+    },
+    "structure_tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Structure Tags",
+      "type": "array"
+    },
+    "style_boundary_violations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Style Boundary Violations",
+      "type": "array"
+    },
+    "style_fit_inputs": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Style Fit Inputs",
+      "type": "object"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "contract_id",
+    "chapter_title",
+    "prose_markdown",
+    "state_changes",
+    "contract_evidence",
+    "character_fit_inputs",
+    "style_fit_inputs"
+  ],
+  "title": "DraftOutput",
+  "type": "object"
+}

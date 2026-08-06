@@ -1,0 +1,30 @@
+[
+  {
+    "edge_id": "knowledge_ea43548aaae411f1ce8ca321",
+    "book_id": "real-book-smoke",
+    "character_id": "entity_af32bbef7e9bf181fbcf7648",
+    "fact_id": "fact_2a94aea18c90a76e9c1d273e",
+    "knowledge_state": "直接感知",
+    "learned_event_id": null,
+    "source_span_id": "span_f6e98b851f24ffb4431228ee",
+    "status": "CANON",
+    "confidence": 1.0,
+    "created_at": "2026-08-04T05:37:40.831193+00:00",
+    "version": 2,
+    "edition_id": "base"
+  },
+  {
+    "edge_id": "knowledge_69a2a0bc3124018e5e80bbf1",
+    "book_id": "real-book-smoke",
+    "character_id": "entity_af32bbef7e9bf181fbcf7648",
+    "fact_id": "fact_05f015b92224112c7ba15b5b",
+    "knowledge_state": "现场可见",
+    "learned_event_id": null,
+    "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+    "status": "CANON",
+    "confidence": 1.0,
+    "created_at": "2026-08-04T05:37:40.831193+00:00",
+    "version": 2,
+    "edition_id": "base"
+  }
+]

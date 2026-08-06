@@ -1,0 +1,42 @@
+{
+  "status": "VERIFIED_PASS",
+  "commands": [
+    {
+      "name": "pytest",
+      "exit_code": 0,
+      "scope": "temporary copied source tree",
+      "log": "tests/pytest.log"
+    },
+    {
+      "name": "ruff",
+      "exit_code": 0,
+      "scope": "temporary copied source tree",
+      "log": "tests/ruff.log"
+    },
+    {
+      "name": "mypy",
+      "exit_code": 0,
+      "scope": "temporary copied source tree",
+      "log": "tests/mypy.log"
+    },
+    {
+      "name": "source verify",
+      "exit_code": 0,
+      "scope": "temporary runtime workspace",
+      "log": "tests/source_verify_temp.log"
+    },
+    {
+      "name": "rebuild",
+      "exit_code": 0,
+      "scope": "temporary runtime workspace",
+      "log": "tests/rebuild_temp.log"
+    },
+    {
+      "name": "export",
+      "exit_code": 0,
+      "scope": "temporary runtime workspace",
+      "log": "tests/export_temp.log"
+    }
+  ],
+  "caveat": "These checks were run during the audit on copied source/runtime trees. They do not prove that the original continuation run executed the same commands."
+}

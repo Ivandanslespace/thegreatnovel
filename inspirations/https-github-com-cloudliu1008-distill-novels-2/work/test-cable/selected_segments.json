@@ -1,0 +1,21 @@
+{
+  "source_id": "book-01-82fe54fd",
+  "segments": [
+    {"segment_id": "segment-0001", "role": "arrival, rules, first talent"},
+    {"segment_id": "segment-0012", "role": "first night attack and vehicle vulnerability"},
+    {"segment_id": "segment-0017", "role": "first level-up and talent progression"},
+    {"segment_id": "segment-0028", "role": "first human cooperation contract"},
+    {"segment_id": "segment-0034", "role": "contribution-based allocation and moral boundary"},
+    {"segment_id": "segment-0044", "role": "diary as historical/world reveal"},
+    {"segment_id": "segment-0054", "role": "level-three production inflection"},
+    {"segment_id": "segment-0058", "role": "indirect-observation threat rule"},
+    {"segment_id": "segment-0065", "role": "boss fight using terrain and weak-point rule"},
+    {"segment_id": "segment-0068", "role": "profession and control-system synergy"},
+    {"segment_id": "segment-0073", "role": "human-on-human violence"},
+    {"segment_id": "segment-0079", "role": "injury and reciprocal aid"},
+    {"segment_id": "segment-0082", "role": "environmental explosion and experience farming"},
+    {"segment_id": "segment-0088", "role": "night battle and cost"},
+    {"segment_id": "segment-0097", "role": "rescue and ethical response"},
+    {"segment_id": "segment-0100", "role": "new threat cliffhanger"}
+  ]
+}

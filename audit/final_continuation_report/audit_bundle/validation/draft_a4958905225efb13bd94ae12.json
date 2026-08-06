@@ -1,0 +1,120 @@
+{
+  "book_id": "real-book-smoke",
+  "content_sha256": "ef4db624521738d10acd613c564768c9e741b45bc033588a8c13f3c0895b0bdc",
+  "contract_id": "contract_b991e2e90d8e8b824fea00d9",
+  "created_at": "2026-08-04T05:52:59.561746+00:00",
+  "draft_id": "draft_a4958905225efb13bd94ae12",
+  "passed": false,
+  "projection_sha256": "8c26e592893c7908c77a94e3526a6664126213ec66671bfc943cf1a33c8a7226",
+  "reports": [
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Canon Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {
+        "latest_order_key": null
+      },
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Timeline Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Knowledge Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {
+        "character_fit": 88.60000000000001
+      },
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Character Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Economy / Power Validator"
+    },
+    {
+      "findings": [
+        {
+          "code": "CONTRACT_REQUIREMENT_MISSING",
+          "evidence": [],
+          "location": "contract_evidence",
+          "message": "正文输出未为合同要求 commit:promise_e4f784097c5ea7e1a5ff2560推进 提供证据。",
+          "severity": "ERROR",
+          "suggested_fix": null
+        },
+        {
+          "code": "EVIDENCE_NOT_IN_PROSE",
+          "evidence": [
+            "地面裂開了一條細細的縫，灰濛濛的光從縫裡透了出來"
+          ],
+          "location": "commit:灰光地下线程进度",
+          "message": "证据短句不在正文中：地面裂開了一條細細的縫，灰濛濛的光從縫裡透了出來",
+          "severity": "ERROR",
+          "suggested_fix": null
+        },
+        {
+          "code": "EVIDENCE_NOT_IN_PROSE",
+          "evidence": [
+            "地面裂開了一條細細的縫，灰濛濛的光從縫裡透了出來"
+          ],
+          "location": "state_changes:thread_430da8570538d2bf5cc56994",
+          "message": "证据短句不在正文中：地面裂開了一條細細的縫，灰濛濛的光從縫裡透了出來",
+          "severity": "ERROR",
+          "suggested_fix": null
+        }
+      ],
+      "measurements": {
+        "requirements_checked": 9
+      },
+      "passed": false,
+      "severity": "ERROR",
+      "validator": "Contract Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Debt Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Payoff Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Repetition Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {
+        "style_fit": 84.6
+      },
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Style Validator"
+    }
+  ],
+  "run_id": "validation_22ddce7991736049e19c7541",
+  "through_event_seq": 64
+}

@@ -1,0 +1,298 @@
+{
+  "verdict": {
+    "status": "WARNING",
+    "continuation_result": "VERIFIED_PASS",
+    "freeze_integrity": "VERIFIED_FAIL",
+    "summary": "最终草稿十项验证通过且未写入正史，但审计期间正式数据库发生 migration 5/backfill，验证时 projection hash 与当前重建 hash 不一致。"
+  },
+  "scope": {
+    "status": "VERIFIED_PASS",
+    "mode": "续写结果冻结与外部审计交接",
+    "project_root": "C:\\dev\\小说续写系统",
+    "source_book": "C:\\dev\\小说续写系统\\book\\全民纜車求生，我一級一個三選一_正文全集.md",
+    "workspace_book_id": "real-book-smoke",
+    "edition_id": "base",
+    "writes_allowed": ["C:\\dev\\小说续写系统\\audit\\final_continuation_report"],
+    "writes_forbidden": ["book/", "formal state database", "canon", "boundary", "contract", "threshold config", "git history"],
+    "approval_present": false,
+    "approval_status": "AUTHOR_DECISION"
+  },
+  "repository": {
+    "status": "VERIFIED_PASS",
+    "root": "C:/dev/小说续写系统",
+    "branch": "小说续写_codex_revision",
+    "head": "1bdc60b31e6bbb412434d2cdcc10a4f2c3bfe802",
+    "remote": "https://github.com/Ivandanslespace/thegreatnovel.git",
+    "pre_report_tracked_status": "clean",
+    "post_report_tracked_status": "clean",
+    "post_report_untracked": ["audit/"],
+    "ignored_workspace": ["workspace/real-book-smoke/"],
+    "audit_only_project_directory_created": true,
+    "evidence": ["audit_bundle/repository/pre_report_git_status.txt"]
+  },
+  "environment": {
+    "status": "WARNING",
+    "os": "Microsoft Windows NT 10.0.26220.0",
+    "powershell": "7.6.3",
+    "python": "Python 3.11.9",
+    "uv": "uv 0.11.5",
+    "cli": "C:\\dev\\小说续写系统\\.venv\\Scripts\\novel.exe",
+    "formal_database": "C:\\dev\\小说续写系统\\workspace\\real-book-smoke\\state.sqlite3",
+    "formal_database_sha256_current": "13C86BA5F2FB667A4008A5FC62C2B03C251362B7771B0B6AB9E6EB88EC6CB5D2",
+    "formal_database_size_bytes_current": 11628544,
+    "formal_database_last_write": "2026-08-04T09:36:46+02:00",
+    "migration_finding": "VERIFIED_FAIL: migration 5 and backfill_base_editions occurred after pre-report Git capture",
+    "evidence": ["audit_bundle/environment/environment.txt", "audit_bundle/database/migration_and_edition_state.json"]
+  },
+  "source_integrity": {
+    "status": "VERIFIED_PASS",
+    "path": "C:\\dev\\小说续写系统\\book\\全民纜車求生，我一級一個三選一_正文全集.md",
+    "sha256_before_audit": "95810246d1296163fc02320446060e78addd9fa5cba56bbdd1292634a099ee6e",
+    "sha256_after_audit": "95810246d1296163fc02320446060e78addd9fa5cba56bbdd1292634a099ee6e",
+    "hashes_match": true,
+    "size_bytes": 1863851,
+    "encoding": "utf-8",
+    "front_matter_book_id": "2106587852",
+    "front_matter_chapter_count": 294,
+    "parsed_heading_count": 294,
+    "database_chapter_count": 294,
+    "parser_ordinal_range": [1, 294],
+    "raw_heading_warning": "WARNING: duplicated raw numbers 37, 128, 224-233; raw 第000章 is a reader notice; raw gaps 74 and 96",
+    "continuation_basis": "database ordinal 294 / raw heading 第283章 牽制",
+    "target_ordinal": 295,
+    "evidence": ["audit_bundle/source/source_hashes.json", "audit_bundle/source/chapter_parse_report.json", "audit_bundle/source/chapters_db_export.json"]
+  },
+  "instructions_used": [
+    {
+      "path": "Novel_Authoring_System_Constitution_V2.md",
+      "sha256": "C5C4E747827CC5D5529DE0C7AB4F4DD8A71B9EEC69ACDDD4CD23F6BB74208A78",
+      "status": "VERIFIED_PASS"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "423F9C9595CDD9DB67B752211E3E307A94476A15DF02766172CD8501DCD9850F",
+      "status": "VERIFIED_PASS"
+    },
+    {
+      "path": ".agents/skills/continue-novel/SKILL.md",
+      "sha256": "6118141AA8FAB55265DB621A0E3D717464EC06CCF62BA266EAB6F99DB8E6F87A",
+      "status": "VERIFIED_PASS"
+    },
+    {
+      "path": "config/default.yaml",
+      "sha256": "D833AABCD137E484B94437863307DD23ADAB61D0BF9ABD72E117B974F3A304E1",
+      "status": "VERIFIED_PASS"
+    },
+    {
+      "path": ".agents/skills/revise-novel/SKILL.md",
+      "status": "NOT_RUN",
+      "note": "available but this audit was not a versioned rewrite"
+    }
+  ],
+  "runs": {
+    "status": "WARNING",
+    "continuation_run_id": "NOT_AVAILABLE",
+    "extract_task_id": "extract_595984bc5d9b8eda9f84e407",
+    "plan_task_id": "plan_ed92d57df50bf6152d90adf6",
+    "draft_task_id": "draft-task_3028f1b23f5c7e992d00a04f",
+    "boundary_packet_id": "boundary_ad5bb77726ed63ee23e6afbb",
+    "contract_id": "contract_b991e2e90d8e8b824fea00d9",
+    "final_draft_id": "draft_5680fe3201e6010bacf83b91",
+    "final_validation_run_id": "validation_7484fd836836abab8a2c60e1",
+    "source": "audit_bundle/run/run_metadata.json"
+  },
+  "workflow_stages": [
+    {"stage": "source_lock_and_extract", "status": "VERIFIED_PASS", "evidence": ["audit_bundle/source/extract_output.json", "audit_bundle/task_packets/extract"]},
+    {"stage": "metric_input_and_calculation", "status": "WARNING", "evidence": ["audit_bundle/metrics/metric_inputs.json", "audit_bundle/metrics/metric_results.json"]},
+    {"stage": "boundary_packet", "status": "VERIFIED_PASS", "evidence": ["audit_bundle/boundaries/boundary_ad5bb77726ed63ee23e6afbb.json"]},
+    {"stage": "candidate_plan", "status": "VERIFIED_PASS", "evidence": ["audit_bundle/candidates/plan_output.json"]},
+    {"stage": "chapter_contract", "status": "VERIFIED_PASS", "evidence": ["audit_bundle/contracts/contract_b991e2e90d8e8b824fea00d9.json"]},
+    {"stage": "draft_iterations", "status": "VERIFIED_PASS", "evidence": ["audit_bundle/drafts/draft_versions_metadata.json", "audit_bundle/drafts/*.md"]},
+    {"stage": "final_validation", "status": "VERIFIED_PASS", "evidence": ["audit_bundle/validation/validation_reports_db.json", "audit_bundle/validation/draft_5680fe3201e6010bacf83b91.json"]},
+    {"stage": "freeze_audit", "status": "VERIFIED_FAIL", "evidence": ["audit_bundle/database/migration_and_edition_state.json"]}
+  ],
+  "boundary_packet": {
+    "status": "VERIFIED_PASS",
+    "packet_id": "boundary_ad5bb77726ed63ee23e6afbb",
+    "state": "READY",
+    "base_event_seq": 64,
+    "last_canon_chapter_ordinal": 294,
+    "base_projection_hash_at_validation": "8c26e592893c7908c77a94e3526a6664126213ec66671bfc943cf1a33c8a7226",
+    "recent_source_ordinals": [285, 286, 287, 288, 289, 290, 291, 292, 293, 294],
+    "warning": "更早章节尚无结构化摘要；当前仅依赖 Canon Projection 与最近原文",
+    "evidence": ["audit_bundle/boundaries/boundary_ad5bb77726ed63ee23e6afbb.md", "audit_bundle/boundaries/boundary_ad5bb77726ed63ee23e6afbb.json"]
+  },
+  "metrics": {
+    "status": "WARNING",
+    "formula_id": "constitution-v2",
+    "config_hash": "685a5acc8a728524c2a6e407ffccc2b3b76e433e3f3c10c319fbf61b2e1b4ce3",
+    "input_provenance": "LLM_HEURISTIC/manual semantic assessment for most inputs; deterministic formula after input",
+    "latest_event_seq": 64,
+    "results": {
+      "Pressure": {"score": 81.95, "status": "VERIFIED_PASS", "inputs": {"threat": 95, "scarcity": 85, "deadline": 90, "uncertainty": 78, "social_conflict": 30, "failure_accumulation": 85}, "formula": "95*.25+85*.20+90*.20+78*.15+30*.10+85*.10", "interpretation": "高潮准备区"},
+      "Narrative Debt": {"score": 123.2316962933031, "status": "VERIFIED_PASS", "inputs": {"importance": 0.92, "reader_visibility": 0.95, "promise_progress": 0.1, "age_chapters": 8, "target_max_age": 8, "reminder_count": 5}, "derived": {"age_ratio": 1.0, "reminder_factor": 1.6}, "formula": "clamp(0,150,100*.92*.95*(1-.10)^1.2*1.0*1.6)", "interpretation": "严重债务"},
+      "Progress": {"score": 36.25, "status": "VERIFIED_PASS", "inputs": {"permanent_growth": 20, "world_state_change": 60, "relationship_change": 25, "knowledge_change": 55, "goal_advance": 25, "strategy_expansion": 30}},
+      "Payoff": {"score": 69.1, "status": "VERIFIED_PASS", "inputs": {"maturity": 68, "impact": 63, "causality": 78, "after_value": 82, "repetition_fatigue": 20, "structural_fit": 78, "future_damage": 18}},
+      "Repetition Fatigue": {"score": 0.0, "status": "WARNING", "inputs": {"history": [], "tau": 12, "policy": "zero_with_diagnostic"}, "diagnostic": "no_history"},
+      "Risk Credibility": {"score": 81.35, "status": "VERIFIED_PASS", "inputs": {"realized_cost_rate": 75, "consequence_clarity": 85, "opposition_effectiveness": 90, "protection_limit_visibility": 78, "information_limits": 80}},
+      "Agency": {"score": 82.2886070867877, "status": "VERIFIED_PASS", "inputs": {"value_balance": 0.82, "consequence_difference": 0.86, "information_adequacy": 0.76, "opportunity_cost": 0.8, "long_term_effect": 0.88}, "formula": "100*(.82*.86*.76*.80*.88)^(1/5)"},
+      "Legibility": {"score": 70.85, "status": "VERIFIED_PASS", "inputs": {"goal_clarity": 75, "rule_clarity": 55, "consequence_clarity": 88, "information_provenance": 70}},
+      "Outcome Uncertainty": {"score": 80.25, "status": "VERIFIED_PASS", "inputs": {"danger_unknown": 85, "opponent_plan_unknown": 80, "motivation_unknown": 75, "reward_or_result_unknown": 85, "world_truth_unknown": 70}, "formula": "85*.30+80*.25+75*.20+85*.15+70*.10", "interpretation": "结果未知度过高"}
+    },
+    "not_run": ["Stagnation", "Resource Pressure", "Aftershock Debt"],
+    "evidence": ["audit_bundle/metrics/metric_inputs.json", "audit_bundle/metrics/metric_results.json", "audit_bundle/metrics/formulas.py", "audit_bundle/metrics/default.yaml"]
+  },
+  "threads": {
+    "status": "VERIFIED_PASS",
+    "count": 3,
+    "items": [
+      {"id": "thread_a90327d3f39355457af89ebe", "goal": "在多波次袭击中保持营地防线不被两只Lv8蓝色单位突破", "phase": "crisis", "importance": 0.98, "progress": 0.3, "role": "primary"},
+      {"id": "thread_430da8570538d2bf5cc56994", "goal": "查明灰光、地底移动存在与黄金血脉之间的联系，并找到可利用的局部弱点", "phase": "escalation", "importance": 0.95, "progress": 0.1, "role": "secondary"},
+      {"id": "thread_2572c7ac14fc703f8533fda2", "goal": "确认密林异常、动物逃亡和黄金血脉躁动是否属于同一条因果链", "phase": "escalation", "importance": 0.82, "progress": 0.2, "role": "background"}
+    ],
+    "evidence": ["audit_bundle/state/threads.json"]
+  },
+  "candidates": {
+    "status": "VERIFIED_PASS",
+    "selected_id": "candidate_5d28497d5e0a03eb1b5d7070",
+    "items": [
+      {"id": "candidate_5d28497d5e0a03eb1b5d7070", "title": "最小介入", "rank": 1, "score": 82.06, "gate": "VERIFIED_PASS", "selection": "SELECTED", "primary_function": "partial_payoff"},
+      {"id": "candidate_6777237d9608a2254dddf821", "title": "把自己放到地下", "rank": 2, "score": 79.70000000000003, "gate": "VERIFIED_PASS", "selection": "NOT_SELECTED", "primary_function": "discovery"},
+      {"id": "candidate_8741429eb7a7e0ca6a914122", "title": "把雷暴變成命令", "rank": 3, "score": 72.06999999999998, "gate": "VERIFIED_PASS", "selection": "NOT_SELECTED", "primary_function": "relationship_shift"}
+    ],
+    "structural_difference_counts": [[9, 9], [9, 9], [9, 9]],
+    "author_decision_event": "NOT_AVAILABLE",
+    "evidence": ["audit_bundle/candidates/plan_output.json", "audit_bundle/candidates/candidate_plans_db_export.json"]
+  },
+  "contracts": {
+    "status": "VERIFIED_PASS",
+    "contract_id": "contract_b991e2e90d8e8b824fea00d9",
+    "chapter": 295,
+    "mode": "faithful_continuation",
+    "primary_thread": "thread_a90327d3f39355457af89ebe",
+    "primary_function": "partial_payoff",
+    "secondary_functions": ["choice", "discovery"],
+    "pressure_before": 82.0,
+    "pressure_target_after": 70.0,
+    "must_not_resolve": ["牛头王", "落雷哥布林", "灰光完整身份", "赵德荣铁鎚"],
+    "required_cost": "黄金血脉短暂外显并暴露气息，长枪承受雷击擦伤，苏牧放弃继续隐藏实力",
+    "ending_state": "局部救援成功、雷暴短暂失效、地下存在开始回应；两只Lv8怪物和防线缺口留给后续",
+    "validation_requirements_checked": 9,
+    "mechanism_source_status": "INFERENCE",
+    "evidence": ["audit_bundle/contracts/contract_b991e2e90d8e8b824fea00d9.json"]
+  },
+  "chapters": {
+    "status": "VERIFIED_PASS",
+    "target_ordinal": 295,
+    "title": "最小介入",
+    "final_draft_id": "draft_5680fe3201e6010bacf83b91",
+    "final_draft_status": "VALIDATED",
+    "final_draft_sha256": "53ae38310184db738f51903778b66ded4b247335b1f638d5f6b8bc71c255a61e",
+    "version_count": 4,
+    "canon_written": false,
+    "evidence": ["audit_bundle/drafts/draft_versions_metadata.json", "audit_bundle/drafts/draft_5680fe3201e6010bacf83b91.md"]
+  },
+  "new_facts": {
+    "status": "WARNING",
+    "canon_facts_added": 0,
+    "draft_declared_changes": ["苏牧公开介入", "赵德荣退出最前排", "东侧内外两层", "雷暴短暂缺口", "灰光裂缝/第二次心跳局部回应"],
+    "unsupported_or_unverified_mechanism": "长枪承接/改变雷击落点",
+    "information_state": "INFERENCE",
+    "evidence": ["audit_bundle/drafts/final_output.json", "audit_bundle/drafts/draft_5680fe3201e6010bacf83b91.md"]
+  },
+  "state_deltas": {
+    "status": "VERIFIED_PASS",
+    "draft_only": true,
+    "canon_projection_delta": "none",
+    "items": ["payoff_ch295_minimal_intervention", "character_state_su_mu_public_295", "character_state_zhao_derong_295", "thread_a90327d3f39355457af89ebe", "thread_430da8570538d2bf5cc56994", "promise_e4f784097c5ea7e1a5ff2560", "promise_ff9becdefdd3e9452b18f217"],
+    "evidence": ["audit_bundle/drafts/final_output.json", "audit_bundle/state/events.json"]
+  },
+  "canon_ledger": {"status": "VERIFIED_PASS", "events": 64, "facts": 9, "canon_commits": 0, "draft_changes_not_canon": true},
+  "timeline_ledger": {"status": "WARNING", "formal_rows": 0, "new_chapter_timeline_row": false, "reason": "no Canon Commit; timeline row not created"},
+  "knowledge_ledger": {"status": "VERIFIED_PASS", "formal_edges": 2, "new_canon_edges": 0, "draft_knowledge_limit": "苏牧只确认地下回应与距离变化，未确认身份"},
+  "resource_ledger": {"status": "VERIFIED_PASS", "formal_new_resources": 0, "resource_pressure_metric": "NOT_RUN"},
+  "power_ledger": {"status": "WARNING", "new_levels": 0, "new_capabilities": 0, "new_drops": 0, "long_gun_lightning_mechanism": "INFERENCE"},
+  "validators": {
+    "status": "VERIFIED_PASS",
+    "final_run_id": "validation_7484fd836836abab8a2c60e1",
+    "final_draft_id": "draft_5680fe3201e6010bacf83b91",
+    "count": 10,
+    "all_passed": true,
+    "names": ["Canon Validator", "Timeline Validator", "Knowledge Validator", "Character Validator", "Economy / Power Validator", "Contract Validator", "Debt Validator", "Payoff Validator", "Repetition Validator", "Style Validator"],
+    "process_failures_revised": ["validation_0b526bdbd6e727d96e713348", "validation_22ddce7991736049e19c7541", "validation_5a6d448c9961318d5ebf1c59"],
+    "evidence": ["audit_bundle/validation/validation_reports_db.json", "audit_bundle/validation/validation_7484fd836836abab8a2c60e1.json"]
+  },
+  "tests": {
+    "status": "VERIFIED_PASS",
+    "audit_time_reproduction": true,
+    "original_run_status": "NOT_AVAILABLE",
+    "pytest": {"exit_code": 0, "summary": "53 passed in 4.59s"},
+    "ruff": {"exit_code": 0, "summary": "All checks passed"},
+    "mypy": {"exit_code": 0, "summary": "Success: no issues found in 51 source files"},
+    "source_verify_temp": {"exit_code": 0, "source_hash_match": true},
+    "rebuild_temp": {"exit_code": 0, "through_event_seq": 64, "hash": "500f9d545b95dcc747707fd9c196980b2618ed711cf1152938796e8f8a38edae"},
+    "export_temp": {"exit_code": 0, "committed_chapters": 0},
+    "evidence": ["audit_bundle/tests/test_exit_codes.json", "audit_bundle/tests/*.log"]
+  },
+  "canon_commits": {"status": "VERIFIED_PASS", "count": 0, "approve_invoked": false, "id": "NOT_AVAILABLE"},
+  "snapshots": {"status": "NOT_AVAILABLE", "count": 0, "id": "NOT_AVAILABLE"},
+  "replay": {
+    "status": "VERIFIED_FAIL",
+    "validation_time_hash": "8c26e592893c7908c77a94e3526a6664126213ec66671bfc943cf1a33c8a7226",
+    "current_rebuilt_hash": "500f9d545b95dcc747707fd9c196980b2618ed711cf1152938796e8f8a38edae",
+    "validation_event_seq": 64,
+    "rebuild_event_seq": 64,
+    "hashes_match": false,
+    "reason": "same event sequence but different projection hash after migration/rebuild"
+  },
+  "exports": {
+    "status": "WARNING",
+    "formal_original_export": "NOT_AVAILABLE",
+    "temporary_reproduction_export": {"status": "VERIFIED_PASS", "id": "export_e6df8c08bfcaf483945ac313", "projection_hash": "500f9d545b95dcc747707fd9c196980b2618ed711cf1152938796e8f8a38edae", "committed_chapters": 0, "path": "audit_bundle/exports/reproduction_export"}
+  },
+  "git_changes": {
+    "status": "VERIFIED_PASS",
+    "tracked_diff": false,
+    "audit_directory_added": true,
+    "book_changed": false,
+    "database_git_visible": false,
+    "database_mutation": "VERIFIED_FAIL",
+    "pre_capture": "audit_bundle/repository/pre_report_git_status.txt"
+  },
+  "style_audit": {"status": "VERIFIED_PASS", "style_fit": 84.6, "character_fit": 88.6, "constraints": "第三人称限知、过去时、低对话、中高信息密度、动作细节密集、苏牧克制"},
+  "narrative_audit": {
+    "status": "WARNING",
+    "strengths": ["局部救援而非击杀高等级怪物", "支付暴露和武器受损成本", "改变赵德荣前排位置", "为灰光只给局部回答"],
+    "risks": ["叙事债务123.23仍高", "结果未知度80.25仍高", "重复历史为空导致疲劳0不具证明力", "长枪改变雷击落点为INFERENCE"],
+    "worst_issues": ["formal projection replay mismatch", "formal DB audit-time migration", "unverified long-gun lightning mechanism"]
+  },
+  "aftershock_obligations": {
+    "status": "VERIFIED_PASS",
+    "metric_status": "NOT_RUN",
+    "items": ["苏牧成为两只Lv8怪物的可见目标", "东侧两层防线需要重新维持", "地下回应方向与代价尚未明确", "雷暴缺口只能维持短暂时间"],
+    "unpaid_promise": "promise_ff9becdefdd3e9452b18f217"
+  },
+  "known_issues": [
+    {"status": "VERIFIED_FAIL", "id": "formal-db-migration", "summary": "审计期间正式 DB 触发 migration 5/backfill"},
+    {"status": "VERIFIED_FAIL", "id": "projection-hash-mismatch", "summary": "验证 hash 与当前重建 hash 不一致"},
+    {"status": "NOT_AVAILABLE", "id": "run-and-export-evidence", "summary": "原 run_id、原测试退出码、snapshot、正式 export 缺失"},
+    {"status": "WARNING", "id": "raw-numbering", "summary": "原文 raw heading 编号重复/含第000章说明"},
+    {"status": "WARNING", "id": "empty-repetition-history", "summary": "Repetition history 为空，score 0 仅为策略分支"},
+    {"status": "INFERENCE", "id": "long-gun-mechanism", "summary": "长枪导雷/改落点未找到直接 CANON 事实"}
+  ],
+  "unverifiable_claims": [
+    {"status": "NOT_AVAILABLE", "claim": "原续写完整命令顺序和单一 run_id"},
+    {"status": "NOT_AVAILABLE", "claim": "原续写运行期间测试是否执行及退出码"},
+    {"status": "NOT_AVAILABLE", "claim": "验证时 projection hash 是否可从迁移前 DB 重放"},
+    {"status": "NOT_AVAILABLE", "claim": "候选是否有作者独立显式批准"},
+    {"status": "INFERENCE", "claim": "原文更早章节是否规定长枪可导雷"},
+    {"status": "WARNING", "claim": "Repetition Fatigue=0 是否代表全书没有重复"}
+  ],
+  "evidence_files": {
+    "status": "VERIFIED_PASS",
+    "manifest": "EVIDENCE_MANIFEST.json",
+    "bundle_root": "audit_bundle/",
+    "required_root_files": ["FINAL_CONTINUATION_REPORT.md", "FINAL_CONTINUATION_REPORT.json", "EVIDENCE_MANIFEST.json", "REPRODUCTION_COMMANDS.md", "KNOWN_ISSUES.md", "MISSING_EVIDENCE.json", "codex_continuation_audit_bundle.zip"],
+    "bundle_subdirectories": ["repository", "environment", "instructions", "task_packets", "source", "run", "boundaries", "metrics", "candidates", "contracts", "drafts", "validation", "state", "database", "tests", "exports", "reports"]
+  }
+}

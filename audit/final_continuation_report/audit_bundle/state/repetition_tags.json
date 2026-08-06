@@ -1,0 +1,38 @@
+[
+  {
+    "tag_id": "repetition_6d22ce94663837528c2be634",
+    "book_id": "real-book-smoke",
+    "chapter_id": null,
+    "candidate_id": null,
+    "event_source": "密林中连续出现高等级怪物",
+    "solution_method": "群体分线牵制与火力硬扛",
+    "payoff_type": "威胁升级而非兑现",
+    "scene_topology": "营地多方向防线",
+    "emotional_outcome": "压迫与失控",
+    "ending_type": "新一轮冲击未完",
+    "ordinal": 0,
+    "status": "CANON",
+    "payload_json": "{\"confidence\": 0.9, \"emotional_outcome\": \"压迫与失控\", \"ending_type\": \"新一轮冲击未完\", \"event_source\": \"密林中连续出现高等级怪物\", \"evidence_quote\": \"第三波襲擊到了。這一次從兩個方向同時襲來。\", \"information_state\": \"INFERENCE\", \"kind\": \"repetition\", \"local_id\": \"repeat-monster-boss-entry\", \"payoff_type\": \"威胁升级而非兑现\", \"scene_topology\": \"营地多方向防线\", \"solution_method\": \"群体分线牵制与火力硬扛\", \"source_span_ids\": [\"span_90964e3ba79b29b082d68922\"]}",
+    "created_at": "2026-08-04T05:37:40.831193+00:00",
+    "version": 2,
+    "edition_id": "base"
+  },
+  {
+    "tag_id": "repetition_43f71a240b42a1641ba1b5f6",
+    "book_id": "real-book-smoke",
+    "chapter_id": null,
+    "candidate_id": null,
+    "event_source": "前排强者被迫正面承伤",
+    "solution_method": "用身体和武器换取几秒牵制",
+    "payoff_type": "局部坚持但代价升级",
+    "scene_topology": "单点正面硬扛，队友从后方支援",
+    "emotional_outcome": "悲壮与临界感",
+    "ending_type": "武器损坏、下一击将至",
+    "ordinal": 0,
+    "status": "CANON",
+    "payload_json": "{\"confidence\": 0.9, \"emotional_outcome\": \"悲壮与临界感\", \"ending_type\": \"武器损坏、下一击将至\", \"event_source\": \"前排强者被迫正面承伤\", \"evidence_quote\": \"這不是他的選擇，是他沒有選擇。\", \"information_state\": \"INFERENCE\", \"kind\": \"repetition\", \"local_id\": \"repeat-tank-sacrifice\", \"payoff_type\": \"局部坚持但代价升级\", \"scene_topology\": \"单点正面硬扛，队友从后方支援\", \"solution_method\": \"用身体和武器换取几秒牵制\", \"source_span_ids\": [\"span_ec7b4a5974e1db9d3e39a707\"]}",
+    "created_at": "2026-08-04T05:37:40.831193+00:00",
+    "version": 2,
+    "edition_id": "base"
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "source_id": "book-01-82fe54fd",
+  "title": "全民纜車求生，我一級一個三選一 正文全集",
+  "filename": "测试小说.md",
+  "path": "C:\\dev\\小说续写系统\\book\\测试小说.md",
+  "format": ".md",
+  "characters": 236632,
+  "lines": 17716,
+  "detected_segments": 100,
+  "chapter_detection_confidence": "high",
+  "mode": "create",
+  "dimensions": "all",
+  "depth": "standard",
+  "warnings": [
+    "front matter declares chapter_count=294, while this test snapshot contains 100 recognizable headings",
+    "segment-0096 is an editorial chapter-order notice, not story prose",
+    "chapter numbering is not continuous and includes duplicate 第37章 headings"
+  ]
+}

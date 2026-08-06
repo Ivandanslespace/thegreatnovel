@@ -1,0 +1,1239 @@
+{
+  "$defs": {
+    "CapabilityExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "absolute_capacity": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Absolute Capacity"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "effective_capacity": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effective Capacity"
+        },
+        "evidence_quote": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "information_state": {
+          "default": "INFERENCE",
+          "enum": [
+            "INFERENCE",
+            "PROSE_ONLY"
+          ],
+          "title": "Information State",
+          "type": "string"
+        },
+        "kind": {
+          "const": "capability",
+          "title": "Kind",
+          "type": "string"
+        },
+        "limits": {
+          "additionalProperties": true,
+          "title": "Limits",
+          "type": "object"
+        },
+        "local_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "owner_ref": {
+          "title": "Owner Ref",
+          "type": "string"
+        },
+        "relative_standing": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Relative Standing"
+        },
+        "source_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Span Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "confidence",
+        "source_span_ids",
+        "evidence_quote",
+        "owner_ref",
+        "name"
+      ],
+      "title": "CapabilityExtraction",
+      "type": "object"
+    },
+    "CharacterStateExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "character_ref": {
+          "title": "Character Ref",
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "emotion": {
+          "additionalProperties": true,
+          "title": "Emotion",
+          "type": "object"
+        },
+        "evidence_quote": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "goals": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Goals",
+          "type": "array"
+        },
+        "information_state": {
+          "default": "INFERENCE",
+          "enum": [
+            "INFERENCE",
+            "PROSE_ONLY"
+          ],
+          "title": "Information State",
+          "type": "string"
+        },
+        "kind": {
+          "const": "character_state",
+          "title": "Kind",
+          "type": "string"
+        },
+        "knowledge": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Knowledge",
+          "type": "array"
+        },
+        "local_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "plans": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Plans",
+          "type": "array"
+        },
+        "relationships": {
+          "additionalProperties": true,
+          "title": "Relationships",
+          "type": "object"
+        },
+        "resources": {
+          "additionalProperties": true,
+          "title": "Resources",
+          "type": "object"
+        },
+        "source_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Span Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "confidence",
+        "source_span_ids",
+        "evidence_quote",
+        "character_ref"
+      ],
+      "title": "CharacterStateExtraction",
+      "type": "object"
+    },
+    "EntityExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "aliases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "array"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "entity_type": {
+          "title": "Entity Type",
+          "type": "string"
+        },
+        "evidence_quote": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "information_state": {
+          "default": "INFERENCE",
+          "enum": [
+            "INFERENCE",
+            "PROSE_ONLY"
+          ],
+          "title": "Information State",
+          "type": "string"
+        },
+        "kind": {
+          "const": "entity",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "source_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Span Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "confidence",
+        "source_span_ids",
+        "evidence_quote",
+        "entity_type",
+        "name"
+      ],
+      "title": "EntityExtraction",
+      "type": "object"
+    },
+    "EventExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "evidence_quote": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "information_state": {
+          "default": "INFERENCE",
+          "enum": [
+            "INFERENCE",
+            "PROSE_ONLY"
+          ],
+          "title": "Information State",
+          "type": "string"
+        },
+        "kind": {
+          "const": "event",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "source_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Span Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "confidence",
+        "source_span_ids",
+        "evidence_quote",
+        "label"
+      ],
+      "title": "EventExtraction",
+      "type": "object"
+    },
+    "FactExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "evidence_quote": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "information_state": {
+          "default": "INFERENCE",
+          "enum": [
+            "INFERENCE",
+            "PROSE_ONLY"
+          ],
+          "title": "Information State",
+          "type": "string"
+        },
+        "kind": {
+          "const": "fact",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "object_value": {
+          "title": "Object Value"
+        },
+        "predicate": {
+          "title": "Predicate",
+          "type": "string"
+        },
+        "source_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Span Ids",
+          "type": "array"
+        },
+        "statement": {
+          "title": "Statement",
+          "type": "string"
+        },
+        "subject_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject Ref"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "confidence",
+        "source_span_ids",
+        "evidence_quote",
+        "statement",
+        "predicate",
+        "object_value"
+      ],
+      "title": "FactExtraction",
+      "type": "object"
+    },
+    "KnowledgeExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "character_ref": {
+          "title": "Character Ref",
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "evidence_quote": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "fact_ref": {
+          "title": "Fact Ref",
+          "type": "string"
+        },
+        "information_state": {
+          "default": "INFERENCE",
+          "enum": [
+            "INFERENCE",
+            "PROSE_ONLY"
+          ],
+          "title": "Information State",
+          "type": "string"
+        },
+        "kind": {
+          "const": "knowledge",
+          "title": "Kind",
+          "type": "string"
+        },
+        "knowledge_state": {
+          "title": "Knowledge State",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "source_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Span Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "confidence",
+        "source_span_ids",
+        "evidence_quote",
+        "character_ref",
+        "fact_ref",
+        "knowledge_state"
+      ],
+      "title": "KnowledgeExtraction",
+      "type": "object"
+    },
+    "PromiseExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "evidence_quote": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "importance": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Importance",
+          "type": "number"
+        },
+        "information_state": {
+          "default": "INFERENCE",
+          "enum": [
+            "INFERENCE",
+            "PROSE_ONLY"
+          ],
+          "title": "Information State",
+          "type": "string"
+        },
+        "kind": {
+          "const": "promise",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "progress": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Progress",
+          "type": "number"
+        },
+        "reader_visibility": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Reader Visibility",
+          "type": "number"
+        },
+        "source_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Span Ids",
+          "type": "array"
+        },
+        "statement": {
+          "title": "Statement",
+          "type": "string"
+        },
+        "target_max_age": {
+          "exclusiveMinimum": 0,
+          "title": "Target Max Age",
+          "type": "integer"
+        },
+        "thread_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thread Ref"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "confidence",
+        "source_span_ids",
+        "evidence_quote",
+        "statement",
+        "importance",
+        "reader_visibility",
+        "progress",
+        "target_max_age"
+      ],
+      "title": "PromiseExtraction",
+      "type": "object"
+    },
+    "RelationshipExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "evidence_quote": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "from_entity_ref": {
+          "title": "From Entity Ref",
+          "type": "string"
+        },
+        "information_state": {
+          "default": "INFERENCE",
+          "enum": [
+            "INFERENCE",
+            "PROSE_ONLY"
+          ],
+          "title": "Information State",
+          "type": "string"
+        },
+        "kind": {
+          "const": "relationship",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "source_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Span Ids",
+          "type": "array"
+        },
+        "to_entity_ref": {
+          "title": "To Entity Ref",
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Values",
+          "type": "object"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "confidence",
+        "source_span_ids",
+        "evidence_quote",
+        "from_entity_ref",
+        "to_entity_ref"
+      ],
+      "title": "RelationshipExtraction",
+      "type": "object"
+    },
+    "RepetitionExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "emotional_outcome": {
+          "title": "Emotional Outcome",
+          "type": "string"
+        },
+        "ending_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ending Type"
+        },
+        "event_source": {
+          "title": "Event Source",
+          "type": "string"
+        },
+        "evidence_quote": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "information_state": {
+          "default": "INFERENCE",
+          "enum": [
+            "INFERENCE",
+            "PROSE_ONLY"
+          ],
+          "title": "Information State",
+          "type": "string"
+        },
+        "kind": {
+          "const": "repetition",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "payoff_type": {
+          "title": "Payoff Type",
+          "type": "string"
+        },
+        "scene_topology": {
+          "title": "Scene Topology",
+          "type": "string"
+        },
+        "solution_method": {
+          "title": "Solution Method",
+          "type": "string"
+        },
+        "source_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Span Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "confidence",
+        "source_span_ids",
+        "evidence_quote",
+        "event_source",
+        "solution_method",
+        "payoff_type",
+        "scene_topology",
+        "emotional_outcome"
+      ],
+      "title": "RepetitionExtraction",
+      "type": "object"
+    },
+    "ResourceExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "evidence_quote": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "information_state": {
+          "default": "INFERENCE",
+          "enum": [
+            "INFERENCE",
+            "PROSE_ONLY"
+          ],
+          "title": "Information State",
+          "type": "string"
+        },
+        "kind": {
+          "const": "resource",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "owner_ref": {
+          "title": "Owner Ref",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quantity"
+        },
+        "source_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Span Ids",
+          "type": "array"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "confidence",
+        "source_span_ids",
+        "evidence_quote",
+        "owner_ref",
+        "name"
+      ],
+      "title": "ResourceExtraction",
+      "type": "object"
+    },
+    "StyleExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "dialogue_ratio": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dialogue Ratio"
+        },
+        "emotional_distance": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Emotional Distance"
+        },
+        "evidence_quote": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "exposition_density": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exposition Density"
+        },
+        "information_state": {
+          "default": "INFERENCE",
+          "enum": [
+            "INFERENCE",
+            "PROSE_ONLY"
+          ],
+          "title": "Information State",
+          "type": "string"
+        },
+        "kind": {
+          "const": "style",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "pov": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pov"
+        },
+        "sample": {
+          "title": "Sample",
+          "type": "string"
+        },
+        "source_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Span Ids",
+          "type": "array"
+        },
+        "tense": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tense"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "confidence",
+        "source_span_ids",
+        "evidence_quote",
+        "sample"
+      ],
+      "title": "StyleExtraction",
+      "type": "object"
+    },
+    "ThreadExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "dependencies": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Dependencies",
+          "type": "array"
+        },
+        "evidence_quote": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "goal": {
+          "title": "Goal",
+          "type": "string"
+        },
+        "importance": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Importance",
+          "type": "number"
+        },
+        "information_state": {
+          "default": "INFERENCE",
+          "enum": [
+            "INFERENCE",
+            "PROSE_ONLY"
+          ],
+          "title": "Information State",
+          "type": "string"
+        },
+        "kind": {
+          "const": "thread",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "phase": {
+          "title": "Phase",
+          "type": "string"
+        },
+        "progress": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Progress",
+          "type": "number"
+        },
+        "reader_visibility": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Reader Visibility",
+          "type": "number"
+        },
+        "source_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Span Ids",
+          "type": "array"
+        },
+        "stakes": {
+          "title": "Stakes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "confidence",
+        "source_span_ids",
+        "evidence_quote",
+        "goal",
+        "stakes",
+        "phase",
+        "importance",
+        "reader_visibility",
+        "progress"
+      ],
+      "title": "ThreadExtraction",
+      "type": "object"
+    },
+    "TimelineExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "evidence_quote": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "information_state": {
+          "default": "INFERENCE",
+          "enum": [
+            "INFERENCE",
+            "PROSE_ONLY"
+          ],
+          "title": "Information State",
+          "type": "string"
+        },
+        "kind": {
+          "const": "timeline",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "order_key": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Order Key"
+        },
+        "source_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Span Ids",
+          "type": "array"
+        },
+        "story_time_end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Story Time End"
+        },
+        "story_time_start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Story Time Start"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "confidence",
+        "source_span_ids",
+        "evidence_quote",
+        "label"
+      ],
+      "title": "TimelineExtraction",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "records": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "capability": "#/$defs/CapabilityExtraction",
+            "character_state": "#/$defs/CharacterStateExtraction",
+            "entity": "#/$defs/EntityExtraction",
+            "event": "#/$defs/EventExtraction",
+            "fact": "#/$defs/FactExtraction",
+            "knowledge": "#/$defs/KnowledgeExtraction",
+            "promise": "#/$defs/PromiseExtraction",
+            "relationship": "#/$defs/RelationshipExtraction",
+            "repetition": "#/$defs/RepetitionExtraction",
+            "resource": "#/$defs/ResourceExtraction",
+            "style": "#/$defs/StyleExtraction",
+            "thread": "#/$defs/ThreadExtraction",
+            "timeline": "#/$defs/TimelineExtraction"
+          },
+          "propertyName": "kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/EntityExtraction"
+          },
+          {
+            "$ref": "#/$defs/FactExtraction"
+          },
+          {
+            "$ref": "#/$defs/EventExtraction"
+          },
+          {
+            "$ref": "#/$defs/TimelineExtraction"
+          },
+          {
+            "$ref": "#/$defs/CharacterStateExtraction"
+          },
+          {
+            "$ref": "#/$defs/KnowledgeExtraction"
+          },
+          {
+            "$ref": "#/$defs/RelationshipExtraction"
+          },
+          {
+            "$ref": "#/$defs/ResourceExtraction"
+          },
+          {
+            "$ref": "#/$defs/CapabilityExtraction"
+          },
+          {
+            "$ref": "#/$defs/ThreadExtraction"
+          },
+          {
+            "$ref": "#/$defs/PromiseExtraction"
+          },
+          {
+            "$ref": "#/$defs/StyleExtraction"
+          },
+          {
+            "$ref": "#/$defs/RepetitionExtraction"
+          }
+        ]
+      },
+      "title": "Records",
+      "type": "array"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "records"
+  ],
+  "title": "ExtractionOutput",
+  "type": "object"
+}

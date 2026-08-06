@@ -1,0 +1,7 @@
+{
+  "status": "NOT_AVAILABLE",
+  "reason": "SQLite author_directives table was queried read-only and contained zero rows for real-book-smoke.",
+  "book_id": "real-book-smoke",
+  "count": 0,
+  "evidence": "The continuation workflow status showed author_directives=0; no author directive command was run for this continuation."
+}

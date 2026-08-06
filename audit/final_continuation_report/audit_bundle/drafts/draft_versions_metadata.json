@@ -1,0 +1,60 @@
+{
+  "status": "VERIFIED_PASS",
+  "chapter_ordinal": 295,
+  "versions": [
+    {
+      "draft_id": "draft_4c94560986c8ec4f866f7a73",
+      "file": "draft_4c94560986c8ec4f866f7a73.md",
+      "sha256": "b8bf99f0e091acf12cafc3d3871fe403d0d4b52c8b10c29b9c69ec369ef3699d",
+      "size_bytes": 5493,
+      "prose_chars": 1907,
+      "non_whitespace_chars": 1796,
+      "paragraph_count": 56,
+      "validation_run_id": "validation_0b526bdbd6e727d96e713348",
+      "status": "DRAFT",
+      "validation_summary": "9 validators passed; Contract Validator failed"
+    },
+    {
+      "draft_id": "draft_a4958905225efb13bd94ae12",
+      "file": "draft_a4958905225efb13bd94ae12.md",
+      "sha256": "ef4db624521738d10acd613c564768c9e741b45bc033588a8c13f3c0895b0bdc",
+      "size_bytes": 5516,
+      "prose_chars": 1916,
+      "non_whitespace_chars": 1803,
+      "paragraph_count": 57,
+      "validation_run_id": "validation_22ddce7991736049e19c7541",
+      "status": "DRAFT",
+      "validation_summary": "9 validators passed; Contract Validator failed"
+    },
+    {
+      "draft_id": "draft_7d48639a5d97798e5bd1086f",
+      "file": "draft_7d48639a5d97798e5bd1086f.md",
+      "sha256": "f92ff47f9cf51cd373ae4ad4d845ad801dc14366c3c40ca768cd14b6bb153e65",
+      "size_bytes": 5569,
+      "prose_chars": 1935,
+      "non_whitespace_chars": 1820,
+      "paragraph_count": 58,
+      "validation_run_id": "validation_5a6d448c9961318d5ebf1c59",
+      "status": "DRAFT",
+      "validation_summary": "9 validators passed; Contract Validator failed"
+    },
+    {
+      "draft_id": "draft_5680fe3201e6010bacf83b91",
+      "file": "draft_5680fe3201e6010bacf83b91.md",
+      "sha256": "53ae38310184db738f51903778b66ded4b247335b1f638d5f6b8bc71c255a61e",
+      "size_bytes": 5616,
+      "prose_chars": 1952,
+      "non_whitespace_chars": 1835,
+      "paragraph_count": 59,
+      "validation_run_id": "validation_7484fd836836abab8a2c60e1",
+      "status": "VALIDATED",
+      "validation_summary": "10 validators passed"
+    }
+  ],
+  "revision_notes": [
+    "v1 -> v2: 增加‘蘇牧沒有退後。’",
+    "v2 -> v3: 增加‘他知道，這個位置從此不會再空下來。’",
+    "v3 -> v4: 增加‘下一道雷，已經鎖定了他的影子。’"
+  ],
+  "evidence": "draft_v1_to_v2.diff, draft_v2_to_v3.diff, draft_v3_to_v4.diff"
+}

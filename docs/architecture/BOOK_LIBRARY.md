@@ -13,7 +13,8 @@ library/<book_id>/
 ├─ source/                         # 只读来源副本
 ├─ _system/state.sqlite3
 └─ editions/<edition_id>/
-   ├─ analysis/                    # Atlas、初始化、指标和节奏
+   ├─ analysis/                    # Atlas、初始化、指标、节奏和 distill
+   │  └─ distill/                  # preparation 与 REFERENCE_ONLY 写作 skill
    ├─ writing/                     # boundary、candidate、contract、draft、validation
    ├─ operations/<operation_id>/   # manifest/status/events/input/output/artifacts/logs
    ├─ batches/

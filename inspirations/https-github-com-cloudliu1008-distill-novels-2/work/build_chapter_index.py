@@ -5,7 +5,6 @@ import json
 import re
 from pathlib import Path
 
-
 CHAPTER_RE = re.compile(
     r"^\s*(?:#{1,6}\s*)?(?:chapter\s+(?:\d+|[ivxlcdm]+)|"
     r"第[零〇一二三四五六七八九十百千万两\d]+[章节回卷部篇]|序章|楔子|尾声|终章)"
@@ -64,11 +63,12 @@ def main() -> None:
         "| 片段 | 行号 | 字符数 | 标题 |",
         "|---|---:|---:|---|",
     ]
-    markdown.extend(
-        f"| `{item['segment_id']}` | {item['line_start']}-{item['line_end']} | "
-        f"{item['characters']} | {item['heading'].replace('|', '\\|')} |"
-        for item in segments
-    )
+    for item in segments:
+        heading = item["heading"].replace("|", "\\|")
+        markdown.append(
+            f"| `{item['segment_id']}` | {item['line_start']}-{item['line_end']} | "
+            f"{item['characters']} | {heading} |"
+        )
     (args.output / "chapter_index.md").write_text(
         "\n".join(markdown) + "\n", encoding="utf-8"
     )

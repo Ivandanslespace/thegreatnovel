@@ -1,0 +1,807 @@
+{
+  "source": "book\\测试小说.md",
+  "total_lines": 17716,
+  "detected_segments": 100,
+  "segments": [
+    {
+      "segment_id": "segment-0001",
+      "heading": "## 第1章 全民纜車求生",
+      "line_start": 12,
+      "line_end": 265,
+      "nonempty_lines": 127,
+      "characters": 2704
+    },
+    {
+      "segment_id": "segment-0002",
+      "heading": "## 第2章 纜車等級也有三選一",
+      "line_start": 266,
+      "line_end": 579,
+      "nonempty_lines": 157,
+      "characters": 3516
+    },
+    {
+      "segment_id": "segment-0003",
+      "heading": "## 第3章 準備降落",
+      "line_start": 580,
+      "line_end": 833,
+      "nonempty_lines": 127,
+      "characters": 3157
+    },
+    {
+      "segment_id": "segment-0004",
+      "heading": "## 第4章 2級甲",
+      "line_start": 834,
+      "line_end": 1125,
+      "nonempty_lines": 146,
+      "characters": 3253
+    },
+    {
+      "segment_id": "segment-0005",
+      "heading": "## 第5章 哥布林幼崽",
+      "line_start": 1126,
+      "line_end": 1415,
+      "nonempty_lines": 145,
+      "characters": 2464
+    },
+    {
+      "segment_id": "segment-0006",
+      "heading": "## 第6章 白銀寶箱",
+      "line_start": 1416,
+      "line_end": 1633,
+      "nonempty_lines": 109,
+      "characters": 2083
+    },
+    {
+      "segment_id": "segment-0007",
+      "heading": "## 第7章 二級纜車升級圖紙",
+      "line_start": 1634,
+      "line_end": 1805,
+      "nonempty_lines": 86,
+      "characters": 2071
+    },
+    {
+      "segment_id": "segment-0008",
+      "heading": "## 第8章 燃油的作用",
+      "line_start": 1806,
+      "line_end": 1977,
+      "nonempty_lines": 86,
+      "characters": 2036
+    },
+    {
+      "segment_id": "segment-0009",
+      "heading": "## 第9章 一級力量型突破符籙",
+      "line_start": 1978,
+      "line_end": 2147,
+      "nonempty_lines": 85,
+      "characters": 1993
+    },
+    {
+      "segment_id": "segment-0010",
+      "heading": "## 第10章 降溫",
+      "line_start": 2148,
+      "line_end": 2327,
+      "nonempty_lines": 90,
+      "characters": 1870
+    },
+    {
+      "segment_id": "segment-0011",
+      "heading": "## 第11章 纜車2級，新三選一",
+      "line_start": 2328,
+      "line_end": 2511,
+      "nonempty_lines": 92,
+      "characters": 1906
+    },
+    {
+      "segment_id": "segment-0012",
+      "heading": "## 第12章 夜晚的襲擊",
+      "line_start": 2512,
+      "line_end": 2709,
+      "nonempty_lines": 99,
+      "characters": 2135
+    },
+    {
+      "segment_id": "segment-0013",
+      "heading": "## 第13章 捕獸夾",
+      "line_start": 2710,
+      "line_end": 2873,
+      "nonempty_lines": 82,
+      "characters": 1926
+    },
+    {
+      "segment_id": "segment-0014",
+      "heading": "## 第14章 詭蝠",
+      "line_start": 2874,
+      "line_end": 3151,
+      "nonempty_lines": 139,
+      "characters": 2464
+    },
+    {
+      "segment_id": "segment-0015",
+      "heading": "## 第15章 製作台",
+      "line_start": 3152,
+      "line_end": 3389,
+      "nonempty_lines": 119,
+      "characters": 2071
+    },
+    {
+      "segment_id": "segment-0016",
+      "heading": "## 第16章 讓你啪嘰",
+      "line_start": 3390,
+      "line_end": 3657,
+      "nonempty_lines": 134,
+      "characters": 2329
+    },
+    {
+      "segment_id": "segment-0017",
+      "heading": "## 第17章 力量暴增",
+      "line_start": 3658,
+      "line_end": 3877,
+      "nonempty_lines": 110,
+      "characters": 2273
+    },
+    {
+      "segment_id": "segment-0018",
+      "heading": "## 第18章 等級2，新的三選一",
+      "line_start": 3878,
+      "line_end": 4067,
+      "nonempty_lines": 95,
+      "characters": 2108
+    },
+    {
+      "segment_id": "segment-0019",
+      "heading": "## 第19章 新情報，幸運轉盤",
+      "line_start": 4068,
+      "line_end": 4225,
+      "nonempty_lines": 79,
+      "characters": 2055
+    },
+    {
+      "segment_id": "segment-0020",
+      "heading": "## 第20章 紅豆度假村",
+      "line_start": 4226,
+      "line_end": 4417,
+      "nonempty_lines": 96,
+      "characters": 2074
+    },
+    {
+      "segment_id": "segment-0021",
+      "heading": "## 第21章 額外攻擊",
+      "line_start": 4418,
+      "line_end": 4603,
+      "nonempty_lines": 93,
+      "characters": 1931
+    },
+    {
+      "segment_id": "segment-0022",
+      "heading": "## 第22章 差距",
+      "line_start": 4604,
+      "line_end": 4825,
+      "nonempty_lines": 111,
+      "characters": 2103
+    },
+    {
+      "segment_id": "segment-0023",
+      "heading": "## 第23章 分解的隱藏作用",
+      "line_start": 4826,
+      "line_end": 5037,
+      "nonempty_lines": 106,
+      "characters": 2377
+    },
+    {
+      "segment_id": "segment-0024",
+      "heading": "## 第24章 收集",
+      "line_start": 5038,
+      "line_end": 5259,
+      "nonempty_lines": 111,
+      "characters": 2118
+    },
+    {
+      "segment_id": "segment-0025",
+      "heading": "## 第25章 灰色寶箱",
+      "line_start": 5260,
+      "line_end": 5561,
+      "nonempty_lines": 151,
+      "characters": 2467
+    },
+    {
+      "segment_id": "segment-0026",
+      "heading": "## 第26章 賓館和青銅寶箱",
+      "line_start": 5562,
+      "line_end": 5741,
+      "nonempty_lines": 90,
+      "characters": 1899
+    },
+    {
+      "segment_id": "segment-0027",
+      "heading": "## 第27章 被拿走的白銀寶箱",
+      "line_start": 5742,
+      "line_end": 5957,
+      "nonempty_lines": 108,
+      "characters": 1953
+    },
+    {
+      "segment_id": "segment-0028",
+      "heading": "## 第28章 合作",
+      "line_start": 5958,
+      "line_end": 6229,
+      "nonempty_lines": 136,
+      "characters": 3219
+    },
+    {
+      "segment_id": "segment-0029",
+      "heading": "## 第29章 遊樂場，密集屍群",
+      "line_start": 6230,
+      "line_end": 6359,
+      "nonempty_lines": 65,
+      "characters": 2292
+    },
+    {
+      "segment_id": "segment-0030",
+      "heading": "## 第30章 這是人能做到的？",
+      "line_start": 6360,
+      "line_end": 6541,
+      "nonempty_lines": 91,
+      "characters": 2359
+    },
+    {
+      "segment_id": "segment-0031",
+      "heading": "## 第31章 靜音結界符",
+      "line_start": 6542,
+      "line_end": 6705,
+      "nonempty_lines": 82,
+      "characters": 2212
+    },
+    {
+      "segment_id": "segment-0032",
+      "heading": "## 第32章 鬼屋",
+      "line_start": 6706,
+      "line_end": 6891,
+      "nonempty_lines": 93,
+      "characters": 2457
+    },
+    {
+      "segment_id": "segment-0033",
+      "heading": "## 第33章 幸厄轉盤",
+      "line_start": 6892,
+      "line_end": 7051,
+      "nonempty_lines": 80,
+      "characters": 2093
+    },
+    {
+      "segment_id": "segment-0034",
+      "heading": "## 第34章 豐厚獎勵與底線",
+      "line_start": 7052,
+      "line_end": 7203,
+      "nonempty_lines": 76,
+      "characters": 2139
+    },
+    {
+      "segment_id": "segment-0035",
+      "heading": "## 第35章 這就是規則的力量",
+      "line_start": 7204,
+      "line_end": 7427,
+      "nonempty_lines": 112,
+      "characters": 2546
+    },
+    {
+      "segment_id": "segment-0036",
+      "heading": "## 第36章 一不小心全轉完了",
+      "line_start": 7428,
+      "line_end": 7657,
+      "nonempty_lines": 115,
+      "characters": 2273
+    },
+    {
+      "segment_id": "segment-0037",
+      "heading": "## 第37章 人怎麼能這麼好運成這樣",
+      "line_start": 7658,
+      "line_end": 7813,
+      "nonempty_lines": 78,
+      "characters": 1804
+    },
+    {
+      "segment_id": "segment-0038",
+      "heading": "## 第37章 怪呢？",
+      "line_start": 7814,
+      "line_end": 7951,
+      "nonempty_lines": 69,
+      "characters": 1842
+    },
+    {
+      "segment_id": "segment-0039",
+      "heading": "## 第38章 資源轉盤",
+      "line_start": 7952,
+      "line_end": 8173,
+      "nonempty_lines": 111,
+      "characters": 2419
+    },
+    {
+      "segment_id": "segment-0040",
+      "heading": "## 第39章 紫色職業",
+      "line_start": 8174,
+      "line_end": 8329,
+      "nonempty_lines": 78,
+      "characters": 2047
+    },
+    {
+      "segment_id": "segment-0041",
+      "heading": "## 第40章 無法拒絕的圖紙",
+      "line_start": 8330,
+      "line_end": 8511,
+      "nonempty_lines": 91,
+      "characters": 2289
+    },
+    {
+      "segment_id": "segment-0042",
+      "heading": "## 第41章 驗牌",
+      "line_start": 8512,
+      "line_end": 8695,
+      "nonempty_lines": 92,
+      "characters": 2067
+    },
+    {
+      "segment_id": "segment-0043",
+      "heading": "## 第42章 日記",
+      "line_start": 8696,
+      "line_end": 8865,
+      "nonempty_lines": 85,
+      "characters": 1978
+    },
+    {
+      "segment_id": "segment-0044",
+      "heading": "## 第43章 內容",
+      "line_start": 8866,
+      "line_end": 9031,
+      "nonempty_lines": 83,
+      "characters": 2081
+    },
+    {
+      "segment_id": "segment-0045",
+      "heading": "## 第44章 生活職業",
+      "line_start": 9032,
+      "line_end": 9209,
+      "nonempty_lines": 89,
+      "characters": 2487
+    },
+    {
+      "segment_id": "segment-0046",
+      "heading": "## 第45章 爆炸聲",
+      "line_start": 9210,
+      "line_end": 9411,
+      "nonempty_lines": 101,
+      "characters": 2219
+    },
+    {
+      "segment_id": "segment-0047",
+      "heading": "## 第46章 我怎麼聽他的話了？",
+      "line_start": 9412,
+      "line_end": 9587,
+      "nonempty_lines": 88,
+      "characters": 2051
+    },
+    {
+      "segment_id": "segment-0048",
+      "heading": "## 第47章 果斷與收穫",
+      "line_start": 9588,
+      "line_end": 9743,
+      "nonempty_lines": 78,
+      "characters": 2239
+    },
+    {
+      "segment_id": "segment-0049",
+      "heading": "## 第48章 奸商",
+      "line_start": 9744,
+      "line_end": 9903,
+      "nonempty_lines": 80,
+      "characters": 2114
+    },
+    {
+      "segment_id": "segment-0050",
+      "heading": "## 第49章 削的木箭",
+      "line_start": 9904,
+      "line_end": 10081,
+      "nonempty_lines": 89,
+      "characters": 2147
+    },
+    {
+      "segment_id": "segment-0051",
+      "heading": "## 第50章 詭異",
+      "line_start": 10082,
+      "line_end": 10237,
+      "nonempty_lines": 78,
+      "characters": 2200
+    },
+    {
+      "segment_id": "segment-0052",
+      "heading": "## 第51章 他來了",
+      "line_start": 10238,
+      "line_end": 10453,
+      "nonempty_lines": 108,
+      "characters": 2068
+    },
+    {
+      "segment_id": "segment-0053",
+      "heading": "## 第52章 肝帝",
+      "line_start": 10454,
+      "line_end": 10601,
+      "nonempty_lines": 74,
+      "characters": 1959
+    },
+    {
+      "segment_id": "segment-0054",
+      "heading": "## 第53章 纜車3級",
+      "line_start": 10602,
+      "line_end": 10779,
+      "nonempty_lines": 89,
+      "characters": 2202
+    },
+    {
+      "segment_id": "segment-0055",
+      "heading": "## 第54章 新功能",
+      "line_start": 10780,
+      "line_end": 10955,
+      "nonempty_lines": 88,
+      "characters": 1931
+    },
+    {
+      "segment_id": "segment-0056",
+      "heading": "## 第55章 來啊",
+      "line_start": 10956,
+      "line_end": 11133,
+      "nonempty_lines": 89,
+      "characters": 2143
+    },
+    {
+      "segment_id": "segment-0057",
+      "heading": "## 第56章 這也算？",
+      "line_start": 11134,
+      "line_end": 11311,
+      "nonempty_lines": 89,
+      "characters": 1976
+    },
+    {
+      "segment_id": "segment-0058",
+      "heading": "## 第57章 簡易氣罐爆炸裝置",
+      "line_start": 11312,
+      "line_end": 11463,
+      "nonempty_lines": 76,
+      "characters": 1920
+    },
+    {
+      "segment_id": "segment-0059",
+      "heading": "## 第58章 另一條纜線",
+      "line_start": 11464,
+      "line_end": 11655,
+      "nonempty_lines": 96,
+      "characters": 2113
+    },
+    {
+      "segment_id": "segment-0060",
+      "heading": "## 第59章 準備",
+      "line_start": 11656,
+      "line_end": 11819,
+      "nonempty_lines": 82,
+      "characters": 2440
+    },
+    {
+      "segment_id": "segment-0061",
+      "heading": "## 第60章 貓妖",
+      "line_start": 11820,
+      "line_end": 11947,
+      "nonempty_lines": 64,
+      "characters": 1607
+    },
+    {
+      "segment_id": "segment-0062",
+      "heading": "## 第61章 哪有植物會流血的？",
+      "line_start": 11948,
+      "line_end": 12103,
+      "nonempty_lines": 78,
+      "characters": 2233
+    },
+    {
+      "segment_id": "segment-0063",
+      "heading": "## 第62章 喝一口，加體質",
+      "line_start": 12104,
+      "line_end": 12221,
+      "nonempty_lines": 59,
+      "characters": 1830
+    },
+    {
+      "segment_id": "segment-0064",
+      "heading": "## 第63章 藍色猛毒貓妖",
+      "line_start": 12222,
+      "line_end": 12391,
+      "nonempty_lines": 85,
+      "characters": 2222
+    },
+    {
+      "segment_id": "segment-0065",
+      "heading": "## 第64章 擊殺",
+      "line_start": 12392,
+      "line_end": 12511,
+      "nonempty_lines": 60,
+      "characters": 1821
+    },
+    {
+      "segment_id": "segment-0066",
+      "heading": "## 第65章 三級敏捷型突破符籙",
+      "line_start": 12512,
+      "line_end": 12675,
+      "nonempty_lines": 82,
+      "characters": 2067
+    },
+    {
+      "segment_id": "segment-0067",
+      "heading": "## 第66章 3級",
+      "line_start": 12676,
+      "line_end": 12847,
+      "nonempty_lines": 86,
+      "characters": 2053
+    },
+    {
+      "segment_id": "segment-0068",
+      "heading": "## 第67章 3級，新三選一",
+      "line_start": 12848,
+      "line_end": 12955,
+      "nonempty_lines": 54,
+      "characters": 1848
+    },
+    {
+      "segment_id": "segment-0069",
+      "heading": "## 第68章 轉職",
+      "line_start": 12956,
+      "line_end": 13105,
+      "nonempty_lines": 75,
+      "characters": 2265
+    },
+    {
+      "segment_id": "segment-0070",
+      "heading": "## 第69章 眼不見為凈",
+      "line_start": 13106,
+      "line_end": 13279,
+      "nonempty_lines": 87,
+      "characters": 2188
+    },
+    {
+      "segment_id": "segment-0071",
+      "heading": "## 第70章 第二職業欄位",
+      "line_start": 13280,
+      "line_end": 13417,
+      "nonempty_lines": 69,
+      "characters": 1997
+    },
+    {
+      "segment_id": "segment-0072",
+      "heading": "## 第71章 連招",
+      "line_start": 13418,
+      "line_end": 13589,
+      "nonempty_lines": 86,
+      "characters": 2272
+    },
+    {
+      "segment_id": "segment-0073",
+      "heading": "## 第72章 無解",
+      "line_start": 13590,
+      "line_end": 13833,
+      "nonempty_lines": 122,
+      "characters": 3937
+    },
+    {
+      "segment_id": "segment-0074",
+      "heading": "## 第73章 外國人",
+      "line_start": 13834,
+      "line_end": 13947,
+      "nonempty_lines": 57,
+      "characters": 1842
+    },
+    {
+      "segment_id": "segment-0075",
+      "heading": "## 第75章 被發現",
+      "line_start": 13948,
+      "line_end": 14051,
+      "nonempty_lines": 52,
+      "characters": 2157
+    },
+    {
+      "segment_id": "segment-0076",
+      "heading": "## 第76章 亂了",
+      "line_start": 14052,
+      "line_end": 14173,
+      "nonempty_lines": 61,
+      "characters": 1918
+    },
+    {
+      "segment_id": "segment-0077",
+      "heading": "## 第77章 收穫、撤離",
+      "line_start": 14174,
+      "line_end": 14303,
+      "nonempty_lines": 65,
+      "characters": 2135
+    },
+    {
+      "segment_id": "segment-0078",
+      "heading": "## 第78章 這也有經驗？",
+      "line_start": 14304,
+      "line_end": 14475,
+      "nonempty_lines": 86,
+      "characters": 2285
+    },
+    {
+      "segment_id": "segment-0079",
+      "heading": "## 第79章 藥酒配方",
+      "line_start": 14476,
+      "line_end": 14627,
+      "nonempty_lines": 76,
+      "characters": 2051
+    },
+    {
+      "segment_id": "segment-0080",
+      "heading": "## 第80章 藥酒釀造",
+      "line_start": 14628,
+      "line_end": 14765,
+      "nonempty_lines": 69,
+      "characters": 2127
+    },
+    {
+      "segment_id": "segment-0081",
+      "heading": "## 第81章 軍事基地",
+      "line_start": 14766,
+      "line_end": 14919,
+      "nonempty_lines": 77,
+      "characters": 2155
+    },
+    {
+      "segment_id": "segment-0082",
+      "heading": "## 第82章 瘋狂增長的經驗",
+      "line_start": 14920,
+      "line_end": 15075,
+      "nonempty_lines": 78,
+      "characters": 1934
+    },
+    {
+      "segment_id": "segment-0083",
+      "heading": "## 第83章 好運",
+      "line_start": 15076,
+      "line_end": 15207,
+      "nonempty_lines": 66,
+      "characters": 2044
+    },
+    {
+      "segment_id": "segment-0084",
+      "heading": "## 第84章 血參藥酒、糧倉、木板",
+      "line_start": 15208,
+      "line_end": 15333,
+      "nonempty_lines": 63,
+      "characters": 2025
+    },
+    {
+      "segment_id": "segment-0085",
+      "heading": "## 第85章 建築升級捲軸、詭火",
+      "line_start": 15334,
+      "line_end": 15481,
+      "nonempty_lines": 74,
+      "characters": 2060
+    },
+    {
+      "segment_id": "segment-0086",
+      "heading": "## 第86章 纜車停了",
+      "line_start": 15482,
+      "line_end": 15619,
+      "nonempty_lines": 69,
+      "characters": 2025
+    },
+    {
+      "segment_id": "segment-0087",
+      "heading": "## 第87章 打鬥聲",
+      "line_start": 15620,
+      "line_end": 15783,
+      "nonempty_lines": 82,
+      "characters": 1999
+    },
+    {
+      "segment_id": "segment-0088",
+      "heading": "## 第88章 慘勝",
+      "line_start": 15784,
+      "line_end": 15939,
+      "nonempty_lines": 78,
+      "characters": 2029
+    },
+    {
+      "segment_id": "segment-0089",
+      "heading": "## 第89章 升級了？",
+      "line_start": 15940,
+      "line_end": 16067,
+      "nonempty_lines": 64,
+      "characters": 2030
+    },
+    {
+      "segment_id": "segment-0090",
+      "heading": "## 第90章 4級，新三選一",
+      "line_start": 16068,
+      "line_end": 16223,
+      "nonempty_lines": 78,
+      "characters": 2145
+    },
+    {
+      "segment_id": "segment-0091",
+      "heading": "## 第91章 這玩意兒，不會有靈性吧？",
+      "line_start": 16224,
+      "line_end": 16365,
+      "nonempty_lines": 71,
+      "characters": 2166
+    },
+    {
+      "segment_id": "segment-0092",
+      "heading": "## 第92章 誇張的屬性",
+      "line_start": 16366,
+      "line_end": 16509,
+      "nonempty_lines": 72,
+      "characters": 1959
+    },
+    {
+      "segment_id": "segment-0093",
+      "heading": "## 第93章 新公告，強制投放",
+      "line_start": 16510,
+      "line_end": 16659,
+      "nonempty_lines": 75,
+      "characters": 2126
+    },
+    {
+      "segment_id": "segment-0094",
+      "heading": "## 第94章 新情報",
+      "line_start": 16660,
+      "line_end": 16801,
+      "nonempty_lines": 71,
+      "characters": 2061
+    },
+    {
+      "segment_id": "segment-0095",
+      "heading": "## 第95章 前往軍事基地（二合一）",
+      "line_start": 16802,
+      "line_end": 17063,
+      "nonempty_lines": 131,
+      "characters": 4056
+    },
+    {
+      "segment_id": "segment-0096",
+      "heading": "## 第000章 關於章節錯亂的說明",
+      "line_start": 17064,
+      "line_end": 17103,
+      "nonempty_lines": 20,
+      "characters": 1067
+    },
+    {
+      "segment_id": "segment-0097",
+      "heading": "## 第97章 發生了什麼",
+      "line_start": 17104,
+      "line_end": 17237,
+      "nonempty_lines": 67,
+      "characters": 2029
+    },
+    {
+      "segment_id": "segment-0098",
+      "heading": "## 第98章 大量資源",
+      "line_start": 17238,
+      "line_end": 17421,
+      "nonempty_lines": 92,
+      "characters": 2181
+    },
+    {
+      "segment_id": "segment-0099",
+      "heading": "## 第99章 那是什麼東西？",
+      "line_start": 17422,
+      "line_end": 17571,
+      "nonempty_lines": 75,
+      "characters": 2073
+    },
+    {
+      "segment_id": "segment-0100",
+      "heading": "## 第100章 舔食者",
+      "line_start": 17572,
+      "line_end": 17716,
+      "nonempty_lines": 73,
+      "characters": 2044
+    }
+  ]
+}

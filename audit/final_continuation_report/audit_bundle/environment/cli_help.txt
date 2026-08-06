@@ -1,0 +1,32 @@
+                                                                               
+ Usage: novel [OPTIONS] COMMAND [ARGS]...                                      
+                                                                               
+ 小说作者辅助与续写系统 V1                                                     
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --install-completion          Install completion for the current shell.     │
+│ --show-completion             Show completion for the current shell, to     │
+│                               copy it or customize the installation.        │
+│ --help                        Show this message and exit.                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+┌─ Commands ──────────────────────────────────────────────────────────────────┐
+│ init       建立 workspace、数据库和 source manifest，不导入正文。           │
+│ ingest     导入不可变原文；多文件顺序未经确认时阻断。                       │
+│ status     显示当前只读状态摘要。                                           │
+│ snapshot   为当前已提交事件历史建立不可变快照。                             │
+│ rebuild    从 append-only 事件历史确定性重建 Canon Projection。             │
+│ reconcile  生成冲突报告，或显式接受/拒绝一条结构化抽取记录。                │
+│ diagnose   按宪法公式计算六项 V1 指标并保存输入证据。                       │
+│ plan-next  准备三个候选任务，或验证、评分并导入候选 output.json。           │
+│ approve    显式批准 VALIDATED 草稿并以单事务提交事件、投影和快照。          │
+│ export     导出投影、审计记录与已批准续写；不复制或修改原始 book。          │
+│ source     不可变源文件命令                                                 │
+│ extract    Codex 结构化抽取文件合同                                         │
+│ boundary   Continuation Boundary Packet                                     │
+│ contract   Chapter Contract                                                 │
+│ draft      草稿文件合同与十项校验                                           │
+│ directive  持久化作者要求、偏好与禁忌                                       │
+│ edition    版本化 edition 生命周期                                          │
+│ revision   显式批准、可回滚的版本化改写工作流                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+

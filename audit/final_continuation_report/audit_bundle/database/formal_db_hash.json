@@ -1,0 +1,10 @@
+{
+  "status": "WARNING",
+  "path": "C:\\dev\\小说续写系统\\workspace\\real-book-smoke\\state.sqlite3",
+  "sha256_current": "13C86BA5F2FB667A4008A5FC62C2B03C251362B7771B0B6AB9E6EB88EC6CB5D2",
+  "size_bytes": 11628544,
+  "last_write_time": "2026-08-04T09:36:46+02:00",
+  "pre_audit_sha256": "NOT_AVAILABLE",
+  "readonly_copy": "audit_bundle/database/state.sqlite3.readonly",
+  "finding": "formal database was mutated by audit-time CLI initialization/migration; no rollback performed"
+}

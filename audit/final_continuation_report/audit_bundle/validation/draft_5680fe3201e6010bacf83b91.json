@@ -1,0 +1,91 @@
+{
+  "book_id": "real-book-smoke",
+  "content_sha256": "53ae38310184db738f51903778b66ded4b247335b1f638d5f6b8bc71c255a61e",
+  "contract_id": "contract_b991e2e90d8e8b824fea00d9",
+  "created_at": "2026-08-04T05:54:02.362433+00:00",
+  "draft_id": "draft_5680fe3201e6010bacf83b91",
+  "passed": true,
+  "projection_sha256": "8c26e592893c7908c77a94e3526a6664126213ec66671bfc943cf1a33c8a7226",
+  "reports": [
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Canon Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {
+        "latest_order_key": null
+      },
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Timeline Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Knowledge Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {
+        "character_fit": 88.60000000000001
+      },
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Character Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Economy / Power Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {
+        "requirements_checked": 9
+      },
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Contract Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Debt Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Payoff Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Repetition Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {
+        "style_fit": 84.6
+      },
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Style Validator"
+    }
+  ],
+  "run_id": "validation_7484fd836836abab8a2c60e1",
+  "through_event_seq": 64
+}

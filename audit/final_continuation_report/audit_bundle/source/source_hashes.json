@@ -1,0 +1,20 @@
+{
+  "status": "VERIFIED_PASS",
+  "source_path": "C:\\dev\\小说续写系统\\book\\全民纜車求生，我一級一個三選一_正文全集.md",
+  "source_manifest_path": "C:\\dev\\小说续写系统\\workspace\\real-book-smoke\\source_manifest.json",
+  "current_sha256": "95810246d1296163fc02320446060e78addd9fa5cba56bbdd1292634a099ee6e",
+  "manifest_sha256": "95810246d1296163fc02320446060e78addd9fa5cba56bbdd1292634a099ee6e",
+  "byte_size": 1863851,
+  "encoding": "utf-8",
+  "last_write_time_epoch": 1785333918.1111717,
+  "front_matter": {
+    "title": "全民纜車求生，我一級一個三選一 正文全集",
+    "book_id": "2106587852",
+    "type": "novel_full_text",
+    "chapter_count": "294",
+    "source_scope": "authorized_local_backup",
+    "merged_from": "書籍/2106587852_全民纜車求生，我一級一個三選一/正文"
+  },
+  "hashes_match": true,
+  "pre_report_current_hash_capture": "NOT_AVAILABLE: pre-report database hash was not captured; this field applies to database, not source."
+}

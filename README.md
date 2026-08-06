@@ -28,11 +28,31 @@ $Novel = ".\\.venv\\Scripts\\novel.exe"
 ```powershell
 & $Novel library paths --book-id my-book
 & $Novel initialize create --book-id my-book --library-root .\\library
+& $Novel distill prepare --book-id my-book --library-root .\\library
+& $Novel distill create --book-id my-book --library-root .\\library
 & $Novel web serve --book-id my-book --library-root .\\library
 & $Novel atlas export-snapshot --book-id my-book --library-root .\\library
 ```
 
 Web 的“导入新书”与 `library add` 共用同一个 storage service，不会只复制文件而留下未初始化的书库。
+
+## distill-novels 写作知识库
+
+系统接入 [CloudLiu1008/distill-novels](https://github.com/CloudLiu1008/distill-novels) 作为
+Codex 桌面端的语义提炼能力。`novel distill prepare` 只做可复现的格式归一化、章节边界、
+source manifest 和 bounded index；`novel distill create` 冻结输入并创建 `NOVEL_DISTILLATION`
+handoff。桌面端领取后调用 `$distill-novels`，把结果写入 handoff 的
+`artifacts/distill_skill/`，再由作者显式运行：
+
+```powershell
+& $Novel distill import --book-id my-book --handoff-id <handoff-id> --library-root .\\library
+```
+
+发布结果进入 `library/<book_id>/editions/<edition_id>/analysis/distill/skills/`，在后续续写
+handoff 中以 `distill_reference` 提供给 `$continue-novel`，始终是 `REFERENCE_ONLY`；它不会
+修改 `book/`、Story Atlas、Canon 或作者批准状态。支持 `analyze-only`、`create`、`compare`、
+`update` 模式，以及 `worldbuilding`、`characters`、`plot`、`style`、`narrative`、
+`dialogue`、`pacing`、`themes`、`continuity` 维度。
 
 ## 能力
 

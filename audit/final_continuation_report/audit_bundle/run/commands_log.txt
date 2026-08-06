@@ -1,0 +1,18 @@
+本文件是审计交接时可确认的命令记录，不是原始 continuation 全量 shell transcript。
+
+VERIFIED_PASS | Get-FileHash -Algorithm SHA256 book/全民纜車求生，我一級一個三選一_正文全集.md
+VERIFIED_PASS | git rev-parse --show-toplevel
+VERIFIED_PASS | git branch --show-current
+VERIFIED_PASS | git rev-parse HEAD
+VERIFIED_PASS | git status --short（审计前为空；审计后只出现 audit/）
+VERIFIED_PASS | 临时副本 python -m pytest -q -p no:cacheprovider
+VERIFIED_PASS | 临时副本 ruff check src tests
+VERIFIED_PASS | 临时副本 mypy src --cache-dir mypy_cache_2
+VERIFIED_PASS | 临时 runtime novel source verify --book-id real-book-smoke
+VERIFIED_PASS | 临时 runtime novel rebuild --book-id real-book-smoke --edition-id base
+VERIFIED_PASS | 临时 runtime novel export --book-id real-book-smoke --edition-id base
+VERIFIED_FAIL | 正式 workspace CLI 状态检查触发 Database.initialize、migration 5 和 backfill_base_editions
+NOT_AVAILABLE | 原 continuation 的完整命令顺序和单一 run_id
+NOT_AVAILABLE | 原 continuation 的原始测试退出码
+
+安全说明：审计收尾未运行 approve、未创建 Canon Commit，未对正式数据库继续运行 rebuild/export/status；已发现的正式数据库迁移不回滚。

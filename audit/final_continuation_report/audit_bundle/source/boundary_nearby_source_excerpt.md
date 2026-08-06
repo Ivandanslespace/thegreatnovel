@@ -1,0 +1,734 @@
+# Continuation Boundary Packet `boundary_ad5bb77726ed63ee23e6afbb`
+
+- book_id: `real-book-smoke`
+- base_event_seq: 64
+- projection_sha256: `8c26e592893c7908c77a94e3526a6664126213ec66671bfc943cf1a33c8a7226`
+- current_position: {"last_canon_chapter": 294, "next_chapter": 295}
+
+## 最近完整章节
+
+### ## 第281章 毒貓王
+
+source_span_id: `span_9dc0f78566cee00f94288dad`
+
+## 第281章 毒貓王
+
+他的隊友劉洋和方琳在他身後支援，劉洋舉著盾牌擋下飛來的石塊和火瓶，方琳的箭矢精準地射中那些試圖繞后的哥布林。
+
+但哥布林太多了，而且它們有組織、有配合，不是之前那種無腦沖的散兵游勇。投石索的哥布林在後面壓制，火瓶的哥布林在兩側騷擾，近戰的哥布林從正面衝鋒。
+
+公會的陣型在幾輪衝擊下開始出現缺口，有人倒下，有人後退，有人開始慌亂。
+
+軍方的重火力開始發威。機槍在黑暗中吐出火舌，子彈像暴雨一樣傾瀉在哥布林群中，暗綠色的血液在火光中炸開。但那些哥布林不是之前那種只靠本能沖的怪物，它們會找掩護，會在機槍換彈的間隙衝鋒，會從火力死角繞過來。
+
+機槍的彈鏈很快打空了，射手換彈的幾秒間隙里，哥布林衝到了防線前面。
+
+“穩住！不要亂！”周衛人的聲音從對講機里傳來，依然是那種不急不慢的、每一個字都帶著分量的語氣。但這一次，他的聲音里多了一絲之前沒有的東西......不是緊張，是一種更凝重的、像是在確認什麼的東西。
+
+林小禾衝進了哥布林群中。短刀在她手裡像活了一樣，從一隻哥布林的眼窩刺入，後腦穿出，刀鋒在空中畫了半個圓，從另一隻哥布林的頸部劃過，動脈被切斷，暗綠色的血液噴出來。
+
+她的速度快得那些哥布林根本反應不過來，她的刀法精準得每一擊都直奔要害。五級的哥布林一刀一個，六級的哥布林小隊長兩刀一個。
+
+她的身上沾滿了暗綠色的血液，臉上、頭髮上、衣服上，到處都是，她沒有擦，沒有停，只是一直殺，一直往前沖。
+
+林雨薇沒有衝進哥布林群中。她站在防線內側，銀斑豹幼崽在她腳邊轉來轉去，發出低低的、像是警告一樣的嘶鳴。她的手指在腰間的槍柄上摩挲了一下，然後鬆開
+
+。她沒有拔槍，而是從背包里翻出一瓶小型恢復藥劑，蹲下身，掰開一個受傷士兵的嘴，灌了進去。那個士兵的胸口被石塊砸出了一個凹陷，呼吸急促而紊亂，嘴唇發紫。藥劑灌進去之後，他的呼吸平穩了一些，嘴唇從紫變白，從白變紅。
+
+林雨薇站起來，轉身走向下一個傷員。
+
+蘇牧靠在一棵大樹的樹榦上，雙手抱胸，看著戰場。他的表情平靜得像一潭死水，但他的眼睛在黑暗中微微發光......不是金色，是一種更暗的、像是被什麼東西點燃了的、隨時會亮起來的光。
+
+長槍靠在他旁邊的樹榦上，槍尖插在落葉層里，沒有拔出來。他沒有動。周圍的人都在戰鬥，都在拚命，都在流血，他沒有動。
+
+第二波襲擊到了。
+
+那隻貓妖王從樹冠上跳下來的時候，所有人都以為是一顆隕石。暗紅色的身影在黑暗中劃過一道弧線，速度快到連殘影都看不清，然後砸在地上，地面炸開一個坑。
+
+落葉和碎石四濺，塵土飛揚。塵土散去，一隻體型比普通貓妖大了四五倍的巨型貓妖蹲在坑裡。它的皮毛不是普通貓妖那種暗紅色，而是一種更深沉的、像凝固的血一樣的黑紅色，上面布滿了細密的、暗紫色的紋路，像是有什麼東西在它的皮膚下面流動。
+
+它的眼睛是慘白色的，沒有瞳孔，只有兩團在黑暗中燃燒的白色火焰。它的嘴巴張開，露出一排排參差不齊的、像鋸齒一樣的尖牙，唾液從齒縫間滴落，滴在地上，發出滋滋的腐蝕聲。
+
+“毒貓王......”有人喊出了它的名字，聲音裡帶著明顯的恐懼。
+
+毒貓王動了。
+
+它的速度快得趙德榮的動態視覺根本跟不上，暗紅色的身影在人群中穿梭，每一次停頓都有一隻哥布林倒下......不，它不是在殺哥布林，它殺的是人。
+
+一個公會的盾戰士被它的爪子劃過，胸口出現了三道深可見骨的爪痕，血從爪痕里湧出來，不是鮮紅色的，是暗紫色的，爪痕的邊緣在幾秒內就變成了黑色，然後開始潰爛、發臭。毒。
+
+“它有毒！不要被它碰到！”
+
+趙德榮沖了上去。鐵鎚朝毒貓王砸去，毒貓王的身體在空中一個急轉，鐵鎚從它尾巴尖擦過，砸在地上，地面炸開一個坑。
+
+毒貓王的爪子朝趙德榮的臉抓來，趙德榮側頭閃避，爪子從他的肩膀劃過，作戰服被撕開三道口子，皮膚上出現了三道淺淺的血痕。
+
+血痕的邊緣在幾秒內就變成了暗紫色，然後開始向四周擴散。趙德榮感覺到肩膀一陣麻木，從肩膀蔓延到手臂，從手臂蔓延到胸口。他的動作慢了下來，慢了半拍，慢了半秒。
+
+“中毒了！”方琳喊道。
+
+劉洋舉著盾牌衝上來，擋在趙德榮面前。毒貓王的爪子砸在盾牌上，盾牌上出現三道深深的爪痕，劉洋被震得往後退了好幾步，虎口裂開，血順著盾牌往下淌。
+
+方琳的箭矢射向毒貓王，毒貓王的身體在空中左右閃避，箭矢從它身邊飛過，射在樹榦上，沒入樹身。毒貓王的身影在黑暗中一閃，消失了。不是隱身，是速度快到肉眼跟不上了。
+
+“它跑了？”有人問。
+
+沒有人回答。因為毒貓王沒有跑，它在找下一個目標。
+
+普羅修站在防線南側，翅膀收攏，目光盯著黑暗中的某一點。他的金色光刃在手掌中凝聚，沒有釋放。他在等，等毒貓王現身。
+
+毒貓王從樹冠上跳下來，朝普羅修撲去。普羅修的光刃從下往上撩起，毒貓王的身體在空中猛地一扭，光刃從它腹部擦過，劃開一道口子，暗紫色的血液從傷口噴出來。
+
+毒貓王發出一聲尖銳的嘶鳴，身體在空中翻轉了半圈，落在樹榦上，四肢緊扣樹皮，然後彈射出去，消失在了黑暗中。
+
+
+
+### ## 第282章 落雷哥布林、牛頭王薩烏塔
+
+source_span_id: `span_90964e3ba79b29b082d68922`
+
+## 第282章 落雷哥布林、牛頭王薩烏塔
+
+第三波襲擊到了。這一次從兩個方向同時襲來。
+
+左側，雷電先於怪物抵達。一道藍白色的閃電從密林深處劈出，不是劈向某個人，而是劈在了營地中央的空地上。地面炸開一個焦黑的坑，泥土被燒成玻璃狀，散發著刺鼻的臭氧味。
+
+緊接著是第二道、第三道、第四道......閃電像暴雨一樣傾瀉而下，沒有規律，沒有間歇，每一道都精準地落在人群最密集的地方。
+
+有人在閃電中化為焦炭，有人被電得跳起來然後倒地抽搐，有人連慘叫都來不及發出就變成了一具冒煙的屍體。
+
+落雷哥布林從黑暗中走了出來。
+
+它的體型比普通哥布林大了一倍，但和牛頭王比起來，它小得像一個孩子。
+
+皮膚是一種不正常的灰白色，上面布滿了細密的、藍紫色的紋路，像是有什麼東西在它的皮膚下面流動......那是雷電的能量，肉眼可見，像一條條小蛇在它的血管里遊走。
+
+它的身上穿著一件殘破的法袍，法袍的顏色是灰藍色的，邊緣有燒焦的痕迹，下擺還在冒著青煙。它的手裡握著一根法杖，法杖的頂端鑲嵌著一顆拳頭大小的、不停跳動著電弧的藍色寶石。
+
+寶石每跳動一下，天空中就有一道閃電劈下來。它的眼睛是亮藍色的，瞳孔里沒有情緒，只有一種純粹的、像是被雷電佔據了全部意識的狂熱。
+
+它的嘴角掛著一絲笑意，不是嘲諷，不是興奮，而是一種更純粹的、像是在做一件它最喜歡做的事情的滿足。
+
+落雷哥布林，Lv8，藍色。
+
+它的身後，是整片被雷電點燃的密林。
+
+樹木在燃燒，樹榦被劈開，樹冠在火焰中噼啪作響。火光在黑暗中跳動，把落雷哥布林的影子拉得很長很長，像一個從地獄里爬出來的惡魔。
+
+右側，地面開始劇烈震顫。不是落雷那種突然的、炸裂的震動，而是一種沉重的、有節奏的、像是有什麼龐然大物正在朝這邊走來的震動。
+
+樹木被什麼東西撞得東倒西歪，斷枝碎葉從樹冠上簌簌落下，像是一場小型的雪崩。牛頭王薩烏塔從黑暗中走了出來。
+
+它的體型巨大，至少有五米高，比之前見過的所有牛頭人都要大上一圈。渾身的肌肉虯結得像一塊塊被壓縮過的岩石，皮膚不是普通牛頭人的灰褐色，而是一種更深沉的、像生鏽鐵塊一樣的暗銅色，上面布滿了戰鬥留下的傷疤......
+
+有的已經發白，有的還是粉紅色的新肉，有的還在往外滲著淡淡的血絲。
+
+它的頭部是一顆巨大的公牛頭顱，犄角彎曲如彎刀，角尖鋒利得能在黑暗中反光，每一根都比成年人的手臂還長。角上掛著碎肉和布料......那是之前被它頂死的人留下的。
+
+它的眼睛是血紅色的，沒有瞳孔，只有兩團在黑暗中燃燒的、暴戾的火焰。鼻孔里噴出白色的霧氣，每一次呼氣都像是在打雷。
+
+它的手裡握著一柄巨大的戰斧，斧刃比一個人的身體還寬，斧柄上纏著磨損的皮繩，上面沾滿了乾涸的血跡，有些血跡已經發黑，有些還是暗紅色的。它站在那裡，像一座移動的堡壘。
+
+牛頭王薩烏塔，Lv8，藍色。
+
+它的腳下，地面在龜裂，每一步踏出都留下一個深深的腳印，碎石和泥土從腳印邊緣擠出來，像被碾碎的骨頭。
+
+它的呼吸聲粗重而緩慢，像一台老舊的、隨時可能報廢的風箱，但它的眼睛里沒有任何疲憊，只有一種純粹的、原始的、想要把眼前的一切都撕碎的殺意。
+
+落雷哥布林舉起了法杖。
+
+法杖頂端的藍色寶石猛地亮了起來，亮得像一顆小型的太陽，刺得人睜不開眼。
+
+一道粗如水桶的閃電從寶石中射出，直衝天際，然後在天上的雲層中炸開，像一朵盛開的藍白色花朵。雲層在閃電的牽引下開始翻滾，烏雲從四面八方湧來，遮蔽了原本就稀薄的月光，整片密林陷入了一片比之前更深沉的黑暗。
+
+然後，落雷開始了。
+
+不是之前那種零星的、試探性的閃電，而是真正的、鋪天蓋地的雷暴。閃電像瀑布一樣從雲層中傾瀉而下，一道接一道，一道疊一道，密密麻麻，沒有間隙。
+
+藍色的電光在黑暗中閃爍，把整片營地照得像白天一樣亮，然後熄滅，然後又亮起來，然後又熄滅，像一台壞掉的閃光燈在瘋狂地閃爍。雷聲在閃電之後滾滾而來，不是“轟隆”一聲就結束的那種，而是連綿不絕的、像是有無數輛火車從頭頂駛過的、震得人耳膜發疼、震得心臟亂跳、震得腦子一片空白的轟鳴。
+
+大半個營地在一瞬間變成了一片雷池。
+
+地面被閃電劈得千瘡百孔，到處是焦黑的坑和冒著煙的裂縫。樹木被劈成兩半，燃燒著倒下，砸在帳篷上、砸在車上、砸在人身上。
+
+人被閃電劈中的時候，不是小說里寫的那種“渾身焦黑倒地而亡”，而是......皮膚在閃電接觸到的一瞬間被汽化，下面的肌肉被電成焦炭，脂肪在高溫下燃燒，整個人像一根被點燃的火把，在藍白色的電光中燃燒，發出刺鼻的氣味，然後倒地，抽搐，然後不動。
+
+牛頭王薩烏塔動了。
+
+它低下頭，犄角朝前，像一輛失控的重型卡車一樣朝人群沖了過來。它的速度快得和它的體型完全不成比例，每一步踏出地面都在顫抖，每一步踏出都有人在它的腳下被踩成肉泥。
+
+它衝到一輛裝甲車前面，犄角頂在車身上，裝甲車的鐵皮像紙一樣被撕開，整輛車被頂翻了出去，在空中翻了三四圈，砸在地上，油箱破裂，汽油泄漏，然後被一道閃電點燃，炸成一團火球。
+
+它的戰斧在人群中揮舞。
+
+斧刃所過之處，人的身體像被熱刀切過的黃油一樣被切開，不是砍斷，是切開。切口平整得像被激光切割過，血液在切口處湧出來，不是噴，是涌，像有人擰開了水龍頭。
+
+一個公會的盾戰士舉著盾牌擋在它面前，戰斧劈下，盾牌從中間裂成兩半，盾戰士的身體從肩膀到腰部被劈開，兩半身體朝左右兩個方向倒去。
+
+
+
+### ## 第283章 牽制
+
+source_span_id: `span_ec7b4a5974e1db9d3e39a707`
+
+## 第283章 牽制
+
+一個士兵端著機槍朝它掃射，子彈打在它的皮膚上，像打在鋼板上一樣，濺起火星，彈開，連一個白點都沒有留下。牛頭王薩烏塔的腳掌踩下來，士兵的上半身被踩進了泥土裡，下半身還在抽搐，腿蹬了幾下，然後不動了。
+
+普羅修和幾個公會的會長迎上了落雷哥布林。不是他們想打落雷哥布林，而是他們根本不敢靠近牛頭王薩烏塔。普羅修的光刃砍在牛頭王薩烏塔的脖子上只留下一道白痕，他引以為傲的攻擊力在那座移動堡壘面前像在撓痒痒。
+
+所以他選擇了落雷哥布林......至少這隻看起來還能打。
+
+他的翅膀在黑暗中展開，潔白如雪，在藍白色的電光和暗紅色的火光中格外刺眼。
+
+金色的光刃在手掌中凝聚，像一把由光凝聚成的長劍。落雷哥布林的法杖一揮，一道閃電朝他劈來，他的身體在空中急轉，閃電從他翅膀邊緣擦過，幾根羽毛被電焦，飄落下來。
+
+他的光刃朝落雷哥布林的頸部斬去，落雷哥布林的身體在雷電中閃爍了一下，消失了，然後出現在幾米外。不是瞬移，是速度快到普羅修的眼睛跟不上了。
+
+幾個公會的會長從不同方向圍攻。
+
+一個冰系法師的冰錐射向落雷哥布林，落雷哥布林的身體在雷電中閃爍，冰錐射空了，釘在樹榦上。一個火系法師的火球炸在落雷哥布林剛才站立的位置，地面炸開一個坑，但落雷哥布林已經不在那裡了。
+
+一個敏捷型刺客的匕首刺向落雷哥布林的後頸，匕首刺中的是一道閃電的殘影，刺客的身體被電得僵直，從空中墜落，摔在地上，抽搐了幾下，不動了。
+
+落雷哥布林的法杖一直在舉著，一直沒有放下。
+
+閃電一波接一波地劈下來，不是劈向某個人，而是覆蓋整個營地。普羅修在閃電的縫隙中穿梭，他的速度快，但閃電更快。一道閃電劈中了他的翅膀，潔白的羽毛被燒焦了一大片，他的身體在空中失去平衡，墜落，然後在下墜的過程中強行振翅，穩住身形，落在地上。
+
+他的嘴角溢出一絲血，不是被打的，是被震的。他的翅膀在發抖，不是怕，是電擊后的肌肉痙攣。
+
+“你們在幹什麼？牽制住它！”普羅修朝那些會長喊道。會長們沒有回答，因為他們也在躲閃電。
+
+趙德榮硬扛牛頭王薩烏塔。
+
+這不是他的選擇，是他沒有選擇。
+
+他是目前在場的人里唯一一個能正面扛住牛頭王薩烏塔一斧的人......不是因為他強，而是因為他的岩石化天賦讓他的身體變成了石頭。
+
+石頭不會被一斧劈死，但石頭會被一斧劈裂。他的岩石化天賦已經開啟了，皮膚變成了灰黑色，像一塊被風化了千萬年的岩石。
+
+灰黑色的皮膚上有一道道的裂紋，不是戰鬥留下的，是天賦本身的特徵，像龜裂的河床。他的鐵鎚砸在牛頭王薩烏塔的腿上，發出一聲沉悶的金屬撞擊聲。
+
+牛頭王薩烏塔的腿晃了一下，它的頭低下來，血紅色的眼睛盯著趙德榮，像在看著一隻不知死活的螞蟻。
+
+戰斧劈了下來。
+
+趙德榮舉起鐵鎚格擋，斧刃砸在錘柄上，火星四濺，趙德榮的虎口裂開了，血順著錘柄往下淌。他的膝蓋彎了下去，腳下的地面裂開了，他的身體在往下沉，像一根被捶進土裡的木樁。
+
+他的牙齒咬得咯咯響，嘴裡湧出一口血，血從他的嘴角溢出來，順著下巴往下淌，滴在灰黑色的皮膚上，被裂紋吸收，像水滲進乾涸的河床。
+
+他沒有退。鐵鎚從下往上撩起，砸在牛頭王薩烏塔的下巴上。
+
+牛頭王薩烏塔的頭被打得往上仰了一下，然後它低下頭，那雙血紅色的眼睛里多了一絲東西......不是憤怒，是一種更微妙的、像是在說“有點意思”的......興趣。
+
+它的拳頭砸了下來。不是戰斧，是拳頭。拳頭比戰斧更重，因為它更快。趙德榮沒有時間格擋，拳頭砸在他的胸口，灰黑色的皮膚上出現了一道裂紋，裂紋的邊緣發白，白的下面發黑，像是一塊被重鎚砸裂的石頭。
+
+趙德榮的身體像一顆炮彈一樣飛了出去，撞斷了一棵樹，又撞斷了第二棵，然後砸在地上，滾了好幾圈，停在一堆落葉里。他的嘴裡湧出了大量的血，血液從嘴角、鼻孔、耳朵里往外涌，他的眼睛是睜著的，但瞳孔渙散了。
+
+他的隊友劉洋和方琳沖了過來，劉洋舉著盾牌擋在趙德榮面前，方琳的箭矢射向牛頭王薩烏塔的眼睛。箭矢射中了......射中了牛頭王薩烏塔的眼皮。
+
+它的眼皮上有一個白點，箭矢插在上面，晃了晃，掉了下來。牛頭王薩烏塔甚至沒有眨眼。它的戰斧再次舉了起來。
+
+“隊長！”劉洋喊道。
+
+趙德榮的手指動了一下。他的身體在落葉堆里掙扎了一下，然後他站了起來。他的腿在發抖，手臂在發抖，胸口的那道裂紋還在往外滲血。
+
+但他站起來了。他撿起掉在地上的鐵鎚，握緊，指節發白，血從虎口滴下來。他看著牛頭王薩烏塔，喘著粗氣，然後他笑了。
+
+不是苦笑，不是自嘲，而是一種真正的、發自內心的、像是在說“老子還沒死”的笑。
+
+“來啊。”他說。
+
+牛頭王薩烏塔的戰斧劈了下來。趙德榮的鐵鎚迎了上去。
+
+斧刃和錘柄再次碰撞。
+
+這一次，錘柄彎了。
+
+不是斷了，是彎了，像一個被掰彎的勺子。趙德榮的虎口徹底裂開了，血像噴泉一樣從傷口湧出來，他的手指已經握不住錘柄了，鐵鎚從他手裡滑落，砸在地上，發出一聲沉悶的金屬撞擊聲。
+
+
+## 更早章节摘要
+
+```json
+[]
+```
+
+## FTS5 相关原文片段
+
+```json
+[]
+```
+
+## 当前正史
+
+```json
+{
+  "fact_05f015b92224112c7ba15b5b": {
+    "_event_id": "event_4f18d212ed5a6f048fc354c9",
+    "_event_seq": 38,
+    "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+    "_source_kind": "SOURCE_RECONCILE",
+    "fact_id": "fact_05f015b92224112c7ba15b5b",
+    "object": "铁鎚錘柄弯曲",
+    "predicate": "武器状态",
+    "reason": "原文直接陈述，已回指 source span",
+    "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+    "statement": "赵德荣用于格挡牛头王攻击的铁鎚錘柄已经弯曲，无法继续稳定握持。",
+    "subject_id": "entity_d4f565a53c85a44529c4461a"
+  },
+  "fact_1be162c155d935a4dce18eba": {
+    "_event_id": "event_05d094f776d1a71a1a2bf139",
+    "_event_seq": 39,
+    "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+    "_source_kind": "SOURCE_RECONCILE",
+    "fact_id": "fact_1be162c155d935a4dce18eba",
+    "object": "翅膀大面积烧焦",
+    "predicate": "伤势",
+    "reason": "原文直接陈述，已回指 source span",
+    "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+    "statement": "普罗修的翅膀被雷电烧焦，行动受到影响。",
+    "subject_id": "entity_d854fb751f65eb5b2a6f8c7e"
+  },
+  "fact_2a94aea18c90a76e9c1d273e": {
+    "_event_id": "event_ebfbb97bac55d33579fb2d32",
+    "_event_seq": 36,
+    "_source_id": "span_f6e98b851f24ffb4431228ee",
+    "_source_kind": "SOURCE_RECONCILE",
+    "fact_id": "fact_2a94aea18c90a76e9c1d273e",
+    "object": "营地下方有多个大型存在移动但尚未上来",
+    "predicate": "感知到",
+    "reason": "原文直接陈述，已回指 source span",
+    "source_span_id": "span_f6e98b851f24ffb4431228ee",
+    "statement": "苏牧能凭黄金血脉感知到营地下方有大型存在移动。",
+    "subject_id": "entity_af32bbef7e9bf181fbcf7648"
+  },
+  "fact_5e40a3aaa62d179255ea1f80": {
+    "_event_id": "event_7aa678a43fe2b67ccfdb6c81",
+    "_event_seq": 37,
+    "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+    "_source_kind": "SOURCE_RECONCILE",
+    "fact_id": "fact_5e40a3aaa62d179255ea1f80",
+    "object": "岩石化已开启",
+    "predicate": "当前能力状态",
+    "reason": "原文直接陈述，已回指 source span",
+    "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+    "statement": "赵德荣开启岩石化天赋后，皮肤会变成灰黑色的石质状态。",
+    "subject_id": "entity_d4f565a53c85a44529c4461a"
+  },
+  "fact_6c72383ef2d4dec43dfcc798": {
+    "_event_id": "event_e994379197659c9de4f065b7",
+    "_event_seq": 40,
+    "_source_id": "span_90964e3ba79b29b082d68922",
+    "_source_kind": "SOURCE_RECONCILE",
+    "fact_id": "fact_6c72383ef2d4dec43dfcc798",
+    "object": {
+      "level": 8,
+      "rarity": "蓝色"
+    },
+    "predicate": "等级与品级",
+    "reason": "原文直接陈述，已回指 source span",
+    "source_span_id": "span_90964e3ba79b29b082d68922",
+    "statement": "牛头王萨乌塔的等级为Lv8，品级为蓝色。",
+    "subject_id": "entity_e78acf940532f96c77e47009"
+  },
+  "fact_7b5ffa9cb8b1411ae1535797": {
+    "_event_id": "event_babeb5941c0f625b9b865472",
+    "_event_seq": 41,
+    "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+    "_source_kind": "SOURCE_RECONCILE",
+    "fact_id": "fact_7b5ffa9cb8b1411ae1535797",
+    "object": "机枪子弹难以造成有效伤害",
+    "predicate": "防御",
+    "reason": "原文直接陈述，已回指 source span",
+    "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+    "statement": "牛头王萨乌塔的皮肤能弹开机枪子弹，普通枪械难以造成有效伤害。",
+    "subject_id": "entity_e78acf940532f96c77e47009"
+  },
+  "fact_7c64487006d7e09bb1e40935": {
+    "_event_id": "event_20c6c13ce047e33fb7772ffc",
+    "_event_seq": 34,
+    "_source_id": "span_90964e3ba79b29b082d68922",
+    "_source_kind": "SOURCE_RECONCILE",
+    "fact_id": "fact_7c64487006d7e09bb1e40935",
+    "object": {
+      "level": 8,
+      "rarity": "蓝色"
+    },
+    "predicate": "等级与品级",
+    "reason": "原文直接陈述，已回指 source span",
+    "source_span_id": "span_90964e3ba79b29b082d68922",
+    "statement": "落雷哥布林的等级为Lv8，品级为蓝色。",
+    "subject_id": "entity_043dbf9fbf116d38337df7c1"
+  },
+  "fact_9e24b9e406af29f817011deb": {
+    "_event_id": "event_94c3d5712e11b082cd0daef9",
+    "_event_seq": 33,
+    "_source_id": "span_90964e3ba79b29b082d68922",
+    "_source_kind": "SOURCE_RECONCILE",
+    "fact_id": "fact_9e24b9e406af29f817011deb",
+    "object": "覆盖营地的持续雷暴",
+    "predicate": "引发",
+    "reason": "原文直接陈述，已回指 source span",
+    "source_span_id": "span_90964e3ba79b29b082d68922",
+    "statement": "落雷哥布林通过法杖顶端的蓝色宝石引发覆盖营地的持续雷暴。",
+    "subject_id": "entity_043dbf9fbf116d38337df7c1"
+  },
+  "fact_b0d10e880d406addf3b5509a": {
+    "_event_id": "event_dd0ab7b9eebb981a1f81ae64",
+    "_event_seq": 35,
+    "_source_id": "span_9dc0f78566cee00f94288dad",
+    "_source_kind": "SOURCE_RECONCILE",
+    "fact_id": "fact_b0d10e880d406addf3b5509a",
+    "object": "观察战场且暂不介入",
+    "predicate": "当前行动",
+    "reason": "原文直接陈述，已回指 source span",
+    "source_span_id": "span_9dc0f78566cee00f94288dad",
+    "statement": "苏牧在多波次袭击中保持观察，长枪暂未出手。",
+    "subject_id": "entity_af32bbef7e9bf181fbcf7648"
+  }
+}
+```
+
+## 人物状态
+
+```json
+{
+  "character_state_2b01dba4b391a8c047de27bb": {
+    "_event_id": "event_a159cbd49ca6f8d1ccd99aaa",
+    "_event_seq": 58,
+    "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+    "_source_kind": "SOURCE_RECONCILE",
+    "character_id": "entity_d4f565a53c85a44529c4461a",
+    "emotion": {
+      "drive": "不退",
+      "surface": "疼痛与虚弱"
+    },
+    "goals": [
+      "挡住牛头王薩烏塔，给队友争取时间"
+    ],
+    "knowledge": [
+      "知道自己的岩石化状态正在被牛头王击裂"
+    ],
+    "plans": [
+      "继续正面牵制，除非被迫撤退"
+    ],
+    "reason": "人物伤势、资源与牵制目标由第283章直接展示",
+    "relationships": {
+      "fang-lin": "队友支援",
+      "liu-yang": "队友保护"
+    },
+    "resources": {
+      "hammer": "锤柄弯曲",
+      "rock_form": "已开启"
+    },
+    "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+    "state_id": "character_state_2b01dba4b391a8c047de27bb"
+  },
+  "character_state_2e30de71285014819b9af0dc": {
+    "_event_id": "event_01e6c9be091d263a127a2461",
+    "_event_seq": 57,
+    "_source_id": "span_9dc0f78566cee00f94288dad",
+    "_source_kind": "SOURCE_RECONCILE",
+    "character_id": "entity_af32bbef7e9bf181fbcf7648",
+    "emotion": {
+      "surface": "冷静",
+      "underlayer": "等待临界点"
+    },
+    "goals": [
+      "判断更高层威胁何时真正进入战场",
+      "保留应对灰光与地底存在的能力"
+    ],
+    "knowledge": [
+      "知道营地下方有大型存在移动",
+      "知道眼前两只Lv8蓝色单位正在压垮防线"
+    ],
+    "plans": [
+      "不提前暴露底牌，等到能改变战场结构的时机再介入"
+    ],
+    "reason": "人物状态由第281章直接展示",
+    "relationships": {
+      "defense_line": "尚未公开承担核心支援责任"
+    },
+    "resources": {
+      "golden_bloodline": "处于压制但有躁动迹象",
+      "long_gun": "在身侧待命"
+    },
+    "source_span_id": "span_9dc0f78566cee00f94288dad",
+    "state_id": "character_state_2e30de71285014819b9af0dc"
+  },
+  "character_state_39db8a80439b9feab7977969": {
+    "_event_id": "event_50a87e3fae444c54e9ad35b1",
+    "_event_seq": 59,
+    "_source_id": "span_9dc0f78566cee00f94288dad",
+    "_source_kind": "SOURCE_RECONCILE",
+    "character_id": "entity_942d7b500c24d5919b7c23de",
+    "emotion": {
+      "surface": "克制",
+      "underlayer": "复杂与警觉"
+    },
+    "goals": [
+      "救治伤员",
+      "保护银斑豹幼崽"
+    ],
+    "knowledge": [
+      "知道毒貓王的伤口会迅速扩散",
+      "知道幼崽对密林深处的存在有本能恐惧"
+    ],
+    "plans": [
+      "继续在防线内侧处理伤员，不轻易进入正面战场"
+    ],
+    "reason": "人物救治与保护行动由第281章直接展示",
+    "relationships": {
+      "silver-leopard-cub": "刚建立契约后的保护关系"
+    },
+    "resources": {
+      "recovery_potion": "至少使用过一瓶",
+      "silver_leopard_cub": "在身边"
+    },
+    "source_span_id": "span_9dc0f78566cee00f94288dad",
+    "state_id": "character_state_39db8a80439b9feab7977969"
+  }
+}
+```
+
+## 人物知识边界
+
+```json
+{
+  "knowledge_69a2a0bc3124018e5e80bbf1": {
+    "_event_id": "event_c897f70ffa5098bd17d28fef",
+    "_event_seq": 64,
+    "_source_id": "span_ec7b4a5974e1db9d3e39a707",
+    "_source_kind": "SOURCE_RECONCILE",
+    "character_id": "entity_af32bbef7e9bf181fbcf7648",
+    "confidence": 1.0,
+    "edge_id": "knowledge_69a2a0bc3124018e5e80bbf1",
+    "fact_id": "fact_05f015b92224112c7ba15b5b",
+    "knowledge_state": "现场可见",
+    "reason": "先接受引用的赵德荣状态事实，再整理知识边",
+    "source_span_id": "span_ec7b4a5974e1db9d3e39a707"
+  },
+  "knowledge_ea43548aaae411f1ce8ca321": {
+    "_event_id": "event_272119a9d63355d75fe6b85c",
+    "_event_seq": 63,
+    "_source_id": "span_f6e98b851f24ffb4431228ee",
+    "_source_kind": "SOURCE_RECONCILE",
+    "character_id": "entity_af32bbef7e9bf181fbcf7648",
+    "confidence": 1.0,
+    "edge_id": "knowledge_ea43548aaae411f1ce8ca321",
+    "fact_id": "fact_2a94aea18c90a76e9c1d273e",
+    "knowledge_state": "直接感知",
+    "reason": "先接受引用的地底感知事实，再整理知识边",
+    "source_span_id": "span_f6e98b851f24ffb4431228ee"
+  }
+}
+```
+
+## 活跃线程
+
+```json
+[
+  {
+    "book_id": "real-book-smoke",
+    "created_at": "2026-08-04T05:37:40.830194+00:00",
+    "dependencies_json": "[]",
+    "goal": "在多波次袭击中保持营地防线不被两只Lv8蓝色单位突破",
+    "importance": 0.98,
+    "introduced_chapter": null,
+    "last_advanced_chapter": null,
+    "payload_json": "{\"confidence\": 0.98, \"dependencies\": [], \"evidence_quote\": \"趙德榮硬扛牛頭王薩烏塔。\", \"goal\": \"在多波次袭击中保持营地防线不被两只Lv8蓝色单位突破\", \"importance\": 0.98, \"information_state\": \"INFERENCE\", \"kind\": \"thread\", \"local_id\": \"thread-defense-line\", \"phase\": \"crisis\", \"progress\": 0.3, \"reader_visibility\": 0.98, \"source_span_ids\": [\"span_ec7b4a5974e1db9d3e39a707\"], \"stakes\": \"核心队伍、军方营地和大量幸存者将遭到直接屠杀\"}",
+    "phase": "crisis",
+    "progress": 0.3,
+    "reader_visibility": 0.98,
+    "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+    "stakes": "核心队伍、军方营地和大量幸存者将遭到直接屠杀",
+    "status": "CANON",
+    "target_payoff_max": null,
+    "target_payoff_min": null,
+    "thread_id": "thread_a90327d3f39355457af89ebe",
+    "version": 2
+  },
+  {
+    "book_id": "real-book-smoke",
+    "created_at": "2026-08-04T05:37:40.830194+00:00",
+    "dependencies_json": "[]",
+    "goal": "查明灰光、地底移动存在与黄金血脉之间的联系，并找到可利用的局部弱点",
+    "importance": 0.95,
+    "introduced_chapter": null,
+    "last_advanced_chapter": null,
+    "payload_json": "{\"confidence\": 0.95, \"dependencies\": [], \"evidence_quote\": \"他的黃金血脈在體內流動，他能感覺到地底下有什麼東西在移動\", \"goal\": \"查明灰光、地底移动存在与黄金血脉之间的联系，并找到可利用的局部弱点\", \"importance\": 0.95, \"information_state\": \"INFERENCE\", \"kind\": \"thread\", \"local_id\": \"thread-gray-underground\", \"phase\": \"escalation\", \"progress\": 0.1, \"reader_visibility\": 0.95, \"source_span_ids\": [\"span_f6e98b851f24ffb4431228ee\"], \"stakes\": \"如果判断错误，苏牧无法在防线崩溃前保护队伍，也可能被更高层存在锁定\"}",
+    "phase": "escalation",
+    "progress": 0.1,
+    "reader_visibility": 0.95,
+    "source_span_id": "span_f6e98b851f24ffb4431228ee",
+    "stakes": "如果判断错误，苏牧无法在防线崩溃前保护队伍，也可能被更高层存在锁定",
+    "status": "CANON",
+    "target_payoff_max": null,
+    "target_payoff_min": null,
+    "thread_id": "thread_430da8570538d2bf5cc56994",
+    "version": 2
+  },
+  {
+    "book_id": "real-book-smoke",
+    "created_at": "2026-08-04T05:37:40.830194+00:00",
+    "dependencies_json": "[]",
+    "goal": "确认密林异常、动物逃亡和黄金血脉躁动是否属于同一条因果链",
+    "importance": 0.82,
+    "introduced_chapter": null,
+    "last_advanced_chapter": null,
+    "payload_json": "{\"confidence\": 0.85, \"dependencies\": [], \"evidence_quote\": \"它們之間有什麼聯繫，蘇牧暫時不知道。\", \"goal\": \"确认密林异常、动物逃亡和黄金血脉躁动是否属于同一条因果链\", \"importance\": 0.82, \"information_state\": \"INFERENCE\", \"kind\": \"thread\", \"local_id\": \"thread-golden-bloodline\", \"phase\": \"escalation\", \"progress\": 0.2, \"reader_visibility\": 0.85, \"source_span_ids\": [\"span_f357a7d7ec0710e528064df8\"], \"stakes\": \"未知力量可能改变苏牧的能力边界，也可能引来无法控制的敌意\"}",
+    "phase": "escalation",
+    "progress": 0.2,
+    "reader_visibility": 0.85,
+    "source_span_id": "span_f357a7d7ec0710e528064df8",
+    "stakes": "未知力量可能改变苏牧的能力边界，也可能引来无法控制的敌意",
+    "status": "CANON",
+    "target_payoff_max": null,
+    "target_payoff_min": null,
+    "thread_id": "thread_2572c7ac14fc703f8533fda2",
+    "version": 2
+  }
+]
+```
+
+## 承诺与悬念
+
+```json
+{
+  "promise_e4f784097c5ea7e1a5ff2560": {
+    "_event_id": "event_3f4afd4b1f15587ca156c860",
+    "_event_seq": 56,
+    "_source_id": "span_9dc0f78566cee00f94288dad",
+    "_source_kind": "SOURCE_RECONCILE",
+    "importance": 0.9,
+    "introduced_ordinal": 0,
+    "progress": 0.05,
+    "promise_id": "promise_e4f784097c5ea7e1a5ff2560",
+    "reader_visibility": 0.95,
+    "reason": "原文以苏牧持续不动和战场临界直接建立，需由行动兑现",
+    "source_span_id": "span_9dc0f78566cee00f94288dad",
+    "statement": "苏牧持续等待后必须用一次有代价的行动证明等待目的。",
+    "target_max_age": 3,
+    "thread_id": "thread_a90327d3f39355457af89ebe"
+  },
+  "promise_ff9becdefdd3e9452b18f217": {
+    "_event_id": "event_3142dc8993091d4a5f5f3143",
+    "_event_seq": 55,
+    "_source_id": "span_f357a7d7ec0710e528064df8",
+    "_source_kind": "SOURCE_RECONCILE",
+    "importance": 0.92,
+    "introduced_ordinal": 0,
+    "progress": 0.1,
+    "promise_id": "promise_ff9becdefdd3e9452b18f217",
+    "reader_visibility": 0.95,
+    "reason": "原文反复提出，需在近期给出局部回答",
+    "source_span_id": "span_f357a7d7ec0710e528064df8",
+    "statement": "灰光、动物园逃亡、地下移动物与苏牧黄金血脉的联系必须得到局部回答。",
+    "target_max_age": 8,
+    "thread_id": "thread_430da8570538d2bf5cc56994"
+  }
+}
+```
+
+## 资源
+
+```json
+{}
+```
+
+## 能力
+
+```json
+{}
+```
+
+## 关系
+
+```json
+{}
+```
+
+## 最近爽点
+
+```json
+{}
+```
+
+## 最近结构
+
+```json
+[
+  {
+    "book_id": "real-book-smoke",
+    "candidate_id": null,
+    "chapter_id": null,
+    "created_at": "2026-08-04T05:37:40.831193+00:00",
+    "emotional_outcome": "压迫与失控",
+    "ending_type": "新一轮冲击未完",
+    "event_source": "密林中连续出现高等级怪物",
+    "ordinal": 0,
+    "payload_json": "{\"confidence\": 0.9, \"emotional_outcome\": \"压迫与失控\", \"ending_type\": \"新一轮冲击未完\", \"event_source\": \"密林中连续出现高等级怪物\", \"evidence_quote\": \"第三波襲擊到了。這一次從兩個方向同時襲來。\", \"information_state\": \"INFERENCE\", \"kind\": \"repetition\", \"local_id\": \"repeat-monster-boss-entry\", \"payoff_type\": \"威胁升级而非兑现\", \"scene_topology\": \"营地多方向防线\", \"solution_method\": \"群体分线牵制与火力硬扛\", \"source_span_ids\": [\"span_90964e3ba79b29b082d68922\"]}",
+    "payoff_type": "威胁升级而非兑现",
+    "scene_topology": "营地多方向防线",
+    "solution_method": "群体分线牵制与火力硬扛",
+    "status": "CANON",
+    "tag_id": "repetition_6d22ce94663837528c2be634",
+    "version": 2
+  },
+  {
+    "book_id": "real-book-smoke",
+    "candidate_id": null,
+    "chapter_id": null,
+    "created_at": "2026-08-04T05:37:40.831193+00:00",
+    "emotional_outcome": "悲壮与临界感",
+    "ending_type": "武器损坏、下一击将至",
+    "event_source": "前排强者被迫正面承伤",
+    "ordinal": 0,
+    "payload_json": "{\"confidence\": 0.9, \"emotional_outcome\": \"悲壮与临界感\", \"ending_type\": \"武器损坏、下一击将至\", \"event_source\": \"前排强者被迫正面承伤\", \"evidence_quote\": \"這不是他的選擇，是他沒有選擇。\", \"information_state\": \"INFERENCE\", \"kind\": \"repetition\", \"local_id\": \"repeat-tank-sacrifice\", \"payoff_type\": \"局部坚持但代价升级\", \"scene_topology\": \"单点正面硬扛，队友从后方支援\", \"solution_method\": \"用身体和武器换取几秒牵制\", \"source_span_ids\": [\"span_ec7b4a5974e1db9d3e39a707\"]}",
+    "payoff_type": "局部坚持但代价升级",
+    "scene_topology": "单点正面硬扛，队友从后方支援",
+    "solution_method": "用身体和武器换取几秒牵制",
+    "status": "CANON",
+    "tag_id": "repetition_43f71a240b42a1641ba1b5f6",
+    "version": 2
+  }
+]
+```
+
+## 文风样本
+
+```json
+[
+  {
+    "book_id": "real-book-smoke",
+    "created_at": "2026-08-04T05:37:40.831193+00:00",
+    "dialogue_ratio": 0.1,
+    "emotional_distance": "外部动作细节密集，关键处转入克制的内心判断",
+    "exposition_density": "medium-high",
+    "forbidden_json": "[]",
+    "pov": "第三人称限知并在群像战场间切换",
+    "profile_id": "style_65a97ecbdca06287e8a24ee2",
+    "sentence_rhythm_json": "{}",
+    "source_span_id": "span_ec7b4a5974e1db9d3e39a707",
+    "status": "CANON",
+    "tense": "过去时叙述",
+    "version": 2,
+    "voice_samples_json": "[\"這不是他的選擇，是他沒有選擇。\"]"
+  }
+]
+```
+
+## 作者指令与禁忌
+
+```json
+[]
+```
+
+## 警告
+
+```json
+[
+  "更早章节尚无结构化摘要；当前仅依赖 Canon Projection 与最近原文"
+]
+```

@@ -1,0 +1,16 @@
+{
+  "status": "WARNING",
+  "events": [
+    {"time": "2026-08-04T07:32:05+02:00", "stage": "metrics", "status": "VERIFIED_PASS", "detail": "event seq 0 metric results created"},
+    {"time": "2026-08-04T07:37:40+02:00", "stage": "extract", "status": "VERIFIED_PASS", "task_id": "extract_595984bc5d9b8eda9f84e407"},
+    {"time": "2026-08-04T07:39:02+02:00", "stage": "boundary", "status": "VERIFIED_PASS", "packet_id": "boundary_ad5bb77726ed63ee23e6afbb"},
+    {"time": "2026-08-04T07:39:05+02:00", "stage": "metrics", "status": "VERIFIED_PASS", "detail": "event seq 64 metric results created"},
+    {"time": "2026-08-04T07:51:22+02:00", "stage": "validation_v1", "status": "WARNING", "detail": "9 validators passed; Contract Validator failed"},
+    {"time": "2026-08-04T07:52:59+02:00", "stage": "validation_v2", "status": "WARNING", "detail": "9 validators passed; Contract Validator failed"},
+    {"time": "2026-08-04T07:53:33+02:00", "stage": "validation_v3", "status": "WARNING", "detail": "9 validators passed; Contract Validator failed"},
+    {"time": "2026-08-04T07:54:02+02:00", "stage": "validation_v4", "status": "VERIFIED_PASS", "run_id": "validation_7484fd836836abab8a2c60e1", "detail": "10 validators passed"},
+    {"time": "2026-08-04T09:36:46+02:00", "stage": "audit_formal_cli_initialization", "status": "VERIFIED_FAIL", "detail": "migration 5/backfill_base_editions changed formal database"},
+    {"time": "2026-08-04T09:36:46+02:00", "stage": "audit_rebuild_on_temp_copy", "status": "VERIFIED_PASS", "detail": "temp rebuilt hash 500f9d..."}
+  ],
+  "limitations": ["continuation_run_id NOT_AVAILABLE", "original command log NOT_AVAILABLE"]
+}

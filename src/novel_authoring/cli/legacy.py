@@ -361,6 +361,7 @@ def library_paths_command(
             "root": str(edition.root),
             "analysis": str(edition.analysis),
             "initialization": str(edition.initialization),
+            "distill": str(edition.distill),
             "atlas": str(edition.atlas),
             "metrics": str(edition.metrics),
             "rhythm": str(edition.rhythm),
@@ -2616,13 +2617,36 @@ def workflow_update_command(
     workspace: Workspace = Path("workspace"),
     book_id: BookId = typer.Option(...),
     library_root: LibraryRoot = None,
+    result_path: Annotated[Optional[Path], typer.Option("--result-path")] = None,
 ) -> None:
+    result: dict[str, object] | None = None
+    if status is HandoffStatus.COMPLETED:
+        database = _book_database(workspace, book_id, library_root)
+        if result_path is None:
+            with database.connect() as connection:
+                row = connection.execute(
+                    "SELECT result_path FROM workflow_handoffs WHERE handoff_id=?",
+                    (handoff_id,),
+                ).fetchone()
+            if row is None:
+                raise typer.BadParameter("handoff 不存在")
+            result_path = Path(str(row["result_path"]))
+        try:
+            loaded = json.loads(result_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            typer.echo(f"result.json 无法读取：{exc}", err=True)
+            raise typer.Exit(code=3) from exc
+        if not isinstance(loaded, dict):
+            typer.echo("result.json 必须是 object", err=True)
+            raise typer.Exit(code=3)
+        result = loaded
     _emit(
         update_handoff_status(
             _book_database(workspace, book_id, library_root),
             handoff_id,
             status,
             claim_token=claim_token,
+            result=result,
         )
     )
 

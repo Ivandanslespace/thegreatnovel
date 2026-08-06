@@ -1,0 +1,1219 @@
+你现在进入“续写结果冻结与外部审计交接模式”。
+
+项目根目录：
+
+C:\dev\小说续写系统
+
+项目最高规范：
+
+C:\dev\小说续写系统\Novel_Authoring_System_Constitution_V2.md
+
+原始小说目录：
+
+C:\dev\小说续写系统\book
+
+目标：
+
+针对刚刚完成的 Codex 小说续写工作，生成一份可以交给一个没有当前 Codex 对话上下文的外部审计员独立复核的 Final Report 和完整证据包。
+
+这不是新的续写任务，也不是修复任务。
+
+你现在的职责是：
+
+1. 冻结当前结果；
+2. 查明究竟完成了什么；
+3. 收集实际证据；
+4. 如实披露成功、失败、警告、推断和未验证项；
+5. 生成可复现、可审计的报告和证据包。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+一、审计冻结规则
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+从现在开始，除创建本次审计报告和复制审计证据外，不得修改任何现有项目内容。
+
+严格禁止：
+
+- 不得继续续写新章节；
+- 不得重写、润色或修复已经生成的章节；
+- 不得重新选择候选方案；
+- 不得修改 Chapter Contract；
+- 不得修改 Boundary Packet；
+- 不得修改数据库中的正史、人物、时间线、关系、资源、能力或叙事承诺；
+- 不得执行新的 Canon Commit；
+- 不得撤销已有 Canon Commit；
+- 不得自动 approve 草稿；
+- 不得修改 book 目录中的任何原始文件；
+- 不得降低 Validator 阈值；
+- 不得删除失败日志；
+- 不得修改测试来让测试通过；
+- 不得运行格式化器后留下代码变更；
+- 不得 git reset、git clean、git checkout、git restore、git stash；
+- 不得新建代码提交；
+- 不得推送分支；
+- 不得创建 PR。
+
+允许的操作仅限：
+
+- 读取文件；
+- 查询 SQLite；
+- 运行不会改变正式状态的只读命令；
+- 在临时目录运行测试；
+- 计算哈希；
+- 导出只读数据库记录；
+- 创建本次 final report；
+- 创建 audit bundle；
+- 复制现有证据文件。
+
+如果任何验证命令可能修改正式 workspace，必须：
+
+1. 改为只读方式；
+2. 或复制到临时目录后运行；
+3. 或标记为 NOT RUN，并说明原因。
+
+不要为了让报告更漂亮而改变被审计对象。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+二、报告状态词
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+报告中的每一项重要结论必须使用以下状态之一：
+
+- VERIFIED_PASS：
+  已运行、已检查，并有具体证据支持。
+
+- VERIFIED_FAIL：
+  已运行或已检查，明确失败。
+
+- WARNING：
+  没有构成硬失败，但存在质量、连续性、公式、风格或后续风险。
+
+- NOT_RUN：
+  本次没有运行，不能声称通过。
+
+- NOT_AVAILABLE：
+  需要的日志、文件、状态或历史不存在，无法复核。
+
+- INFERENCE：
+  这是根据现有证据作出的推断，不是直接记录的事实。
+
+- AUTHOR_DECISION：
+  这是作者明确决定，不是系统计算结果。
+
+禁止使用含糊表达，例如：
+
+- “应该没问题”；
+- “大致通过”；
+- “看起来已经测试”；
+- “理论上符合”；
+- “基本完成”。
+
+凡没有证据的内容，一律标记为 NOT_RUN、NOT_AVAILABLE 或 INFERENCE。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+三、必须生成的最终交付物
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+在项目根目录创建：
+
+C:\dev\小说续写系统\audit\final_continuation_report\
+
+在其中生成：
+
+1. FINAL_CONTINUATION_REPORT.md
+2. FINAL_CONTINUATION_REPORT.json
+3. EVIDENCE_MANIFEST.json
+4. REPRODUCTION_COMMANDS.md
+5. KNOWN_ISSUES.md
+6. audit_bundle 目录
+7. codex_continuation_audit_bundle.zip
+
+Markdown 是人类审计报告。
+
+JSON 是同一报告的机器可读版本，不能只放一个摘要。
+
+EVIDENCE_MANIFEST.json 必须列出证据包内每个文件的：
+
+- relative_path；
+- file_type；
+- purpose；
+- size_bytes；
+- sha256；
+- source_path；
+- generated_or_preexisting；
+- related_run_id；
+- related_chapter；
+- contains_canon_data；
+- contains_original_text_excerpt。
+
+压缩包应包含本 Prompt 要求的所有非缺失证据。
+
+不要把整个原始小说全文重复塞入压缩包，除非项目本来就将其作为必要审计产物。
+
+对于原始小说，应提供：
+
+- 完整源文件路径；
+- SHA-256；
+- 文件大小；
+- 编码；
+- source manifest；
+- 实际使用过的原文片段；
+- 原文片段所在章节、行号或字符偏移；
+- 续写边界附近至少最后3章的必要文本，或所有实际被引用的 source spans。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+四、先记录报告生成前的仓库状态
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+在创建报告文件之前，先保存：
+
+audit/final_continuation_report/audit_bundle/repository/pre_report_git_status.txt
+
+其中至少包括以下实际命令和完整输出：
+
+- git rev-parse --show-toplevel
+- git branch --show-current
+- git rev-parse HEAD
+- git status --short
+- git status
+- git remote -v
+- git log -n 15 --oneline --decorate
+- git diff --stat
+- git diff --name-status
+- git diff
+- git diff --cached --stat
+- git diff --cached --name-status
+
+如果项目不是 Git 仓库，明确标记 NOT_AVAILABLE，不要伪造。
+
+同时记录：
+
+- 当前日期和本地时间；
+- 操作系统；
+- Python 版本；
+- 实际虚拟环境；
+- 包管理器；
+- 项目安装方式；
+- CLI 入口；
+- Codex 可见的当前工作目录；
+- 当前数据库路径；
+- active_book；
+- 当前 run_id；
+- 当前 draft_id；
+- 当前 contract_id；
+- 当前 canon_commit_id；
+- 当前 snapshot_id。
+
+如果存在多个续写 run：
+
+1. 列出全部候选 run；
+2. 说明依据什么判断哪一个是“刚刚完成的续写”；
+3. 如果无法唯一判断，标记 WARNING；
+4. 不得静默选一个方便的 run。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+五、Final Report 必须包含的章节
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FINAL_CONTINUATION_REPORT.md 必须严格包含以下章节。
+
+# 1. Executive Verdict
+
+用一页以内总结：
+
+- 本次 Codex 被要求做什么；
+- 实际完成了什么；
+- 实际没有完成什么；
+- 生成了多少章；
+- 章节范围和标题；
+- 最终状态是 DRAFT、VALIDATED_DRAFT、AUTHOR_APPROVED 还是 CANON_COMMITTED；
+- 是否修改了原始 book 文件；
+- 是否执行过 Canon Commit；
+- 是否通过 replay；
+- 是否生成 export；
+- 测试总体状态；
+- Validator 总体状态；
+- 你对结果的最终结论：
+
+只能选择：
+
+- VERIFIED_PASS
+- PASS_WITH_WARNINGS
+- PARTIAL
+- VERIFIED_FAIL
+- UNVERIFIABLE
+
+必须解释为什么。
+
+# 2. Audit Scope
+
+明确本次报告审计的对象：
+
+- repository root；
+- active book；
+- source files；
+- continuation run；
+- continuation chapter range；
+- draft files；
+- contract files；
+- database；
+- snapshot；
+- export；
+- Git branch 和 HEAD；
+- 是否包含未提交改动；
+- 是否有其他续写 run 被排除。
+
+# 3. Source Manuscript Integrity
+
+至少报告：
+
+- book 下实际识别到的小说文件；
+- active_book 的选择依据；
+- source book_id；
+- 文件编码；
+- 文件大小；
+- SHA-256；
+- 导入前哈希；
+- 当前哈希；
+- 二者是否一致；
+- book 文件最后修改时间；
+- 是否有任何修改迹象；
+- 章节标题实际数量；
+- 最后逻辑章号；
+- metadata 声明章数；
+- 重复章号；
+- 缺失章号；
+- 非正文噪声；
+- Codex 采用的真实续写边界；
+- 为什么续写章号正确或可能不正确。
+
+特别检查：
+
+- 是否因为 metadata 中的 chapter_count 而续写了错误章号；
+- 是否从真正的最后逻辑事件承接；
+- 是否跳过了未完成动作；
+- 是否重复书写已经发生的事件。
+
+每个结论必须引用：
+
+- 原文件路径；
+- 章节标题；
+- 行号、字符偏移或 source_span_id；
+- 相关哈希。
+
+# 4. Constitution and Instructions Actually Used
+
+列出本次续写真正读取和使用过的规范：
+
+- Novel_Authoring_System_Constitution_V2.md；
+- AGENTS.md；
+- .agents/skills 下相关 SKILL.md；
+- 配置 YAML；
+- 作者 directive；
+- continuation prompt；
+- 任何临时补充 Prompt；
+- 任何 override。
+
+对每个文件说明：
+
+- 是否真实存在；
+- 是否在续写前读取；
+- 哈希；
+- 适用范围；
+- 是否发生冲突；
+- Codex 最终如何处理冲突。
+
+将本次使用的用户 Prompt、author directive 和关键 Codex task packet 原样复制到证据包中。
+
+不要提供私有思维链。
+
+只提供：
+
+- 输入指令；
+- 明确决策；
+- 可公开的决策理由；
+- 实际证据。
+
+# 5. End-to-End Workflow Reconstruction
+
+按照真实执行顺序重建工作流。
+
+至少包括：
+
+1. doctor / project preflight；
+2. book scan；
+3. ingest；
+4. chapter parse；
+5. extraction；
+6. canon reconciliation；
+7. current status；
+8. continuation boundary；
+9. metric calculation；
+10. thread selection；
+11. candidate generation；
+12. candidate scoring；
+13. Chapter Contract；
+14. drafting；
+15. first validation；
+16. revision round 1；
+17. second validation；
+18. revision round 2；
+19. final validation；
+20. approve；
+21. Canon Commit；
+22. snapshot；
+23. replay；
+24. export。
+
+对于每一个阶段，建立表格：
+
+| Stage | Status | Exact command/action | Exit code | Input files | Output files | Evidence | Warnings |
+
+如果某阶段没有发生，明确写 NOT_RUN。
+
+不能为了符合理论工作流而声称执行过实际没有执行的阶段。
+
+# 6. Continuation Boundary Packet Audit
+
+报告实际 Boundary Packet：
+
+- 文件路径；
+- 哈希；
+-生成时间；
+- run_id；
+- 最后一条 CANON 事件；
+- 最后正文句子；
+- 当前故事时间；
+- 当前地点；
+- 当前 POV；
+- 当前主要人物；
+- 当前资源；
+- 当前能力；
+- 当前伤势；
+- 当前知识边界；
+- 当前关系；
+- 当前活跃线程；
+- 当前悬念与叙事承诺；
+- 当前长期未知；
+- 当前文风画像；
+- 硬约束。
+
+检查并报告：
+
+- 是否遗漏关键人物；
+- 是否遗漏关键能力；
+- 是否把推断当成 CANON；
+- 是否把 AUTHOR_INTENT 当成已发生事实；
+- 是否错误地把旁白修辞当作客观事实；
+- 是否使用了足够的近期正文；
+- 是否把整本书粗暴压缩成单一摘要；
+- 是否能够回指 source spans。
+
+# 7. Metrics and Formula Provenance
+
+逐项报告本次实际计算过的指标：
+
+- Pressure；
+- Payoff；
+- Narrative Debt；
+- Progress；
+- Stagnation；
+- Repetition Fatigue；
+- Risk Credibility；
+- Agency；
+- Legibility / Uncertainty；
+- Character Fit；
+- Style Fit；
+- ThreadNeed；
+- CandidateScore；
+- Resource Pressure；
+- Aftershock Debt。
+
+对于每一项必须说明：
+
+1. 是否实际计算；
+2. 实际公式；
+3. 实际权重；
+4. 配置来源；
+5. 输入值；
+6. 输入证据；
+7. 输出值；
+8. 阈值解释；
+9. 谁产生输入值；
+10. 输入值属于：
+   - deterministic；
+   - rule-based extraction；
+   - LLM semantic score；
+   - manually assigned；
+   - missing；
+11. 是否被作者 override；
+12. override 原因。
+
+这是重点：
+
+不得把 LLM 主观给出的分数称为“确定性计算”。
+
+如果系统只是让 Codex自己估计：
+
+- 压力80；
+- 成熟度90；
+- 风格相似度85；
+
+必须明确标记为 LLM_HEURISTIC，而不是 DETERMINISTIC。
+
+报告公式实现与宪法是否一致。
+
+若公式被修改：
+
+- 列出原公式；
+- 列出实际公式；
+- 解释修改依据；
+- 标记是否经过作者批准。
+
+# 8. Thread Selection and Candidate Audit
+
+列出当时最需要推进的至少三条线程：
+
+- thread_id；
+- 线程内容；
+- ThreadNeed；
+- 相关压力；
+- 相关叙事债务；
+- 原文证据；
+- 最近推进章节；
+- 为什么现在需要或不需要推进。
+
+然后列出所有候选方案，不只列最终方案。
+
+每个候选至少报告：
+
+- candidate_id；
+- 标题；
+- 核心事件；
+- 主要叙事功能；
+- 次要功能；
+- 涉及线程；
+- 起始状态；
+- 结束状态；
+- 主角选择；
+- 机会成本；
+- 风险；
+- 爽点；
+- 进展；
+- 偿还的债务；
+- 新增的债务；
+- 重复风险；
+- FutureDamage；
+- 各指标分项；
+- 硬门结果；
+- 选择或淘汰原因。
+
+明确回答：
+
+- 候选之间是否只是换名换皮；
+- 最终方案是否真的是综合最优；
+- 是否有候选分差很小；
+- Codex 是否把最高分错误地描述成唯一正确答案；
+- 是否存在更保守但被忽略的候选。
+
+# 9. Chapter Contract Audit
+
+附上完整 Chapter Contract，或在报告中提供精确路径与哈希，并在证据包中复制原文件。
+
+报告：
+
+- contract_id；
+- chapter number；
+- title；
+- mode；
+- primary thread；
+- primary function；
+- secondary functions；
+- reader question；
+- pressure before/after；
+- must_resolve；
+- must_not_resolve；
+- required irreversible change；
+- required cost；
+- canon constraints；
+- knowledge constraints；
+- style constraints；
+- forbidden repetitions；
+- ending state；
+- commit updates；
+- aftershock obligations。
+
+逐项检查最终正文是否履行合同。
+
+建立表格：
+
+| Contract clause | Status | Draft evidence | Violation or deviation |
+
+任何正文中出现、但合同没有授权的重大变化必须单独列出。
+
+# 10. Generated Continuation Inventory
+
+对每一章生成独立记录：
+
+- chapter number；
+- chapter title；
+- file path；
+- SHA-256；
+- 字符数；
+- 非空白字符数；
+- 段落数；
+- 对话比例；
+- 生成时间；
+- draft_id；
+- contract_id；
+- revision count；
+- final status；
+- 是否进入正史；
+- canon_commit_id；
+- export 中的位置。
+
+同时列出：
+
+- 初稿；
+- 修改稿；
+- 最终稿；
+- 各版本 diff；
+- 每轮修改原因；
+- 哪些内容被删除；
+- 哪些内容被新增。
+
+不要只保留最终稿。
+
+如果历史版本不存在，标记 NOT_AVAILABLE。
+
+# 11. New Facts and State Delta Audit
+
+列出续写正文引入的所有重要新事实。
+
+至少分类：
+
+- new event；
+- character state；
+- injury；
+- death；
+- resource change；
+- experience change；
+- level change；
+- ability use；
+- ability rule；
+- relationship change；
+- knowledge change；
+- public disclosure；
+- new entity；
+- new location；
+- new monster；
+- new world rule；
+- new item；
+- new promise；
+- resolved promise；
+- aftershock obligation。
+
+对每条新事实建立表格：
+
+| New fact | Status | Source in draft | Prior canon basis | Classification | Confidence | State update |
+
+Classification 必须是：
+
+- DIRECT_CANON_CONSEQUENCE；
+- AUTHOR_DIRECTIVE；
+- APPROVED_OUTLINE；
+- REASONABLE_INFERENCE；
+- NEW_MATERIALIZED_FACT；
+- UNSUPPORTED_INVENTION；
+- CONTRADICTION。
+
+重点列出所有：
+
+- 新增技能；
+- 新增怪物能力；
+- 精确经验值；
+- 精确掉落；
+- 突然出现的装备；
+- 新世界规则；
+- 人物突然知道的秘密；
+- 无来源的关系结论。
+
+如果没有新增，明确写 VERIFIED_PASS，而不是省略。
+
+# 12. Canon, Timeline, Knowledge and Power Ledger
+
+分别提供：
+
+## Canon Ledger
+
+- 续写前关键事实；
+- 续写后关键事实；
+- 对应 source span；
+- 是否冲突。
+
+## Timeline Ledger
+
+- 续写前故事时间；
+- 本章持续时间；
+- 动作顺序；
+- 地点移动；
+- 是否存在不可能的时间跨度。
+
+## Knowledge Ledger
+
+至少列出重要角色：
+
+- 苏牧；
+- 当前核心队友；
+- 当前关键对手；
+- 当前军方、公会或组织人物。
+
+对每个人说明：
+
+- 续写前知道什么；
+- 本章观察到什么；
+- 本章后可以合理知道什么；
+- 正文是否让其越权知道秘密。
+
+## Economy / Resource Ledger
+
+- 库存前值；
+- 获得；
+- 消耗；
+- 库存后值；
+- 来源；
+- 是否可计算。
+
+## Power Ledger
+
+- Absolute Capacity；
+- Effective Capacity；
+- Relative Standing；
+- 使用了哪些能力；
+- 是否满足触发条件；
+- 是否存在冷却、消耗、伤势或位置限制；
+- 对手是否被无因削弱；
+- 胜利是否由已有杠杆产生。
+
+# 13. Validation Report
+
+逐项报告十个 Validator：
+
+1. Canon Validator
+2. Timeline Validator
+3. Knowledge Validator
+4. Character Validator
+5. Economy / Power Validator
+6. Contract Validator
+7. Debt Validator
+8. Payoff Validator
+9. Repetition Validator
+10. Style Validator
+
+每项必须提供：
+
+- status；
+- validator implementation path；
+- exact command；
+- exit code；
+- validation report path；
+- inputs；
+- errors；
+- warnings；
+- evidence；
+- 是否自动修复；
+- 自动修复修改了什么；
+- 最终是否重跑。
+
+重点说明：
+
+- Validator 是真实代码检查，还是 Codex 自我评审；
+- 哪些 Validator 是 deterministic；
+- 哪些依赖 LLM；
+- 哪些只是文档中的占位；
+- 哪些根本没有实现。
+
+禁止把“Codex读完后认为没问题”描述为正式 Validator 通过。
+
+# 14. Test and Static Analysis Evidence
+
+运行项目中已经存在、且不会破坏正式状态的测试和静态检查。
+
+必须记录实际命令、完整退出码和结果。
+
+至少检查项目实际支持的：
+
+- pytest；
+- Ruff；
+- Mypy 或 Pyright；
+- migration check；
+- schema validation；
+- replay test；
+- source immutability check；
+- end-to-end continuation test。
+
+不要安装新依赖或改配置来让检查通过。
+
+如果缺少依赖：
+
+- 标记 NOT_RUN；
+- 记录缺失内容；
+- 不得擅自安装后改变环境。
+
+报告格式：
+
+| Check | Command | Exit code | Passed | Failed | Skipped | Status | Log path |
+
+完整日志放入证据包，报告只放摘要。
+
+禁止声称“全部测试通过”，除非有：
+
+- 实际命令；
+- exit code 0；
+- 完整日志；
+- 测试数量。
+
+# 15. Canon Commit, Snapshot, Replay and Export
+
+明确回答：
+
+- 是否执行 approve；
+- 谁授权 approve；
+- 授权文本在哪里；
+- 是否执行 Canon Commit；
+- canon_commit_id；
+- commit 前状态；
+- commit 后状态；
+- 应用了哪些 events；
+- 是否生成 snapshot；
+- snapshot_id；
+- snapshot hash；
+- 是否执行 replay；
+- replay 命令；
+- replay exit code；
+- replay 前后 projection 是否一致；
+- 是否执行 export；
+- export 路径；
+- export hash；
+- export 是否包含正确的原文和续写；
+- book 原文件哈希是否保持一致。
+
+如果没有作者明确授权却写入了正史，必须标记 VERIFIED_FAIL。
+
+如果只是草稿，不得用“已完成续写”掩盖“没有进入正史”的事实。
+
+# 16. Git and File Change Inventory
+
+报告生成前的真实项目改动必须单独记录。
+
+列出所有：
+
+- 新增文件；
+- 修改文件；
+- 删除文件；
+- 未跟踪文件；
+- staged 文件；
+- ignored workspace 文件；
+- 数据库变化；
+- 草稿变化；
+- 正史变化；
+- export 变化。
+
+建立表格：
+
+| Path | Change type | Purpose | Related run | Expected | In scope | Risk |
+
+提供：
+
+- git diff --stat；
+- git diff --name-status；
+- 关键 diff；
+- 最近相关 commit；
+- branch；
+- HEAD；
+- remote。
+
+如果续写工作没有提交 Git，也要明确说明。
+
+不要在本次报告中替用户创建提交。
+
+# 17. Style Continuity Audit
+
+将原文最近章节与续写正文比较，至少报告：
+
+- 简体或繁体；
+- 叙事人称；
+- POV；
+- 叙事距离；
+- 章节长度；
+- 平均段落长度；
+- 对话比例；
+- 系统提示格式；
+- 动作描写密度；
+- 心理分析密度；
+- 解释性旁白密度；
+- 章节结尾钩子；
+- 高频句式；
+- 明显禁用词；
+- 是否出现现代AI式总结语气；
+- 是否出现比原文明显更精致或更书面的问题；
+- 是否大段复制原文。
+
+区分：
+
+- 可计算统计；
+- LLM 风格判断；
+- 人工观察。
+
+不得把简单字符统计描述成完整文风一致性证明。
+
+# 18. Narrative Quality and Formula Audit
+
+依据项目宪法，对续写结果进行一次诚实自审。
+
+逐项回答：
+
+1. 当前控制缺口是什么？
+2. 本章是否使规则更可理解？
+3. 主角非对称杠杆是否真正改变了结果？
+4. 旧成果是否产生复利？
+5. 是否出现真实关系或地位反转？
+6. 是否完成了阶段跃迁，还是仅做局部推进？
+7. 压力是否先积累后释放？
+8. 爽点是否成熟？
+9. 奖励或胜利是否改变了后续行为？
+10. 是否留下更高层问题？
+11. 是否一次解决了过多矛盾？
+12. 是否重复近期同类结构？
+13. 主角是否主动决定，而不是被剧情推动？
+14. 风险是否仍可信？
+15. 新悬念是否超过偿还能力？
+16. 本章是否产生不可逆进展？
+17. 重大兑现是否创建 Aftershock Obligations？
+18. 下一章最应该展示什么后果？
+
+每项必须引用正文和状态证据。
+
+# 19. Aftershock Obligations
+
+列出所有续写结果产生的后续义务：
+
+- obligation_id；
+- 来源事件；
+- 最迟兑现章节；
+- 必须展示的后果；
+- 不得如何回收；
+- 当前状态；
+- 是否已写入数据库；
+- 是否只存在于报告文字；
+- 若不兑现会破坏什么。
+
+例如但不限于：
+
+- 其他人物对主角实力公开后的行为变化；
+- 重伤角色的医疗后果；
+- 死亡怪物的尸体或掉落处理；
+- 战场资源结算；
+- 敌方重新评估主角；
+- 主角暴露能力后的社会风险；
+- 更大威胁的推进。
+
+# 20. Known Problems and Unresolved Questions
+
+不能只写“无”。
+
+至少检查：
+
+- 原文章号异常；
+- source parser 不确定性；
+- 低置信度 Canon；
+- 未审核 inference；
+- 缺少的来源；
+- 未实现的 Validator；
+- 公式输入由 LLM 主观给分；
+- 状态数据库与正文不同步；
+- 精确经验或掉落规则不明；
+- 文风漂移；
+- 候选结构重复；
+- 合同与成稿偏差；
+- 未完成的 aftershock；
+- 未运行的测试；
+- Git 工作区污染；
+- 正史提交权限问题；
+- replay 不一致；
+- export 问题。
+
+对每个问题提供：
+
+- severity；
+- evidence；
+- impact；
+- 是否阻断继续续写；
+- 推荐下一步；
+- 是否需要作者决定。
+
+# 21. Claims That Cannot Be Verified
+
+单独列出所有 Codex 在此前回复中可能已经声称、但本次找不到证据的内容。
+
+例如：
+
+- “全部测试通过”；
+- “遵守了全部宪法”；
+- “没有修改原文”；
+- “所有 Validator 通过”；
+- “状态可以 replay”；
+- “文风完全一致”；
+- “候选是公式自动选择”；
+- “已经写入正史”；
+- “已经完成多章续写”。
+
+每条说明：
+
+- 原始声称；
+- 当前证据；
+- 最终状态；
+- 为什么不能确认。
+
+# 22. External Auditor Checklist
+
+在报告最后生成一个给外部审计员的检查清单：
+
+- 哪些文件必须先读；
+- 如何定位原文边界；
+- 如何找到续写正文；
+- 如何读取候选方案；
+- 如何读取合同；
+- 如何读取 Validator；
+- 如何检查 source hash；
+- 如何检查 Git diff；
+- 如何查询数据库；
+- 如何重跑测试；
+- 如何确认是否写入正史；
+- 如何检查 replay；
+- 如何检查 export；
+- 哪些问题最值得优先审计。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+六、机器可读 JSON 报告
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FINAL_CONTINUATION_REPORT.json 至少包含：
+
+{
+  "verdict": {},
+  "scope": {},
+  "repository": {},
+  "environment": {},
+  "source_integrity": {},
+  "instructions_used": [],
+  "runs": [],
+  "workflow_stages": [],
+  "boundary_packet": {},
+  "metrics": [],
+  "threads": [],
+  "candidates": [],
+  "contracts": [],
+  "chapters": [],
+  "new_facts": [],
+  "state_deltas": [],
+  "canon_ledger": [],
+  "timeline_ledger": [],
+  "knowledge_ledger": [],
+  "resource_ledger": [],
+  "power_ledger": [],
+  "validators": [],
+  "tests": [],
+  "canon_commits": [],
+  "snapshots": [],
+  "replay": {},
+  "exports": [],
+  "git_changes": [],
+  "style_audit": {},
+  "narrative_audit": {},
+  "aftershock_obligations": [],
+  "known_issues": [],
+  "unverifiable_claims": [],
+  "evidence_files": []
+}
+
+不要把所有内容塞进一个长字符串。
+
+使用明确字段和数组。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+七、audit bundle 必须包含的证据
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+audit_bundle 至少应包括：
+
+repository/
+- pre_report_git_status.txt
+- post_report_git_status.txt
+- git_diff.patch
+- git_diff_cached.patch
+- git_log.txt
+- relevant_tree.txt
+
+environment/
+- environment.txt
+- installed_packages.txt
+- cli_help.txt
+
+instructions/
+- Novel_Authoring_System_Constitution_V2.md
+- AGENTS.md（若存在）
+- 本次相关 SKILL.md（若存在）
+- author_directives
+- continuation prompts
+- task packets
+
+source/
+- source_manifest.json
+- source_hashes.json
+- chapter_parse_report.json
+- continuation_source_spans.json
+- boundary_nearby_source_excerpt.md
+
+run/
+- run metadata
+- execution timeline
+- commands log
+- task IDs
+- run IDs
+
+boundaries/
+- 所有相关 Continuation Boundary Packet
+
+metrics/
+- 原始指标输入
+- 指标输出
+- 配置权重
+- 公式实现位置
+- override 记录
+
+candidates/
+- 所有候选方案
+- 候选分数
+- 选择理由
+- 淘汰理由
+
+contracts/
+- 所有 Chapter Contract
+- contract schema validation
+
+drafts/
+- 初稿
+- 修改稿
+- 最终稿
+- 版本 diff
+
+validation/
+- 全部 Validator 报告
+- validation logs
+- repair logs
+
+state/
+- proposed state delta
+- committed state delta
+- relevant event exports
+- character state exports
+- knowledge exports
+- relationship exports
+- resource exports
+- promise exports
+- aftershock obligation exports
+
+database/
+- schema dump
+- migration version
+- 相关 run 的只读表导出
+- 数据库 SHA-256
+- 若数据库不超过合理体积，可包含只读副本
+- 若太大，不复制完整数据库，但必须给出 hash 和选择性导出
+
+tests/
+- pytest log
+- Ruff log
+- type-check log
+- replay log
+- source immutability log
+- end-to-end log
+
+exports/
+- 最终 export，若存在
+- export manifest
+- export hash
+
+reports/
+- FINAL_CONTINUATION_REPORT.md
+- FINAL_CONTINUATION_REPORT.json
+- KNOWN_ISSUES.md
+- REPRODUCTION_COMMANDS.md
+
+如果某文件不存在，不能临时伪造一个看似正式的旧结果。
+
+可以生成一份 `MISSING_EVIDENCE.json`，列出：
+
+- expected_path；
+- status；
+- reason；
+- impact。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+八、报告生成后的完整性检查
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+报告和证据复制完成后：
+
+1. 计算 audit bundle 内全部文件 SHA-256；
+2. 生成 EVIDENCE_MANIFEST.json；
+3. 创建 ZIP；
+4. 计算 ZIP SHA-256；
+5. 再次计算原始 book 文件 SHA-256；
+6. 确认与报告生成前一致；
+7. 再次记录 git status；
+8. 确认除 audit/final_continuation_report 外，没有因报告任务产生新的项目修改。
+
+将结果写入：
+
+audit/final_continuation_report/audit_bundle/repository/post_report_git_status.txt
+
+若发现报告任务本身意外修改了其他文件：
+
+- 不要自动恢复；
+- 标记 VERIFIED_FAIL；
+- 记录修改内容；
+- 在最终回复中置顶说明。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+九、你在聊天中的最终回复
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+完成后，聊天回复不要再次写一篇空泛总结。
+
+只报告：
+
+1. Final Verdict；
+2. FINAL_CONTINUATION_REPORT.md 的绝对路径；
+3. FINAL_CONTINUATION_REPORT.json 的绝对路径；
+4. audit ZIP 的绝对路径；
+5. audit ZIP 的 SHA-256；
+6. 原始 book 文件是否保持不变；
+7. Git HEAD 和 branch；
+8. 续写章节范围；
+9. 当前状态：
+   - DRAFT
+   - VALIDATED_DRAFT
+   - AUTHOR_APPROVED
+   - CANON_COMMITTED
+10. 测试摘要；
+11. Validator 摘要；
+12. 最严重的三个问题；
+13. 哪些内容仍然无法验证。
+
+不要声称未运行的检查已经通过。
+
+不要在报告生成过程中修复任何被发现的问题。
+
+这份报告的价值来自真实性和可复核性，而不是让成果看起来完美。

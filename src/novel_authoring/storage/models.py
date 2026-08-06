@@ -111,6 +111,12 @@ class EditionPaths:
         return self.analysis / "initialization"
 
     @property
+    def distill(self) -> Path:
+        """Distill preparation packages and published craft skills."""
+
+        return self.analysis / "distill"
+
+    @property
     def drafts(self) -> Path:
         return self.writing / "drafts"
 
@@ -147,6 +153,7 @@ class EditionPaths:
             self.root,
             self.analysis,
             self.initialization,
+            self.distill,
             self.story_atlas,
             self.metrics,
             self.rhythm,

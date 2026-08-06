@@ -1,0 +1,100 @@
+{
+  "book_id": "real-book-smoke",
+  "content_sha256": "f92ff47f9cf51cd373ae4ad4d845ad801dc14366c3c40ca768cd14b6bb153e65",
+  "contract_id": "contract_b991e2e90d8e8b824fea00d9",
+  "created_at": "2026-08-04T05:53:33.192356+00:00",
+  "draft_id": "draft_7d48639a5d97798e5bd1086f",
+  "passed": false,
+  "projection_sha256": "8c26e592893c7908c77a94e3526a6664126213ec66671bfc943cf1a33c8a7226",
+  "reports": [
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Canon Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {
+        "latest_order_key": null
+      },
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Timeline Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Knowledge Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {
+        "character_fit": 88.60000000000001
+      },
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Character Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Economy / Power Validator"
+    },
+    {
+      "findings": [
+        {
+          "code": "CONTRACT_REQUIREMENT_MISSING",
+          "evidence": [],
+          "location": "contract_evidence",
+          "message": "正文输出未为合同要求 commit:promise_e4f784097c5ea7e1a5ff2560推进 提供证据。",
+          "severity": "ERROR",
+          "suggested_fix": null
+        }
+      ],
+      "measurements": {
+        "requirements_checked": 9
+      },
+      "passed": false,
+      "severity": "ERROR",
+      "validator": "Contract Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Debt Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Payoff Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {},
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Repetition Validator"
+    },
+    {
+      "findings": [],
+      "measurements": {
+        "style_fit": 84.6
+      },
+      "passed": true,
+      "severity": "INFO",
+      "validator": "Style Validator"
+    }
+  ],
+  "run_id": "validation_5a6d448c9961318d5ebf1c59",
+  "through_event_seq": 64
+}

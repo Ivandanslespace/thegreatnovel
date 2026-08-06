@@ -1,0 +1,42 @@
+[
+  {
+    "promise_id": "promise_ff9becdefdd3e9452b18f217",
+    "book_id": "real-book-smoke",
+    "thread_id": "thread_430da8570538d2bf5cc56994",
+    "statement": "灰光、动物园逃亡、地下移动物与苏牧黄金血脉的联系必须得到局部回答。",
+    "importance": 0.92,
+    "reader_visibility": 0.95,
+    "progress": 0.1,
+    "introduced_ordinal": 0,
+    "last_reminded_ordinal": null,
+    "reminder_count": 0,
+    "target_min_age": null,
+    "target_max_age": 8,
+    "status": "CANON",
+    "source_span_id": "span_f357a7d7ec0710e528064df8",
+    "payload_json": "{\"confidence\": 0.95, \"evidence_quote\": \"它們之間有什麼聯繫，蘇牧暫時不知道。\", \"importance\": 0.92, \"information_state\": \"INFERENCE\", \"kind\": \"promise\", \"local_id\": \"promise-gray-local-answer\", \"progress\": 0.1, \"reader_visibility\": 0.95, \"source_span_ids\": [\"span_f357a7d7ec0710e528064df8\"], \"statement\": \"灰光、动物园逃亡、地下移动物与苏牧黄金血脉的联系必须得到局部回答。\", \"target_max_age\": 8, \"thread_ref\": \"thread-gray-underground\"}",
+    "created_at": "2026-08-04T05:37:40.830194+00:00",
+    "version": 2,
+    "edition_id": "base"
+  },
+  {
+    "promise_id": "promise_e4f784097c5ea7e1a5ff2560",
+    "book_id": "real-book-smoke",
+    "thread_id": "thread_a90327d3f39355457af89ebe",
+    "statement": "苏牧持续等待后必须用一次有代价的行动证明等待目的。",
+    "importance": 0.9,
+    "reader_visibility": 0.95,
+    "progress": 0.05,
+    "introduced_ordinal": 0,
+    "last_reminded_ordinal": null,
+    "reminder_count": 0,
+    "target_min_age": null,
+    "target_max_age": 3,
+    "status": "CANON",
+    "source_span_id": "span_9dc0f78566cee00f94288dad",
+    "payload_json": "{\"confidence\": 0.9, \"evidence_quote\": \"周圍的人都在戰鬥，都在拚命，都在流血，他沒有動。\", \"importance\": 0.9, \"information_state\": \"INFERENCE\", \"kind\": \"promise\", \"local_id\": \"promise-sumu-intervention\", \"progress\": 0.05, \"reader_visibility\": 0.95, \"source_span_ids\": [\"span_9dc0f78566cee00f94288dad\"], \"statement\": \"苏牧持续等待后必须用一次有代价的行动证明等待目的。\", \"target_max_age\": 3, \"thread_ref\": \"thread-defense-line\"}",
+    "created_at": "2026-08-04T05:37:40.830194+00:00",
+    "version": 2,
+    "edition_id": "base"
+  }
+]

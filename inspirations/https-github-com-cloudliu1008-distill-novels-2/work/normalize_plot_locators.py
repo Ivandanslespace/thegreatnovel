@@ -5,9 +5,11 @@ import json
 import re
 from pathlib import Path
 
-
 LOCATOR_RE = re.compile(
-    r"\[book-01-bcc78727 / (segment-\d{4}) / L(\d+)(?:-L?(\d+))?\]"
+    r"(?P<source>book-[0-9]{2}-[0-9a-f]{8})\s*·\s*"
+    r"(?P<segment>segment-\d{4})\s*·\s*行\s*"
+    r"(?P<start>\d+)(?:-(?P<end>\d+))?",
+    re.I,
 )
 
 
@@ -24,9 +26,10 @@ def main() -> None:
 
     def replace(match: re.Match[str]) -> str:
         nonlocal corrected
-        segment_id = match.group(1)
-        start = int(match.group(2))
-        end = int(match.group(3) or match.group(2))
+        source_id = match.group("source")
+        segment_id = match.group("segment")
+        start = int(match.group("start"))
+        end = int(match.group("end") or match.group("start"))
         named = by_id[segment_id]
         if named["line_start"] <= start <= end <= named["line_end"]:
             return match.group(0)
@@ -45,10 +48,10 @@ def main() -> None:
             clipped_start = max(start, segment["line_start"])
             clipped_end = min(end, segment["line_end"])
             locators.append(
-                f"[book-01-bcc78727 / {segment['segment_id']} / "
-                f"L{clipped_start}-L{clipped_end}]"
+                f"{source_id} · {segment['segment_id']} · 行 "
+                f"{clipped_start}-{clipped_end}"
             )
-        return " ".join(locators)
+        return "；".join(locators)
 
     normalized = LOCATOR_RE.sub(replace, args.report.read_text(encoding="utf-8"))
     args.output.parent.mkdir(parents=True, exist_ok=True)

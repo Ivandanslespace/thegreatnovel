@@ -1,0 +1,12 @@
+warning: in the working copy of 'C:\dev\小说续写系统\audit\final_continuation_report\audit_bundle\drafts\draft_a4958905225efb13bd94ae12.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'C:\dev\小说续写系统\audit\final_continuation_report\audit_bundle\drafts\draft_7d48639a5d97798e5bd1086f.md', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/C:\\dev\\\345\260\217\350\257\264\347\273\255\345\206\231\347\263\273\347\273\237\\audit\\final_continuation_report\\audit_bundle\\drafts\\draft_a4958905225efb13bd94ae12.md" "b/C:\\dev\\\345\260\217\350\257\264\347\273\255\345\206\231\347\263\273\347\273\237\\audit\\final_continuation_report\\audit_bundle\\drafts\\draft_7d48639a5d97798e5bd1086f.md"
+index a1d5e89..b903673 100644
+--- "a/C:\\dev\\\345\260\217\350\257\264\347\273\255\345\206\231\347\263\273\347\273\237\\audit\\final_continuation_report\\audit_bundle\\drafts\\draft_a4958905225efb13bd94ae12.md"
++++ "b/C:\\dev\\\345\260\217\350\257\264\347\273\255\345\206\231\347\263\273\347\273\237\\audit\\final_continuation_report\\audit_bundle\\drafts\\draft_7d48639a5d97798e5bd1086f.md"
+@@ -111,3 +111,5 @@
+蘇牧抬起長槍，站在那道還沒有合攏的灰色裂縫前。
+
+蘇牧沒有退後。
+
+{+他知道，這個位置從此不會再空下來。+}

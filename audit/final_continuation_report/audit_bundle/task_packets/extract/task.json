@@ -1,0 +1,61 @@
+{
+  "book_id": "real-book-smoke",
+  "chapter_end": 294,
+  "chapter_start": 285,
+  "created_at": "2026-08-04T05:32:30.050508+00:00",
+  "schema_sha256": "7e68cfdf523c03b9bb8736843f3a42d732f7446a4e64b3b0f3800f24217de3a4",
+  "source_spans": [
+    {
+      "chapter_id": "chapter_6561485466e2339a0d977923",
+      "ordinal": 285,
+      "source_span_id": "span_50f262590ead6d5c748271a5"
+    },
+    {
+      "chapter_id": "chapter_c9b0f3f8b807fbeccbf0e9ed",
+      "ordinal": 286,
+      "source_span_id": "span_f357a7d7ec0710e528064df8"
+    },
+    {
+      "chapter_id": "chapter_81fc403a3096db4f35905456",
+      "ordinal": 287,
+      "source_span_id": "span_7f397634d26e974fd92c575a"
+    },
+    {
+      "chapter_id": "chapter_1d4a62ee31d75f080d968a68",
+      "ordinal": 288,
+      "source_span_id": "span_2c51a1d892798708dcb186be"
+    },
+    {
+      "chapter_id": "chapter_2e7962f16ba5217930ac3ba5",
+      "ordinal": 289,
+      "source_span_id": "span_65ea0ce6ea6986f11e6f68b0"
+    },
+    {
+      "chapter_id": "chapter_bfda2aa4bd829a6da508daa3",
+      "ordinal": 290,
+      "source_span_id": "span_f6e98b851f24ffb4431228ee"
+    },
+    {
+      "chapter_id": "chapter_4561499f2d9b59e35653c38b",
+      "ordinal": 291,
+      "source_span_id": "span_fb2373f7ce143e2990faf7dc"
+    },
+    {
+      "chapter_id": "chapter_ff8e53eb1c5620e25942fd0d",
+      "ordinal": 292,
+      "source_span_id": "span_9dc0f78566cee00f94288dad"
+    },
+    {
+      "chapter_id": "chapter_cee58ea39a6ac83381b9dcba",
+      "ordinal": 293,
+      "source_span_id": "span_90964e3ba79b29b082d68922"
+    },
+    {
+      "chapter_id": "chapter_8a820259c3c2cc63a1c53a45",
+      "ordinal": 294,
+      "source_span_id": "span_ec7b4a5974e1db9d3e39a707"
+    }
+  ],
+  "task_id": "extract_595984bc5d9b8eda9f84e407",
+  "task_type": "extract"
+}

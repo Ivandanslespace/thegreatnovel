@@ -1,0 +1,120 @@
+{
+  "status": "VERIFIED_PASS_WITH_WARNINGS",
+  "source_path": "C:\\dev\\小说续写系统\\book\\全民纜車求生，我一級一個三選一_正文全集.md",
+  "line_count": 38500,
+  "heading_count": 294,
+  "database_chapter_count": 294,
+  "front_matter_chapter_count": "294",
+  "front_matter_book_id": "2106587852",
+  "active_workspace_book_id": "real-book-smoke",
+  "first_headings": [
+    {
+      "line": 12,
+      "raw_number": "1",
+      "heading": "## 第1章 全民纜車求生"
+    },
+    {
+      "line": 266,
+      "raw_number": "2",
+      "heading": "## 第2章 纜車等級也有三選一"
+    },
+    {
+      "line": 580,
+      "raw_number": "3",
+      "heading": "## 第3章 準備降落"
+    },
+    {
+      "line": 834,
+      "raw_number": "4",
+      "heading": "## 第4章 2級甲"
+    },
+    {
+      "line": 1126,
+      "raw_number": "5",
+      "heading": "## 第5章 哥布林幼崽"
+    }
+  ],
+  "last_headings": [
+    {
+      "line": 37712,
+      "raw_number": "274",
+      "heading": "## 第274章 動物園發生了什麼"
+    },
+    {
+      "line": 37790,
+      "raw_number": "275",
+      "heading": "## 第275章 移動"
+    },
+    {
+      "line": 37876,
+      "raw_number": "276",
+      "heading": "## 第276章 失效"
+    },
+    {
+      "line": 37956,
+      "raw_number": "277",
+      "heading": "## 第277章 失望"
+    },
+    {
+      "line": 38022,
+      "raw_number": "278",
+      "heading": "## 第278章 出怪"
+    },
+    {
+      "line": 38114,
+      "raw_number": "279",
+      "heading": "## 第279章 沒有危機"
+    },
+    {
+      "line": 38188,
+      "raw_number": "280",
+      "heading": "## 第280章 突襲"
+    },
+    {
+      "line": 38278,
+      "raw_number": "281",
+      "heading": "## 第281章 毒貓王"
+    },
+    {
+      "line": 38348,
+      "raw_number": "282",
+      "heading": "## 第282章 落雷哥布林、牛頭王薩烏塔"
+    },
+    {
+      "line": 38426,
+      "raw_number": "283",
+      "heading": "## 第283章 牽制"
+    }
+  ],
+  "duplicate_raw_numbers": {
+    "37": 2,
+    "128": 2,
+    "224": 2,
+    "225": 2,
+    "226": 2,
+    "227": 2,
+    "228": 2,
+    "229": 2,
+    "230": 2,
+    "231": 2,
+    "232": 2,
+    "233": 2
+  },
+  "raw_number_000_noise": [
+    {
+      "line": 17064,
+      "raw_number": "000",
+      "heading": "## 第000章 關於章節錯亂的說明"
+    }
+  ],
+  "raw_number_gaps_between_1_and_283": [
+    74,
+    96
+  ],
+  "parser_ordinal_range": {
+    "min": 1,
+    "max": 294,
+    "count": 294
+  },
+  "warning": "Raw chapter titles are not a reliable unique ordinal: duplicated numbers include 37, 128, 224-233; chapter 000 is a reader-facing chapter-order notice. Continuation used database ordinal 294 / raw heading 第283章 牽制 and target ordinal 295."
+}

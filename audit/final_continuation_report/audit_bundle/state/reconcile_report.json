@@ -1,0 +1,21 @@
+{
+  "book_id": "real-book-smoke",
+  "conflicts": [],
+  "generated_at": "2026-08-04T05:39:01.969847+00:00",
+  "pending_by_type": {
+    "capability": [],
+    "character_state": [],
+    "entity": [],
+    "event": [],
+    "fact": [],
+    "knowledge": [],
+    "promise": [],
+    "relationship": [],
+    "repetition": [],
+    "resource": [],
+    "style": [],
+    "thread": [],
+    "timeline": []
+  },
+  "pending_review": []
+}

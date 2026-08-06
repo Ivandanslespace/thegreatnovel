@@ -1,0 +1,434 @@
+{
+  "$defs": {
+    "CandidateProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "canon_constraints": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Canon Constraints",
+          "type": "array"
+        },
+        "causal_sources": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Causal Sources",
+          "type": "array"
+        },
+        "commit_updates": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Commit Updates",
+          "type": "array"
+        },
+        "emotional_outcome": {
+          "title": "Emotional Outcome",
+          "type": "string"
+        },
+        "ending_state": {
+          "title": "Ending State",
+          "type": "string"
+        },
+        "event_source": {
+          "title": "Event Source",
+          "type": "string"
+        },
+        "forbidden_repetitions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbidden Repetitions",
+          "type": "array"
+        },
+        "gate_input": {
+          "$ref": "#/$defs/HardGateInput"
+        },
+        "knowledge_constraints": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Knowledge Constraints",
+          "type": "array"
+        },
+        "local_id": {
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "must_not_resolve": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Must Not Resolve",
+          "type": "array"
+        },
+        "opportunity_cost": {
+          "title": "Opportunity Cost",
+          "type": "string"
+        },
+        "pressure_before": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Pressure Before",
+          "type": "number"
+        },
+        "pressure_target_after": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Pressure Target After",
+          "type": "number"
+        },
+        "primary_function": {
+          "$ref": "#/$defs/NarrativeFunction"
+        },
+        "primary_thread_id": {
+          "title": "Primary Thread Id",
+          "type": "string"
+        },
+        "promises_to_advance": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Promises To Advance",
+          "type": "array"
+        },
+        "promises_to_pay": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Promises To Pay",
+          "type": "array"
+        },
+        "protagonist_strategy": {
+          "title": "Protagonist Strategy",
+          "type": "string"
+        },
+        "reader_question": {
+          "title": "Reader Question",
+          "type": "string"
+        },
+        "required_cost": {
+          "title": "Required Cost",
+          "type": "string"
+        },
+        "required_irreversible_change": {
+          "title": "Required Irreversible Change",
+          "type": "string"
+        },
+        "risk_form": {
+          "title": "Risk Form",
+          "type": "string"
+        },
+        "scene_topology": {
+          "title": "Scene Topology",
+          "type": "string"
+        },
+        "score_evidence": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Score Evidence",
+          "type": "object"
+        },
+        "score_inputs": {
+          "$ref": "#/$defs/CandidateScoreInputs"
+        },
+        "secondary_functions": {
+          "items": {
+            "$ref": "#/$defs/NarrativeFunction"
+          },
+          "maxItems": 2,
+          "title": "Secondary Functions",
+          "type": "array"
+        },
+        "social_feedback": {
+          "title": "Social Feedback",
+          "type": "string"
+        },
+        "solution_method": {
+          "title": "Solution Method",
+          "type": "string"
+        },
+        "state_changes": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "State Changes",
+          "type": "array"
+        },
+        "style_constraints": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Style Constraints",
+          "type": "object"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "title",
+        "summary",
+        "primary_thread_id",
+        "primary_function",
+        "reader_question",
+        "event_source",
+        "solution_method",
+        "protagonist_strategy",
+        "risk_form",
+        "opportunity_cost",
+        "emotional_outcome",
+        "social_feedback",
+        "scene_topology",
+        "ending_state",
+        "state_changes",
+        "causal_sources",
+        "required_irreversible_change",
+        "required_cost",
+        "commit_updates",
+        "pressure_before",
+        "pressure_target_after",
+        "score_inputs",
+        "score_evidence",
+        "gate_input"
+      ],
+      "title": "CandidateProposal",
+      "type": "object"
+    },
+    "CandidateScoreInputs": {
+      "additionalProperties": false,
+      "properties": {
+        "agency_gain": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Agency Gain",
+          "type": "number"
+        },
+        "debt_utility": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Debt Utility",
+          "type": "number"
+        },
+        "future_damage": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Future Damage",
+          "type": "number"
+        },
+        "payoff_or_setup_utility": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Payoff Or Setup Utility",
+          "type": "number"
+        },
+        "pressure_curve_fit": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Pressure Curve Fit",
+          "type": "number"
+        },
+        "progress_gain": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Progress Gain",
+          "type": "number"
+        },
+        "repetition_fatigue": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Repetition Fatigue",
+          "type": "number"
+        },
+        "risk_fit": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Risk Fit",
+          "type": "number"
+        },
+        "structural_diversity": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Structural Diversity",
+          "type": "number"
+        },
+        "style_fit": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Style Fit",
+          "type": "number"
+        },
+        "thread_need_fit": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Thread Need Fit",
+          "type": "number"
+        }
+      },
+      "required": [
+        "thread_need_fit",
+        "pressure_curve_fit",
+        "debt_utility",
+        "progress_gain",
+        "payoff_or_setup_utility",
+        "agency_gain",
+        "risk_fit",
+        "structural_diversity",
+        "style_fit",
+        "repetition_fatigue",
+        "future_damage"
+      ],
+      "title": "CandidateScoreInputs",
+      "type": "object"
+    },
+    "HardGateInput": {
+      "additionalProperties": false,
+      "properties": {
+        "author_constraint_violations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Author Constraint Violations",
+          "type": "array"
+        },
+        "canon_conflicts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Canon Conflicts",
+          "type": "array"
+        },
+        "capability_violations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Capability Violations",
+          "type": "array"
+        },
+        "character_bottom_line_violation": {
+          "default": false,
+          "title": "Character Bottom Line Violation",
+          "type": "boolean"
+        },
+        "character_fit_inputs": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Character Fit Inputs",
+          "type": "object"
+        },
+        "knowledge_violations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Knowledge Violations",
+          "type": "array"
+        },
+        "missing_causal_sources": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Causal Sources",
+          "type": "array"
+        },
+        "payoff_cooldown_violations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Payoff Cooldown Violations",
+          "type": "array"
+        },
+        "style_boundary_violations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Style Boundary Violations",
+          "type": "array"
+        },
+        "style_fit_inputs": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Style Fit Inputs",
+          "type": "object"
+        },
+        "timeline_conflicts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Timeline Conflicts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "character_fit_inputs",
+        "style_fit_inputs"
+      ],
+      "title": "HardGateInput",
+      "type": "object"
+    },
+    "NarrativeFunction": {
+      "enum": [
+        "setup",
+        "pressure_build",
+        "choice",
+        "discovery",
+        "progress",
+        "partial_payoff",
+        "major_payoff",
+        "reversal",
+        "aftershock",
+        "recovery",
+        "relationship_shift",
+        "world_expansion"
+      ],
+      "title": "NarrativeFunction",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/CandidateProposal"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "title": "Candidates",
+      "type": "array"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "candidates"
+  ],
+  "title": "CandidateOutput",
+  "type": "object"
+}

@@ -5,25 +5,7 @@ import json
 import re
 from pathlib import Path
 
-
-REQUIRED = {
-    "SKILL.md",
-    "sources.md",
-    "synthesis.md",
-    "craft-controls.md",
-    "worldbuilding.md",
-    "characters.md",
-    "plot.md",
-    "style.md",
-    "narrative.md",
-    "dialogue.md",
-    "pacing.md",
-    "themes.md",
-    "continuity.md",
-    "books/book-01-bcc78727/overview.md",
-}
 LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
-LOCATOR_RE = re.compile(r"book-01-bcc78727.*segment-\d{4}.*(?:行|lines?)\s*\d+", re.I)
 LOCATOR_BOUNDARY_RE = re.compile(
     r"(segment-\d{4})\s*(?:·|/)\s*(?:行|L|lines?)\s*(\d+)(?:-(?:L)?(\d+))?",
     re.I,
@@ -35,16 +17,36 @@ def main() -> None:
     parser.add_argument("skill", type=Path)
     parser.add_argument("source", type=Path)
     parser.add_argument("index", type=Path)
+    parser.add_argument("--source-id", required=True)
     args = parser.parse_args()
 
     errors: list[str] = []
     markdown_files = sorted(args.skill.rglob("*.md"))
-    relative_files = {str(path.relative_to(args.skill)).replace("\\", "/") for path in markdown_files}
-    missing = sorted(REQUIRED - relative_files)
+    relative_files = {
+        str(path.relative_to(args.skill)).replace("\\", "/")
+        for path in markdown_files
+    }
+    required = {
+        "SKILL.md",
+        "sources.md",
+        "synthesis.md",
+        "craft-controls.md",
+        "worldbuilding.md",
+        "characters.md",
+        "plot.md",
+        "style.md",
+        "narrative.md",
+        "dialogue.md",
+        "pacing.md",
+        "themes.md",
+        "continuity.md",
+        f"books/{args.source_id}/overview.md",
+    }
+    missing = sorted(required - relative_files)
     if missing:
         errors.append("缺少文件: " + ", ".join(missing))
 
-    chapter_files = list((args.skill / "books" / "book-01-bcc78727" / "chapters").glob("*.md"))
+    chapter_files = list((args.skill / "books" / args.source_id / "chapters").glob("*.md"))
     if len(chapter_files) < 10:
         errors.append(f"代表性章节分析不足 10 个，当前 {len(chapter_files)} 个")
 
@@ -64,7 +66,10 @@ def main() -> None:
     ]
     for path in source_specific:
         text = path.read_text(encoding="utf-8")
-        if not LOCATOR_RE.search(text):
+        locator_re = re.compile(
+            re.escape(args.source_id) + r".*segment-\d{4}.*(?:行|lines?)\s*\d+", re.I
+        )
+        if not locator_re.search(text):
             errors.append(f"缺少 source_id + segment + 行号定位: {path.name}")
 
     for path in markdown_files:

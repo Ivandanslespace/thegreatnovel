@@ -1,6 +1,6 @@
 ---
 name: process-novel-handoff
-description: 按 Local File Handoff Protocol 在 Windows Codex 桌面端领取并处理小说续写、改写、指标语义或章节特征任务；当 task.json 状态为 READY_FOR_CODEX 且用户明确要求处理 handoff 时使用，不得启动 Codex 子进程、API 或 shell。
+description: 按 Local File Handoff Protocol 在 Windows Codex 桌面端领取并处理小说续写、改写、指标语义、章节特征或 distill 任务；当 task.json 状态为 READY_FOR_CODEX 且用户明确要求处理 handoff 时使用，不得启动 Codex 子进程、API 或 shell。
 ---
 
 # Process Novel Handoff
@@ -25,6 +25,9 @@ Codex 桌面客户端是唯一 LLM 执行者。先读取任务目录，再由 Py
 - `NOVEL_INITIALIZATION`：调用 `$initialize-existing-novel`，先读取初始化目录和 Arc task，
   按 Atlas-first pipeline 处理 `arc_outputs/`、`entity_resolution/`、`synthesis/`、
   `metrics/` 和 `visuals/`；不得预先创建 Planning Aggregate。
+- `NOVEL_DISTILLATION`：调用 `$distill-novels`，读取冻结的
+  `artifacts/distill_input/`，只把抽象写作机制写入 `artifacts/distill_skill/`；完成后停在
+  `DISTILLED`，由 `novel distill import` 显式发布为 `REFERENCE_ONLY`，不得写入 Canon。
 - `BATCH_CONTINUATION`：调用 `$continue-novel-batch`，必须绑定 batch/chunk，逐章保留
   Boundary、Contract、十项 Validator 和 provisional hash；`BATCH_VALIDATED` 不是批准。
 
@@ -32,4 +35,4 @@ Codex 桌面客户端是唯一 LLM 执行者。先读取任务目录，再由 Py
 
 ## 结束合同
 
-成功时先验证 `result.json` 符合 `output_schema.json`，并明确 `canon_committed=false`、`edition_activated=false`；再写 result、事件和 `COMPLETED`。续写最多停在 `VALIDATED_DRAFT`，改写最多停在 `VALIDATED_CAMPAIGN` 或请求阶段。失败写 `error.json` 和 `FAILED`，保留历史文件，不覆盖旧 handoff。
+成功时先验证 `result.json` 符合 `output_schema.json`，并明确 `canon_committed=false`、`edition_activated=false`；再写 result、事件和 `COMPLETED`（可用 `novel workflow update --status COMPLETED --result-path <result.json>`）。续写最多停在 `VALIDATED_DRAFT`，改写最多停在 `VALIDATED_CAMPAIGN` 或请求阶段。失败写 `error.json` 和 `FAILED`，保留历史文件，不覆盖旧 handoff。
