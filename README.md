@@ -49,10 +49,34 @@ handoff。桌面端领取后调用 `$distill-novels`，把结果写入 handoff �
 ```
 
 发布结果进入 `library/<book_id>/editions/<edition_id>/analysis/distill/skills/`，在后续续写
-handoff 中以 `distill_reference` 提供给 `$continue-novel`，始终是 `REFERENCE_ONLY`；它不会
-修改 `book/`、Story Atlas、Canon 或作者批准状态。支持 `analyze-only`、`create`、`compare`、
-`update` 模式，以及 `worldbuilding`、`characters`、`plot`、`style`、`narrative`、
-`dialogue`、`pacing`、`themes`、`continuity` 维度。
+handoff 中以带 Scope 和 mapping summary 的 `distill_reference` 提供给 `$continue-novel`，
+使用仍是 `REFERENCE_ONLY`。Distill Skill ≠ Canon ≠ Runtime State：SELF_BOOK 可以作为当前
+小说的软理解层，EXTERNAL_REFERENCE 只能提供抽象机制、Craft Control 和中性风格变量，
+COMPARATIVE_REFERENCE 只能消费 synthesis、transferable_principle、craft_control。它不会
+修改 `book/`、Story Atlas、Canon、Edition 激活状态或作者批准状态。支持 `analyze-only`、
+`create`、`compare`、`update` 模式，以及 `worldbuilding`、`characters`、`plot`、`style`、
+`narrative`、`dialogue`、`pacing`、`themes`、`continuity` 九个维度。
+
+导入时 Python 会把 Markdown Finding 编译成版本化 Distillation Package：
+
+```text
+analysis/distill/skills/<distill_id>/
+├─ SKILL.md / distillation-report.md / <selected-dimension>.md
+└─ machine/
+   ├─ package.json
+   ├─ observations.jsonl
+   ├─ evidence_mappings.jsonl
+   ├─ literary_arcs.json
+   ├─ craft_controls.json
+   ├─ continuity_candidates.jsonl
+   ├─ character_voice_profiles.json
+   └─ theme_questions.json
+```
+
+只有实际产生的 machine artifact 才会创建。`novel distill validate` 执行严格维度、来源、
+Scope、内部引用、原创性和 Pydantic 合同检查；`novel distill map-evidence` 只按冻结
+preparation 重新映射到当前 Edition 的 chapter/source span；`novel distill inspect` 输出
+作者摘要。Literary Arc 是 Distill 的文学结构观察，不是 Initialization Processing Arc。
 
 ## 能力
 

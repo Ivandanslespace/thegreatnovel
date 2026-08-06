@@ -116,7 +116,10 @@ class WorkflowHandoffResult(BaseModel):
     distill_dimensions: list[str] = Field(default_factory=list)
     distill_mode: str | None = None
     distill_depth: str | None = None
+    distill_scope: str | None = None
     distill_skill_root: str | None = None
+    distill_package_root: str | None = None
+    distill_machine_manifest: str | None = None
 
     @model_validator(mode="after")
     def validate_stage_contract(self) -> WorkflowHandoffResult:
@@ -586,6 +589,11 @@ def create_handoff(
                     "required_output": [
                         "artifacts/distill_skill/SKILL.md",
                         "artifacts/distill_skill/distillation-report.md",
+                        *[
+                            f"artifacts/distill_skill/{dimension}.md"
+                            for dimension in frozen_distill_request.get("dimensions", [])
+                        ],
+                        "artifacts/distill_skill/machine/package.json",
                     ],
                     "semantic_executor": "Windows Codex desktop",
                     "publish_command": "novel distill import",
@@ -838,7 +846,10 @@ def create_handoff(
             "distill_dimensions",
             "distill_mode",
             "distill_depth",
+            "distill_scope",
             "distill_skill_root",
+            "distill_package_root",
+            "distill_machine_manifest",
             "artifact_paths",
             "canon_committed",
             "edition_activated",
@@ -1377,6 +1388,10 @@ def validate_handoff_result(
                 raise HandoffWorkflowError("result distill_mode 与冻结 handoff 不一致")
             if parsed.distill_depth != str(distill_request.get("depth")):
                 raise HandoffWorkflowError("result distill_depth 与冻结 handoff 不一致")
+            if parsed.distill_scope is not None and parsed.distill_scope != str(
+                distill_request.get("scope")
+            ):
+                raise HandoffWorkflowError("result distill_scope 与冻结 handoff 不一致")
             _allowed_artifact_path(task_directory, task, str(parsed.distill_skill_root))
         return parsed
 

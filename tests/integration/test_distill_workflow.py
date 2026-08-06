@@ -3,8 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from novel_authoring.canon.projection import projection_from_connection
 from novel_authoring.db.database import Database
 from novel_authoring.distill.service import (
+    DistillError,
     create_distill_handoff,
     import_distill_result,
     prepare_book_sources,
@@ -61,8 +65,37 @@ def _result(task: dict[str, object], handoff_id: str) -> dict[str, object]:
         "distill_dimensions": distill["dimensions"],
         "distill_mode": distill["mode"],
         "distill_depth": distill["depth"],
+        "distill_scope": distill["scope"],
         "distill_skill_root": "artifacts/distill_skill",
     }
+
+
+def _canon_state(database: Database, book_id: str) -> dict[str, object]:
+    with database.connect() as connection:
+        editions = tuple(
+            (str(row["edition_id"]), str(row["status"]), row["activated_at"])
+            for row in connection.execute(
+                "SELECT edition_id, status, activated_at FROM editions "
+                "WHERE book_id=? ORDER BY edition_id",
+                (book_id,),
+            ).fetchall()
+        )
+        commits = tuple(
+            (str(row["commit_id"]), str(row["chapter_id"]), str(row["edition_id"]))
+            for row in connection.execute(
+                "SELECT commit_id, chapter_id, edition_id FROM canon_commits "
+                "WHERE book_id=? ORDER BY commit_id",
+                (book_id,),
+            ).fetchall()
+        )
+        return {
+            "active_edition_id": connection.execute(
+                "SELECT active_edition_id FROM books WHERE book_id=?", (book_id,)
+            ).fetchone()[0],
+            "projection": projection_from_connection(connection, book_id).canonical_json(),
+            "editions": editions,
+            "canon_commits": commits,
+        }
 
 
 def test_distill_handoff_freezes_and_publishes_reference_skill(tmp_path: Path) -> None:
@@ -113,6 +146,16 @@ def test_distill_handoff_freezes_and_publishes_reference_skill(tmp_path: Path) -
         "# Report\n\nprovenance: PASS\n",
         encoding="utf-8",
     )
+    source_id = str(task["distill"]["source_ids"][0])
+    for dimension in ("worldbuilding", "plot"):
+        (skill_root / f"{dimension}.md").write_text(
+            f"# {dimension}\n\n"
+            "## Finding\n\n"
+            f"- Sources: `{source_id} · segment-0001 · 行 1-2`\n"
+            f"- Observation: {dimension} observation for strict package validation.\n"
+            "- Confidence: high\n",
+            encoding="utf-8",
+        )
     update_handoff_status(
         database,
         handoff_id,
@@ -121,12 +164,18 @@ def test_distill_handoff_freezes_and_publishes_reference_skill(tmp_path: Path) -
         result=_result(task, handoff_id),
     )
 
+    before_canon = _canon_state(database, "distill-test-book")
     published = import_distill_result(database, "distill-test-book", handoff_id)
+    assert _canon_state(database, "distill-test-book") == before_canon
     published_root = Path(str(published["skill_root"]))
     assert published["canon_committed"] is False
     assert (published_root / "SKILL.md").is_file()
     assert (published_root / "distill_manifest.json").is_file()
+    assert (published_root / "machine" / "package.json").is_file()
+    assert (published_root / "machine" / "observations.jsonl").is_file()
     assert (published_root.parent.parent / "latest.json").is_file()
+    assert published["scope"] == "SELF_BOOK"
+    assert published["package_root"].endswith("machine")
 
     initialization = create_initialization_handoff(
         database,
@@ -137,3 +186,54 @@ def test_distill_handoff_freezes_and_publishes_reference_skill(tmp_path: Path) -
         (_task_path(Path(str(initialization["task_directory"])))).read_text(encoding="utf-8")
     )
     assert init_task["distill_reference"]["usage"] == "REFERENCE_ONLY"
+    assert init_task["distill_reference"]["scope"] == "SELF_BOOK"
+
+
+def test_distill_import_rejects_missing_selected_dimension(tmp_path: Path) -> None:
+    library_root = tmp_path / "library"
+    added = add_book(
+        LibraryAddOptions(
+            book_id="distill-missing-dimension",
+            title="strict dimension test",
+            source=FIXTURE,
+            library_root=library_root,
+            confirm_order=True,
+        )
+    )
+    database = Database(added.database)
+    prepared = prepare_book_sources(database, "distill-missing-dimension")
+    handoff = create_distill_handoff(
+        database,
+        "distill-missing-dimension",
+        preparation_id=str(prepared["preparation_id"]),
+        dimensions="worldbuilding,plot",
+    )
+    handoff_id = str(handoff["handoff_id"])
+    task_directory = Path(str(handoff["task_directory"]))
+    task = json.loads(_task_path(task_directory).read_text(encoding="utf-8"))
+    claim = claim_handoff(database, handoff_id, "pytest-codex")
+    update_handoff_status(
+        database,
+        handoff_id,
+        HandoffStatus.RUNNING,
+        claim_token=str(claim["claim_token"]),
+    )
+    skill_root = task_directory / "artifacts" / "distill_skill"
+    skill_root.mkdir(parents=True)
+    (skill_root / "SKILL.md").write_text("# Skill\n", encoding="utf-8")
+    (skill_root / "distillation-report.md").write_text("# Report\n", encoding="utf-8")
+    source_id = str(task["distill"]["source_ids"][0])
+    (skill_root / "worldbuilding.md").write_text(
+        f"# worldbuilding\n\n- Sources: `{source_id} · segment-0001 · 行 1-2`\n"
+        "- Observation: only one selected dimension\n",
+        encoding="utf-8",
+    )
+    update_handoff_status(
+        database,
+        handoff_id,
+        HandoffStatus.COMPLETED,
+        claim_token=str(claim["claim_token"]),
+        result=_result(task, handoff_id),
+    )
+    with pytest.raises(DistillError, match="plot"):
+        import_distill_result(database, "distill-missing-dimension", handoff_id)

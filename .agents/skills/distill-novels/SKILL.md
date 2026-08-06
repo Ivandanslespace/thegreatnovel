@@ -15,9 +15,13 @@ Python 只负责准备来源、章节边界、manifest、任务冻结和结果�
 
 先完整读取 handoff 目录中的 `task.json`、`prompt.md`、`output_schema.json`、
 `context_manifest.json` 和 `artifacts/distill_input/manifest.json`。任务中的
-`distill.mode`、`distill.dimensions`、`distill.depth` 和 `distill.source_ids` 是冻结参数，
+`distill.mode`、`distill.scope`、`distill.dimensions`、`distill.depth` 和 `distill.source_ids` 是冻结参数，
 不得自行改写。来源正文只从 `artifacts/distill_input/normalized/` 按 bounded segment 读取；
 不得修改 `book/`、Canonical source 或 SQLite。
+
+Scope 语义必须保留：`SELF_BOOK` 是 selected Edition effective content 的软理解层；
+`EXTERNAL_REFERENCE` 只能迁移抽象机制、Craft Control、类型结构和中性风格变量；
+`COMPARATIVE_REFERENCE` 只能使用明确的 synthesis、transferable_principle、craft_control。
 
 ## 语义工作
 
@@ -32,8 +36,13 @@ worldbuilding、characters、plot、style、narrative、dialogue、pacing、them
 
 - `SKILL.md`：支持 `analyze`、`design`、`revise`、`check` 四种下游动作；
 - `distillation-report.md`：来源数、维度、模式、深度、警告、证据覆盖和质量检查；
-- `sources.md` 与所选维度文件：每项来源性主张可回指冻结输入；
+- `sources.md` 与所选维度文件：每项来源性主张可回指冻结输入；selected dimension 缺失或为空时不得声称完成；
 - 必要的 source overview、bounded chapter cards 或 evidence index；不要复制完整原文。
+
+Python 导入器会把 selected dimension Finding 编译为 `machine/package.json`、
+`observations.jsonl`、`evidence_mappings.jsonl` 以及实际存在的 LiteraryArc、CraftControl、
+ContinuityCandidate、character voice 和 theme artifact，并用严格 Pydantic model 验证。不要
+依赖 `validation_summary` 自报 PASS；所有 source-specific Finding 必须带 source_id 和 locator。
 
 然后按 `output_schema.json` 写 `result.json` 和 `status.json`：
 
@@ -46,4 +55,5 @@ worldbuilding、characters、plot、style、narrative、dialogue、pacing、them
 
 发布必须由作者随后显式运行 `novel distill import --book-id ... --handoff-id ...`。
 发布后的 skill 位于 `edition.analysis/distill/skills/<distill_id>/`，只允许作为续写的
-`REFERENCE_ONLY` 写作参考，不能改变 Story Atlas、Canon、作者指令或草稿审批状态。
+`REFERENCE_ONLY` 写作参考，不能改变 Story Atlas、Canon、Runtime State、作者指令或草稿审批状态。
+Distill Literary Arc 不等于 Initialization Processing Arc；ContinuityCandidate 不会自动被接受。

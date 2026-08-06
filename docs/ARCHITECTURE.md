@@ -60,6 +60,7 @@ AUTHOR_APPROVED + state events + CANON_CHAPTER_COMMITTED
 | 指标 | `metrics/` | 纯公式、硬门、证据化结果持久化 |
 | 规划 | `planning/` | 线程排序、Boundary、三候选差异、Chapter Contract |
 | Story Atlas | `atlas/` + `library/.../analysis/story_atlas/` | 版本化软理解、图谱、Narrative DNA、未来可能性、Readiness 与 Horizon hash |
+| Distillation Knowledge Layer | `distill/models.py`、`distill/package.py`、`distill/mapping.py` + `analysis/distill/skills/` | Scope-aware 的九维软理解、机器观察、文学弧、Craft Control、连续性候选和 Evidence Mapping；不写 Canon |
 | Batch | `planning/batch.py` + `batch_*` 表 | chunk 计划、临时 projection、逐章十项校验和 checkpoint |
 | 草稿 | `drafting/` | 正文任务、导入、哈希、revision 和状态 |
 | 校验 | `validation/` | 十项报告、validation run 与 VALIDATED 状态 |
@@ -92,6 +93,30 @@ Canon Projection 只应用 `status=COMMITTED` 且 `information_state=CANON` 的�
 Story Atlas 的 CANON 节点/关系必须引用真实 `source_span`；SQLite 只登记 Atlas 版本、
 hash、anchor、usage、author action 和 review queue，软图谱文件不物化为 Canon 表。Atlas
 版本不可覆盖，作者接受 Atlas 不会产生 Canon Commit。
+
+### Distillation Knowledge Layer
+
+Distill 发布的是版本化 Package，而不是一组可直接当作事实的 Markdown：
+
+```text
+preparation manifest
+  └─ frozen source/segment/line locator
+       └─ machine package
+            ├─ DistilledObservation / LiteraryArc / CraftControl
+            ├─ ContinuityCandidate
+            └─ EvidenceMapping: EXACT | PARTIAL | UNMAPPED | CONFLICTING
+```
+
+`SELF_BOOK` 使用 selected Edition 的 effective content，可被 Story Atlas soft understanding、
+candidate planning、draft controls 和 soft validation 查询；它仍然不是 Runtime State 或
+Canon。`EXTERNAL_REFERENCE` 只允许抽象机制、Craft Control、类型结构和中性风格变量；
+`COMPARATIVE_REFERENCE` 只允许明确标为 synthesis、transferable principle 或 craft control
+的内容。未映射证据不能作为 Runtime hard evidence，冲突必须进入 warning/review，EXACT 也
+不能把文学解释升级为 Canon。
+
+Distill 的 `LiteraryArc` 是对文学因果/状态变化的观察，和 Initialization 的 `Processing Arc`
+是两个不同模型、不同生命周期；Distill 不会自动创建 runtime thread、修改 Story Atlas、
+接受 ContinuityCandidate 或改变 Candidate Score、Validator、Approval 和 Edition 激活。
 
 ## Codex 文件合同
 
@@ -145,7 +170,8 @@ library/<book_id>/
 ├─ _system/source_manifest.json
 ├─ source/               # COPY_READ_ONLY 原文
 ├─ editions/<edition_id>/
-│  ├─ analysis/          # initialization、metrics、rhythm、Story Atlas
+│  ├─ analysis/          # initialization、metrics、rhythm、Story Atlas、Distill Package
+│  │  └─ distill/        # preparation、versioned skills 和 machine knowledge layer
 │  ├─ writing/           # boundaries、contracts、drafts、validation、revisions
 │  ├─ operations/        # 所有 Codex/分析任务的输入、输出和审计日志
 │  ├─ canon/             # 仅作者批准后的续章
