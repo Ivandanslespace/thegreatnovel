@@ -41,7 +41,7 @@ library/personal-original-root-cause-candidate/editions/base/operations/*
 !library/personal-original-root-cause-candidate/editions/base/operations/handoff_69f66f4a3afccac1de5e5e2d/
 !library/personal-original-root-cause-candidate/editions/base/operations/handoff_69f66f4a3afccac1de5e5e2d/**
 
-# 原始小说与 inspirations 保持本地，不由本项目生成流程修改。
+# 原始小说保持本地；inspirations 仅纳入指定的可审计知识包，不由本项目生成流程修改。
 book/*
 !book/.gitkeep
 inspirations/*
@@ -52,3 +52,5 @@ inspirations/*
 !inspirations/https-github-com-cloudliu1008-distill-novels-2/**
 inspirations/https-github-com-cloudliu1008-distill-novels-2/**/__pycache__/
 inspirations/https-github-com-cloudliu1008-distill-novels-2/**/*.pyc
+# 整本规范化原文不入库；保留同目录的 manifest、索引与审计证据。
+inspirations/https-github-com-cloudliu1008-distill-novels-2/work/normalized/book-01-bcc78727.txt
