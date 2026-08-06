@@ -1,0 +1,241 @@
+{
+  "additionalProperties": false,
+  "description": "Strict top-level Arc output; semantic payloads remain evidence-bearing dicts.",
+  "properties": {
+    "abilities": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Abilities",
+      "type": "array"
+    },
+    "ability_evolution": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Ability Evolution",
+      "type": "array"
+    },
+    "aliases": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Aliases",
+      "type": "array"
+    },
+    "arc_id": {
+      "title": "Arc Id",
+      "type": "string"
+    },
+    "chapter_semantic_features": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Chapter Semantic Features",
+      "type": "array"
+    },
+    "characters": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Characters",
+      "type": "array"
+    },
+    "contradictions": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Contradictions",
+      "type": "array"
+    },
+    "factions": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Factions",
+      "type": "array"
+    },
+    "hooks": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Hooks",
+      "type": "array"
+    },
+    "initialization_id": {
+      "title": "Initialization Id",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "leverage_events": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Leverage Events",
+      "type": "array"
+    },
+    "main_threads": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Main Threads",
+      "type": "array"
+    },
+    "major_events": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Major Events",
+      "type": "array"
+    },
+    "payoff_events": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Payoff Events",
+      "type": "array"
+    },
+    "pressure_events": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Pressure Events",
+      "type": "array"
+    },
+    "production_chains": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Production Chains",
+      "type": "array"
+    },
+    "promises": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Promises",
+      "type": "array"
+    },
+    "protagonist_decisions": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Protagonist Decisions",
+      "type": "array"
+    },
+    "region_connections": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Region Connections",
+      "type": "array"
+    },
+    "regions": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Regions",
+      "type": "array"
+    },
+    "relationships": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Relationships",
+      "type": "array"
+    },
+    "resources": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Resources",
+      "type": "array"
+    },
+    "rule_exceptions": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Rule Exceptions",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "arc-extraction-v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "secondary_threads": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Secondary Threads",
+      "type": "array"
+    },
+    "source_evidence": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Source Evidence",
+      "type": "array"
+    },
+    "stage_transition_signals": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Stage Transition Signals",
+      "type": "array"
+    },
+    "unresolved_questions": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Unresolved Questions",
+      "type": "array"
+    },
+    "world_rules": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "World Rules",
+      "type": "array"
+    }
+  },
+  "required": [
+    "initialization_id",
+    "arc_id"
+  ],
+  "title": "ArcExtractionOutput",
+  "type": "object"
+}

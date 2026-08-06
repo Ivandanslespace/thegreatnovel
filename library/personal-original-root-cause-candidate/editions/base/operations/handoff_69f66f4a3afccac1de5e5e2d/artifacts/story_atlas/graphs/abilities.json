@@ -1,0 +1,254 @@
+{
+  "graph_type": "abilities",
+  "atlas_version": 1,
+  "metadata": {
+    "source": "atlas_evidence_inventory.md + synthesis/graphs.json + Arc45",
+    "boundary": "双神能力保留单一神位出手限制；长期成本未补证"
+  },
+  "nodes": [
+    {
+      "node_id": "ability_sea_god",
+      "name": "海神权柄",
+      "node_type": "divine_authority",
+      "description": "唐三当前承载的海神神位与海洋信仰来源。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_679c5e4110fa88c01b2f95ff",
+          "span_fa378dd5cb85560640398b82"
+        ]
+      },
+      "payload": {
+        "owner": "character_tang_san",
+        "new_problem_addressed": "在终局战中维持海神级作战与复活后的神力连续性",
+        "cost_and_boundary": "具体神界职责、长期资源曲线与介入权限未落地",
+        "possible_counterplay": "神级对手或不同神位克制",
+        "source_of_introduction": "海神传承与嘉陵关终局",
+        "why_now": "当前边界需要区分海神权柄与后续神界职责"
+      }
+    },
+    {
+      "node_id": "ability_shura_god",
+      "name": "修罗神力",
+      "node_type": "divine_authority",
+      "description": "由凌岳承载的修罗魔剑链，参与完成双神共存。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_eeae31dd6055c25dbe5e42bf",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "owner_or_carrier": "character_ling_yue",
+        "new_problem_addressed": "为海神单独面对双神对手时提供修罗神位克制",
+        "cost_and_boundary": "长期日常成本、凌岳独立状态影响与非战斗持续时间 UNKNOWN",
+        "possible_counterplay": "一次只能由一个神位出手；修罗魔剑承载链可能成为限制点",
+        "source_of_introduction": "凌岳携修罗魔剑与唐三昊天锤内修罗神力融合",
+        "why_now": "终局战局逆转依赖该神力链"
+      }
+    },
+    {
+      "node_id": "ability_dual_god_switch",
+      "name": "双神切换与共存",
+      "node_type": "coexistence_ability",
+      "description": "唐三与凌岳融合后可在海神与修罗神之间切换，解除后凌岳恢复独立身体。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_eeae31dd6055c25dbe5e42bf"]
+      },
+      "payload": {
+        "owner_or_partners": ["character_tang_san", "character_ling_yue"],
+        "new_problem_addressed": "把伴侣关系与修罗神力转化为对终局双神对手的可用战力",
+        "cost_and_boundary": "一次只能由一个神位出手；解除融合后凌岳可恢复独立身体",
+        "possible_counterplay": "切换窗口、神位克制与融合承载条件",
+        "source_of_introduction": "第三百三十五章完美融合之双神战双神",
+        "why_now": "当前边界已证明能力兑现，但未证明日常无限持续"
+      }
+    },
+    {
+      "node_id": "ability_single_action_limit",
+      "name": "双神单一神位出手限制",
+      "node_type": "hard_rule",
+      "description": "双神共存时不能让海神与修罗神两种神力同时发动攻击。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_eeae31dd6055c25dbe5e42bf"]
+      },
+      "payload": {
+        "new_problem_addressed": "约束双神共存的战术上限",
+        "cost_and_boundary": "不得推断可无成本同时叠加；长期反噬与非战斗持续时间 UNKNOWN",
+        "possible_counterplay": "迫使承载者在神位之间做单次选择",
+        "source_of_introduction": "双神融合规则的直接说明",
+        "why_now": "避免把终局战力兑现误读为无限叠加能力"
+      }
+    },
+    {
+      "node_id": "ability_faith_resurrection",
+      "name": "神级复活与神魂归位",
+      "node_type": "resurrection_ability",
+      "description": "肉身复活与神魂归位由不同神力/信仰来源支撑。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_679c5e4110fa88c01b2f95ff"]
+      },
+      "payload": {
+        "owner": "character_tang_san",
+        "new_problem_addressed": "让主角在终局死亡后回到战场",
+        "cost_and_boundary": "依赖复活之光、百万将士/海洋生物信仰与神魂归位；不是可随意重复的通用复活术",
+        "possible_counterplay": "切断信仰来源或阻断神魂归位",
+        "source_of_introduction": "第三百三十三章神魂归位，海神归来",
+        "why_now": "当前边界的主角状态以完整复活为前提"
+      }
+    },
+    {
+      "node_id": "ability_rift_war_lion",
+      "name": "凌岳裂空战狮能力链",
+      "node_type": "martial_ability_chain",
+      "description": "凌岳既有能力链在终局承载修罗魔剑并进入双神共存。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_eeae31dd6055c25dbe5e42bf"]
+      },
+      "payload": {
+        "owner": "character_ling_yue",
+        "new_problem_addressed": "把伴侣的身体与能力链转为修罗神力承载条件",
+        "cost_and_boundary": "融合解除后的长期上限与独立状态影响未展开",
+        "possible_counterplay": "破坏融合承载或迫使解除融合",
+        "source_of_introduction": "凌岳主动挡在唐三身前并完成融合",
+        "why_now": "终局已兑现承载链，后续不得静默改写为无关能力"
+      }
+    },
+    {
+      "node_id": "ability_guanyin_tear",
+      "name": "神级观音泪",
+      "node_type": "divine_attack",
+      "description": "由唐三凝聚海神神力发动，可威胁神级目标，但消耗巨大。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_fa378dd5cb85560640398b82"]
+      },
+      "payload": {
+        "owner": "character_tang_san",
+        "new_problem_addressed": "在海神单独对抗罗刹神与天使神时提供神级反击",
+        "cost_and_boundary": "消耗巨大；会被对手关系与选择打乱，不得无代价连发",
+        "possible_counterplay": "改变目标关系选择或在凝聚阶段打断",
+        "source_of_introduction": "第三百三十四章最终决战",
+        "why_now": "它的失败直接推动凌岳触发双神融合"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "edge_sea_god_to_dual_switch",
+      "from_id": "ability_sea_god",
+      "to_id": "ability_dual_god_switch",
+      "relation_type": "AUTHORITY_COMPONENT",
+      "label": "海神权柄参与双神切换",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_eeae31dd6055c25dbe5e42bf",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "owner": "character_tang_san",
+        "unknown_boundary": "后续神界职责未决定"
+      }
+    },
+    {
+      "edge_id": "edge_shura_god_to_dual_switch",
+      "from_id": "ability_shura_god",
+      "to_id": "ability_dual_god_switch",
+      "relation_type": "AUTHORITY_COMPONENT",
+      "label": "修罗神力参与双神切换",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_eeae31dd6055c25dbe5e42bf"]
+      },
+      "payload": {
+        "carrier": "character_ling_yue",
+        "unknown_boundary": "长期日常成本 UNKNOWN"
+      }
+    },
+    {
+      "edge_id": "edge_dual_switch_to_single_action_limit",
+      "from_id": "ability_dual_god_switch",
+      "to_id": "ability_single_action_limit",
+      "relation_type": "LIMITED_BY",
+      "label": "双神共存受单一神位出手限制",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_eeae31dd6055c25dbe5e42bf"]
+      },
+      "payload": {
+        "unknown_boundary": "不能从一次战斗表现推导同时叠加或无限持续"
+      }
+    },
+    {
+      "edge_id": "edge_faith_resurrection_dependency",
+      "from_id": "ability_faith_resurrection",
+      "to_id": "ability_sea_god",
+      "relation_type": "REQUIRES_DIVINE_SUPPORT",
+      "label": "复活链依赖海神信仰/神力支持",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_679c5e4110fa88c01b2f95ff"]
+      },
+      "payload": {
+        "unknown_boundary": "能否再次复现、所需信仰量与不可逆代价 UNKNOWN"
+      }
+    },
+    {
+      "edge_id": "edge_rift_chain_to_shura",
+      "from_id": "ability_rift_war_lion",
+      "to_id": "ability_shura_god",
+      "relation_type": "CARRIER_CHAIN",
+      "label": "裂空战狮能力链承载修罗神力",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_eeae31dd6055c25dbe5e42bf"]
+      },
+      "payload": {
+        "unknown_boundary": "解除融合后的长期成本未展开"
+      }
+    }
+  ]
+}

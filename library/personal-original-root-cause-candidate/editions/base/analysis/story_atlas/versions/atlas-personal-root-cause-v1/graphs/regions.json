@@ -1,0 +1,194 @@
+{
+  "graph_type": "regions",
+  "atlas_version": 1,
+  "metadata": {
+    "source": "atlas_evidence_inventory.md + synthesis/graphs.json + Arc45",
+    "topology_only": true,
+    "boundary": "不写坐标；五行大陆仅作远端候选 hook"
+  },
+  "nodes": [
+    {
+      "node_id": "region_douluo_continent",
+      "name": "斗罗大陆",
+      "node_type": "region",
+      "description": "主角与帝国战争所在大陆的拓扑锚点。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "topology": "承载嘉陵关、帝国战后秩序与海神传承回返"
+      }
+    },
+    {
+      "node_id": "region_jialing_pass",
+      "name": "嘉陵关",
+      "node_type": "region",
+      "description": "终局神战与武魂帝国败亡地点。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_679c5e4110fa88c01b2f95ff",
+          "span_fa378dd5cb85560640398b82",
+          "span_eeae31dd6055c25dbe5e42bf",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "topology": "斗罗大陆的终局战场与战后边界",
+        "current_state": "主战争闭合"
+      }
+    },
+    {
+      "node_id": "region_sea_god_island",
+      "name": "海神岛",
+      "node_type": "region",
+      "description": "海神信仰与传承来源。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_679c5e4110fa88c01b2f95ff"]
+      },
+      "payload": {
+        "topology": "海域中的海神传承节点",
+        "current_state": "支撑神魂归位与海神信仰链",
+        "constraint": "后续是否成为当前场景 UNKNOWN"
+      }
+    },
+    {
+      "node_id": "region_divine_realm",
+      "name": "神界",
+      "node_type": "region",
+      "description": "终局远端信息来源；不是默认下一场景。",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "MID",
+      "confidence": 0.65,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"],
+        "reasoning_summary": "终局对话涉及神界职责与召见，支持存在方向性连接。",
+        "counter_evidence": ["正文没有写出唐三实际升入神界的时间与路径。"]
+      },
+      "payload": {
+        "topology": "斗罗大陆之外的神位职责节点",
+        "reasoning_summary": "神界是有证据的远端制度空间，但不是既定下一幕。",
+        "counter_evidence": ["唐三是否接替执法者、介入权限和代价均 UNKNOWN。"],
+        "unknown_boundary": "不得默认下一章转场神界或预设升神时间。"
+      }
+    },
+    {
+      "node_id": "region_five_elements_continent",
+      "name": "五行大陆",
+      "node_type": "region",
+      "description": "只作为远端执行者遇害的开放信息 hook。",
+      "information_status": "CANDIDATE",
+      "constraint_level": "SPECULATIVE",
+      "horizon": "FAR",
+      "confidence": 0.55,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"],
+        "reasoning_summary": "第379章报告修罗神派出的远端执行者遇害，因此保留跨大陆入口候选。",
+        "counter_evidence": ["没有主角接令、身份链、路线、坐标或时点。"]
+      },
+      "payload": {
+        "topology": "与当前大陆连接方式 UNKNOWN",
+        "reasoning_summary": "事实 hook 支持保留区域名，但不支持选为主线。",
+        "counter_evidence": ["执行者身份与事件优先级未知。"],
+        "unknown_boundary": "保持 FAR/CANDIDATE，不写坐标，不绘制固定路线，不视为唯一续写方向。"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "edge_douluo_to_jialing",
+      "from_id": "region_douluo_continent",
+      "to_id": "region_jialing_pass",
+      "relation_type": "CONTAINS_BATTLE_SITE",
+      "label": "斗罗大陆包含嘉陵关终局战场",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "topology_only": true
+      }
+    },
+    {
+      "edge_id": "edge_jialing_to_sea_island",
+      "from_id": "region_jialing_pass",
+      "to_id": "region_sea_god_island",
+      "relation_type": "FAITH_AND_INHERITANCE_LINK",
+      "label": "嘉陵关—海神岛传承/复活方向连接",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "CURRENT",
+      "confidence": 0.72,
+      "evidence": {
+        "source_span_ids": ["span_679c5e4110fa88c01b2f95ff"],
+        "reasoning_summary": "海神岛信仰与复活链参与终局，支持方向性连接。",
+        "counter_evidence": ["具体路线、距离与时间未给出。"]
+      },
+      "payload": {
+        "topology_only": true,
+        "reasoning_summary": "只表达叙事连接，不推导地理坐标。",
+        "counter_evidence": ["正文未形成连续旅行路线。"],
+        "unknown_boundary": "不得把该边当作下一章必经路径。"
+      }
+    },
+    {
+      "edge_id": "edge_douluo_to_divine_realm",
+      "from_id": "region_douluo_continent",
+      "to_id": "region_divine_realm",
+      "relation_type": "DIVINE_DUTY_DIRECTION",
+      "label": "斗罗大陆—神界神位职责方向",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "MID",
+      "confidence": 0.72,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"],
+        "reasoning_summary": "终局谈话提到未来接替神界职责，说明方向性连接。",
+        "counter_evidence": ["不证明唐三已升神或必须马上升入神界。"]
+      },
+      "payload": {
+        "topology_only": true,
+        "reasoning_summary": "保留可能的制度通道。",
+        "counter_evidence": ["没有时间表、通道描述或主角确认。"],
+        "unknown_boundary": "不得将升神时间、职责和介入权限写成既成事实。"
+      }
+    },
+    {
+      "edge_id": "edge_divine_realm_to_five_elements",
+      "from_id": "region_divine_realm",
+      "to_id": "region_five_elements_continent",
+      "relation_type": "REMOTE_HOOK_UNVERIFIED",
+      "label": "神界—五行大陆远端异常方向",
+      "information_status": "CANDIDATE",
+      "constraint_level": "SPECULATIVE",
+      "horizon": "FAR",
+      "confidence": 0.45,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"],
+        "reasoning_summary": "远端执行者遇害可能位于神界职责链之外延。",
+        "counter_evidence": ["正文没有给出路线、责任主体或事件与主角的直接关联。"]
+      },
+      "payload": {
+        "topology_only": true,
+        "reasoning_summary": "仅保留待查方向，不绘制固定拓扑。",
+        "counter_evidence": ["身份链、通道与优先级全部 UNKNOWN。"],
+        "unknown_boundary": "FAR/CANDIDATE；不得选作唯一主线或写成已发生的主角任务。"
+      }
+    }
+  ]
+}

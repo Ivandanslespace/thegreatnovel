@@ -12,11 +12,34 @@ build/
 workspace/*/
 !workspace/.gitkeep
 
-# canonical Book Library：真实来源、运行数据库和导出均属于本机用户数据。
-# 只把入口说明和占位文件纳入版本库。
+# canonical Book Library：仅上传用户指定书目的可审计产物；运行数据库、原始来源、导出和其它书目仍保持本地。
 library/*
 !library/.gitkeep
 !library/README.md
+
+# auditable subset for personal-original-root-cause-candidate
+!library/personal-original-root-cause-candidate/
+library/personal-original-root-cause-candidate/*
+!library/personal-original-root-cause-candidate/book.yaml
+!library/personal-original-root-cause-candidate/README.md
+!library/personal-original-root-cause-candidate/source_manifest.json
+!library/personal-original-root-cause-candidate/_system/
+library/personal-original-root-cause-candidate/_system/*
+!library/personal-original-root-cause-candidate/_system/source_manifest.json
+!library/personal-original-root-cause-candidate/editions/
+library/personal-original-root-cause-candidate/editions/*
+!library/personal-original-root-cause-candidate/editions/base/
+library/personal-original-root-cause-candidate/editions/base/*
+!library/personal-original-root-cause-candidate/editions/base/analysis/
+!library/personal-original-root-cause-candidate/editions/base/analysis/**
+!library/personal-original-root-cause-candidate/editions/base/writing/
+library/personal-original-root-cause-candidate/editions/base/writing/*
+!library/personal-original-root-cause-candidate/editions/base/writing/boundaries/
+!library/personal-original-root-cause-candidate/editions/base/writing/boundaries/**
+!library/personal-original-root-cause-candidate/editions/base/operations/
+library/personal-original-root-cause-candidate/editions/base/operations/*
+!library/personal-original-root-cause-candidate/editions/base/operations/handoff_69f66f4a3afccac1de5e5e2d/
+!library/personal-original-root-cause-candidate/editions/base/operations/handoff_69f66f4a3afccac1de5e5e2d/**
 
 # 原始小说与 inspirations 保持本地，不由本项目生成流程修改。
 book/*

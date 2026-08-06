@@ -1,0 +1,59 @@
+{
+  "allowed_paths": [
+    "C:\\dev\\小说续写系统\\library\\personal-original-root-cause-candidate\\editions\\base\\operations\\handoff_69f66f4a3afccac1de5e5e2d\\artifacts",
+    "C:\\dev\\小说续写系统\\library\\personal-original-root-cause-candidate\\editions\\base\\operations\\handoff_69f66f4a3afccac1de5e5e2d"
+  ],
+  "atlas_output_directory": "C:\\dev\\小说续写系统\\library\\personal-original-root-cause-candidate\\editions\\base\\operations\\handoff_69f66f4a3afccac1de5e5e2d\\artifacts\\story_atlas",
+  "atlas_required_artifacts": [
+    "atlas_manifest.json",
+    "narrative_dna.md",
+    "current_world_model.md",
+    "world_rules.yaml",
+    "unresolved_assumptions.yaml",
+    "expansion_grammar.yaml",
+    "graphs/*.json",
+    "future/*.yaml",
+    "reports/*.md"
+  ],
+  "author_directives_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "base_event_seq": 0,
+  "base_projection_hash": "e2ba9f4cf087717a278fa7c4dd933b6e08316074d89cc282139dae8eb2df2c0b",
+  "batch_id": null,
+  "batch_plan_hash": null,
+  "book_id": "personal-original-root-cause-candidate",
+  "config_hash": "685a5acc8a728524c2a6e407ffccc2b3b76e433e3f3c10c319fbf61b2e1b4ce3",
+  "created_at": "2026-08-06T17:36:10.515406+00:00",
+  "current_atlas_id": null,
+  "current_atlas_manifest_hash": null,
+  "current_atlas_version": null,
+  "current_horizon_hash": null,
+  "edition_id": "base",
+  "effective_content_sha256": "a1e5b3ac2d6fc5a57203c1667a2b491e91de60dd3dd93105479ce21d8242304e",
+  "expected_outputs": [
+    "events.jsonl",
+    "result.json",
+    "status.json"
+  ],
+  "forbidden_actions": [
+    "不得修改book",
+    "不得批准正史",
+    "不得批准改写Campaign",
+    "不得启用Edition",
+    "不得删除历史草稿",
+    "不得绕过Validator",
+    "不得把 Story Atlas 的 INFERENCE/CANDIDATE/SPECULATIVE 内容写入 Canon",
+    "不得把 FAR Horizon 写成逐章固定大纲"
+  ],
+  "handoff_id": "handoff_69f66f4a3afccac1de5e5e2d",
+  "metric_bundle_hash": "a751abc055c06b88602fcb992e7d15d47ec76c409868dbbe93385dcffde041ae",
+  "metric_run_id": "metric-run_cc6ddec0c61b7aedb4a5ab9d",
+  "planning_aggregate_hash": "d13cfca5197d73630d4c6c865fe2ff00b3f475e88c83a249be448b860c1c80b1",
+  "planning_aggregate_id": "planning-aggregate_2d1e608240f635689220c85f",
+  "readiness_status": null,
+  "registry_hash": "cc3c44febd2467e5c34991daf6c2217130673be36ad4043882188e0e6262a1c7",
+  "requested_stage": "ATLAS_BOOTSTRAP",
+  "rhythm_snapshot_id": null,
+  "source_manifest_sha256": "de44e1853c51b6e676c7d07aa9d158c94a914d0ecd1f6d2a2cea3fd0ad765740",
+  "task_schema_version": "handoff-v1",
+  "task_type": "STORY_ATLAS_BOOTSTRAP"
+}

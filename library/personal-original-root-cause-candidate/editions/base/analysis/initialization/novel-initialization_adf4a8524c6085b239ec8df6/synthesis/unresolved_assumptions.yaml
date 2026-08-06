@@ -1,0 +1,35 @@
+schema_version: unresolved-assumptions-v1
+status: OPEN
+assumptions:
+  - id: continuation-form
+    statement: 原文以全书完结束，尚未确定续写是尾声、第二部还是跨世界新篇。
+    information_status: UNKNOWN
+    required_review: author-direction
+  - id: wedding-on-page
+    statement: 唐三与凌岳已接受婚礼安排，但正文没有实际举行婚礼。
+    information_status: CANON_BOUNDARY
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+    required_review: chapter-candidate-selection
+  - id: dual-god-long-term-cost
+    statement: 正文确认双神切换且一次只有一神出手，没有确认长期反噬，也没有证明可同时叠加。
+    information_status: UNKNOWN
+    source_span_ids:
+      - span_eeae31dd6055c25dbe5e42bf
+    required_review: world-rule-review
+  - id: five-elements-priority
+    statement: 五行大陆执行者遇害是远端开放信息，不等于唐三或凌岳已接受任务。
+    information_status: CANON_PLUS_UNKNOWN
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+    required_review: author-direction
+  - id: postwar-enforcement
+    statement: 十年停战、战俘与唐门军用技术退出已经提出，但长期执行机制没有在正文中展开。
+    information_status: INFERENCE
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+    required_review: postwar-arc-design
+  - id: supporting-cast-current-state
+    statement: 终局确认核心伙伴存活和参与，但并未逐一交代所有人的战后目标与所在地。
+    information_status: UNKNOWN
+    required_review: character-ledger-refresh

@@ -1,0 +1,190 @@
+{
+  "graph_type": "factions",
+  "atlas_version": 1,
+  "metadata": {
+    "source": "atlas_evidence_inventory.md + synthesis/graphs.json + Arc45",
+    "boundary": "帝国战争已闭合；战后制度执行仍需作者选择"
+  },
+  "nodes": [
+    {
+      "node_id": "faction_tang_sect",
+      "name": "唐门",
+      "node_type": "faction",
+      "description": "保留宗门身份，退出帝国战争并停止生产战争暗器。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "current_state": "诸葛神弩收回并销毁；退出战争用途",
+        "constraint": "不得无因恢复为常备军工链"
+      }
+    },
+    {
+      "node_id": "faction_tiandou_empire",
+      "name": "天斗帝国",
+      "node_type": "faction",
+      "description": "嘉陵关决战胜方，承接战俘、停战和战后约束。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "NEAR",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_679c5e4110fa88c01b2f95ff",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "current_state": "获胜并进入战后重建",
+        "constraint": "执行主体、监督与失败成本 UNKNOWN"
+      }
+    },
+    {
+      "node_id": "faction_star_luo_empire",
+      "name": "星罗帝国",
+      "node_type": "faction",
+      "description": "与天斗帝国承诺至少十年不主动开战。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "NEAR",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "current_state": "十年停战承诺的一方",
+        "constraint": "承诺不等于已验证的长期制度"
+      }
+    },
+    {
+      "node_id": "faction_wuhun_empire",
+      "name": "武魂帝国",
+      "node_type": "faction",
+      "description": "终局战败，旧主冲突闭合。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "lifecycle_status": "RETIRED",
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "current_state": "最高神级战力瓦解，政权将被终结",
+        "constraint": "后续秩序重组没有正文细节"
+      }
+    },
+    {
+      "node_id": "faction_shrek_network",
+      "name": "史莱克伙伴网络",
+      "node_type": "faction_network",
+      "description": "核心同盟网络存续的跨章推断。",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "NEAR",
+      "confidence": 0.7,
+      "evidence": {
+        "source_span_ids": [
+          "span_679c5e4110fa88c01b2f95ff",
+          "span_78e506ec415b579ab48eb2b9"
+        ],
+        "reasoning_summary": "复活与终局合作支持史莱克同盟网络继续存在。",
+        "counter_evidence": ["个体战后目标、所在地和组织化程度均未完整交代。"]
+      },
+      "payload": {
+        "goal": "在战后维持伙伴关系并重新分配职责",
+        "resource_base": "成员之间的信任、神级战后声望与既有协作能力",
+        "internal_tension": "私人生活、宗门责任和神界义务的优先级未定",
+        "source_of_introduction": "嘉陵关终局战中的核心同盟协作",
+        "why_now": "帝国战争闭合后需要确定同盟网络的战后形态",
+        "reasoning_summary": "终局合作给出网络存在证据，但没有给出固定组织章程。",
+        "counter_evidence": ["史莱克伙伴并未在第379章被逐一分配职位。"],
+        "unknown_boundary": "不得把软网络升级为固定军政机构。"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "edge_tangmen_war_exit",
+      "from_id": "faction_tang_sect",
+      "to_id": "faction_tiandou_empire",
+      "relation_type": "WAR_USE_WITHDRAWAL",
+      "label": "唐门退出帝国军用体系",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "current_state": "诸葛神弩收回并销毁",
+        "constraint": "不得默认仍有可随时调动的军用库存"
+      }
+    },
+    {
+      "edge_id": "edge_tiandou_star_luo_ceasefire",
+      "from_id": "faction_tiandou_empire",
+      "to_id": "faction_star_luo_empire",
+      "relation_type": "TEN_YEAR_CEASEFIRE",
+      "label": "至少十年不主动开战",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "NEAR",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "current_state": "战后承诺",
+        "unknown_boundary": "监督主体、违约成本与社会反馈 UNKNOWN"
+      }
+    },
+    {
+      "edge_id": "edge_tiandou_wuhun_victory",
+      "from_id": "faction_tiandou_empire",
+      "to_id": "faction_wuhun_empire",
+      "relation_type": "FINAL_WAR_VICTORY",
+      "label": "终局战胜并终结旧政权",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "current_state": "主冲突闭合",
+        "unknown_boundary": "战后治理细节未展开"
+      }
+    },
+    {
+      "edge_id": "edge_shrek_postwar_unknown",
+      "from_id": "faction_shrek_network",
+      "to_id": "faction_tiandou_empire",
+      "relation_type": "POSTWAR_ALLIANCE_UNRESOLVED",
+      "label": "史莱克与战后秩序的软连接",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "NEAR",
+      "confidence": 0.65,
+      "evidence": {
+        "source_span_ids": [
+          "span_679c5e4110fa88c01b2f95ff",
+          "span_78e506ec415b579ab48eb2b9"
+        ],
+        "reasoning_summary": "伙伴网络与天斗胜方共同进入战后阶段。",
+        "counter_evidence": ["没有证据证明史莱克接受帝国正式编制。"]
+      },
+      "payload": {
+        "reasoning_summary": "只保留战后同盟方向，不假定行政隶属。",
+        "counter_evidence": ["唐三已退出帝国事务。"],
+        "unknown_boundary": "制度分工和个人选择待作者决定。"
+      }
+    }
+  ]
+}

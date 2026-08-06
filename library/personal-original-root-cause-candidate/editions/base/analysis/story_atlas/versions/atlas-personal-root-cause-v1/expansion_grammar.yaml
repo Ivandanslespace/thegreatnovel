@@ -1,0 +1,128 @@
+schema_version: expansion-grammar-v1
+scope: postwar-expansion-with-author-choice
+current_boundary:
+  chapter_ordinal: 379
+  stage: 战后重建、关系兑现与神人边界
+  information_status: CANON
+  constraint_level: HARD
+  horizon: CURRENT
+  confidence: 1.0
+  source_span_ids:
+    - span_78e506ec415b579ab48eb2b9
+grammar_principles:
+  - grammar_id: aftershock_before_scale_jump
+    name: 重大终局后的余波先于新地图
+    statement: 先展示战后约束、关系选择或社会反馈如何改变行动，再决定是否扩大到神界或五行大陆。
+    information_status: INFERENCE
+    constraint_level: SOFT
+    horizon: NEAR
+    confidence: 0.84
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+    derived_from:
+      - transition_war_to_reconstruction
+      - promise_ten_year_peace
+      - promise_wedding
+  - grammar_id: choice_generates_responsibility
+    name: 关系选择必须转化为新责任
+    statement: 婚礼、共同生活或关系边界只能作为可观察的选择，并应带来责任、承诺或组织反馈；不得只用宣言替代关系变化。
+    information_status: INFERENCE
+    constraint_level: SOFT
+    horizon: NEAR
+    confidence: 0.78
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+      - span_eeae31dd6055c25dbe5e42bf
+  - grammar_id: preserve_absolute_boundaries
+    name: 每次扩张都要支付能力边界
+    statement: 新问题可以改变策略空间，但不得突破双神一次一神、复活来源不可泛化与神不常驻人间政治三道硬门。
+    information_status: CANON
+    constraint_level: HARD
+    horizon: CURRENT
+    confidence: 1.0
+    source_span_ids:
+      - span_679c5e4110fa88c01b2f95ff
+      - span_eeae31dd6055c25dbe5e42bf
+      - span_78e506ec415b579ab48eb2b9
+  - grammar_id: problem_from_consequence
+    name: 新问题从已兑现后果中生长
+    statement: 新冲突应来源于战后制度执行、关系角色协商、神界规则反馈或已知远端异常，不得凭空引入与既有成果无关的危机。
+    information_status: INFERENCE
+    constraint_level: SOFT
+    horizon: MID
+    confidence: 0.68
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+    derived_from:
+      - event_postwar_constraints
+      - hook_five_elements_continent
+  - grammar_id: preserve_author_choice
+    name: 多条结构路线并存
+    statement: ACTIVE 只提供当前优先的余波—关系选择—新责任结构；神界调查、制度重建、公开承诺与五行大陆均保持可暂停、可替换或延后。
+    information_status: INFERENCE
+    constraint_level: SOFT
+    horizon: NEAR
+    confidence: 0.84
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+    alternatives:
+      - spine_divine_realm_investigation
+      - spine_reconstruction_institutional
+      - spine_public_commitment
+      - spine_five_elements_rule_mismatch_wildcard
+prohibitions:
+  - prohibition_id: no_uncaused_resurrection
+    statement: 不得无因复活比比宸、恢复千仞霄完整神位或把一次性集体信仰复活写成常规技能。
+    information_status: INFERENCE
+    constraint_level: HARD
+    horizon: CURRENT
+  - prohibition_id: no_simultaneous_dual_attack
+    statement: 不得把双神切换写成两个神位同时出手。
+    information_status: CANON
+    constraint_level: HARD
+    horizon: CURRENT
+    source_span_ids:
+      - span_eeae31dd6055c25dbe5e42bf
+  - prohibition_id: no_permanent_mortal_governance
+    statement: 不得让唐三无条件恢复帝师或常驻人间政务；神级威胁例外必须有明确触发。
+    information_status: CANON
+    constraint_level: HARD
+    horizon: CURRENT
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+  - prohibition_id: no_alias_merge
+    statement: 不得擅自合并阿岚、阿银与蓝银皇的身份。
+    information_status: INFERENCE
+    constraint_level: HARD
+    horizon: CURRENT
+  - prohibition_id: no_far_chapter_outline
+    statement: FAR 只保留阶段、规模、约束与未知，不生成逐章大纲、固定结局或预先承诺的终局。
+    information_status: INFERENCE
+    constraint_level: HARD
+    horizon: FAR
+stage_ladder:
+  - stage_id: postwar_aftershock
+    description: 战后余波显形，十年停战、暗器退出和赦免后的社会反馈开始被观察。
+    information_status: INFERENCE
+    constraint_level: SOFT
+    horizon: NEAR
+    confidence: 0.84
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+  - stage_id: relationship_role_choice
+    description: 唐三与凌岳在婚礼、共同生活和神人边界之间作出作者可见的角色选择。
+    information_status: INFERENCE
+    constraint_level: SOFT
+    horizon: NEAR
+    confidence: 0.78
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+  - stage_id: new_responsibility_or_hook
+    description: 新责任可以来自制度执行、神界规则或远端异常，但具体承担者与路线保持开放。
+    information_status: CANDIDATE
+    constraint_level: SPECULATIVE
+    horizon: MID
+    confidence: 0.62
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+

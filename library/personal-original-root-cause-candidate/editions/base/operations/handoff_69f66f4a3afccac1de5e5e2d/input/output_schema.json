@@ -1,0 +1,472 @@
+{
+  "additionalProperties": false,
+  "description": "Strict result contract shared by Codex desktop, Web and CLI.",
+  "properties": {
+    "ability_count": {
+      "default": 0,
+      "title": "Ability Count",
+      "type": "integer"
+    },
+    "arc_coverage": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Arc Coverage"
+    },
+    "artifact_paths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Artifact Paths",
+      "type": "array"
+    },
+    "atlas_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Atlas Id"
+    },
+    "atlas_manifest_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Atlas Manifest Hash"
+    },
+    "atlas_refresh_required": {
+      "default": false,
+      "title": "Atlas Refresh Required",
+      "type": "boolean"
+    },
+    "atlas_version": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Atlas Version"
+    },
+    "base_event_seq": {
+      "title": "Base Event Seq",
+      "type": "integer"
+    },
+    "base_projection_hash": {
+      "title": "Base Projection Hash",
+      "type": "string"
+    },
+    "batch_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Batch Id"
+    },
+    "batch_plan_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Batch Plan Hash"
+    },
+    "book_id": {
+      "title": "Book Id",
+      "type": "string"
+    },
+    "campaign_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Campaign Id"
+    },
+    "candidate_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Candidate Ids",
+      "type": "array"
+    },
+    "canon_committed": {
+      "const": false,
+      "default": false,
+      "title": "Canon Committed",
+      "type": "boolean"
+    },
+    "chapter_coverage": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Chapter Coverage"
+    },
+    "chunk_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Chunk Ids",
+      "type": "array"
+    },
+    "completed_arc_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Completed Arc Ids",
+      "type": "array"
+    },
+    "completed_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Completed At"
+    },
+    "completed_stage": {
+      "title": "Completed Stage",
+      "type": "string"
+    },
+    "contract_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Contract Id"
+    },
+    "draft_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Draft Id"
+    },
+    "edition_activated": {
+      "const": false,
+      "default": false,
+      "title": "Edition Activated",
+      "type": "boolean"
+    },
+    "edition_id": {
+      "title": "Edition Id",
+      "type": "string"
+    },
+    "entity_count": {
+      "default": 0,
+      "title": "Entity Count",
+      "type": "integer"
+    },
+    "faction_count": {
+      "default": 0,
+      "title": "Faction Count",
+      "type": "integer"
+    },
+    "failed_arc_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Failed Arc Ids",
+      "type": "array"
+    },
+    "generated_visuals": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Generated Visuals",
+      "type": "array"
+    },
+    "handoff_id": {
+      "title": "Handoff Id",
+      "type": "string"
+    },
+    "handoff_type": {
+      "title": "Handoff Type",
+      "type": "string"
+    },
+    "horizon_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Horizon Hash"
+    },
+    "initialization_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Initialization Id"
+    },
+    "metric_bundle_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Metric Bundle Hash"
+    },
+    "metric_observation_count": {
+      "default": 0,
+      "title": "Metric Observation Count",
+      "type": "integer"
+    },
+    "metric_run_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Metric Run Ids",
+      "type": "array"
+    },
+    "next_action": {
+      "default": "",
+      "title": "Next Action",
+      "type": "string"
+    },
+    "readiness": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Readiness"
+    },
+    "readiness_status": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Readiness Status"
+    },
+    "region_count": {
+      "default": 0,
+      "title": "Region Count",
+      "type": "integer"
+    },
+    "relationship_count": {
+      "default": 0,
+      "title": "Relationship Count",
+      "type": "integer"
+    },
+    "requested_stage": {
+      "title": "Requested Stage",
+      "type": "string"
+    },
+    "resource_count": {
+      "default": 0,
+      "title": "Resource Count",
+      "type": "integer"
+    },
+    "review_queue": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Review Queue",
+      "type": "array"
+    },
+    "review_queue_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Review Queue Ids",
+      "type": "array"
+    },
+    "revision_unit_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Revision Unit Ids",
+      "type": "array"
+    },
+    "selected_candidate_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Selected Candidate Id"
+    },
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "task_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Task Ids",
+      "type": "array"
+    },
+    "thread_count": {
+      "default": 0,
+      "title": "Thread Count",
+      "type": "integer"
+    },
+    "validation_summary": {
+      "additionalProperties": true,
+      "title": "Validation Summary",
+      "type": "object"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "handoff_id",
+    "handoff_type",
+    "requested_stage",
+    "completed_stage",
+    "book_id",
+    "edition_id",
+    "status",
+    "task_ids",
+    "candidate_ids",
+    "selected_candidate_id",
+    "contract_id",
+    "draft_id",
+    "campaign_id",
+    "revision_unit_ids",
+    "artifact_paths",
+    "validation_summary",
+    "warnings",
+    "next_action",
+    "canon_committed",
+    "edition_activated",
+    "base_event_seq",
+    "base_projection_hash",
+    "metric_run_ids",
+    "metric_bundle_hash",
+    "completed_at"
+  ],
+  "title": "WorkflowHandoffResult",
+  "type": "object",
+  "x-stage-rules": {
+    "ATLAS_BOOTSTRAP": {
+      "required_non_empty": [
+        "artifact_paths"
+      ]
+    },
+    "ATLAS_REFRESH": {
+      "required_non_empty": [
+        "artifact_paths"
+      ]
+    },
+    "BATCH_CONTINUATION": {
+      "required_non_empty": [
+        "batch_id",
+        "chunk_ids"
+      ]
+    },
+    "DRAFT_AND_VALIDATE": {
+      "required_non_empty": [
+        "draft_id"
+      ]
+    },
+    "IMPACT_AND_PLAN": {
+      "required_non_empty": [
+        "campaign_id",
+        "artifact_paths"
+      ]
+    },
+    "NOVEL_INITIALIZATION": {
+      "required_non_empty": [
+        "initialization_id",
+        "completed_arc_ids",
+        "readiness"
+      ]
+    },
+    "PLAN_ONLY": {
+      "required_non_empty": [
+        "candidate_ids"
+      ]
+    },
+    "WORLD_MODEL_REVIEW": {
+      "required_non_empty": [
+        "review_queue_ids"
+      ]
+    }
+  }
+}

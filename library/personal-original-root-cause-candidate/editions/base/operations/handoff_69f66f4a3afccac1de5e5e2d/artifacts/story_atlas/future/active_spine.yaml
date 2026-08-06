@@ -1,0 +1,29 @@
+spine_id: spine_postwar_aftershock_active
+title: 战后余波与新生活边界
+kind: ACTIVE
+status: ACTIVE
+structure_signature: aftershock -> relationship choice -> new responsibility
+summary: 战争已经闭合，先让十年停战、唐门退出战争、赦免后的秩序与婚礼承诺产生可观察余波，再由唐三和凌岳对共同生活及神人边界作出选择，最后把选择转化为一项新的责任；不预设责任的具体承担者或终局。
+information_status: INFERENCE
+constraint_level: SOFT
+horizon: NEAR
+confidence: 0.84
+anchor_ids:
+  - transition_war_to_reconstruction
+  - promise_ten_year_peace
+  - promise_wedding
+open_design_spaces:
+  - wedding timing and on-page visibility
+  - 战后余波的 POV 与先后顺序
+  - 新责任由个人、伴侣、宗门或制度承担
+  - 双神共存在非战斗场景的使用边界
+evidence:
+  source_span_ids:
+    - span_78e506ec415b579ab48eb2b9
+  chapter_ids:
+    - chapter_d23b4aaa559c01f09fadcdeb
+  reasoning_summary: Arc45 将主线从神战转入战后重建、关系兑现与神人边界；这些开放承诺比远端五行大陆更接近当前边界。
+  counter_evidence:
+    - 正文以全书完收束，没有作者明确指定续篇主线。
+    - 五行大陆异常与神界职责仍可能被作者提升为新篇入口。
+

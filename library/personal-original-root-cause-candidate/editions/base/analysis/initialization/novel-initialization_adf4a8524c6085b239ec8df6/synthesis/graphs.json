@@ -1,0 +1,40 @@
+{
+  "schema_version": "initialization-core-graphs-v1",
+  "characters": [
+    {"id":"character_tang_san","name":"唐三","role":"主角","current_state":"海神/修罗神双神共存；退出帝国权力；准备与凌岳成婚","information_status":"CANON","source_span_ids":["span_679c5e4110fa88c01b2f95ff","span_eeae31dd6055c25dbe5e42bf","span_78e506ec415b579ab48eb2b9"]},
+    {"id":"character_ling_yue","name":"凌岳","role":"主角伴侣与双神共存共同完成者","current_state":"存活；已解除战斗融合；婚礼待举行","information_status":"CANON","source_span_ids":["span_679c5e4110fa88c01b2f95ff","span_eeae31dd6055c25dbe5e42bf","span_78e506ec415b579ab48eb2b9"]},
+    {"id":"character_bibi_chen","name":"比比宸","role":"最终敌手/罗刹神","current_state":"死亡","information_status":"CANON","source_span_ids":["span_fa378dd5cb85560640398b82","span_78e506ec415b579ab48eb2b9"]},
+    {"id":"character_qian_renxiao","name":"千仞霄","role":"天使神传承者","current_state":"神位破碎、武魂受损、获赦免","information_status":"CANON","source_span_ids":["span_fa378dd5cb85560640398b82","span_78e506ec415b579ab48eb2b9"]},
+    {"id":"character_xue_beng","name":"雪崩","role":"天斗皇帝/唐三弟子","current_state":"承担战后秩序承诺","information_status":"CANON","source_span_ids":["span_78e506ec415b579ab48eb2b9"]},
+    {"id":"character_hu_liezhao","name":"胡列昭","role":"比比宸弟子","current_state":"获准存活","information_status":"CANON","source_span_ids":["span_fa378dd5cb85560640398b82","span_78e506ec415b579ab48eb2b9"]}
+  ],
+  "factions": [
+    {"id":"faction_tang_sect","name":"唐门","current_state":"退出战争用途并销毁军用诸葛神弩","information_status":"CANON","source_span_ids":["span_78e506ec415b579ab48eb2b9"]},
+    {"id":"faction_wuhun_empire","name":"武魂帝国","current_state":"终局战败；后续治理未在正文展开","information_status":"CANON","source_span_ids":["span_78e506ec415b579ab48eb2b9"]},
+    {"id":"faction_tiandou","name":"天斗帝国","current_state":"获胜并承诺与星罗十年停战","information_status":"CANON","source_span_ids":["span_78e506ec415b579ab48eb2b9"]},
+    {"id":"faction_shrek","name":"史莱克伙伴网络","current_state":"核心同盟存续；战后个人目标待补","information_status":"INFERENCE","source_span_ids":["span_679c5e4110fa88c01b2f95ff","span_78e506ec415b579ab48eb2b9"]}
+  ],
+  "abilities": [
+    {"id":"ability_sea_god","name":"海神权柄","owner":"character_tang_san","information_status":"CANON","source_span_ids":["span_679c5e4110fa88c01b2f95ff","span_fa378dd5cb85560640398b82"]},
+    {"id":"ability_shura_god","name":"修罗神力","owner":"character_tang_san","information_status":"CANON","source_span_ids":["span_eeae31dd6055c25dbe5e42bf","span_78e506ec415b579ab48eb2b9"]},
+    {"id":"ability_dual_god_switch","name":"双神切换","owner":"character_tang_san","constraint":"一次只能有一神出手","information_status":"CANON","source_span_ids":["span_eeae31dd6055c25dbe5e42bf"]},
+    {"id":"ability_rift_war_lion","name":"裂空战狮能力链","owner":"character_ling_yue","current_boundary":"不得无证据改回原实体或原能力链","information_status":"CANON","source_span_ids":["span_eeae31dd6055c25dbe5e42bf"]}
+  ],
+  "resources": [
+    {"id":"resource_faith","name":"信仰之力","function":"终局复活的神魂/肉身支撑之一","information_status":"CANON","source_span_ids":["span_679c5e4110fa88c01b2f95ff"]},
+    {"id":"resource_shura_sword","name":"修罗魔剑","function":"凌岳承载并促成双神共存","information_status":"CANON","source_span_ids":["span_eeae31dd6055c25dbe5e42bf"]},
+    {"id":"resource_zhuge_crossbow","name":"诸葛神弩","current_state":"战后军用存量被要求销毁","information_status":"CANON","source_span_ids":["span_78e506ec415b579ab48eb2b9"]}
+  ],
+  "regions": [
+    {"id":"region_jialing_pass","name":"嘉陵关","topology":"大陆终局战场","information_status":"CANON","source_span_ids":["span_679c5e4110fa88c01b2f95ff","span_78e506ec415b579ab48eb2b9"]},
+    {"id":"region_sea_god_island","name":"海神岛","topology":"海神信仰与传承来源","information_status":"CANON","source_span_ids":["span_679c5e4110fa88c01b2f95ff"]},
+    {"id":"region_divine_realm","name":"神界","topology":"终局远端信息来源；非默认下一场景","information_status":"INFERENCE","source_span_ids":["span_78e506ec415b579ab48eb2b9"]},
+    {"id":"region_five_elements","name":"五行大陆","topology":"远端开放 hook，和当前大陆连接方式未知","information_status":"CANON_PLUS_UNKNOWN","source_span_ids":["span_78e506ec415b579ab48eb2b9"]}
+  ],
+  "plot_threads": [
+    {"thread_id":"thread_postwar_aftershock","name":"战后秩序与退出权力的余波","status":"OPEN","information_status":"INFERENCE","source_span_ids":["span_78e506ec415b579ab48eb2b9"]},
+    {"thread_id":"thread_tang_ling_wedding","name":"唐三与凌岳的婚礼及共同生活边界","status":"OPEN","information_status":"INFERENCE","source_span_ids":["span_78e506ec415b579ab48eb2b9"]},
+    {"thread_id":"thread_five_elements_anomaly","name":"五行大陆执行者遇害","status":"OPEN_REMOTE","information_status":"CANON","source_span_ids":["span_78e506ec415b579ab48eb2b9"]},
+    {"thread_id":"thread_jialing_final_battle","name":"嘉陵关最终战争","status":"RESOLVED","information_status":"CANON","source_span_ids":["span_fa378dd5cb85560640398b82","span_eeae31dd6055c25dbe5e42bf","span_78e506ec415b579ab48eb2b9"]}
+  ]
+}

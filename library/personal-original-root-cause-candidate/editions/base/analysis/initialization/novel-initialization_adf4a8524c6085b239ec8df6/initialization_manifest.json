@@ -1,0 +1,40 @@
+{
+  "arc_count": 45,
+  "arc_manifest_path": "arc_manifest.json",
+  "book_id": "personal-original-root-cause-candidate",
+  "chapter_count": 379,
+  "contract_hashes": {
+    "arc_manifest.json": "067fc86e3d2d0518553689fb9556755226f908a389eacfb4e4f6b333c7e9cf02",
+    "arc_schema.json": "d7c137c156fd0629982a7a9ac833d15f9e84494fe9040668d9513396a7dd9de1",
+    "source_coverage.json": "8262a78031fef69748069fbc9a27a92f387c90c25da98c3af550bdeb023ae94e"
+  },
+  "created_at": "2026-08-06T15:50:19.167221+00:00",
+  "current_core_requirements": [
+    "protagonist state",
+    "current world rules",
+    "current ability boundaries",
+    "active main thread",
+    "continuation boundary"
+  ],
+  "edition_id": "base",
+  "effective_content_sha256": "31685fb62c00720bbf96c493ab9736ac3a53d4ad948d2f0d8e2cbe770137808c",
+  "future_can_remain_incomplete": true,
+  "initialization_id": "novel-initialization_adf4a8524c6085b239ec8df6",
+  "pipeline": [
+    "Source Coverage",
+    "Arc Segmentation",
+    "Arc Extraction",
+    "Entity Resolution",
+    "Cross-Arc Synthesis",
+    "Contradiction Audit",
+    "Narrative DNA",
+    "Current Story Atlas",
+    "Future Possibility Space",
+    "Semantic Metric Bootstrap",
+    "Visual Asset Rendering"
+  ],
+  "schema_version": "novel-initialization-v1",
+  "source_coverage_path": "source_coverage.json",
+  "source_manifest_sha256": "de44e1853c51b6e676c7d07aa9d158c94a914d0ecd1f6d2a2cea3fd0ad765740",
+  "state": "READY_WITH_GAPS"
+}

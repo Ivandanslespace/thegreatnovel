@@ -1,0 +1,115 @@
+schema_version: world-rules-v1
+scope: current-boundary-and-expansion-constraints
+current_chapter_ordinal: 379
+rules:
+  - rule_id: rule_dual_god_single_action
+    name: 双神共存单次仅一神出手
+    statement: 唐三与凌岳的双神共存允许在海神与修罗神之间切换，但一次只能由一个神位出手，不能把两种神力同时叠加为双重攻击。
+    information_status: CANON
+    constraint_level: HARD
+    horizon: CURRENT
+    confidence: 1.0
+    source_span_ids:
+      - span_eeae31dd6055c25dbe5e42bf
+    chapter_ids:
+      - chapter_f62d1ecedea422feaa1d1a65
+    evidence: 第三百三十五章明确说明双神共存的切换边界与一次仅能控制一个神位。
+    exceptions: []
+    unknown_boundary: 日常持续使用的成本、频率与对凌岳独立状态的长期影响尚未展开。
+  - rule_id: rule_god_resurrection_two_layers
+    name: 复活分为肉身与神魂两层
+    statement: 神级复活的肉身恢复与神魂归位是两个不同层次；本次肉身依赖复活之光和集体信仰，神魂依赖海神岛与海洋生命的信仰接续。
+    information_status: CANON
+    constraint_level: HARD
+    horizon: CURRENT
+    confidence: 1.0
+    source_span_ids:
+      - span_679c5e4110fa88c01b2f95ff
+    chapter_ids:
+      - chapter_675fa44aca1500b1a47b74a7
+    evidence: 第三百三十三章将复活之光、百万将士信仰与海洋生命信仰分别写成肉身和神魂归位的来源。
+    exceptions: []
+    unknown_boundary: 不得把本次集体信仰条件简化成单人可随意复活的通用技能。
+  - rule_id: rule_resurrection_not_generalizable
+    name: 本次复活不可泛化
+    statement: 复活是特定资源、特定信仰网络与特定事件条件共同造成的结果，不能无因复活比比宸，也不能把失去的神位无因恢复为完整状态。
+    information_status: INFERENCE
+    constraint_level: HARD
+    horizon: CURRENT
+    confidence: 0.96
+    source_span_ids:
+      - span_679c5e4110fa88c01b2f95ff
+      - span_78e506ec415b579ab48eb2b9
+    chapter_ids:
+      - chapter_675fa44aca1500b1a47b74a7
+      - chapter_d23b4aaa559c01f09fadcdeb
+    evidence: 复活来源被限定在本次神战条件，比比宸已死亡，千仞霄神位破碎并被赦免。
+    exceptions: []
+    unknown_boundary: 任何新的生死逆转都必须有作者方向与可追溯的新因果，不得从旧能力自动推导。
+  - rule_id: rule_gods_avoid_mortal_governance
+    name: 神不常驻人间政治
+    statement: 唐三退出帝师、蓝昊王与帝国战争的日常事务；神级角色不应常驻人间政治或替政权持续治理。
+    information_status: CANON
+    constraint_level: HARD
+    horizon: CURRENT
+    confidence: 1.0
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+    chapter_ids:
+      - chapter_d23b4aaa559c01f09fadcdeb
+    evidence: 第三百三十六章写明唐三不再牵涉帝国中事，并将唐门从战争暗器链中撤出。
+    exceptions:
+      - 若再次出现明确的神级威胁，唐三保留介入承诺；该例外不等于恢复日常政治职务。
+    unknown_boundary: 神界职责与人间秩序之间的长期分工尚未确定。
+  - rule_id: rule_resolved_enemy_status
+    name: 终局敌手状态不可无因回滚
+    statement: 比比宸已经死亡；千仞霄的神位破碎、武魂受损并获赦免；不得无因让比比宸复生或让千仞霄恢复完整神位。
+    information_status: CANON
+    constraint_level: HARD
+    horizon: CURRENT
+    confidence: 1.0
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+    chapter_ids:
+      - chapter_d23b4aaa559c01f09fadcdeb
+    evidence: 第三百三十六章完成比比宸死亡与千仞霄失去神位后的战后处置。
+    exceptions: []
+    unknown_boundary: 赦免后的社会位置与个人选择仍未交代，但不改变已发生的生死和神位边界。
+  - rule_id: rule_tangmen_war_exit
+    name: 唐门退出战争暗器链
+    statement: 唐门保留宗门身份，但诸葛神弩等战争暗器收回并销毁，不得在没有新作者指令和新因果的情况下恢复原战争生产链。
+    information_status: CANON
+    constraint_level: HARD
+    horizon: CURRENT
+    confidence: 1.0
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+    chapter_ids:
+      - chapter_d23b4aaa559c01f09fadcdeb
+    evidence: 战后约束要求收回并销毁战争暗器，唐门不再介入帝国战争。
+    exceptions: []
+    unknown_boundary: 唐门未来的非战争用途与内部治理尚未定案。
+unknown_boundaries:
+  - boundary_id: boundary_dual_god_long_term_cost
+    statement: 双神共存在日常场景中的持续时间、消耗与关系影响未知。
+    information_status: INFERENCE
+    constraint_level: SOFT
+    horizon: MID
+    confidence: 0.82
+    source_span_ids:
+      - span_eeae31dd6055c25dbe5e42bf
+  - boundary_id: boundary_five_elements_connection
+    statement: 五行大陆执行者遇害只证明远端神界异常，不证明唐三或凌岳已经接受任务或必须介入。
+    information_status: CANON
+    constraint_level: HARD
+    horizon: FAR
+    confidence: 0.9
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+  - boundary_id: boundary_alias_resolution
+    statement: 阿岚、阿银、蓝银皇的身份关系仍未完成实体解析，禁止在 Atlas 中擅自合并。
+    information_status: INFERENCE
+    constraint_level: HARD
+    horizon: CURRENT
+    confidence: UNKNOWN
+    source_span_ids: []

@@ -1,0 +1,25 @@
+schema_version: book-v1
+layout_version: library-v1
+book_id: personal-original-root-cause-candidate
+slug: personal-original-root-cause-candidate
+title: 个人原创小说根因修复候选
+active_edition_id: base
+database_path: _system/state.sqlite3
+source_storage_mode: COPY_READ_ONLY
+source_files:
+- 个人原创小说根因修复候选.txt
+created_at: '2026-08-06T15:50:06.775069+00:00'
+updated_at: '2026-08-06T15:50:06.775069+00:00'
+readiness_status: NEEDS_INITIALIZATION
+initialize_mode: deferred
+latest_chapter: 379
+current_atlas_id: null
+current_initialization_id: null
+latest_export: editions/base/exports/latest
+source:
+  root: source
+  files:
+  - 个人原创小说根因修复候选.txt
+  sha256: a5e9917514b7beb79832f52524ccb5667e75b1085bcb2549d65b99e2e1d4b434
+  hashes:
+    个人原创小说根因修复候选.txt: a5e9917514b7beb79832f52524ccb5667e75b1085bcb2549d65b99e2e1d4b434

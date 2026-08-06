@@ -1,0 +1,79 @@
+alternative_spines:
+  - spine_id: spine_divine_realm_investigation
+    title: 神界规则调查
+    kind: ALTERNATIVE
+    status: PAUSED
+    structure_signature: mystery -> jurisdiction conflict -> constrained intervention
+    summary: 以五行大陆执行者遇害和神界执法职责为远端谜面，先调查权限与管辖冲突，再决定是否在神级威胁例外下有限介入；不把唐三升神或接任执法者当作既成事实。
+    information_status: CANDIDATE
+    constraint_level: SPECULATIVE
+    horizon: MID
+    confidence: 0.62
+    anchor_ids:
+      - hook_five_elements_continent
+      - thread_divine_realm_future
+    open_design_spaces:
+      - 神界调查是否先于婚礼
+      - 神级威胁例外的触发阈值
+      - 神界职责由唐三、凌岳或其他角色承担
+    evidence:
+      source_span_ids:
+        - span_78e506ec415b579ab48eb2b9
+      chapter_ids:
+        - chapter_d23b4aaa559c01f09fadcdeb
+      reasoning_summary: 终局只留下神界职责谈话与五行大陆执行者遇害，足以形成候选谜面但不足以形成任务。
+      counter_evidence:
+        - 正文没有给出升神时间、调查授权或主角已接受的使命。
+  - spine_id: spine_reconstruction_institutional
+    title: 无主角常驻统治的大陆重建
+    kind: ALTERNATIVE
+    status: PAUSED
+    structure_signature: political aftershock -> institutional choice -> social consequence
+    summary: 观察十年停战、战俘赦免、唐门军用技术退出与帝国重建的制度后果，让主角通过有限承诺而非日常统治影响秩序。
+    information_status: CANDIDATE
+    constraint_level: SPECULATIVE
+    horizon: NEAR
+    confidence: 0.68
+    anchor_ids:
+      - promise_ten_year_peace
+      - event_postwar_constraints
+      - decision_withdraw_from_power
+    open_design_spaces:
+      - 执行停战与赦免的主体
+      - 唐门非战争用途与重建边界
+      - 唐三只提供神级威胁例外的方式
+    evidence:
+      source_span_ids:
+        - span_78e506ec415b579ab48eb2b9
+      chapter_ids:
+        - chapter_d23b4aaa559c01f09fadcdeb
+      reasoning_summary: 战后四项约束已经提出，长期执行机制仍空白，制度反馈是最近的替代路线。
+      counter_evidence:
+        - 全书完未确认续写会采用制度视角。
+  - spine_id: spine_public_commitment
+    title: 公开承诺与共同使命
+    kind: ALTERNATIVE
+    status: PAUSED
+    structure_signature: public commitment -> role negotiation -> shared mission
+    summary: 以婚礼或公开承诺为关系节点，展开唐三与凌岳如何协商神力、生活和共同责任；共同使命只作为候选结果，不预设任务内容。
+    information_status: CANDIDATE
+    constraint_level: SPECULATIVE
+    horizon: NEAR
+    confidence: 0.64
+    anchor_ids:
+      - promise_wedding
+      - relationship_tang_san_ling_yue
+    open_design_spaces:
+      - 婚礼是否上场及由谁主持
+      - 公开承诺与双神边界的关系
+      - 共同使命是否与制度或神界线程相连
+    evidence:
+      source_span_ids:
+        - span_78e506ec415b579ab48eb2b9
+        - span_eeae31dd6055c25dbe5e42bf
+      chapter_ids:
+        - chapter_d23b4aaa559c01f09fadcdeb
+        - chapter_f62d1ecedea422feaa1d1a65
+      reasoning_summary: 婚礼承诺与双神共存均有直接来源，但角色如何把二者转为长期生活仍待作者选择。
+      counter_evidence:
+        - 婚礼可能只是终局收束句，不代表续写必须在此处展开。

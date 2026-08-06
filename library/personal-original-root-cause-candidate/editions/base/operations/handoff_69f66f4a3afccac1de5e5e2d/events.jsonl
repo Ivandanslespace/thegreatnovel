@@ -1,0 +1,4 @@
+{"created_at": "2026-08-06T17:36:10.530399+00:00", "event_id": "handoff-event_61b00fe98ffca8528142f88a", "event_type": "READY_FOR_CODEX", "handoff_id": "handoff_69f66f4a3afccac1de5e5e2d", "payload": {"requested_stage": "ATLAS_BOOTSTRAP"}, "sequence": 1}
+{"created_at": "2026-08-06T17:37:44.783835+00:00", "event_id": "handoff-event_c5260dc47f847dee75b01edc", "event_type": "CLAIMED", "handoff_id": "handoff_69f66f4a3afccac1de5e5e2d", "payload": {"claimed_by": "codex-desktop"}, "sequence": 2}
+{"created_at": "2026-08-06T17:37:54.572274+00:00", "event_id": "handoff-event_e4ed5571591e77d2ff75282e", "event_type": "RUNNING", "handoff_id": "handoff_69f66f4a3afccac1de5e5e2d", "payload": {"error_message": ""}, "sequence": 3}
+{"created_at": "2026-08-06T17:59:54.735403+00:00", "event_id": "handoff-event_dec5cab6dd4c6dac8b27fe1d", "event_type": "COMPLETED", "handoff_id": "handoff_69f66f4a3afccac1de5e5e2d", "payload": {"error_message": ""}, "sequence": 4}

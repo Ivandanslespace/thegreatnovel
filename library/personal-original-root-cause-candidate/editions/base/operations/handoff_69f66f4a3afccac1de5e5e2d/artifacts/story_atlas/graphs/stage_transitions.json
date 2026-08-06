@@ -1,0 +1,280 @@
+{
+  "graph_type": "stage_transitions",
+  "atlas_version": 1,
+  "metadata": {
+    "source": "atlas_evidence_inventory.md + Arc42-45 outputs",
+    "boundary": "第379章为当前边界；FAR 只保留可能阶段，不写逐章大纲"
+  },
+  "nodes": [
+    {
+      "node_id": "stage_354_whale_payoff",
+      "name": "魔鲸王战果兑现",
+      "node_type": "stage",
+      "description": "魔鲸王战果转为百万年魂环/魂骨并进入神位选择。",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "CURRENT",
+      "confidence": 0.88,
+      "evidence": {
+        "source_span_ids": [
+          "span_fc12ec795cbfc4c4ccb1d7ca",
+          "span_90d928d6476ba54a55f4cc90"
+        ],
+        "reasoning_summary": "Arc42 前段连续证据将魔鲸王战果与神位选择连接。",
+        "counter_evidence": ["变异杀神领域与百万年魂环吸收代价需后文复核。"]
+      },
+      "payload": {
+        "stage_order": 1,
+        "reasoning_summary": "作为终局神位链的起点保留。",
+        "counter_evidence": ["Arc42 语义部分为 PARTIAL。"],
+        "unknown_boundary": "不预设吸收代价或唯一神位结局。"
+      }
+    },
+    {
+      "node_id": "stage_356_360_god_choice",
+      "name": "海神/修罗神选择与传承",
+      "node_type": "stage",
+      "description": "互斥选择、献祭、神装与关系突破组成的传承阶段。",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "CURRENT",
+      "confidence": 0.88,
+      "evidence": {
+        "source_span_ids": [
+          "span_131185ad3c7194d273da3761",
+          "span_3af1174b14ea9cfe5b357574",
+          "span_b75fcf1452f08f56d3179140",
+          "span_48b40569922af87b044ff287",
+          "span_8a7b786377fb3cf0e6e60b3d"
+        ],
+        "reasoning_summary": "连续章节支持从神位选择进入献祭、神装和关系突破。",
+        "counter_evidence": ["Arc42 为 PARTIAL，选择机制与完整规则未完全闭合。"]
+      },
+      "payload": {
+        "stage_order": 2,
+        "reasoning_summary": "阶段方向明确但不锁定单一神位路径。",
+        "counter_evidence": ["波赛川献祭和神装长期成本 UNKNOWN。"],
+        "unknown_boundary": "不把阶段推断写成固定结局或逐章计划。"
+      }
+    },
+    {
+      "node_id": "stage_361_367_god_return",
+      "name": "神装返场",
+      "node_type": "stage",
+      "description": "海神神装、伙伴跃迁、凌岳承接修罗魔剑并返回嘉陵关。",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "CURRENT",
+      "confidence": 0.9,
+      "evidence": {
+        "source_span_ids": [
+          "span_5338cb72f9821cfabebbcbe6",
+          "span_7a4de91056dfb12743b6f258",
+          "span_b8b555680cd55d29bb12b33d"
+        ],
+        "reasoning_summary": "Arc43 证据把神装与凌岳承载修罗魔剑接回嘉陵关。",
+        "counter_evidence": ["神装与魔剑长期成本未展开。"]
+      },
+      "payload": {
+        "stage_order": 3,
+        "reasoning_summary": "返场为终局战争前的阶段转移。",
+        "counter_evidence": ["Arc43 语义为 PARTIAL。"],
+        "unknown_boundary": "不推导返场后可无限维持神装。"
+      }
+    },
+    {
+      "node_id": "stage_368_375_final_war",
+      "name": "嘉陵关终局神战",
+      "node_type": "stage",
+      "description": "从团队攻城升级为唐三陨落和复活尝试的高压阶段。",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "CURRENT",
+      "confidence": 0.94,
+      "evidence": {
+        "source_span_ids": [
+          "span_dcc7f46c9cf31ec6c14a7c07",
+          "span_414d36fe3bc33e4715d6460b",
+          "span_57caf780220ae3b26ebebcb9",
+          "span_8886ce99a2d978eb6071de6e"
+        ],
+        "reasoning_summary": "Arc44 连续战斗信号形成终局升级。",
+        "counter_evidence": ["Arc44 只到复活尝试，成功结果由 Arc45 确认。"]
+      },
+      "payload": {
+        "stage_order": 4,
+        "reasoning_summary": "构成当前边界前的最后战争阶段。",
+        "counter_evidence": ["不能由 Arc44 单独确定最终胜负。"],
+        "unknown_boundary": "复活成功和敌对冲突闭合只在下一阶段写定。"
+      }
+    },
+    {
+      "node_id": "stage_376_379_postwar_boundary",
+      "name": "战后边界与双神共存",
+      "node_type": "stage",
+      "description": "复活、双神共存、敌对主线闭合、退出帝国权力与婚礼安排。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_679c5e4110fa88c01b2f95ff",
+          "span_eeae31dd6055c25dbe5e42bf",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "stage_order": 5,
+        "current_state": "第379章全书完为当前边界",
+        "hard_rules": [
+          "唐三已复活并与凌岳完成双神共存",
+          "比比宸死亡、千仞霄神位破碎、武魂帝国主冲突闭合",
+          "唐三退出帝师与帝国常驻事务",
+          "婚礼与十年停战是开放承诺"
+        ],
+        "unknown_boundary": "下一阶段焦点（战后余波、婚礼、神界或远端异常）未由作者选择"
+      }
+    },
+    {
+      "node_id": "stage_far_remote_hook",
+      "name": "远端神界/五行大陆调查可能性",
+      "node_type": "stage_candidate",
+      "description": "仅保留神界职责与五行大陆异常的 FAR 候选阶段。",
+      "information_status": "CANDIDATE",
+      "constraint_level": "SPECULATIVE",
+      "horizon": "FAR",
+      "confidence": 0.45,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"],
+        "reasoning_summary": "神界职责与五行大陆执行者遇害提供远端开放入口。",
+        "counter_evidence": ["没有主角接令、路线、时点或已选主线。"]
+      },
+      "payload": {
+        "stage_order": null,
+        "reasoning_summary": "远端阶段只可作为未来候选，不固定顺序。",
+        "counter_evidence": ["婚礼、战后制度和神界职责都可能先于该入口。"],
+        "unknown_boundary": "FAR/CANDIDATE；不写逐章计划，不视为当前主线。"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "edge_whale_to_god_choice",
+      "from_id": "stage_354_whale_payoff",
+      "to_id": "stage_356_360_god_choice",
+      "relation_type": "TRANSITIONS_TO",
+      "label": "魔鲸王战果进入神位选择",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "CURRENT",
+      "confidence": 0.88,
+      "evidence": {
+        "source_span_ids": [
+          "span_90d928d6476ba54a55f4cc90",
+          "span_131185ad3c7194d273da3761"
+        ],
+        "reasoning_summary": "Arc42 前段标题与阶段证据支持转移。",
+        "counter_evidence": ["吸收代价和选择机制未完全证实。"]
+      },
+      "payload": {
+        "reasoning_summary": "保留阶段阶梯，不写单一结果。",
+        "counter_evidence": ["Arc42 语义仍有 PARTIAL。"],
+        "unknown_boundary": "不把阶段连接当作已批准路线。"
+      }
+    },
+    {
+      "edge_id": "edge_god_choice_to_return",
+      "from_id": "stage_356_360_god_choice",
+      "to_id": "stage_361_367_god_return",
+      "relation_type": "TRANSITIONS_TO",
+      "label": "神位选择进入神装返场",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "CURRENT",
+      "confidence": 0.9,
+      "evidence": {
+        "source_span_ids": [
+          "span_3af1174b14ea9cfe5b357574",
+          "span_5338cb72f9821cfabebbcbe6",
+          "span_b8b555680cd55d29bb12b33d"
+        ],
+        "reasoning_summary": "传承链后接神装与返场。",
+        "counter_evidence": ["Arc42–43 的完整神装规则仍待复核。"]
+      },
+      "payload": {
+        "reasoning_summary": "阶段方向连续。",
+        "counter_evidence": ["不确定长期成本。"],
+        "unknown_boundary": "不生成固定章节路线。"
+      }
+    },
+    {
+      "edge_id": "edge_return_to_war",
+      "from_id": "stage_361_367_god_return",
+      "to_id": "stage_368_375_final_war",
+      "relation_type": "TRANSITIONS_TO",
+      "label": "神装返场进入嘉陵关神战",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "CURRENT",
+      "confidence": 0.94,
+      "evidence": {
+        "source_span_ids": [
+          "span_b8b555680cd55d29bb12b33d",
+          "span_dcc7f46c9cf31ec6c14a7c07"
+        ],
+        "reasoning_summary": "返场后紧接嘉陵关终局战争。",
+        "counter_evidence": ["Arc44 的详细战术只在阶段证据中部分呈现。"]
+      },
+      "payload": {
+        "reasoning_summary": "连接表达已发生阶段转移。",
+        "counter_evidence": ["不补写未见战术。"],
+        "unknown_boundary": "不提前写定复活或胜负。"
+      }
+    },
+    {
+      "edge_id": "edge_war_to_postwar",
+      "from_id": "stage_368_375_final_war",
+      "to_id": "stage_376_379_postwar_boundary",
+      "relation_type": "TRANSITIONS_TO",
+      "label": "终局神战转入战后边界",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_679c5e4110fa88c01b2f95ff",
+          "span_eeae31dd6055c25dbe5e42bf",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "next_horizon": "NEAR",
+        "current_state": "战争闭合、双神共存、战后承诺打开",
+        "constraint": "不得把战后阶段写回已闭合的战争主线"
+      }
+    },
+    {
+      "edge_id": "edge_postwar_to_remote_hook",
+      "from_id": "stage_376_379_postwar_boundary",
+      "to_id": "stage_far_remote_hook",
+      "relation_type": "OPTIONAL_FAR_BRANCH",
+      "label": "战后边界可能向远端异常调查延伸",
+      "information_status": "CANDIDATE",
+      "constraint_level": "SPECULATIVE",
+      "horizon": "FAR",
+      "confidence": 0.45,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"],
+        "reasoning_summary": "神界职责和五行大陆 hook 提供远端阶段候选。",
+        "counter_evidence": ["正文没有要求主角介入，且婚礼/战后秩序仍是更近开放项。"]
+      },
+      "payload": {
+        "reasoning_summary": "只保留可能性空间。",
+        "counter_evidence": ["事件关联与介入权限 UNKNOWN。"],
+        "unknown_boundary": "FAR/CANDIDATE；不得当作当前主线或逐章计划。"
+      }
+    }
+  ]
+}

@@ -1,0 +1,287 @@
+{
+  "graph_type": "resources_and_items",
+  "atlas_version": 1,
+  "metadata": {
+    "source": "atlas_evidence_inventory.md + synthesis/graphs.json + Arc45 + Arc36 trident evidence",
+    "boundary": "物品和资源只记录已见功能；战后制度能力保持候选"
+  },
+  "nodes": [
+    {
+      "node_id": "resource_faith_power",
+      "name": "信仰之力",
+      "node_type": "resource",
+      "description": "支撑唐三肉身与神魂复活的信仰来源。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_679c5e4110fa88c01b2f95ff"]
+      },
+      "payload": {
+        "function": "维持唐三肉身与神魂复活",
+        "current_state": "已完成终局复活",
+        "constraint": "库存、消耗曲线与再次复现能力 UNKNOWN"
+      }
+    },
+    {
+      "node_id": "resource_ocean_power",
+      "name": "海洋之力",
+      "node_type": "resource",
+      "description": "海神神力与终局战斗的海洋信仰来源。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_fa378dd5cb85560640398b82"]
+      },
+      "payload": {
+        "function": "补充海神神力并支撑最终决战",
+        "current_state": "已被用于终局战斗",
+        "constraint": "来源和未来职责不等于无限资源"
+      }
+    },
+    {
+      "node_id": "item_shura_demonic_sword",
+      "name": "修罗魔剑",
+      "node_type": "item",
+      "description": "凌岳为剑鞘，融合时由唐三调用修罗神力。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_eeae31dd6055c25dbe5e42bf"]
+      },
+      "payload": {
+        "current_holder_or_role": "凌岳为剑鞘，双神融合时由唐三调用",
+        "function": "触发并承载双神共存的修罗神力",
+        "constraint": "独立使用规则与长期损耗 UNKNOWN"
+      }
+    },
+    {
+      "node_id": "item_sea_god_trident",
+      "name": "海神三叉戟",
+      "node_type": "item",
+      "description": "海神传承与海神威能的标志性神器。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_a7ca98884b99311094ded00d",
+          "span_82e74071bd894944fb84fe20"
+        ]
+      },
+      "payload": {
+        "current_holder_or_role": "海神传承与终局战斗中的神器",
+        "function": "承载海神权柄并形成可见战斗媒介",
+        "constraint": "具体重量、神位绑定和后续保管状态需回到章节证据"
+      }
+    },
+    {
+      "node_id": "item_zhuge_crossbow",
+      "name": "诸葛神弩",
+      "node_type": "item",
+      "description": "唐门的战争暗器链，在战后被收回并销毁。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "current_holder_or_role": "战后收回并交唐门销毁",
+        "function": "曾是战争暗器",
+        "constraint": "不得默认仍有可随时调动的军用库存"
+      }
+    },
+    {
+      "node_id": "resource_postwar_institutional_capacity",
+      "name": "战后制度执行能力",
+      "node_type": "institutional_resource_candidate",
+      "description": "停战与战俘约束是否拥有可执行监督链的候选资源。",
+      "information_status": "CANDIDATE",
+      "constraint_level": "SPECULATIVE",
+      "horizon": "NEAR",
+      "confidence": "UNKNOWN",
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"],
+        "reasoning_summary": "正文提出十年停战和战俘约束，但未给出制度执行者。",
+        "counter_evidence": ["只有承诺文本，不能假定已有可靠监督链。"]
+      },
+      "payload": {
+        "function": "可能承接十年停战、战俘处置与唐门技术退出",
+        "reasoning_summary": "将承诺视为待验证的制度资源，而非当前既成事实。",
+        "counter_evidence": ["执行者、监督和失败成本均 UNKNOWN。"],
+        "unknown_boundary": "不得把候选制度能力写成已经存在的组织。"
+      }
+    },
+    {
+      "node_id": "ability_faith_resurrection",
+      "name": "神级复活与神魂归位（能力引用）",
+      "node_type": "ability_ref",
+      "description": "供资源边连接的能力锚点。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_679c5e4110fa88c01b2f95ff"]
+      },
+      "payload": {
+        "reference_graph": "abilities",
+        "reference_node_id": "ability_faith_resurrection"
+      }
+    },
+    {
+      "node_id": "ability_dual_god_coexistence",
+      "name": "双神共存（能力引用）",
+      "node_type": "ability_ref",
+      "description": "供修罗魔剑边连接的能力锚点。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_eeae31dd6055c25dbe5e42bf"]
+      },
+      "payload": {
+        "reference_graph": "abilities",
+        "reference_node_id": "ability_dual_god_switch"
+      }
+    },
+    {
+      "node_id": "faction_tang_sect",
+      "name": "唐门（阵营引用）",
+      "node_type": "faction_ref",
+      "description": "供诸葛神弩边连接的阵营锚点。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "reference_graph": "factions",
+        "reference_node_id": "faction_tang_sect"
+      }
+    },
+    {
+      "node_id": "faction_tiandou_empire",
+      "name": "天斗帝国（阵营引用）",
+      "node_type": "faction_ref",
+      "description": "供制度执行能力候选边连接的阵营锚点。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "NEAR",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "reference_graph": "factions",
+        "reference_node_id": "faction_tiandou_empire"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "edge_faith_to_resurrection",
+      "from_id": "resource_faith_power",
+      "to_id": "ability_faith_resurrection",
+      "relation_type": "SUPPORTS",
+      "label": "信仰之力支撑复活链",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_679c5e4110fa88c01b2f95ff"]
+      },
+      "payload": {
+        "unknown_boundary": "信仰消耗量与可重复性 UNKNOWN"
+      }
+    },
+    {
+      "edge_id": "edge_ocean_to_trident",
+      "from_id": "resource_ocean_power",
+      "to_id": "item_sea_god_trident",
+      "relation_type": "EMBODIED_BY",
+      "label": "海洋之力与海神三叉戟的神位媒介关系",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 0.95,
+      "evidence": {
+        "source_span_ids": [
+          "span_a7ca98884b99311094ded00d",
+          "span_82e74071bd894944fb84fe20"
+        ]
+      },
+      "payload": {
+        "unknown_boundary": "后续保管与神位绑定细节未在当前边界展开"
+      }
+    },
+    {
+      "edge_id": "edge_sword_to_dual_god",
+      "from_id": "item_shura_demonic_sword",
+      "to_id": "ability_dual_god_coexistence",
+      "relation_type": "TRIGGERS_AND_CARRIES",
+      "label": "修罗魔剑参与双神共存",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_eeae31dd6055c25dbe5e42bf"]
+      },
+      "payload": {
+        "carrier": "character_ling_yue",
+        "unknown_boundary": "长期损耗与独立使用规则 UNKNOWN"
+      }
+    },
+    {
+      "edge_id": "edge_crossbow_to_tangmen_exit",
+      "from_id": "item_zhuge_crossbow",
+      "to_id": "faction_tang_sect",
+      "relation_type": "WAR_CHAIN_TERMINATED",
+      "label": "诸葛神弩退出唐门战争用途",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "current_state": "军用存量收回并销毁"
+      }
+    },
+    {
+      "edge_id": "edge_postwar_capacity_unknown",
+      "from_id": "resource_postwar_institutional_capacity",
+      "to_id": "faction_tiandou_empire",
+      "relation_type": "POSSIBLE_EXECUTION_BASE",
+      "label": "制度执行能力可能落在天斗帝国",
+      "information_status": "CANDIDATE",
+      "constraint_level": "SPECULATIVE",
+      "horizon": "NEAR",
+      "confidence": "UNKNOWN",
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"],
+        "reasoning_summary": "天斗被写为战后承接方，因此是可能的执行主体。",
+        "counter_evidence": ["正文未给监督结构、违约成本或制度化名称。"]
+      },
+      "payload": {
+        "reasoning_summary": "仅表达候选关系，不把承诺当成既成资源。",
+        "counter_evidence": ["执行者与监督链 UNKNOWN。"],
+        "unknown_boundary": "不得写出未经证实的机构、库存或行政流程。"
+      }
+    }
+  ]
+}

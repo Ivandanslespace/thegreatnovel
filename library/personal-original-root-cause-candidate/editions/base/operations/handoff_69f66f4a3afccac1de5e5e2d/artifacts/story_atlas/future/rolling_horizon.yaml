@@ -1,0 +1,180 @@
+horizon_id: horizon-postwar-v1
+horizon_hash: c12ae1714b253c538fa117736a43d7179982ba58fcc812a6e2503f59b0c00999
+atlas_id: atlas-personal-root-cause-v1
+atlas_version: 1
+atlas_content_hash: c8a5589a5214a509755868d652d0347b5e3e8d41639c4b06c25311ade327e5d3
+base_projection_hash: e2ba9f4cf087717a278fa7c4dd933b6e08316074d89cc282139dae8eb2df2c0b
+current_chapter_ordinal: 379
+current:
+  horizon: CURRENT
+  start_chapter: 379
+  end_chapter: 379
+  items:
+  - item_id: current_postwar_boundary
+    title: 第379章战后边界
+    summary: 神战闭合，比比宸死亡，千仞霄神位破碎并被赦免，唐三退出帝国日常事务，婚礼与十年停战保持为开放承诺。
+    horizon: CURRENT
+    information_status: CANON
+    constraint_level: HARD
+    confidence: 1.0
+    chapter_ordinal: 379
+    stage_anchor: transition_war_to_reconstruction
+    must_preserve:
+    - 比比宸死亡且不得无因复生
+    - 千仞霄神位破碎，不得无因恢复
+    - 唐三不常驻人间政治，仅保留神级威胁例外
+    - 婚礼尚未举行
+    open_questions:
+    - 战后余波由谁先承接
+    - 双神共存长期边界如何观察
+    evidence:
+      source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+      chapter_ids:
+      - chapter_d23b4aaa559c01f09fadcdeb
+      reasoning_summary: 379章是当前续写边界，正史状态由 Arc45 直接证据闭合。
+      counter_evidence: []
+  stage_anchors:
+  - transition_war_to_reconstruction
+  open_questions:
+  - 续写形式仍由作者选择
+  - 下一章焦点不得从五行大陆远端钩子自动推导
+near:
+  horizon: NEAR
+  start_chapter: 380
+  end_chapter: 384
+  items:
+  - item_id: near_aftershock_obligations
+    title: 战后余波兑现
+    summary: 观察十年停战、赦免与唐门战争退出对秩序、人物行为和资源安排的直接反馈，不预设单一政治解决方案。
+    horizon: NEAR
+    information_status: INFERENCE
+    constraint_level: SOFT
+    confidence: 0.84
+    stage_anchor: postwar_aftershock
+    must_preserve:
+    - 余波必须改变至少一项行为、关系或制度安排
+    - 唐三不恢复日常帝国职务
+    open_questions:
+    - 停战与赦免的实际执行主体
+    - 唐门非战争用途的边界
+    evidence:
+      source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+      chapter_ids:
+      - chapter_d23b4aaa559c01f09fadcdeb
+      reasoning_summary: 终局约束产生了近期 aftershock 义务。
+      counter_evidence:
+      - 全书完没有指定后续 POV。
+  - item_id: near_relationship_choice
+    title: 关系选择与生活边界
+    summary: 唐三与凌岳对婚礼、共同生活与双神共存非战斗边界作出可观察选择，但是否公开举行婚礼保持开放。
+    horizon: NEAR
+    information_status: INFERENCE
+    constraint_level: SOFT
+    confidence: 0.78
+    stage_anchor: relationship_role_choice
+    must_preserve:
+    - 唐三与凌岳是成年伴侣，不写成兄弟关系
+    - 一次只能由一个神位出手
+    open_questions:
+    - 婚礼是否上场
+    - 双神共存是否改变日常分工
+    evidence:
+      source_span_ids:
+      - span_eeae31dd6055c25dbe5e42bf
+      - span_78e506ec415b579ab48eb2b9
+      chapter_ids:
+      - chapter_f62d1ecedea422feaa1d1a65
+      - chapter_d23b4aaa559c01f09fadcdeb
+      reasoning_summary: Arc45 同时留下关系兑现与长期边界未知。
+      counter_evidence:
+      - 正文没有给出婚礼时间表。
+mid:
+  horizon: MID
+  start_chapter: 385
+  end_chapter: 399
+  items:
+  - item_id: mid_new_responsibility
+    title: 新责任的形态选择
+    summary: 在制度执行、伴侣共同使命或神界规则反馈之间选择一条可解释的责任形态；保持其他路线可暂停、可替换。
+    horizon: MID
+    information_status: CANDIDATE
+    constraint_level: SPECULATIVE
+    confidence: 0.62
+    stage_anchor: new_responsibility_or_hook
+    must_preserve:
+    - 责任必须从已发生的战后后果或已知远端钩子中生长
+    - 不把候选当作作者批准的大纲
+    open_questions:
+    - 责任由谁承担
+    - 神界职责是否进入当前篇章
+    - 五行大陆是否继续保持远端
+    evidence:
+      source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+      chapter_ids:
+      - chapter_d23b4aaa559c01f09fadcdeb
+      reasoning_summary: 中期只保留阶段级选择空间，不规定逐章事件。
+      counter_evidence:
+      - 续写形式与主要 POV 未获作者指令。
+  - item_id: mid_dual_god_boundary_review
+    title: 双神共存边界复核
+    summary: 通过生活或有限威胁场景观察双神共存的切换边界，不新增未经证据的同时出手或永久反噬。
+    horizon: MID
+    information_status: INFERENCE
+    constraint_level: SOFT
+    confidence: 0.82
+    stage_anchor: relationship_role_choice
+    must_preserve:
+    - 双神仍遵守一次一神出手
+    - 长期成本保持问题而非事实
+    open_questions:
+    - 非战斗持续时间
+    - 凌岳独立身体与共同使用的关系
+    evidence:
+      source_span_ids:
+      - span_eeae31dd6055c25dbe5e42bf
+      chapter_ids:
+      - chapter_f62d1ecedea422feaa1d1a65
+      reasoning_summary: Arc45 明确提出双神长期成本未知。
+      counter_evidence:
+      - 正文称可保持且无副作用，但未覆盖长期生活。
+far:
+  horizon: FAR
+  start_chapter: 400
+  end_chapter: 758
+  items:
+  - item_id: far_expansion_possibility_space
+    title: 远期世界扩张与责任迁移
+    summary: 在不固定结局的前提下，保留制度重建、神界管辖冲突、共同使命与五行大陆规则错配等阶段级可能性；只记录规模、约束、未知和作者选择点。
+    horizon: FAR
+    information_status: CANDIDATE
+    constraint_level: SPECULATIVE
+    confidence: 0.45
+    stage_anchor: new_responsibility_or_hook
+    must_preserve:
+    - FAR 不写逐章大纲
+    - FAR 不预设固定结局或唯一抵达路线
+    - 五行大陆仍是远端钩子，非既定主线
+    - 阿岚、阿银、蓝银皇身份关系保持未解析
+    open_questions:
+    - 是否跨越神界或五行大陆
+    - 扩张由谁承担与观察
+    - 已有战后成果如何保留
+    evidence:
+      source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+      chapter_ids:
+      - chapter_d23b4aaa559c01f09fadcdeb
+      reasoning_summary: 远期只建立可能性空间与硬约束，覆盖到要求的 758 章而不生成章节序列。
+      counter_evidence:
+      - 没有作者批准的远期路线或终局。
+  stage_anchors:
+  - postwar_aftershock
+  - relationship_role_choice
+  - new_responsibility_or_hook
+  open_questions:
+  - 远端钩子是否在未来被选择
+  - 未来路线如何由作者在每个阶段重新裁决
+required_far_end_chapter: 758

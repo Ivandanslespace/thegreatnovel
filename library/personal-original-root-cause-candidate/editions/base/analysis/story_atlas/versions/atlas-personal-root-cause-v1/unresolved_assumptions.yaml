@@ -1,0 +1,86 @@
+schema_version: unresolved-assumptions-v1
+status: OPEN
+as_of_chapter_ordinal: 379
+assumptions:
+  - id: continuation-form
+    statement: 原文以全书完结束，尚未确定续写是尾声、第二部还是跨世界新篇。
+    information_status: UNKNOWN
+    constraint_level: SPECULATIVE
+    horizon: NEAR
+    confidence: UNKNOWN
+    source_span_ids: []
+    resolution_status: UNKNOWN
+    required_review: author-direction
+  - id: wedding-on-page
+    statement: 唐三与凌岳已接受婚礼安排，但正文没有实际举行婚礼；是否在续写中写到婚礼现场仍由作者选择。
+    information_status: CANON
+    boundary_status: CANON_BOUNDARY
+    constraint_level: HARD
+    horizon: NEAR
+    confidence: 1.0
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+    resolution_status: OPEN
+    required_review: chapter-candidate-selection
+  - id: dual-god-long-term-cost
+    statement: 正文确认双神切换且一次只有一神出手，没有确认长期反噬，也没有证明可同时叠加。
+    information_status: UNKNOWN
+    constraint_level: SOFT
+    horizon: MID
+    confidence: UNKNOWN
+    source_span_ids:
+      - span_eeae31dd6055c25dbe5e42bf
+    resolution_status: UNKNOWN
+    required_review: world-rule-review
+  - id: five-elements-priority
+    statement: 五行大陆执行者遇害是远端开放信息，不等于唐三或凌岳已接受任务；它可以成为钩子，也可以保持为后续世界的远景信号。
+    information_status: CANON
+    boundary_status: CANON_PLUS_UNKNOWN
+    constraint_level: HARD
+    horizon: FAR
+    confidence: 0.9
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+    resolution_status: UNKNOWN
+    required_review: author-direction
+  - id: postwar-enforcement
+    statement: 十年停战、战俘处置与唐门军用技术退出已经提出，但长期执行机制没有在正文中展开。
+    information_status: INFERENCE
+    constraint_level: SOFT
+    horizon: NEAR
+    confidence: 0.55
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+    resolution_status: OPEN
+    required_review: postwar-arc-design
+  - id: supporting-cast-current-state
+    statement: 终局确认核心伙伴存活和参与，但并未逐一交代所有人的战后目标、所在地与是否主动参与重建。
+    information_status: UNKNOWN
+    constraint_level: SOFT
+    horizon: NEAR
+    confidence: UNKNOWN
+    source_span_ids:
+      - span_679c5e4110fa88c01b2f95ff
+      - span_78e506ec415b579ab48eb2b9
+    resolution_status: UNKNOWN
+    required_review: character-ledger-refresh
+  - id: alias-arlan-ayin-resolution
+    statement: 阿岚、阿银、蓝银皇在既有实体解析中没有稳定映射；在得到新的直接证据前，三者不得被合并为同一实体或关系。
+    information_status: INFERENCE
+    constraint_level: HARD
+    horizon: CURRENT
+    confidence: UNKNOWN
+    source_span_ids: []
+    resolution_status: UNKNOWN
+    required_review: entity-resolution-review
+  - id: divine-realm-role
+    statement: 神界侧提及未来执法职责，但没有给出唐三升入神界的时间、职责起点或是否马上承接。
+    information_status: INFERENCE
+    constraint_level: SOFT
+    horizon: MID
+    confidence: 0.62
+    source_span_ids:
+      - span_78e506ec415b579ab48eb2b9
+    resolution_status: UNKNOWN
+    required_review: author-direction
+

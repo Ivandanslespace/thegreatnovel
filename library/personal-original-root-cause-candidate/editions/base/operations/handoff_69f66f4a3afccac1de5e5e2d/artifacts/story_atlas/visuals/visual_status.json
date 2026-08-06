@@ -1,0 +1,37 @@
+{
+  "character_graph.svg": {
+    "status": "GENERATED_WITH_DATA",
+    "nodes": 7,
+    "edges": 4
+  },
+  "faction_graph.svg": {
+    "status": "GENERATED_WITH_DATA",
+    "nodes": 5,
+    "edges": 4
+  },
+  "ability_graph.svg": {
+    "status": "GENERATED_WITH_DATA",
+    "nodes": 7,
+    "edges": 5
+  },
+  "resource_chain.svg": {
+    "status": "GENERATED_WITH_DATA",
+    "nodes": 10,
+    "edges": 5
+  },
+  "region_topology.svg": {
+    "status": "GENERATED_WITH_DATA",
+    "nodes": 5,
+    "edges": 4
+  },
+  "plot_thread_graph.svg": {
+    "status": "GENERATED_WITH_DATA",
+    "nodes": 8,
+    "edges": 6
+  },
+  "stage_ladder.svg": {
+    "status": "GENERATED_WITH_DATA",
+    "nodes": 6,
+    "edges": 5
+  }
+}

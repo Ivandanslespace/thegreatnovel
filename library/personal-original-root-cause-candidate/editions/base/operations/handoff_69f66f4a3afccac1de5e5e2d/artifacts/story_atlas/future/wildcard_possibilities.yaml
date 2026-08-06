@@ -1,0 +1,27 @@
+wildcard_possibilities:
+  - spine_id: spine_five_elements_rule_mismatch_wildcard
+    title: 五行大陆的规则错配
+    kind: WILDCARD
+    status: PAUSED
+    structure_signature: foreign rules -> failed assumptions -> asymmetric learning
+    summary: 远端执行者遇害可能暴露与斗罗大陆不同的规则；主角或其他角色的既有判断先失效，再通过有限信息学习不对称规则。它只保留为世界扩张的野生入口，不预设抵达、敌人或结局。
+    information_status: CANDIDATE
+    constraint_level: SPECULATIVE
+    horizon: FAR
+    confidence: 0.45
+    anchor_ids:
+      - hook_five_elements_continent
+    open_design_spaces:
+      - 是否把五行大陆作为钩子而非下一阶段主线
+      - 规则差异由谁先观察
+      - 远端异常是否与当前战后生活发生连接
+    evidence:
+      source_span_ids:
+        - span_78e506ec415b579ab48eb2b9
+      chapter_ids:
+        - chapter_d23b4aaa559c01f09fadcdeb
+      reasoning_summary: 终局仅确认神界派出的执行者遇害，提供了远端异常的事实锚点。
+      counter_evidence:
+        - 没有主角接受任务、抵达路径或时间表。
+        - 当前边界仍优先指向战后余波与关系选择。
+

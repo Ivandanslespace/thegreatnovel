@@ -1,0 +1,253 @@
+{
+  "graph_type": "characters",
+  "atlas_version": 1,
+  "metadata": {
+    "source": "atlas_evidence_inventory.md + entity_resolution_map.json + Arc45",
+    "boundary": "当前边界为第379章；软理解不升级为 Canon"
+  },
+  "nodes": [
+    {
+      "node_id": "character_tang_san",
+      "name": "唐三",
+      "node_type": "character",
+      "description": "主角；海神与修罗神双神共存的承载者。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_679c5e4110fa88c01b2f95ff",
+          "span_eeae31dd6055c25dbe5e42bf",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "role": "主角与双神共存承载者",
+        "current_state": "已复活并赢得终局，退出帝国权力与常驻战争事务，准备与凌岳成婚",
+        "constraint": "不得无因降回普通魂师或恢复常驻统治"
+      }
+    },
+    {
+      "node_id": "character_ling_yue",
+      "name": "凌岳",
+      "node_type": "character",
+      "description": "唐三的成年男性伴侣、修罗魔剑载体与双神共存共同完成者。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_679c5e4110fa88c01b2f95ff",
+          "span_eeae31dd6055c25dbe5e42bf",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "role": "主角伴侣与双神共存共同完成者",
+        "current_state": "战后存活，已解除战斗融合，婚礼待举行",
+        "constraint": "不得降格为奖励、工具或改写性别/关系"
+      }
+    },
+    {
+      "node_id": "character_bibi_chen",
+      "name": "比比宸",
+      "node_type": "character",
+      "description": "罗刹神、武魂帝国创建者与最终敌手。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "lifecycle_status": "RETIRED",
+      "evidence": {
+        "source_span_ids": [
+          "span_fa378dd5cb85560640398b82",
+          "span_eeae31dd6055c25dbe5e42bf",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "role": "最终敌手",
+        "current_state": "替千仞霄承受修罗魔剑后死亡",
+        "constraint": "不得无因复活"
+      }
+    },
+    {
+      "node_id": "character_qian_renxiao",
+      "name": "千仞霄",
+      "node_type": "character",
+      "description": "天使神传承者；比比宸之子。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_fa378dd5cb85560640398b82",
+          "span_eeae31dd6055c25dbe5e42bf",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "role": "天使神传承者",
+        "current_state": "神位破碎、武魂受损并获赦免，已不再构成神级威胁",
+        "constraint": "不得无证据恢复完整天使神位"
+      }
+    },
+    {
+      "node_id": "character_xue_beng",
+      "name": "雪崩",
+      "node_type": "character",
+      "description": "天斗帝国皇帝、唐三弟子。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "NEAR",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_679c5e4110fa88c01b2f95ff",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "role": "天斗皇帝与唐三弟子",
+        "current_state": "承接战后约束、十年停战与婚礼主持承诺",
+        "constraint": "执行细节与监督结构 UNKNOWN"
+      }
+    },
+    {
+      "node_id": "character_hu_liezhao",
+      "name": "胡列昭",
+      "node_type": "character",
+      "description": "比比宸弟子。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_fa378dd5cb85560640398b82",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "role": "比比宸弟子",
+        "current_state": "获准存活",
+        "constraint": "后续动机、所在地和是否主动行动 UNKNOWN"
+      }
+    },
+    {
+      "node_id": "character_shrek_network",
+      "name": "史莱克伙伴网络",
+      "node_type": "character_network",
+      "description": "核心同盟网络的跨章软理解。",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "NEAR",
+      "confidence": 0.7,
+      "evidence": {
+        "source_span_ids": [
+          "span_679c5e4110fa88c01b2f95ff",
+          "span_78e506ec415b579ab48eb2b9"
+        ],
+        "reasoning_summary": "复活与终局合作支持史莱克核心同盟仍存续。",
+        "counter_evidence": ["群像成员的战后目标和所在地没有逐一给出。"]
+      },
+      "payload": {
+        "role": "主角同盟网络",
+        "desire": "在战后维持伙伴关系并重新分配职责",
+        "constraint": "个体是否继续共同行动 UNKNOWN",
+        "source_of_introduction": "终局复活与嘉陵关战争合作",
+        "why_now": "战争闭合后需要处理同盟网络的战后分工",
+        "reasoning_summary": "史莱克伙伴在终局链中共同出现，但没有统一的后续制度安排。",
+        "counter_evidence": ["正文未给出每位伙伴的战后路线。"],
+        "unknown_boundary": "不得将网络推断为固定编制或唯一续写主线。"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "relationship_tang_san_ling_yue",
+      "from_id": "character_tang_san",
+      "to_id": "character_ling_yue",
+      "relation_type": "PARTNER_AND_FUSION",
+      "label": "成年伴侣与双神融合搭档",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_eeae31dd6055c25dbe5e42bf",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "current_state": "共同存活并准备成婚；不是血缘兄弟"
+      }
+    },
+    {
+      "edge_id": "relationship_tang_san_xue_beng",
+      "from_id": "character_tang_san",
+      "to_id": "character_xue_beng",
+      "relation_type": "TEACHER_STUDENT_AND_POSTWAR_AUTHORIZATION",
+      "label": "师生与战后授权",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "NEAR",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "current_state": "唐三辞去帝师，但把战后约束交给帝国执行",
+        "unknown_boundary": "长期执行机制 UNKNOWN"
+      }
+    },
+    {
+      "edge_id": "relationship_bibi_chen_qian_renxiao",
+      "from_id": "character_bibi_chen",
+      "to_id": "character_qian_renxiao",
+      "relation_type": "PARENT_CHILD_SACRIFICE",
+      "label": "亲情牺牲",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_fa378dd5cb85560640398b82",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "current_state": "终局牺牲已闭合；比比宸死亡为硬边界"
+      }
+    },
+    {
+      "edge_id": "relationship_tang_san_shrek",
+      "from_id": "character_tang_san",
+      "to_id": "character_shrek_network",
+      "relation_type": "ALLY_NETWORK",
+      "label": "史莱克伙伴同盟",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "NEAR",
+      "confidence": 0.7,
+      "evidence": {
+        "source_span_ids": [
+          "span_679c5e4110fa88c01b2f95ff",
+          "span_78e506ec415b579ab48eb2b9"
+        ],
+        "reasoning_summary": "复活链与终局合作共同支持同盟关系。",
+        "counter_evidence": ["战后分工、成员所在地和继续行动意愿 UNKNOWN"]
+      },
+      "payload": {
+        "reasoning_summary": "终局共同作战是关系存在的直接线索。",
+        "counter_evidence": ["正文没有把伙伴网络写成战后固定组织。"],
+        "unknown_boundary": "只保留软同盟，不预设组织制度。"
+      }
+    }
+  ]
+}

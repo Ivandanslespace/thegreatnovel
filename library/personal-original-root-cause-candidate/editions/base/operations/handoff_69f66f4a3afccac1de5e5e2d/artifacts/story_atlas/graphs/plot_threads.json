@@ -1,0 +1,326 @@
+{
+  "graph_type": "plot_threads",
+  "atlas_version": 1,
+  "metadata": {
+    "source": "atlas_evidence_inventory.md + synthesis/graphs.json + Arc42-45 outputs",
+    "boundary": "同时保留已闭合冲突、近端开放承诺与远端候选 hook"
+  },
+  "nodes": [
+    {
+      "node_id": "thread_final_god_inheritance",
+      "name": "神位传承前段",
+      "node_type": "plot_thread",
+      "description": "Arc42 的魔鲸王战后、神位选择与献祭传承链。",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "CURRENT",
+      "confidence": 0.88,
+      "evidence": {
+        "source_span_ids": [
+          "span_fc12ec795cbfc4c4ccb1d7ca",
+          "span_90d928d6476ba54a55f4cc90",
+          "span_131185ad3c7194d273da3761",
+          "span_3af1174b14ea9cfe5b357574",
+          "span_b75fcf1452f08f56d3179140",
+          "span_48b40569922af87b044ff287",
+          "span_8a7b786377fb3cf0e6e60b3d"
+        ],
+        "reasoning_summary": "连续章节信号支持从魔鲸王战果进入海神/修罗神选择、献祭与传承考验。",
+        "counter_evidence": ["Arc42 语义为 PARTIAL，共存方式由后续证据闭合。"]
+      },
+      "payload": {
+        "status": "ADVANCED",
+        "reasoning_summary": "可作为已发生的阶段性线程，但具体选择机制仍不完整。",
+        "counter_evidence": ["变异杀神领域、魂环吸收代价和献祭完整规则未全部补证。"],
+        "unknown_boundary": "不把 Arc42 的部分语义升级为固定神位结局。"
+      }
+    },
+    {
+      "node_id": "thread_god_return_and_final_war",
+      "name": "神装返场与终局战争前段",
+      "node_type": "plot_thread",
+      "description": "Arc43 的神装、伙伴跃迁与凌岳承接修罗魔剑后回到嘉陵关。",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "CURRENT",
+      "confidence": 0.9,
+      "evidence": {
+        "source_span_ids": [
+          "span_5338cb72f9821cfabebbcbe6",
+          "span_f13d4e22403dd29f5df79da4",
+          "span_46cb3e030548b7bfb1b2c8ab",
+          "span_b61d25a7b434e6a160815b92",
+          "span_e9645ca8126c40fef617286a",
+          "span_7a4de91056dfb12743b6f258",
+          "span_b8b555680cd55d29bb12b33d"
+        ],
+        "reasoning_summary": "Arc43 连续信号将神装与返场接到嘉陵关。",
+        "counter_evidence": ["Arc43 为 PARTIAL，修罗魔剑长期成本 UNKNOWN。"]
+      },
+      "payload": {
+        "status": "ADVANCED",
+        "reasoning_summary": "返场是终局战的阶段接续，不代表所有神装规则已锁定。",
+        "counter_evidence": ["伙伴跃迁与神装的日常维护未展开。"],
+        "unknown_boundary": "不得从返场推导长期无限战力。"
+      }
+    },
+    {
+      "node_id": "thread_jialing_final_battle",
+      "name": "嘉陵关终局战争",
+      "node_type": "plot_thread",
+      "description": "Arc44 从攻城、多神对峙升级至唐三陨落与复活尝试。",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "CURRENT",
+      "confidence": 0.94,
+      "evidence": {
+        "source_span_ids": [
+          "span_dcc7f46c9cf31ec6c14a7c07",
+          "span_1424d24caad9d4d119a3850f",
+          "span_6ac901a69d6d0850a39965b8",
+          "span_37751b85f6b38c4585bd7dbb",
+          "span_299464364a16bb0a827453d4",
+          "span_414d36fe3bc33e4715d6460b",
+          "span_57caf780220ae3b26ebebcb9",
+          "span_8886ce99a2d978eb6071de6e"
+        ],
+        "reasoning_summary": "攻城、神级对峙、唐三陨落和复活尝试形成连续终局升级。",
+        "counter_evidence": ["Arc44 只到复活尝试，成功结果需由 Arc45 证据确认。"]
+      },
+      "payload": {
+        "status": "CLOSED_BY_ARC45",
+        "reasoning_summary": "本线程在下一节点由第379章完成战后转段。",
+        "counter_evidence": ["Arc44 边界本身不能提前写定复活成功。"],
+        "unknown_boundary": "不以 Arc44 单独确定最终胜负。"
+      }
+    },
+    {
+      "node_id": "thread_final_war_resolved",
+      "name": "嘉陵关最终战争（已闭合）",
+      "node_type": "plot_thread",
+      "description": "比比宸死亡、千仞霄失去神位、武魂帝国主冲突闭合。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_fa378dd5cb85560640398b82",
+          "span_eeae31dd6055c25dbe5e42bf",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "status": "RESOLVED",
+        "current_state": "主要敌对冲突已闭合",
+        "constraint": "比比宸死亡、千仞霄神位破碎和武魂帝国败亡不得无因回滚"
+      }
+    },
+    {
+      "node_id": "thread_postwar_transition",
+      "name": "战后秩序与新生活",
+      "node_type": "plot_thread",
+      "description": "战争收尾、唐三退出帝国权力以及战后约束的近期线程。",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "NEAR",
+      "confidence": 0.84,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"],
+        "reasoning_summary": "第379章在冲突闭合后留下停战、婚礼与退出权力三组开放事项。",
+        "counter_evidence": ["全书以完结标记收束，没有宣布续篇主次。"]
+      },
+      "payload": {
+        "status": "OPEN",
+        "reasoning_summary": "这是当前边界后最近的开放阶段，而非固定下一章大纲。",
+        "counter_evidence": ["神界调查与远端异常也可能作为后续入口。"],
+        "unknown_boundary": "近端焦点须由作者/候选比较决定。"
+      }
+    },
+    {
+      "node_id": "thread_tang_ling_wedding",
+      "name": "唐三与凌岳婚礼及共同生活",
+      "node_type": "plot_thread",
+      "description": "雪崩主持婚礼的已提出承诺，具体时间与后果未展开。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "NEAR",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "status": "OPEN_COMMITMENT",
+        "current_state": "婚礼已安排但正文未实际举行",
+        "constraint": "不得把婚礼已举行写成既成事实",
+        "unknown_boundary": "时间、公开关系后的制度与社交后果 UNKNOWN"
+      }
+    },
+    {
+      "node_id": "thread_ten_year_ceasefire",
+      "name": "天斗与星罗十年停战",
+      "node_type": "plot_thread",
+      "description": "战后至少十年不主动开战的开放承诺。",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "NEAR",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "status": "OPEN_COMMITMENT",
+        "constraint": "承诺不等于已经验证的监督制度",
+        "unknown_boundary": "监督主体、违约成本和社会反馈 UNKNOWN"
+      }
+    },
+    {
+      "node_id": "thread_five_elements_anomaly",
+      "name": "五行大陆执行者遇害",
+      "node_type": "plot_thread",
+      "description": "远端异常事实 hook；是否成为续篇主线仍未选择。",
+      "information_status": "CANDIDATE",
+      "constraint_level": "SPECULATIVE",
+      "horizon": "FAR",
+      "confidence": 0.55,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"],
+        "reasoning_summary": "正文只证明远端执行者遇害，存在潜在跨大陆入口。",
+        "counter_evidence": ["没有主角接令、身份链、路线、对手或时点。"]
+      },
+      "payload": {
+        "status": "OPEN_REMOTE_CANDIDATE",
+        "reasoning_summary": "保留 hook 以供未来选择，但不把它放入近端主线。",
+        "counter_evidence": ["可能只是尾声彩蛋，未证明与主角直接相连。"],
+        "unknown_boundary": "保持 FAR/CANDIDATE；不得升级为唯一主线。"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "edge_inheritance_to_return",
+      "from_id": "thread_final_god_inheritance",
+      "to_id": "thread_god_return_and_final_war",
+      "relation_type": "ADVANCES_TO",
+      "label": "神位传承推进到神装返场",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "CURRENT",
+      "confidence": 0.88,
+      "evidence": {
+        "source_span_ids": [
+          "span_8a7b786377fb3cf0e6e60b3d",
+          "span_b8b555680cd55d29bb12b33d"
+        ],
+        "reasoning_summary": "Arc42–43 的阶段标题和证据形成连续传承→返场链。",
+        "counter_evidence": ["Arc42–43 语义仍有 PARTIAL 标记。"]
+      },
+      "payload": {
+        "reasoning_summary": "阶段连接成立，但细节规则未完全闭合。",
+        "counter_evidence": ["神装与魔剑长期成本 UNKNOWN。"],
+        "unknown_boundary": "不得把阶段连接误写为固定逐章安排。"
+      }
+    },
+    {
+      "edge_id": "edge_return_to_final_war",
+      "from_id": "thread_god_return_and_final_war",
+      "to_id": "thread_jialing_final_battle",
+      "relation_type": "LEADS_TO",
+      "label": "神装返场接入嘉陵关终局战",
+      "information_status": "INFERENCE",
+      "constraint_level": "SOFT",
+      "horizon": "CURRENT",
+      "confidence": 0.9,
+      "evidence": {
+        "source_span_ids": [
+          "span_b8b555680cd55d29bb12b33d",
+          "span_dcc7f46c9cf31ec6c14a7c07"
+        ],
+        "reasoning_summary": "Arc43 返场与 Arc44 嘉陵关战场在时间/地点上连续。",
+        "counter_evidence": ["具体战术与胜负仍由后续章节证据闭合。"]
+      },
+      "payload": {
+        "reasoning_summary": "仅表达连续升级，不预设每一战术节点。",
+        "counter_evidence": ["Arc44 在边界处仍是 PARTIAL。"],
+        "unknown_boundary": "不得在 Arc44 终点前写定复活结果。"
+      }
+    },
+    {
+      "edge_id": "edge_final_war_to_resolved",
+      "from_id": "thread_jialing_final_battle",
+      "to_id": "thread_final_war_resolved",
+      "relation_type": "CLOSED_BY",
+      "label": "终局战争由第379章闭合",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "CURRENT",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": [
+          "span_57caf780220ae3b26ebebcb9",
+          "span_8886ce99a2d978eb6071de6e",
+          "span_679c5e4110fa88c01b2f95ff",
+          "span_78e506ec415b579ab48eb2b9"
+        ]
+      },
+      "payload": {
+        "current_state": "复活成功、敌对主线闭合并转入战后边界"
+      }
+    },
+    {
+      "edge_id": "edge_postwar_to_wedding",
+      "from_id": "thread_postwar_transition",
+      "to_id": "thread_tang_ling_wedding",
+      "relation_type": "OPEN_COMMITMENT",
+      "label": "战后阶段承接婚礼安排",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "NEAR",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "unknown_boundary": "婚礼实际时间与共同生活后果 UNKNOWN"
+      }
+    },
+    {
+      "edge_id": "edge_postwar_to_ceasefire",
+      "from_id": "thread_postwar_transition",
+      "to_id": "thread_ten_year_ceasefire",
+      "relation_type": "OPEN_COMMITMENT",
+      "label": "战后阶段承接十年停战承诺",
+      "information_status": "CANON",
+      "constraint_level": "HARD",
+      "horizon": "NEAR",
+      "confidence": 1.0,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"]
+      },
+      "payload": {
+        "unknown_boundary": "监督机制与违约成本 UNKNOWN"
+      }
+    },
+    {
+      "edge_id": "edge_postwar_to_five_elements_candidate",
+      "from_id": "thread_postwar_transition",
+      "to_id": "thread_five_elements_anomaly",
+      "relation_type": "REMOTE_OPTION",
+      "label": "战后阶段可能向远端异常调查延伸",
+      "information_status": "CANDIDATE",
+      "constraint_level": "SPECULATIVE",
+      "horizon": "FAR",
+      "confidence": 0.45,
+      "evidence": {
+        "source_span_ids": ["span_78e506ec415b579ab48eb2b9"],
+        "reasoning_summary": "五行大陆 hook 提供远端可能性，但未提供介入选择。",
+        "counter_evidence": ["婚礼、战后秩序和神界职责都可能先于该 hook。"]
+      },
+      "payload": {
+        "reasoning_summary": "保持为 FAR 可选方向。",
+        "counter_evidence": ["没有主角接令、路线或时点。"],
+        "unknown_boundary": "不将远端候选写成下一章任务。"
+      }
+    }
+  ]
+}
