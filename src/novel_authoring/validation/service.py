@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from novel_authoring.canon.projection import rebuild_projection
 from novel_authoring.config import Settings, load_settings
+from novel_authoring.context.router import ContextPurpose, route_runtime_context
 from novel_authoring.contracts.draft import DraftOutput
 from novel_authoring.db.database import Database
 from novel_authoring.domain.models import DraftStatus
@@ -62,11 +63,18 @@ def validate_draft(
     except ValidationError as exc:
         raise ValidationWorkflowError(f"持久化合同无效：{exc}") from exc
     projection = rebuild_projection(database, book_id, edition_id=selected_edition, persist=False)
+    runtime_context = route_runtime_context(
+        database,
+        book_id,
+        edition_id=selected_edition,
+        purpose=ContextPurpose.VALIDATION,
+    )
     context = ValidationContext(
         draft=draft,
         contract=contract,
         projection=projection,
         settings=settings or load_settings(),
+        runtime_context=runtime_context,
     )
     reports = [validator(context) for validator in VALIDATORS]
     names = tuple(report.validator for report in reports)

@@ -118,6 +118,33 @@ Distill 的 `LiteraryArc` 是对文学因果/状态变化的观察，和 Initial
 是两个不同模型、不同生命周期；Distill 不会自动创建 runtime thread、修改 Story Atlas、
 接受 ContinuityCandidate 或改变 Candidate Score、Validator、Approval 和 Edition 激活。
 
+### Author-facing Profile 与 Runtime Knowledge Layer
+
+最新 `SELF_BOOK` Package 可以通过 `distill export-profile` 原子镜像到书根的
+`book_profil/`。这只是作者阅读视图；`EXTERNAL_REFERENCE` 和 `COMPARATIVE_REFERENCE`
+永远不能覆盖该目录，旧 Package 也不会被移动或删除。
+
+`runtime_baseline/versions/<baseline_id>/` 是另一个独立的、版本化的来源派生层：
+
+```text
+Source evidence + explicit source review
+        └─ SOURCE_DERIVED_RUNTIME_BASELINE
+             ├─ characters / capabilities / items / resources
+             ├─ knowledge / rules / exceptions / promises
+             └─ Earned Surface + Available Payoff Surface
+```
+
+Baseline 的 `SOURCE_VERIFIED` 必须具备 SELF_BOOK、selected Edition chapter、可靠
+source span 和直接文本验证；`SOURCE_PARTIAL` 只供软提示；`UNKNOWN` 不得被默认值补齐。
+它不写 `capabilities`、`resources` 或其他 Runtime/Canon 表。系统按
+`Baseline + Canon Delta = Current State` 理解当前状态：Baseline 提供来源起点，批准事件
+才提供后续 Delta。
+
+Candidate Planner 同时接收 hard boundary 与 Earned/Payoff Surface，并通过 Context Router
+按 purpose、dimension、subject/entity、chapter range 和 `runtime_uses` 做确定性筛选。Draft
+阶段补充 style/narrative/dialogue/craft controls，Validation 阶段补充 hard state、知识、
+能力、物品、资源和 continuity review；Router 不做向量搜索，也不把软观察合并成事实。
+
 ## Codex 文件合同
 
 每个边缘任务使用独立的 Operation Workspace：
@@ -177,7 +204,8 @@ library/<book_id>/
 │  ├─ canon/             # 仅作者批准后的续章
 │  ├─ batches/           # frozen plans and provisional checkpoints
 │  └─ exports/           # latest + archive portable snapshots
-└─ book.yaml / README.md
+├─ book.yaml / README.md
+└─ book_profil/           # 最新 SELF_BOOK 的作者-facing 派生视图，不是权威状态
 ```
 
 ## Edition-scoped 改写架构

@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from novel_authoring.config import Settings
+from novel_authoring.context.router import ContextPurpose, route_runtime_context
 from novel_authoring.db.database import Database
 from novel_authoring.edition import edition_workspace, resolve_edition_id
 from novel_authoring.metrics.formulas import candidate_score, narrative_debt, thread_need
@@ -170,6 +171,14 @@ def prepare_candidate_task(
         recent_full_chapters=settings.recent_full_chapters,
         edition_id=selected_edition,
     )
+    boundary_payload = json.loads(Path(str(boundary["json_path"])).read_text(encoding="utf-8"))
+    runtime_context = route_runtime_context(
+        database,
+        book_id,
+        edition_id=selected_edition,
+        purpose=ContextPurpose.CANDIDATE_PLANNING,
+        boundary=boundary_payload,
+    )
     threads = rank_threads(database, book_id, settings, edition_id=selected_edition)
     if not threads:
         raise PlanningError("没有可规划的活跃线程；请先完成抽取与 reconcile")
@@ -203,6 +212,7 @@ def prepare_candidate_task(
             "planning_aggregate": aggregate,
             "threads": [item.model_dump(mode="json") for item in threads],
             "metrics": [dict(row) for row in metric_rows],
+            "runtime_context": runtime_context.model_dump(mode="json"),
         }
     )
     task_id = stable_id("plan", seed, sha256_bytes(schema_json.encode()))
@@ -261,6 +271,7 @@ def prepare_candidate_task(
                     "hook_diagnostics": json.loads(
                         Path(str(boundary["json_path"])).read_text(encoding="utf-8")
                     ).get("hook_diagnostics", {}),
+                    "runtime_context": runtime_context.model_dump(mode="json"),
                 },
                 indent=2,
             ),
@@ -283,6 +294,7 @@ def prepare_candidate_task(
         "thread_priorities": [item.model_dump(mode="json") for item in threads],
         "schema_sha256": sha256_bytes(schema_json.encode()),
         "created_at": utc_now(),
+        "runtime_context": runtime_context.model_dump(mode="json"),
     }
     (task_dir / "input.md").write_text(input_text, encoding="utf-8")
     (task_dir / "schema.json").write_text(schema_json + "\n", encoding="utf-8")

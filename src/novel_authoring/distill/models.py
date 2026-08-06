@@ -67,6 +67,7 @@ class DistilledEvidence(BaseModel):
     mapping_status: EvidenceMappingStatus = EvidenceMappingStatus.UNMAPPED
     chapter_id: str | None = None
     source_span_ids: list[str] = Field(default_factory=list)
+    reason: str | None = None
 
     @model_validator(mode="after")
     def validate_line_range(self) -> DistilledEvidence:
@@ -86,17 +87,40 @@ class DistilledObservation(BaseModel):
     dimension: str = Field(min_length=1)
     kind: str = Field(min_length=1)
     statement: str = Field(min_length=1)
-    scope_type: DistillScope
-    scope_id: str = Field(min_length=1)
+    # ``scope_type``/``scope_id`` remain for Phase 2 readers.  The explicit
+    # ``distill_*`` names make it harder for consumers to confuse a soft
+    # Distill scope with a runtime or Canon scope.
+    scope_type: DistillScope | None = None
+    scope_id: str | None = None
+    distill_scope: DistillScope | None = None
+    distill_scope_id: str | None = None
     confidence: float = Field(ge=0, le=1)
     evidence: list[DistilledEvidence] = Field(default_factory=list)
     runtime_uses: list[str] = Field(default_factory=list)
     information_class: DistilledInformationClass
+    subject_type: str | None = None
+    subject_ids: list[str] = Field(default_factory=list)
+    related_entity_ids: list[str] = Field(default_factory=list)
+    chapter_range: list[int] | None = None
+    literary_arc_ids: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_dimension(self) -> DistilledObservation:
         if self.dimension not in OBSERVATION_DIMENSIONS:
             raise ValueError(f"observation dimension 无效：{self.dimension}")
+        scope = self.distill_scope or self.scope_type
+        scope_id = self.distill_scope_id or self.scope_id
+        if scope is None or not scope_id:
+            raise ValueError("DistilledObservation 必须包含 distill scope 和 scope_id")
+        self.scope_type = scope
+        self.scope_id = str(scope_id)
+        self.distill_scope = scope
+        self.distill_scope_id = str(scope_id)
+        if self.chapter_range is not None and (
+            len(self.chapter_range) != 2 or self.chapter_range[1] < self.chapter_range[0]
+        ):
+            raise ValueError("chapter_range 必须是 [start, end] 且 end >= start")
         return self
 
 

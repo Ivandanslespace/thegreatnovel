@@ -49,6 +49,36 @@ Horizon/hash anchor、连续 chunk、逐章 provisional state、Boundary/Contrac
 
 抽取阶段的非事实结构同样通过通用 reconcile 显式处理；`accept-source` 要求 source span，`accept-author` 留下作者确认事件，`reject` 保留拒绝审计。知识边不得先于其引用的 CANON fact 被接受。
 
+## Distillation Package、Baseline 与 Earned Surface
+
+Distill machine package 位于 Edition 的 `analysis/distill/skills/<distill_id>/machine/`，其
+核心合同是 `DistillationPackageManifest`、`DistilledObservation`、`DistilledEvidence`、
+`LiteraryArc`、`CraftControl` 和 `ContinuityCandidate`。Observation 可以带
+`distill_scope`、主体/实体、chapter range、literary arc 和 tags 元数据；Evidence Mapping
+只允许 `EXACT`、`PARTIAL`、`UNMAPPED`、`CONFLICTING`，并记录确定性 reason。Literary Arc
+永远不等于 Initialization Processing Arc。
+
+作者-facing `book_profil/` 由最新 SELF_BOOK Package 原子重建，外部/比较参考不会覆盖它。
+它是阅读材料，不是 Canon、Runtime State 或 Edition 的事实权威。
+
+Source-Derived Runtime Baseline 以文件版本保存：
+
+```text
+editions/<edition_id>/analysis/runtime_baseline/
+├─ latest.json
+└─ versions/<baseline_id>/
+   ├─ manifest.json
+   ├─ characters.json / capabilities.json / items.json / equipment.json
+   ├─ resources.json / knowledge.json / rules.json / exceptions.json / promises.json
+   └─ earned_surface.json
+```
+
+Baseline 只能接受 `SOURCE_TEXT`/`AUTHOR_REVIEW` 的 SELF_BOOK source evidence；Distill
+interpretation 只能作为 recall，不能直接成为 capability。`EarnedSurface` 是 Baseline 与
+当前 `CanonProjection` 的纯派生结果，包含可用能力/物品/资源、已知规则/例外、关系杠杆、
+机构权威、开放 setup、可用 payoff 和 hard unknowns；它不产生 SQLite 事件、Canon Commit
+或批准章节。
+
 ## 草稿状态机
 
 ```text

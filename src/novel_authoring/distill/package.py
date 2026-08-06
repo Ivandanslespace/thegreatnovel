@@ -4,13 +4,20 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
+import tempfile
+import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from novel_authoring.db.database import Database
-from novel_authoring.distill.mapping import map_evidence, mapping_summary
+from novel_authoring.distill.mapping import (
+    map_evidence,
+    mapping_reason_summary,
+    mapping_summary,
+)
 from novel_authoring.distill.models import (
     CharacterVoiceProfile,
     ContinuityCandidate,
@@ -180,6 +187,21 @@ def _first_field(section: _Section, names: set[str]) -> str:
     return ""
 
 
+def _split_field(value: str) -> list[str]:
+    return [item.strip() for item in re.split(r"[,，;；|]", value) if item.strip()]
+
+
+def _chapter_range(section: _Section) -> list[int] | None:
+    value = _first_field(section, {"chapter range", "章节范围", "chapters"})
+    if not value:
+        return None
+    match = re.search(r"(\d+)\s*(?:-|–|—|到|至)\s*(\d+)", value)
+    if match is None:
+        match = re.search(r"第?\s*(\d+)\s*章", value)
+        return None if match is None else [int(match.group(1)), int(match.group(1))]
+    return [int(match.group(1)), int(match.group(2))]
+
+
 def _finding_marker(section: _Section) -> tuple[str, DistilledInformationClass, str]:
     for key, values in section.fields.items():
         if not values:
@@ -275,10 +297,24 @@ def _parse_findings(
             statement=statement,
             scope_type=scope,
             scope_id=scope_id,
+            distill_scope=scope,
+            distill_scope_id=scope_id,
             confidence=_confidence(section),
             evidence=evidence,
             runtime_uses=_runtime_uses(scope),
             information_class=information_class,
+            subject_type=_first_field(section, {"subject type", "主体类型"}) or None,
+            subject_ids=_split_field(
+                _first_field(section, {"subject ids", "subject", "主体", "主体 id"})
+            ),
+            related_entity_ids=_split_field(
+                _first_field(section, {"related entity ids", "related entities", "相关实体"})
+            ),
+            chapter_range=_chapter_range(section),
+            literary_arc_ids=_split_field(
+                _first_field(section, {"literary arc ids", "literary arcs", "文学弧"})
+            ),
+            tags=_split_field(_first_field(section, {"tags", "标签"})),
         )
         findings.append(_Finding(dimension=dimension, section=section, observation=observation))
     return findings
@@ -454,7 +490,7 @@ def _validate_internal_references(root: Path) -> list[str]:
     return errors
 
 
-def _validate_originality(root: Path) -> list[str]:
+def _validate_originality(root: Path, *, machine_dir: Path | None = None) -> list[str]:
     errors: list[str] = []
     for path in root.rglob("*.md"):
         try:
@@ -466,7 +502,7 @@ def _validate_originality(root: Path) -> list[str]:
             errors.append(f"Markdown artifact 含疑似长段原文：{path.name}")
         if re.search(r"(?im)^\s*(?:source_text|quote_bank)\s*[:：]", text):
             errors.append(f"Markdown artifact 不得保存 source_text/quote_bank：{path.name}")
-    machine = root / "machine"
+    machine = machine_dir or (root / "machine")
     if not machine.is_dir():
         return ["machine 目录不存在"]
     for path in machine.rglob("*.json*"):
@@ -605,8 +641,11 @@ def build_distillation_package(
     profiles = _parse_voice_profiles(by_dimension.get("characters", []))
     questions = _parse_theme_questions(by_dimension.get("themes", []))
     evidence = _all_evidence(findings, arcs, controls, candidates, profiles, questions)
-    machine = root / "machine"
-    machine.mkdir(parents=True, exist_ok=True)
+    # Rebuild the entire machine layer in an isolated directory.  This is
+    # important when an update removes an optional artifact: no old JSON file
+    # may survive simply because it happened to exist in the previous build.
+    root.mkdir(parents=True, exist_ok=True)
+    machine = Path(tempfile.mkdtemp(prefix=".machine-build-", dir=str(root)))
     observations = [item.observation for item in findings]
     _write_jsonl(machine / "observations.jsonl", observations)
     if arcs:
@@ -670,30 +709,38 @@ def build_distillation_package(
         ],
     )
     _write_json(machine / "package.json", package.model_dump(mode="json"))
-    errors = _validate_internal_references(root) + _validate_originality(root)
+    errors = _validate_internal_references(root) + _validate_originality(
+        root, machine_dir=machine
+    )
     if errors:
+        shutil.rmtree(machine, ignore_errors=True)
         raise DistillationPackageError("；".join(errors))
-    summary = {
-        "selected_dimensions": dimensions,
-        "produced_dimensions": sorted(
-            dimension for dimension in dimensions if (root / f"{dimension}.md").is_file()
-        ),
-        "finding_count": len(observations),
-        "mapped_evidence_count": sum(
-            item.mapping_status.value == "EXACT" for item in evidence
-        ),
-        "unmapped_count": sum(item.mapping_status.value == "UNMAPPED" for item in evidence),
-        "conflicting_count": sum(
-            item.mapping_status.value == "CONFLICTING" for item in evidence
-        ),
-        "partial_count": sum(item.mapping_status.value == "PARTIAL" for item in evidence),
-        "continuity_candidate_count": len(candidates),
-        "craft_control_count": len(controls),
-        "literary_arc_count": len(arcs),
-        "scope": scope.value,
-        "mapping_summary": mapping_summary(evidence),
-    }
-    return {"manifest": package, "summary": summary}
+    final_machine = root / "machine"
+    backup_machine = root / f".machine-backup-{uuid.uuid4().hex}"
+    try:
+        if final_machine.exists():
+            final_machine.replace(backup_machine)
+        machine.replace(final_machine)
+        try:
+            validated = validate_distillation_package(
+                root,
+                expected_book_id=book_id,
+                expected_edition_id=edition_id,
+                expected_scope=scope.value,
+                expected_dimensions=dimensions,
+            )
+        except Exception:
+            if final_machine.exists():
+                final_machine.replace(machine)
+            if backup_machine.exists():
+                backup_machine.replace(final_machine)
+            raise
+        if backup_machine.exists():
+            shutil.rmtree(backup_machine)
+    finally:
+        if machine.exists():
+            shutil.rmtree(machine, ignore_errors=True)
+    return {"manifest": package, "summary": validated}
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -860,6 +907,7 @@ def validate_distillation_package(
         "craft_control_count": len(controls),
         "continuity_candidate_count": len(candidates),
         "mapping_summary": mapping_summary(evidence),
+        "mapping_reason_summary": mapping_reason_summary(evidence),
         "package": package.model_dump(mode="json"),
     }
     return summary

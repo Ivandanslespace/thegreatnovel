@@ -7,6 +7,7 @@ from typing import Any
 
 from novel_authoring.canon.projection import CanonProjection
 from novel_authoring.config import Settings
+from novel_authoring.context.router import RuntimeContextBundle
 from novel_authoring.contracts.draft import DraftOutput, DraftStateChange
 from novel_authoring.domain.models import ContinuationMode, NarrativeFunction, Severity
 from novel_authoring.metrics.formulas import (
@@ -28,6 +29,7 @@ class ValidationContext:
     contract: ChapterContract
     projection: CanonProjection
     settings: Settings
+    runtime_context: RuntimeContextBundle | None = None
 
 
 def _finding(

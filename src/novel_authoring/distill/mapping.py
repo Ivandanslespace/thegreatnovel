@@ -8,6 +8,7 @@ chapters by similarity and it never writes to the Canon database.
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -165,6 +166,26 @@ def _candidate_chapters(
     ]
 
 
+def _mapped(
+    evidence: DistilledEvidence,
+    status: EvidenceMappingStatus,
+    reason: str,
+    *,
+    chapter_id: str | None = None,
+    source_span_ids: list[str] | None = None,
+) -> DistilledEvidence:
+    """Return one mapping result with an auditable deterministic reason."""
+
+    return evidence.model_copy(
+        update={
+            "mapping_status": status,
+            "chapter_id": chapter_id,
+            "source_span_ids": source_span_ids or [],
+            "reason": reason,
+        }
+    )
+
+
 def map_evidence(
     database: Database,
     book_id: str,
@@ -184,12 +205,10 @@ def map_evidence(
     sources = _source_rows(manifest, chapter_index)
     source = sources.get(evidence.source_id)
     if source is None:
-        return evidence.model_copy(
-            update={
-                "mapping_status": EvidenceMappingStatus.UNMAPPED,
-                "chapter_id": None,
-                "source_span_ids": [],
-            }
+        return _mapped(
+            evidence,
+            EvidenceMappingStatus.UNMAPPED,
+            "UNMAPPED_SOURCE_NOT_FOUND",
         )
     segment_matches = [
         item
@@ -203,21 +222,17 @@ def map_evidence(
             if item.get("chapter_id")
         }
     ) > 1:
-        return evidence.model_copy(
-            update={
-                "mapping_status": EvidenceMappingStatus.CONFLICTING,
-                "chapter_id": None,
-                "source_span_ids": [],
-            }
+        return _mapped(
+            evidence,
+            EvidenceMappingStatus.CONFLICTING,
+            "CONFLICTING_MULTIPLE_CHAPTERS",
         )
     segment = segment_matches[0] if segment_matches else None
     if segment is None:
-        return evidence.model_copy(
-            update={
-                "mapping_status": EvidenceMappingStatus.UNMAPPED,
-                "chapter_id": None,
-                "source_span_ids": [],
-            }
+        return _mapped(
+            evidence,
+            EvidenceMappingStatus.UNMAPPED,
+            "UNMAPPED_SEGMENT_NOT_FOUND",
         )
     database.initialize()
     with database.connect() as connection:
@@ -227,30 +242,25 @@ def map_evidence(
     )
     distinct_ids = {str(item.get("chapter_id")) for item in candidates}
     if len(distinct_ids) > 1:
-        return evidence.model_copy(
-            update={
-                "mapping_status": EvidenceMappingStatus.CONFLICTING,
-                "chapter_id": None,
-                "source_span_ids": [],
-            }
+        return _mapped(
+            evidence,
+            EvidenceMappingStatus.CONFLICTING,
+            "CONFLICTING_MULTIPLE_CHAPTERS",
         )
     if not candidates:
-        return evidence.model_copy(
-            update={
-                "mapping_status": EvidenceMappingStatus.UNMAPPED,
-                "chapter_id": None,
-                "source_span_ids": [],
-            }
+        return _mapped(
+            evidence,
+            EvidenceMappingStatus.UNMAPPED,
+            "UNMAPPED_CHAPTER_NOT_FOUND",
         )
     chapter = candidates[0]
     span_id = _chapter_span_id(database, chapter)
     if span_id is None:
-        return evidence.model_copy(
-            update={
-                "mapping_status": EvidenceMappingStatus.PARTIAL,
-                "chapter_id": str(chapter["chapter_id"]),
-                "source_span_ids": [],
-            }
+        return _mapped(
+            evidence,
+            EvidenceMappingStatus.PARTIAL,
+            "PARTIAL_NO_SOURCE_SPAN",
+            chapter_id=str(chapter["chapter_id"]),
         )
 
     segment_start = int(segment.get("start_line", evidence.start_line))
@@ -268,27 +278,25 @@ def map_evidence(
     ):
         exact = True
     if exact:
-        return evidence.model_copy(
-            update={
-                "mapping_status": EvidenceMappingStatus.EXACT,
-                "chapter_id": str(chapter["chapter_id"]),
-                "source_span_ids": [span_id],
-            }
+        return _mapped(
+            evidence,
+            EvidenceMappingStatus.EXACT,
+            "EXACT_EXPLICIT_CHAPTER" if explicit_chapter else "EXACT_RANGE_INSIDE_CHAPTER",
+            chapter_id=str(chapter["chapter_id"]),
+            source_span_ids=[span_id],
         )
     if overlaps_chapter:
-        return evidence.model_copy(
-            update={
-                "mapping_status": EvidenceMappingStatus.PARTIAL,
-                "chapter_id": str(chapter["chapter_id"]),
-                "source_span_ids": [span_id],
-            }
+        return _mapped(
+            evidence,
+            EvidenceMappingStatus.PARTIAL,
+            "PARTIAL_CROSSES_CHAPTER_BOUNDARY",
+            chapter_id=str(chapter["chapter_id"]),
+            source_span_ids=[span_id],
         )
-    return evidence.model_copy(
-        update={
-            "mapping_status": EvidenceMappingStatus.UNMAPPED,
-            "chapter_id": None,
-            "source_span_ids": [],
-        }
+    return _mapped(
+        evidence,
+        EvidenceMappingStatus.UNMAPPED,
+        "UNMAPPED_LOCATOR_OUTSIDE_CHAPTER",
     )
 
 
@@ -312,9 +320,14 @@ def mapping_summary(evidence: list[DistilledEvidence]) -> dict[str, int]:
     }
 
 
+def mapping_reason_summary(evidence: list[DistilledEvidence]) -> dict[str, int]:
+    return dict(Counter(item.reason for item in evidence if item.reason).most_common())
+
+
 __all__ = [
     "DistillMappingError",
     "map_evidence",
     "map_evidence_batch",
+    "mapping_reason_summary",
     "mapping_summary",
 ]

@@ -76,7 +76,23 @@ analysis/distill/skills/<distill_id>/
 只有实际产生的 machine artifact 才会创建。`novel distill validate` 执行严格维度、来源、
 Scope、内部引用、原创性和 Pydantic 合同检查；`novel distill map-evidence` 只按冻结
 preparation 重新映射到当前 Edition 的 chapter/source span；`novel distill inspect` 输出
-作者摘要。Literary Arc 是 Distill 的文学结构观察，不是 Initialization Processing Arc。
+作者摘要；`novel distill export-profile` 会把最新 SELF_BOOK Package 原子导出到
+`library/<book_id>/book_profil/`，外部参考不会覆盖它。Literary Arc 是 Distill 的文学结构观察，
+不是 Initialization Processing Arc。
+
+Phase 3 还提供独立的 Source-Derived Runtime Baseline：
+
+```powershell
+& $Novel runtime-baseline build --book-id my-book --input .\baseline-input.json --boundary-chapter 50
+& $Novel runtime-baseline inspect --book-id my-book
+```
+
+Baseline 位于 `editions/<edition_id>/analysis/runtime_baseline/versions/`，只保存经过
+selected Edition source evidence 验证的 `SOURCE_VERIFIED` / `SOURCE_PARTIAL` 条目；无法确认的
+内容保持 `UNKNOWN`。`Earned Surface` 和 `Available Payoff Surface` 只由 Baseline 与当前
+Canon Projection 派生，Distill Observation 只能提供检索/验证提示，不能直接产生能力、物品或
+资源。候选规划、草稿和十项校验通过 Context Router 分别读取 hard boundary、earned/payoff
+surface 与对应九维软控制。
 
 ## 能力
 

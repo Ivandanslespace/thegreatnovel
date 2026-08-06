@@ -87,6 +87,7 @@ def test_exact_and_unmapped_evidence_mapping(tmp_path: Path) -> None:
         ),
     )
     assert exact.mapping_status is EvidenceMappingStatus.EXACT
+    assert exact.reason == "EXACT_EXPLICIT_CHAPTER"
     assert exact.chapter_id
     assert exact.source_span_ids
 
@@ -103,6 +104,7 @@ def test_exact_and_unmapped_evidence_mapping(tmp_path: Path) -> None:
         ),
     )
     assert unmapped.mapping_status is EvidenceMappingStatus.UNMAPPED
+    assert unmapped.reason == "UNMAPPED_SEGMENT_NOT_FOUND"
     assert unmapped.source_span_ids == []
 
 
@@ -137,6 +139,7 @@ def test_conflicting_mapping_is_not_silently_selected(tmp_path: Path) -> None:
         evidence,
     )
     assert mapped.mapping_status is EvidenceMappingStatus.CONFLICTING
+    assert mapped.reason == "CONFLICTING_MULTIPLE_CHAPTERS"
     assert mapped.chapter_id is None
 
 

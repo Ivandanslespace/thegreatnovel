@@ -5,6 +5,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from novel_authoring.context.router import ContextPurpose, route_runtime_context
 from novel_authoring.contracts.draft import DraftOutput
 from novel_authoring.db.database import Database
 from novel_authoring.domain.models import DraftStatus
@@ -63,6 +64,19 @@ def prepare_draft_task(
     boundary_path = boundary_dir / f"{contract.boundary_packet_id}.md"
     if not boundary_path.exists():
         raise DraftWorkflowError("Boundary Packet 不存在，禁止准备正文任务")
+    boundary_json_path = boundary_path.with_suffix(".json")
+    boundary_payload = (
+        json.loads(boundary_json_path.read_text(encoding="utf-8"))
+        if boundary_json_path.is_file()
+        else {}
+    )
+    runtime_context = route_runtime_context(
+        database,
+        book_id,
+        edition_id=selected_edition,
+        purpose=ContextPurpose.DRAFT,
+        boundary=boundary_payload,
+    )
     schema_json = json_dumps(DraftOutput.model_json_schema(), indent=2)
     task_id = stable_id("draft-task", contract_id, str(revision), str(row["contract_sha256"]))
     operation = ensure_operation(
@@ -104,6 +118,12 @@ def prepare_draft_task(
             "```json",
             str(row["contract_json"]),
             "```",
+            "",
+            "## Runtime Context Router（hard boundary + earned surface + soft controls）",
+            "",
+            "```json",
+            json_dumps(runtime_context.model_dump(mode="json"), indent=2),
+            "```",
         ]
     )
     metadata = {
@@ -118,6 +138,7 @@ def prepare_draft_task(
         "base_projection_hash": contract.continuation_boundary["base_projection_hash"],
         "schema_sha256": sha256_bytes(schema_json.encode()),
         "created_at": utc_now(),
+        "runtime_context": runtime_context.model_dump(mode="json"),
     }
     (task_dir / "input.md").write_text(input_text, encoding="utf-8")
     (task_dir / "schema.json").write_text(schema_json + "\n", encoding="utf-8")

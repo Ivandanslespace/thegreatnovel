@@ -193,6 +193,12 @@ class BookPaths:
         return self.root / "README.md"
 
     @property
+    def book_profil(self) -> Path:
+        """Author-facing derived view of the latest SELF_BOOK Distill."""
+
+        return self.root / "book_profil"
+
+    @property
     def source(self) -> Path:
         return self.root / "source"
 
@@ -247,6 +253,7 @@ class BookPaths:
     def all_directories(self) -> tuple[Path, ...]:
         return (
             self.root,
+            self.book_profil,
             self.source,
             self.system,
             self.snapshots,

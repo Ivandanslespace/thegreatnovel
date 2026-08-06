@@ -18,6 +18,7 @@ from novel_authoring.distill.package import (
     validate_distillation_package,
 )
 from novel_authoring.distill.preparation import DistillPreparationError, prepare_sources
+from novel_authoring.distill.profile import BookProfileError, export_book_profile
 from novel_authoring.distill.service import (
     DistillError,
     _book_edition,
@@ -281,6 +282,7 @@ def distill_map_evidence_command(
             expected_dimensions=[str(item) for item in request.get("dimensions", [])],
         )
         published["mapping_summary"] = summary["mapping_summary"]
+        published["mapping_reason_summary"] = summary.get("mapping_reason_summary", {})
         published["package_summary"] = summary
         manifest_path.write_text(json_dumps(published, indent=2) + "\n", encoding="utf-8")
         latest_path = edition.distill / "latest.json"
@@ -288,6 +290,9 @@ def distill_map_evidence_command(
             latest = json.loads(latest_path.read_text(encoding="utf-8"))
             if isinstance(latest, dict) and str(latest.get("distill_id")) == selected_id:
                 latest["mapping_summary"] = summary["mapping_summary"]
+                latest["mapping_reason_summary"] = summary.get(
+                    "mapping_reason_summary", {}
+                )
                 latest_path.write_text(
                     json_dumps(latest, indent=2) + "\n", encoding="utf-8"
                 )
@@ -351,9 +356,31 @@ def distill_inspect_command(
                 f"Conflicting Evidence: {summary['conflicting_count']}",
                 f"Available Craft Controls: {summary['craft_control_count']}",
                 f"Mapping: {mapping}",
+                f"Mapping reasons: {summary.get('mapping_reason_summary', {})}",
             ]
         )
     )
+
+
+@distill_app.command("export-profile")
+def distill_export_profile_command(
+    book_id: str = typer.Option(..., "--book-id"),
+    workspace: Path = typer.Option(Path("workspace"), "--workspace"),
+    edition_id: str | None = typer.Option(None, "--edition-id"),
+    library_root: LibraryRoot = None,
+) -> None:
+    """导出当前 SELF_BOOK Distill 的 author-facing book_profil 视图。"""
+
+    try:
+        result = export_book_profile(
+            _book_database(workspace, book_id, library_root),
+            book_id,
+            edition_id=edition_id,
+        )
+    except (BookProfileError, DistillError, OSError, ValueError, RuntimeError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+    _emit(result)
 
 
 __all__ = ["distill_app"]

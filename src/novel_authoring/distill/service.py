@@ -237,7 +237,14 @@ def prepare_book_sources(
             canonical = {path.resolve() for path in _canonical_sources(database, book_id)}
             self_book = {path.resolve() for path in discover_sources(input_paths)} == canonical
         else:
-            self_book = False
+            effective_root = edition.distill / "effective_sources"
+            self_book = True
+            for path in discover_sources(input_paths):
+                try:
+                    path.resolve().relative_to(effective_root.resolve())
+                except ValueError:
+                    self_book = False
+                    break
     resolved = discover_sources(input_paths)
     output_root = edition.distill / "preparations" / preparation_id
     result = prepare_sources(resolved, output_root, preparation_id=preparation_id)
@@ -560,6 +567,7 @@ def import_distill_result(database: Database, book_id: str, handoff_id: str) -> 
         "package_root": str(destination / "machine"),
         "machine_manifest": str(destination / "machine" / "package.json"),
         "mapping_summary": package_summary.get("mapping_summary", {}),
+        "mapping_reason_summary": package_summary.get("mapping_reason_summary", {}),
         "package_summary": package_summary,
         "request": request,
         "result": result,
@@ -586,12 +594,22 @@ def import_distill_result(database: Database, book_id: str, handoff_id: str) -> 
                 "machine_manifest": str(destination / "machine" / "package.json"),
                 "usage": "REFERENCE_ONLY",
                 "mapping_summary": package_summary.get("mapping_summary", {}),
+                "mapping_reason_summary": package_summary.get(
+                    "mapping_reason_summary", {}
+                ),
             },
             indent=2,
         )
         + "\n",
         encoding="utf-8",
     )
+    profile_result: dict[str, object] | None = None
+    if str(request.get("scope")) == DistillScope.SELF_BOOK.value:
+        from novel_authoring.distill.profile import export_book_profile
+
+        profile_result = export_book_profile(
+            database, book_id, edition_id=str(row["edition_id"])
+        )
     append_event(
         database,
         handoff_id,
@@ -603,6 +621,7 @@ def import_distill_result(database: Database, book_id: str, handoff_id: str) -> 
             "package_root": str(destination / "machine"),
             "machine_manifest": str(destination / "machine" / "package.json"),
             "mapping_summary": package_summary.get("mapping_summary", {}),
+            "mapping_reason_summary": package_summary.get("mapping_reason_summary", {}),
         },
     )
     return {
@@ -618,6 +637,7 @@ def import_distill_result(database: Database, book_id: str, handoff_id: str) -> 
         "package_root": str(destination / "machine"),
         "machine_manifest": str(destination / "machine" / "package.json"),
         "mapping_summary": package_summary.get("mapping_summary", {}),
+        "profile": profile_result,
         "canon_committed": False,
     }
 
@@ -651,6 +671,13 @@ def latest_distill_reference(edition: EditionPaths) -> dict[str, Any] | None:
     mapping = value.get("mapping_summary") or published.get("mapping_summary") or {}
     if not isinstance(mapping, dict):
         mapping = {}
+    mapping_reasons = (
+        value.get("mapping_reason_summary")
+        or published.get("mapping_reason_summary")
+        or {}
+    )
+    if not isinstance(mapping_reasons, dict):
+        mapping_reasons = {}
     scope = (
         value.get("scope")
         or published.get("scope")
@@ -672,6 +699,8 @@ def latest_distill_reference(edition: EditionPaths) -> dict[str, Any] | None:
         "latest_path": str(latest_path),
         "usage": str(value.get("usage") or "REFERENCE_ONLY"),
         "mapping_summary": mapping,
+        "mapping_reason_summary": mapping_reasons,
+        "profile_root": str(edition.root.parents[1] / "book_profil"),
     }
 
 
