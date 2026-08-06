@@ -1,0 +1,3039 @@
+{
+  "source": "work\\normalized\\book-01-bcc78727.txt",
+  "total_lines": 78708,
+  "detected_segments": 379,
+  "segments": [
+    {
+      "segment_id": "segment-0001",
+      "heading": "第一章 斗罗大陆，异界唐三（一）",
+      "line_start": 1,
+      "line_end": 46,
+      "nonempty_lines": 23,
+      "characters": 1931
+    },
+    {
+      "segment_id": "segment-0002",
+      "heading": "第一章 斗罗大陆，异界唐三（二）",
+      "line_start": 47,
+      "line_end": 116,
+      "nonempty_lines": 35,
+      "characters": 1852
+    },
+    {
+      "segment_id": "segment-0003",
+      "heading": "第一章 斗罗大陆，异界唐三（三）",
+      "line_start": 117,
+      "line_end": 176,
+      "nonempty_lines": 30,
+      "characters": 1899
+    },
+    {
+      "segment_id": "segment-0004",
+      "heading": "第一章 斗罗大陆，异界唐三（四）",
+      "line_start": 177,
+      "line_end": 240,
+      "nonempty_lines": 32,
+      "characters": 1748
+    },
+    {
+      "segment_id": "segment-0005",
+      "heading": "第二章 废武魂与先天满魂力（一）",
+      "line_start": 241,
+      "line_end": 300,
+      "nonempty_lines": 30,
+      "characters": 1794
+    },
+    {
+      "segment_id": "segment-0006",
+      "heading": "第二章 废武魂与先天满魂力（二）",
+      "line_start": 301,
+      "line_end": 356,
+      "nonempty_lines": 28,
+      "characters": 1767
+    },
+    {
+      "segment_id": "segment-0007",
+      "heading": "第二章 废武魂与先天满魂力（三）",
+      "line_start": 357,
+      "line_end": 426,
+      "nonempty_lines": 35,
+      "characters": 1729
+    },
+    {
+      "segment_id": "segment-0008",
+      "heading": "第二章 废武魂与先天满魂力（四）",
+      "line_start": 427,
+      "line_end": 482,
+      "nonempty_lines": 28,
+      "characters": 2249
+    },
+    {
+      "segment_id": "segment-0009",
+      "heading": "第三章 双生武魂(一)",
+      "line_start": 483,
+      "line_end": 544,
+      "nonempty_lines": 31,
+      "characters": 1779
+    },
+    {
+      "segment_id": "segment-0010",
+      "heading": "第三章 双生武魂(二)",
+      "line_start": 545,
+      "line_end": 614,
+      "nonempty_lines": 35,
+      "characters": 1745
+    },
+    {
+      "segment_id": "segment-0011",
+      "heading": "第三章 双生武魂(三)",
+      "line_start": 615,
+      "line_end": 684,
+      "nonempty_lines": 35,
+      "characters": 1740
+    },
+    {
+      "segment_id": "segment-0012",
+      "heading": "第三章 双生武魂(四)",
+      "line_start": 685,
+      "line_end": 724,
+      "nonempty_lines": 20,
+      "characters": 1739
+    },
+    {
+      "segment_id": "segment-0013",
+      "heading": "第三章 双生武魂(五)",
+      "line_start": 725,
+      "line_end": 772,
+      "nonempty_lines": 24,
+      "characters": 1759
+    },
+    {
+      "segment_id": "segment-0014",
+      "heading": "第四章 异界唐三的第一件暗器（一）",
+      "line_start": 773,
+      "line_end": 838,
+      "nonempty_lines": 33,
+      "characters": 1797
+    },
+    {
+      "segment_id": "segment-0015",
+      "heading": "第四章 异界唐三的第一件暗器（二）",
+      "line_start": 839,
+      "line_end": 886,
+      "nonempty_lines": 24,
+      "characters": 1735
+    },
+    {
+      "segment_id": "segment-0016",
+      "heading": "第四章 异界唐三的第一件暗器(三)",
+      "line_start": 887,
+      "line_end": 940,
+      "nonempty_lines": 27,
+      "characters": 1786
+    },
+    {
+      "segment_id": "segment-0017",
+      "heading": "第四章 异界唐三的第一件暗器(四)",
+      "line_start": 941,
+      "line_end": 990,
+      "nonempty_lines": 25,
+      "characters": 1784
+    },
+    {
+      "segment_id": "segment-0018",
+      "heading": "第四章 异界唐三的第一件暗器(五)",
+      "line_start": 991,
+      "line_end": 1046,
+      "nonempty_lines": 28,
+      "characters": 1774
+    },
+    {
+      "segment_id": "segment-0019",
+      "heading": "第五章 大师？师傅？（一）",
+      "line_start": 1047,
+      "line_end": 1108,
+      "nonempty_lines": 31,
+      "characters": 1752
+    },
+    {
+      "segment_id": "segment-0020",
+      "heading": "第五章 大师？师傅？（二）",
+      "line_start": 1109,
+      "line_end": 1172,
+      "nonempty_lines": 32,
+      "characters": 1757
+    },
+    {
+      "segment_id": "segment-0021",
+      "heading": "第五章 大师？师傅？（三）",
+      "line_start": 1173,
+      "line_end": 1234,
+      "nonempty_lines": 31,
+      "characters": 1818
+    },
+    {
+      "segment_id": "segment-0022",
+      "heading": "第五章 大师？师傅？（四）",
+      "line_start": 1235,
+      "line_end": 1304,
+      "nonempty_lines": 35,
+      "characters": 1788
+    },
+    {
+      "segment_id": "segment-0023",
+      "heading": "第六章 我叫凌岳，山岳的岳（一）",
+      "line_start": 1305,
+      "line_end": 1372,
+      "nonempty_lines": 34,
+      "characters": 1587
+    },
+    {
+      "segment_id": "segment-0024",
+      "heading": "第六章 我叫凌岳，山岳的岳（二）",
+      "line_start": 1373,
+      "line_end": 1436,
+      "nonempty_lines": 32,
+      "characters": 1798
+    },
+    {
+      "segment_id": "segment-0025",
+      "heading": "第六章 我叫凌岳，山岳的岳（三）",
+      "line_start": 1437,
+      "line_end": 1508,
+      "nonempty_lines": 36,
+      "characters": 1802
+    },
+    {
+      "segment_id": "segment-0026",
+      "heading": "第六章 我叫凌岳，山岳的岳（四）",
+      "line_start": 1509,
+      "line_end": 1586,
+      "nonempty_lines": 39,
+      "characters": 1759
+    },
+    {
+      "segment_id": "segment-0027",
+      "heading": "第六章 我叫凌岳，山岳的岳（五）",
+      "line_start": 1587,
+      "line_end": 1648,
+      "nonempty_lines": 31,
+      "characters": 1878
+    },
+    {
+      "segment_id": "segment-0028",
+      "heading": "第七章 凌岳，你还要啊？(一)",
+      "line_start": 1649,
+      "line_end": 1692,
+      "nonempty_lines": 22,
+      "characters": 1806
+    },
+    {
+      "segment_id": "segment-0029",
+      "heading": "第七章 凌岳，你还要啊？(二)",
+      "line_start": 1693,
+      "line_end": 1758,
+      "nonempty_lines": 33,
+      "characters": 1789
+    },
+    {
+      "segment_id": "segment-0030",
+      "heading": "第七章 凌岳，你还要啊？(三)",
+      "line_start": 1759,
+      "line_end": 1820,
+      "nonempty_lines": 31,
+      "characters": 1585
+    },
+    {
+      "segment_id": "segment-0031",
+      "heading": "第七章 凌岳，你还要啊？(四)",
+      "line_start": 1821,
+      "line_end": 1880,
+      "nonempty_lines": 30,
+      "characters": 1771
+    },
+    {
+      "segment_id": "segment-0032",
+      "heading": "第七章 凌岳，你还要啊？(五)",
+      "line_start": 1881,
+      "line_end": 1990,
+      "nonempty_lines": 55,
+      "characters": 3627
+    },
+    {
+      "segment_id": "segment-0033",
+      "heading": "第八章 魂导器，二十四桥明月夜(二)",
+      "line_start": 1991,
+      "line_end": 2048,
+      "nonempty_lines": 29,
+      "characters": 1770
+    },
+    {
+      "segment_id": "segment-0034",
+      "heading": "第八章 魂导器，二十四桥明月夜(三)",
+      "line_start": 2049,
+      "line_end": 2090,
+      "nonempty_lines": 21,
+      "characters": 1781
+    },
+    {
+      "segment_id": "segment-0035",
+      "heading": "第八章 魂导器，二十四桥明月夜(四)",
+      "line_start": 2091,
+      "line_end": 2162,
+      "nonempty_lines": 36,
+      "characters": 1844
+    },
+    {
+      "segment_id": "segment-0036",
+      "heading": "第八章 魂导器，二十四桥明月夜(五)",
+      "line_start": 2163,
+      "line_end": 2210,
+      "nonempty_lines": 24,
+      "characters": 1672
+    },
+    {
+      "segment_id": "segment-0037",
+      "heading": "第九章 蓝银草的第一魂环（一）",
+      "line_start": 2211,
+      "line_end": 2264,
+      "nonempty_lines": 27,
+      "characters": 1748
+    },
+    {
+      "segment_id": "segment-0038",
+      "heading": "第九章 蓝银草的第一魂环（二）",
+      "line_start": 2265,
+      "line_end": 2308,
+      "nonempty_lines": 22,
+      "characters": 1777
+    },
+    {
+      "segment_id": "segment-0039",
+      "heading": "第九章 蓝银草的第一魂环（三）",
+      "line_start": 2309,
+      "line_end": 2360,
+      "nonempty_lines": 26,
+      "characters": 1690
+    },
+    {
+      "segment_id": "segment-0040",
+      "heading": "第九章 蓝银草的第一魂环（四）",
+      "line_start": 2361,
+      "line_end": 2412,
+      "nonempty_lines": 26,
+      "characters": 1707
+    },
+    {
+      "segment_id": "segment-0041",
+      "heading": "第九章 蓝银草的第一魂环（五）",
+      "line_start": 2413,
+      "line_end": 2464,
+      "nonempty_lines": 26,
+      "characters": 1701
+    },
+    {
+      "segment_id": "segment-0042",
+      "heading": "第十章 第一魂环技能(一)",
+      "line_start": 2465,
+      "line_end": 2514,
+      "nonempty_lines": 25,
+      "characters": 1713
+    },
+    {
+      "segment_id": "segment-0043",
+      "heading": "第十章 第一魂环技能(二)",
+      "line_start": 2515,
+      "line_end": 2574,
+      "nonempty_lines": 30,
+      "characters": 1734
+    },
+    {
+      "segment_id": "segment-0044",
+      "heading": "第十章 第一魂环技能(三)",
+      "line_start": 2575,
+      "line_end": 2624,
+      "nonempty_lines": 25,
+      "characters": 1710
+    },
+    {
+      "segment_id": "segment-0045",
+      "heading": "第十章 第一魂环技能(四)",
+      "line_start": 2625,
+      "line_end": 2682,
+      "nonempty_lines": 29,
+      "characters": 1779
+    },
+    {
+      "segment_id": "segment-0046",
+      "heading": "第十章 第一魂环技能(五)",
+      "line_start": 2683,
+      "line_end": 2740,
+      "nonempty_lines": 29,
+      "characters": 1736
+    },
+    {
+      "segment_id": "segment-0047",
+      "heading": "第十一章 凌岳，原来你真的是个战狮(一)",
+      "line_start": 2741,
+      "line_end": 2800,
+      "nonempty_lines": 30,
+      "characters": 1729
+    },
+    {
+      "segment_id": "segment-0048",
+      "heading": "第十一章 凌岳原来你真的是个战狮(二)",
+      "line_start": 2801,
+      "line_end": 2858,
+      "nonempty_lines": 29,
+      "characters": 1743
+    },
+    {
+      "segment_id": "segment-0049",
+      "heading": "第十一章 凌岳原来你真的是个战狮(三)",
+      "line_start": 2859,
+      "line_end": 2910,
+      "nonempty_lines": 26,
+      "characters": 1787
+    },
+    {
+      "segment_id": "segment-0050",
+      "heading": "第十一章 凌岳原来你真的是个战狮(四)",
+      "line_start": 2911,
+      "line_end": 2968,
+      "nonempty_lines": 29,
+      "characters": 1799
+    },
+    {
+      "segment_id": "segment-0051",
+      "heading": "第十二章 乱披风锤法(一)",
+      "line_start": 2969,
+      "line_end": 3028,
+      "nonempty_lines": 30,
+      "characters": 1769
+    },
+    {
+      "segment_id": "segment-0052",
+      "heading": "第十二章 乱披风锤法(二)",
+      "line_start": 3029,
+      "line_end": 3088,
+      "nonempty_lines": 30,
+      "characters": 1765
+    },
+    {
+      "segment_id": "segment-0053",
+      "heading": "第十二章 乱披风锤法(三)",
+      "line_start": 3089,
+      "line_end": 3162,
+      "nonempty_lines": 37,
+      "characters": 1858
+    },
+    {
+      "segment_id": "segment-0054",
+      "heading": "第十二章 乱披风锤法(四)",
+      "line_start": 3163,
+      "line_end": 3230,
+      "nonempty_lines": 34,
+      "characters": 1874
+    },
+    {
+      "segment_id": "segment-0055",
+      "heading": "第十二章 乱披风锤法(五)",
+      "line_start": 3231,
+      "line_end": 3300,
+      "nonempty_lines": 35,
+      "characters": 1863
+    },
+    {
+      "segment_id": "segment-0056",
+      "heading": "第十三章 父亲的留言(一)",
+      "line_start": 3301,
+      "line_end": 3356,
+      "nonempty_lines": 28,
+      "characters": 1768
+    },
+    {
+      "segment_id": "segment-0057",
+      "heading": "第十三章 父亲的留言(二)",
+      "line_start": 3357,
+      "line_end": 3414,
+      "nonempty_lines": 29,
+      "characters": 1693
+    },
+    {
+      "segment_id": "segment-0058",
+      "heading": "第十三章 父亲的留言(三)",
+      "line_start": 3415,
+      "line_end": 3494,
+      "nonempty_lines": 40,
+      "characters": 1791
+    },
+    {
+      "segment_id": "segment-0059",
+      "heading": "第十三章 父亲的留言(四)",
+      "line_start": 3495,
+      "line_end": 3572,
+      "nonempty_lines": 39,
+      "characters": 1795
+    },
+    {
+      "segment_id": "segment-0060",
+      "heading": "第十四章 邪眸白虎戴沐白(一)",
+      "line_start": 3573,
+      "line_end": 3634,
+      "nonempty_lines": 31,
+      "characters": 1756
+    },
+    {
+      "segment_id": "segment-0061",
+      "heading": "第十四章 邪眸白虎戴沐白(二)",
+      "line_start": 3635,
+      "line_end": 3696,
+      "nonempty_lines": 31,
+      "characters": 1592
+    },
+    {
+      "segment_id": "segment-0062",
+      "heading": "第十四章 邪眸白虎戴沐白(三)",
+      "line_start": 3697,
+      "line_end": 3774,
+      "nonempty_lines": 39,
+      "characters": 1808
+    },
+    {
+      "segment_id": "segment-0063",
+      "heading": "第十四章 邪眸白虎戴沐白(四)",
+      "line_start": 3775,
+      "line_end": 3828,
+      "nonempty_lines": 27,
+      "characters": 1756
+    },
+    {
+      "segment_id": "segment-0064",
+      "heading": "第十四章 邪眸白虎戴沐白(五)",
+      "line_start": 3829,
+      "line_end": 3886,
+      "nonempty_lines": 29,
+      "characters": 1777
+    },
+    {
+      "segment_id": "segment-0065",
+      "heading": "第十四章 邪眸白虎戴沐白(六)",
+      "line_start": 3887,
+      "line_end": 3992,
+      "nonempty_lines": 53,
+      "characters": 3805
+    },
+    {
+      "segment_id": "segment-0066",
+      "heading": "第十五章 千年魂环之技，白虎金刚变(二)",
+      "line_start": 3993,
+      "line_end": 4044,
+      "nonempty_lines": 26,
+      "characters": 1790
+    },
+    {
+      "segment_id": "segment-0067",
+      "heading": "第十五章 千年魂环之技，白虎金刚变(三)",
+      "line_start": 4045,
+      "line_end": 4100,
+      "nonempty_lines": 28,
+      "characters": 1833
+    },
+    {
+      "segment_id": "segment-0068",
+      "heading": "第十五章 千年魂环之技，白虎金刚变(四)",
+      "line_start": 4101,
+      "line_end": 4150,
+      "nonempty_lines": 25,
+      "characters": 1732
+    },
+    {
+      "segment_id": "segment-0069",
+      "heading": "第十五章 千年魂环之技，白虎金刚变(五)",
+      "line_start": 4151,
+      "line_end": 4218,
+      "nonempty_lines": 34,
+      "characters": 1709
+    },
+    {
+      "segment_id": "segment-0070",
+      "heading": "第十六章 板晶发金龙须针（一）",
+      "line_start": 4219,
+      "line_end": 4280,
+      "nonempty_lines": 31,
+      "characters": 1718
+    },
+    {
+      "segment_id": "segment-0071",
+      "heading": "第十六章 板晶发金龙须针（二）",
+      "line_start": 4281,
+      "line_end": 4340,
+      "nonempty_lines": 30,
+      "characters": 1783
+    },
+    {
+      "segment_id": "segment-0072",
+      "heading": "第十六章 板晶发金龙须针（三）",
+      "line_start": 4341,
+      "line_end": 4406,
+      "nonempty_lines": 33,
+      "characters": 1736
+    },
+    {
+      "segment_id": "segment-0073",
+      "heading": "第十六章 板晶发金龙须针（四）",
+      "line_start": 4407,
+      "line_end": 4472,
+      "nonempty_lines": 33,
+      "characters": 1794
+    },
+    {
+      "segment_id": "segment-0074",
+      "heading": "第十六章 板晶发金龙须针(五)",
+      "line_start": 4473,
+      "line_end": 4540,
+      "nonempty_lines": 34,
+      "characters": 1742
+    },
+    {
+      "segment_id": "segment-0075",
+      "heading": "第十七章 只收怪物的学院(一)",
+      "line_start": 4541,
+      "line_end": 4602,
+      "nonempty_lines": 31,
+      "characters": 1732
+    },
+    {
+      "segment_id": "segment-0076",
+      "heading": "第十七章 只收怪物的学院(二)",
+      "line_start": 4603,
+      "line_end": 4674,
+      "nonempty_lines": 36,
+      "characters": 1815
+    },
+    {
+      "segment_id": "segment-0077",
+      "heading": "第十七章 只收怪物的学院(三)",
+      "line_start": 4675,
+      "line_end": 4760,
+      "nonempty_lines": 43,
+      "characters": 1803
+    },
+    {
+      "segment_id": "segment-0078",
+      "heading": "第十七章 只收怪物的学院(四)",
+      "line_start": 4761,
+      "line_end": 4826,
+      "nonempty_lines": 33,
+      "characters": 1757
+    },
+    {
+      "segment_id": "segment-0079",
+      "heading": "第十七章 只收怪物的学院(五)",
+      "line_start": 4827,
+      "line_end": 4876,
+      "nonempty_lines": 25,
+      "characters": 1761
+    },
+    {
+      "segment_id": "segment-0080",
+      "heading": "第十八章 不动明王赵无极(一)",
+      "line_start": 4877,
+      "line_end": 4920,
+      "nonempty_lines": 22,
+      "characters": 1794
+    },
+    {
+      "segment_id": "segment-0081",
+      "heading": "第十八章 不动明王赵无极(二)",
+      "line_start": 4921,
+      "line_end": 4978,
+      "nonempty_lines": 29,
+      "characters": 1767
+    },
+    {
+      "segment_id": "segment-0082",
+      "heading": "第十八章 不动明王赵无极(三)",
+      "line_start": 4979,
+      "line_end": 5032,
+      "nonempty_lines": 27,
+      "characters": 1748
+    },
+    {
+      "segment_id": "segment-0083",
+      "heading": "第十八章 不动明王赵无极(四)",
+      "line_start": 5033,
+      "line_end": 5090,
+      "nonempty_lines": 29,
+      "characters": 1702
+    },
+    {
+      "segment_id": "segment-0084",
+      "heading": "第十八章 不动明王赵无极(五)",
+      "line_start": 5091,
+      "line_end": 5152,
+      "nonempty_lines": 31,
+      "characters": 1786
+    },
+    {
+      "segment_id": "segment-0085",
+      "heading": "第十九章 唐三的暗器(一)",
+      "line_start": 5153,
+      "line_end": 5210,
+      "nonempty_lines": 29,
+      "characters": 1768
+    },
+    {
+      "segment_id": "segment-0086",
+      "heading": "第十九章 唐三的暗器(二)",
+      "line_start": 5211,
+      "line_end": 5270,
+      "nonempty_lines": 30,
+      "characters": 1758
+    },
+    {
+      "segment_id": "segment-0087",
+      "heading": "第十九章 唐三的暗器(三)",
+      "line_start": 5271,
+      "line_end": 5320,
+      "nonempty_lines": 25,
+      "characters": 1765
+    },
+    {
+      "segment_id": "segment-0088",
+      "heading": "第十九章 唐三的暗器(四)",
+      "line_start": 5321,
+      "line_end": 5384,
+      "nonempty_lines": 32,
+      "characters": 1794
+    },
+    {
+      "segment_id": "segment-0089",
+      "heading": "第十九章 唐三的暗器(五)",
+      "line_start": 5385,
+      "line_end": 5438,
+      "nonempty_lines": 27,
+      "characters": 1724
+    },
+    {
+      "segment_id": "segment-0090",
+      "heading": "第二十章 奥斯卡的大香肠和小腊肠(一)",
+      "line_start": 5439,
+      "line_end": 5502,
+      "nonempty_lines": 32,
+      "characters": 1753
+    },
+    {
+      "segment_id": "segment-0091",
+      "heading": "第二十章 奥斯卡的大香肠和小腊肠(二)",
+      "line_start": 5503,
+      "line_end": 5554,
+      "nonempty_lines": 26,
+      "characters": 1766
+    },
+    {
+      "segment_id": "segment-0092",
+      "heading": "第二十章 奥斯卡的大香肠和腊肠(三)",
+      "line_start": 5555,
+      "line_end": 5616,
+      "nonempty_lines": 31,
+      "characters": 1754
+    },
+    {
+      "segment_id": "segment-0093",
+      "heading": "第二十章 奥斯卡的大香肠和小腊肠(四)",
+      "line_start": 5617,
+      "line_end": 5660,
+      "nonempty_lines": 22,
+      "characters": 1761
+    },
+    {
+      "segment_id": "segment-0094",
+      "heading": "第二十章 奥斯卡的大香肠和小腊肠(五)",
+      "line_start": 5661,
+      "line_end": 5720,
+      "nonempty_lines": 30,
+      "characters": 1744
+    },
+    {
+      "segment_id": "segment-0095",
+      "heading": "第二十一章 邪火凤凰(一)",
+      "line_start": 5721,
+      "line_end": 5776,
+      "nonempty_lines": 28,
+      "characters": 1752
+    },
+    {
+      "segment_id": "segment-0096",
+      "heading": "第二十一章 邪火凤凰(二)",
+      "line_start": 5777,
+      "line_end": 5846,
+      "nonempty_lines": 35,
+      "characters": 1770
+    },
+    {
+      "segment_id": "segment-0097",
+      "heading": "第二十一章 邪火凤凰(三)",
+      "line_start": 5847,
+      "line_end": 5904,
+      "nonempty_lines": 29,
+      "characters": 1777
+    },
+    {
+      "segment_id": "segment-0098",
+      "heading": "第二十一章 邪火凤凰(四)",
+      "line_start": 5905,
+      "line_end": 6040,
+      "nonempty_lines": 68,
+      "characters": 3719
+    },
+    {
+      "segment_id": "segment-0099",
+      "heading": "第二十二章 四眼猫鹰弗兰德(二)",
+      "line_start": 6041,
+      "line_end": 6082,
+      "nonempty_lines": 21,
+      "characters": 1835
+    },
+    {
+      "segment_id": "segment-0100",
+      "heading": "第二十二章 四眼猫鹰弗兰德(三)",
+      "line_start": 6083,
+      "line_end": 6138,
+      "nonempty_lines": 28,
+      "characters": 1758
+    },
+    {
+      "segment_id": "segment-0101",
+      "heading": "第二十二章 四眼猫鹰弗兰德(四)",
+      "line_start": 6139,
+      "line_end": 6194,
+      "nonempty_lines": 28,
+      "characters": 1783
+    },
+    {
+      "segment_id": "segment-0102",
+      "heading": "第二十二章 四眼猫鹰弗兰德(五)",
+      "line_start": 6195,
+      "line_end": 6258,
+      "nonempty_lines": 32,
+      "characters": 1771
+    },
+    {
+      "segment_id": "segment-0103",
+      "heading": "第二十三章 魔男本色(一)",
+      "line_start": 6259,
+      "line_end": 6326,
+      "nonempty_lines": 34,
+      "characters": 1863
+    },
+    {
+      "segment_id": "segment-0104",
+      "heading": "第二十三章 魔男本色(二)",
+      "line_start": 6327,
+      "line_end": 6372,
+      "nonempty_lines": 23,
+      "characters": 1805
+    },
+    {
+      "segment_id": "segment-0105",
+      "heading": "第二十三章 魔男本色(三)",
+      "line_start": 6373,
+      "line_end": 6424,
+      "nonempty_lines": 26,
+      "characters": 1762
+    },
+    {
+      "segment_id": "segment-0106",
+      "heading": "第二十三章 魔男本色(四)",
+      "line_start": 6425,
+      "line_end": 6486,
+      "nonempty_lines": 31,
+      "characters": 1745
+    },
+    {
+      "segment_id": "segment-0107",
+      "heading": "第二十三章 魔男本色(五)",
+      "line_start": 6487,
+      "line_end": 6516,
+      "nonempty_lines": 15,
+      "characters": 1736
+    },
+    {
+      "segment_id": "segment-0108",
+      "heading": "第二十四章 蓝狮组合的成立(一)",
+      "line_start": 6517,
+      "line_end": 6564,
+      "nonempty_lines": 24,
+      "characters": 1769
+    },
+    {
+      "segment_id": "segment-0109",
+      "heading": "第二十四章 蓝狮组合的成立(二)",
+      "line_start": 6565,
+      "line_end": 6626,
+      "nonempty_lines": 31,
+      "characters": 1737
+    },
+    {
+      "segment_id": "segment-0110",
+      "heading": "第二十四章 蓝狮组合的成立(三)",
+      "line_start": 6627,
+      "line_end": 6692,
+      "nonempty_lines": 33,
+      "characters": 1703
+    },
+    {
+      "segment_id": "segment-0111",
+      "heading": "第二十四章 蓝狮组合的成立(四)",
+      "line_start": 6693,
+      "line_end": 6756,
+      "nonempty_lines": 32,
+      "characters": 1714
+    },
+    {
+      "segment_id": "segment-0112",
+      "heading": "第二十四章 蓝狮组合的成立(五)",
+      "line_start": 6757,
+      "line_end": 6808,
+      "nonempty_lines": 26,
+      "characters": 1714
+    },
+    {
+      "segment_id": "segment-0113",
+      "heading": "第二十五章 器武魂的威力（上）",
+      "line_start": 6809,
+      "line_end": 6904,
+      "nonempty_lines": 48,
+      "characters": 2756
+    },
+    {
+      "segment_id": "segment-0114",
+      "heading": "第二十五章 器武魂的威力（中）",
+      "line_start": 6905,
+      "line_end": 7008,
+      "nonempty_lines": 52,
+      "characters": 2802
+    },
+    {
+      "segment_id": "segment-0115",
+      "heading": "第二十五章 器武魂的威力（下）",
+      "line_start": 7009,
+      "line_end": 7110,
+      "nonempty_lines": 51,
+      "characters": 2943
+    },
+    {
+      "segment_id": "segment-0116",
+      "heading": "第二十六章 星斗大森林",
+      "line_start": 7111,
+      "line_end": 7380,
+      "nonempty_lines": 135,
+      "characters": 8452
+    },
+    {
+      "segment_id": "segment-0117",
+      "heading": "第二十七章 不敢惹事是庸才",
+      "line_start": 7381,
+      "line_end": 7666,
+      "nonempty_lines": 143,
+      "characters": 8370
+    },
+    {
+      "segment_id": "segment-0118",
+      "heading": "第二十八章 千年凤尾鸡冠蛇",
+      "line_start": 7667,
+      "line_end": 8192,
+      "nonempty_lines": 263,
+      "characters": 17371
+    },
+    {
+      "segment_id": "segment-0119",
+      "heading": "第三十章 奥斯卡的第三魂环",
+      "line_start": 8193,
+      "line_end": 8476,
+      "nonempty_lines": 142,
+      "characters": 8477
+    },
+    {
+      "segment_id": "segment-0120",
+      "heading": "第三十一章 森林之王 泰坦巨猿",
+      "line_start": 8477,
+      "line_end": 8768,
+      "nonempty_lines": 146,
+      "characters": 8569
+    },
+    {
+      "segment_id": "segment-0121",
+      "heading": "第三十二章 邪恶的杀戮者 人面魔蛛",
+      "line_start": 8769,
+      "line_end": 9044,
+      "nonempty_lines": 138,
+      "characters": 8654
+    },
+    {
+      "segment_id": "segment-0122",
+      "heading": "第三十三章 孟逸川也用暗器？",
+      "line_start": 9045,
+      "line_end": 9346,
+      "nonempty_lines": 151,
+      "characters": 8628
+    },
+    {
+      "segment_id": "segment-0123",
+      "heading": "第三十四章 超过极限的人面魔蛛魂环",
+      "line_start": 9347,
+      "line_end": 9626,
+      "nonempty_lines": 140,
+      "characters": 8527
+    },
+    {
+      "segment_id": "segment-0124",
+      "heading": "第三十五章 唐三强横的第三魂环",
+      "line_start": 9627,
+      "line_end": 10152,
+      "nonempty_lines": 263,
+      "characters": 17051
+    },
+    {
+      "segment_id": "segment-0125",
+      "heading": "第三十七章 蓝银草进化后的威力",
+      "line_start": 10153,
+      "line_end": 10402,
+      "nonempty_lines": 125,
+      "characters": 8565
+    },
+    {
+      "segment_id": "segment-0126",
+      "heading": "第三十八章 外附魂骨",
+      "line_start": 10403,
+      "line_end": 10650,
+      "nonempty_lines": 124,
+      "characters": 8467
+    },
+    {
+      "segment_id": "segment-0127",
+      "heading": "第三十九章 “铁”匠铺",
+      "line_start": 10651,
+      "line_end": 10916,
+      "nonempty_lines": 133,
+      "characters": 8537
+    },
+    {
+      "segment_id": "segment-0128",
+      "heading": "第四十章 特训第一阶段开始",
+      "line_start": 10917,
+      "line_end": 11186,
+      "nonempty_lines": 135,
+      "characters": 8523
+    },
+    {
+      "segment_id": "segment-0129",
+      "heading": "第四十一章 不抛弃，不放弃",
+      "line_start": 11187,
+      "line_end": 11486,
+      "nonempty_lines": 150,
+      "characters": 8543
+    },
+    {
+      "segment_id": "segment-0130",
+      "heading": "第四十二章 大师是魔鬼",
+      "line_start": 11487,
+      "line_end": 12020,
+      "nonempty_lines": 267,
+      "characters": 16802
+    },
+    {
+      "segment_id": "segment-0131",
+      "heading": "第四十四章 大师教学的第二阶段",
+      "line_start": 12021,
+      "line_end": 12266,
+      "nonempty_lines": 123,
+      "characters": 8558
+    },
+    {
+      "segment_id": "segment-0132",
+      "heading": "第四十五章 强横的对手，狂战队",
+      "line_start": 12267,
+      "line_end": 12490,
+      "nonempty_lines": 112,
+      "characters": 9248
+    },
+    {
+      "segment_id": "segment-0133",
+      "heading": "第四十六章 控制系魂师的强势",
+      "line_start": 12491,
+      "line_end": 12704,
+      "nonempty_lines": 107,
+      "characters": 8571
+    },
+    {
+      "segment_id": "segment-0134",
+      "heading": "第四十七章 蜘蛛王者的威压",
+      "line_start": 12705,
+      "line_end": 12974,
+      "nonempty_lines": 135,
+      "characters": 8528
+    },
+    {
+      "segment_id": "segment-0135",
+      "heading": "第四十八章 皇斗战队",
+      "line_start": 12975,
+      "line_end": 13208,
+      "nonempty_lines": 117,
+      "characters": 8631
+    },
+    {
+      "segment_id": "segment-0136",
+      "heading": "第四十九章 七怪战皇斗",
+      "line_start": 13209,
+      "line_end": 13702,
+      "nonempty_lines": 247,
+      "characters": 17141
+    },
+    {
+      "segment_id": "segment-0137",
+      "heading": "第五十一章 武魂融合技之幽冥白虎",
+      "line_start": 13703,
+      "line_end": 13974,
+      "nonempty_lines": 136,
+      "characters": 8550
+    },
+    {
+      "segment_id": "segment-0138",
+      "heading": "第五十二章 八蛛矛，定胜负",
+      "line_start": 13975,
+      "line_end": 14238,
+      "nonempty_lines": 132,
+      "characters": 8545
+    },
+    {
+      "segment_id": "segment-0139",
+      "heading": "第五十三章 史莱克 金斗魂级战队",
+      "line_start": 14239,
+      "line_end": 14510,
+      "nonempty_lines": 136,
+      "characters": 8600
+    },
+    {
+      "segment_id": "segment-0140",
+      "heading": "第54章 借鸡生蛋？",
+      "line_start": 14511,
+      "line_end": 14762,
+      "nonempty_lines": 126,
+      "characters": 8515
+    },
+    {
+      "segment_id": "segment-0141",
+      "heading": "第五十五章 飞天神爪",
+      "line_start": 14763,
+      "line_end": 15048,
+      "nonempty_lines": 143,
+      "characters": 8535
+    },
+    {
+      "segment_id": "segment-0142",
+      "heading": "第五十六章 越阶挑战",
+      "line_start": 15049,
+      "line_end": 15584,
+      "nonempty_lines": 268,
+      "characters": 15922
+    },
+    {
+      "segment_id": "segment-0143",
+      "heading": "第五十八章 天斗皇家学院",
+      "line_start": 15585,
+      "line_end": 15830,
+      "nonempty_lines": 123,
+      "characters": 8575
+    },
+    {
+      "segment_id": "segment-0144",
+      "heading": "第五十九章 贯通，第一脉",
+      "line_start": 15831,
+      "line_end": 16090,
+      "nonempty_lines": 130,
+      "characters": 8551
+    },
+    {
+      "segment_id": "segment-0145",
+      "heading": "第六十章 封号斗罗，封号：毒",
+      "line_start": 16091,
+      "line_end": 16352,
+      "nonempty_lines": 131,
+      "characters": 8565
+    },
+    {
+      "segment_id": "segment-0146",
+      "heading": "第六十一章 黄金铁三角的最后一角",
+      "line_start": 16353,
+      "line_end": 16644,
+      "nonempty_lines": 146,
+      "characters": 8697
+    },
+    {
+      "segment_id": "segment-0147",
+      "heading": "第六十二章 黄金铁三角的往事",
+      "line_start": 16645,
+      "line_end": 16854,
+      "nonempty_lines": 105,
+      "characters": 8497
+    },
+    {
+      "segment_id": "segment-0148",
+      "heading": "第六十三章 冰火两仪眼",
+      "line_start": 16855,
+      "line_end": 17356,
+      "nonempty_lines": 251,
+      "characters": 17293
+    },
+    {
+      "segment_id": "segment-0149",
+      "heading": "第六十五章 黄金圣龙VS碧磷蛇皇",
+      "line_start": 17357,
+      "line_end": 17622,
+      "nonempty_lines": 133,
+      "characters": 8539
+    },
+    {
+      "segment_id": "segment-0150",
+      "heading": "第六十六章 幽香绮罗仙品",
+      "line_start": 17623,
+      "line_end": 17868,
+      "nonempty_lines": 123,
+      "characters": 8509
+    },
+    {
+      "segment_id": "segment-0151",
+      "heading": "第六十七章 水火不侵，百毒辟易",
+      "line_start": 17869,
+      "line_end": 18102,
+      "nonempty_lines": 117,
+      "characters": 8587
+    },
+    {
+      "segment_id": "segment-0152",
+      "heading": "第六十八章 如意百宝囊与子母追魂夺命胆",
+      "line_start": 18103,
+      "line_end": 18384,
+      "nonempty_lines": 141,
+      "characters": 8505
+    },
+    {
+      "segment_id": "segment-0153",
+      "heading": "第六十九章 凌岳：发誓不要离开我",
+      "line_start": 18385,
+      "line_end": 18690,
+      "nonempty_lines": 153,
+      "characters": 8535
+    },
+    {
+      "segment_id": "segment-0154",
+      "heading": "第七十章 绝世仙品配七怪",
+      "line_start": 18691,
+      "line_end": 19254,
+      "nonempty_lines": 282,
+      "characters": 16932
+    },
+    {
+      "segment_id": "segment-0155",
+      "heading": "第七十二章 豁然贯通",
+      "line_start": 19255,
+      "line_end": 19572,
+      "nonempty_lines": 159,
+      "characters": 8382
+    },
+    {
+      "segment_id": "segment-0156",
+      "heading": "第七十三章 天斗拍卖场",
+      "line_start": 19573,
+      "line_end": 19868,
+      "nonempty_lines": 148,
+      "characters": 8514
+    },
+    {
+      "segment_id": "segment-0157",
+      "heading": "第七十四章 极端纯力量魂师",
+      "line_start": 19869,
+      "line_end": 20162,
+      "nonempty_lines": 147,
+      "characters": 8530
+    },
+    {
+      "segment_id": "segment-0158",
+      "heading": "第七十五章 七宝琉璃宗",
+      "line_start": 20163,
+      "line_end": 20456,
+      "nonempty_lines": 147,
+      "characters": 8510
+    },
+    {
+      "segment_id": "segment-0159",
+      "heading": "第七十六章 七宝琉璃宗的惊讶",
+      "line_start": 20457,
+      "line_end": 20686,
+      "nonempty_lines": 115,
+      "characters": 8436
+    },
+    {
+      "segment_id": "segment-0160",
+      "heading": "第七十七章 大力神，爷爷真的来了",
+      "line_start": 20687,
+      "line_end": 21483,
+      "nonempty_lines": 399,
+      "characters": 25870
+    },
+    {
+      "segment_id": "segment-0161",
+      "heading": "第八十章 双生武魂的奥秘",
+      "line_start": 21484,
+      "line_end": 21731,
+      "nonempty_lines": 124,
+      "characters": 8517
+    },
+    {
+      "segment_id": "segment-0162",
+      "heading": "第八十一章 凌岳：并肩的承诺",
+      "line_start": 21732,
+      "line_end": 21991,
+      "nonempty_lines": 130,
+      "characters": 8119
+    },
+    {
+      "segment_id": "segment-0163",
+      "heading": "第八十二章 赤龙脚下的大地之王",
+      "line_start": 21992,
+      "line_end": 22259,
+      "nonempty_lines": 134,
+      "characters": 8367
+    },
+    {
+      "segment_id": "segment-0164",
+      "heading": "第八十三章 ‘大地之王’与‘粉红蝎王’",
+      "line_start": 22260,
+      "line_end": 22515,
+      "nonempty_lines": 128,
+      "characters": 8473
+    },
+    {
+      "segment_id": "segment-0165",
+      "heading": "第八十四章 胖子的第四魂技，凤凰啸天击",
+      "line_start": 22516,
+      "line_end": 23079,
+      "nonempty_lines": 282,
+      "characters": 17008
+    },
+    {
+      "segment_id": "segment-0166",
+      "heading": "第八十六章 千年麟甲兽与万年魔蛛",
+      "line_start": 23080,
+      "line_end": 23285,
+      "nonempty_lines": 103,
+      "characters": 8505
+    },
+    {
+      "segment_id": "segment-0167",
+      "heading": "第八十七章 万年地穴魔蛛",
+      "line_start": 23286,
+      "line_end": 23491,
+      "nonempty_lines": 103,
+      "characters": 8570
+    },
+    {
+      "segment_id": "segment-0168",
+      "heading": "第八十八章 吞噬，八蛛矛",
+      "line_start": 23492,
+      "line_end": 23701,
+      "nonempty_lines": 105,
+      "characters": 8517
+    },
+    {
+      "segment_id": "segment-0169",
+      "heading": "第八十九章 唐三的第四魂技",
+      "line_start": 23702,
+      "line_end": 23937,
+      "nonempty_lines": 118,
+      "characters": 8476
+    },
+    {
+      "segment_id": "segment-0170",
+      "heading": "第九十章 全大陆高级魂师学院精英大赛",
+      "line_start": 23938,
+      "line_end": 24163,
+      "nonempty_lines": 113,
+      "characters": 8521
+    },
+    {
+      "segment_id": "segment-0171",
+      "heading": "第九十一章 预选赛第一场，开战",
+      "line_start": 24164,
+      "line_end": 24655,
+      "nonempty_lines": 246,
+      "characters": 17119
+    },
+    {
+      "segment_id": "segment-0172",
+      "heading": "第九十三章 唐昊退隐的原因",
+      "line_start": 24656,
+      "line_end": 24861,
+      "nonempty_lines": 103,
+      "characters": 8500
+    },
+    {
+      "segment_id": "segment-0173",
+      "heading": "第九十四章 分心控制之三窍御之心",
+      "line_start": 24862,
+      "line_end": 25079,
+      "nonempty_lines": 109,
+      "characters": 8520
+    },
+    {
+      "segment_id": "segment-0174",
+      "heading": "第九十五章 唐三的新战术，宇宙天空流",
+      "line_start": 25080,
+      "line_end": 25287,
+      "nonempty_lines": 104,
+      "characters": 8534
+    },
+    {
+      "segment_id": "segment-0175",
+      "heading": "第九十六章 极限团控与恐怖的幽冥白虎",
+      "line_start": 25288,
+      "line_end": 25493,
+      "nonempty_lines": 103,
+      "characters": 8568
+    },
+    {
+      "segment_id": "segment-0176",
+      "heading": "第九十七章 魂师界的极限流与均衡流",
+      "line_start": 25494,
+      "line_end": 25727,
+      "nonempty_lines": 117,
+      "characters": 8580
+    },
+    {
+      "segment_id": "segment-0177",
+      "heading": "第九十八章 追魂夺命阎王帖",
+      "line_start": 25728,
+      "line_end": 26349,
+      "nonempty_lines": 311,
+      "characters": 16830
+    },
+    {
+      "segment_id": "segment-0178",
+      "heading": "第一百章 史莱克学院VS炽火学院",
+      "line_start": 26350,
+      "line_end": 26637,
+      "nonempty_lines": 144,
+      "characters": 8482
+    },
+    {
+      "segment_id": "segment-0179",
+      "heading": "第一百零一章 火免，蓝银草",
+      "line_start": 26638,
+      "line_end": 26901,
+      "nonempty_lines": 132,
+      "characters": 8572
+    },
+    {
+      "segment_id": "segment-0180",
+      "heading": "第一百零二章 隐藏的奥秘，七宝石武魂",
+      "line_start": 26902,
+      "line_end": 27183,
+      "nonempty_lines": 141,
+      "characters": 8537
+    },
+    {
+      "segment_id": "segment-0181",
+      "heading": "第一百零三章 七位一体融合技",
+      "line_start": 27184,
+      "line_end": 27461,
+      "nonempty_lines": 139,
+      "characters": 8509
+    },
+    {
+      "segment_id": "segment-0182",
+      "heading": "第一百零四章 一唱一和",
+      "line_start": 27462,
+      "line_end": 27761,
+      "nonempty_lines": 150,
+      "characters": 8526
+    },
+    {
+      "segment_id": "segment-0183",
+      "heading": "第一百零五章 武魂融合技，冰雪飘零",
+      "line_start": 27762,
+      "line_end": 28339,
+      "nonempty_lines": 289,
+      "characters": 16992
+    },
+    {
+      "segment_id": "segment-0184",
+      "heading": "第一百零七章 真是普通的蓝银草么？",
+      "line_start": 28340,
+      "line_end": 28563,
+      "nonempty_lines": 112,
+      "characters": 8708
+    },
+    {
+      "segment_id": "segment-0185",
+      "heading": "第一百零八章 豁然贯通",
+      "line_start": 28564,
+      "line_end": 28845,
+      "nonempty_lines": 141,
+      "characters": 8374
+    },
+    {
+      "segment_id": "segment-0186",
+      "heading": "第一百零九章 被算计的柳二衡",
+      "line_start": 28846,
+      "line_end": 29137,
+      "nonempty_lines": 146,
+      "characters": 8527
+    },
+    {
+      "segment_id": "segment-0187",
+      "heading": "第一百一十章 花中之王、君临群芳",
+      "line_start": 29138,
+      "line_end": 29431,
+      "nonempty_lines": 147,
+      "characters": 8487
+    },
+    {
+      "segment_id": "segment-0188",
+      "heading": "第一百一十一章 魂技与唐门绝学的融合",
+      "line_start": 29432,
+      "line_end": 29711,
+      "nonempty_lines": 140,
+      "characters": 8502
+    },
+    {
+      "segment_id": "segment-0189",
+      "heading": "第一百一十二章 唐三VS火武",
+      "line_start": 29712,
+      "line_end": 30241,
+      "nonempty_lines": 265,
+      "characters": 16989
+    },
+    {
+      "segment_id": "segment-0190",
+      "heading": "第一百一十四章 火武与凌岳的吻",
+      "line_start": 30242,
+      "line_end": 30483,
+      "nonempty_lines": 121,
+      "characters": 8622
+    },
+    {
+      "segment_id": "segment-0191",
+      "heading": "第一百一十五章 运筹帷幄，大师",
+      "line_start": 30484,
+      "line_end": 30741,
+      "nonempty_lines": 129,
+      "characters": 8475
+    },
+    {
+      "segment_id": "segment-0192",
+      "heading": "第一百一十六章 奇茸通天，虎破龙",
+      "line_start": 30742,
+      "line_end": 31037,
+      "nonempty_lines": 148,
+      "characters": 8497
+    },
+    {
+      "segment_id": "segment-0193",
+      "heading": "第一百一十七章 昊天锤，乱披风",
+      "line_start": 31038,
+      "line_end": 31295,
+      "nonempty_lines": 129,
+      "characters": 8586
+    },
+    {
+      "segment_id": "segment-0194",
+      "heading": "第一百一十八章 总决赛，武魂城",
+      "line_start": 31296,
+      "line_end": 31539,
+      "nonempty_lines": 122,
+      "characters": 8509
+    },
+    {
+      "segment_id": "segment-0195",
+      "heading": "第一百一十九章 一个爱花的封号斗罗",
+      "line_start": 31540,
+      "line_end": 32103,
+      "nonempty_lines": 282,
+      "characters": 17031
+    },
+    {
+      "segment_id": "segment-0196",
+      "heading": "第一百二十一章 教皇比比宸",
+      "line_start": 32104,
+      "line_end": 32385,
+      "nonempty_lines": 141,
+      "characters": 8490
+    },
+    {
+      "segment_id": "segment-0197",
+      "heading": "第一百二十二章 星罗皇家学院战队",
+      "line_start": 32386,
+      "line_end": 32667,
+      "nonempty_lines": 141,
+      "characters": 8514
+    },
+    {
+      "segment_id": "segment-0198",
+      "heading": "第一百二十三章 万年魂技的变异技能",
+      "line_start": 32668,
+      "line_end": 32969,
+      "nonempty_lines": 151,
+      "characters": 8528
+    },
+    {
+      "segment_id": "segment-0199",
+      "heading": "第一百二十四章 幽冥白虎的身世",
+      "line_start": 32970,
+      "line_end": 33239,
+      "nonempty_lines": 135,
+      "characters": 8509
+    },
+    {
+      "segment_id": "segment-0200",
+      "heading": "第一百二十五章 震惊，七怪融合技",
+      "line_start": 33240,
+      "line_end": 33557,
+      "nonempty_lines": 159,
+      "characters": 8444
+    },
+    {
+      "segment_id": "segment-0201",
+      "heading": "第一百二十六章 器魂真身，暗金昊天锤",
+      "line_start": 33558,
+      "line_end": 34113,
+      "nonempty_lines": 278,
+      "characters": 17043
+    },
+    {
+      "segment_id": "segment-0202",
+      "heading": "第一百二十八章 唐门第十，蝠翼轮回",
+      "line_start": 34114,
+      "line_end": 34411,
+      "nonempty_lines": 149,
+      "characters": 8493
+    },
+    {
+      "segment_id": "segment-0203",
+      "heading": "第一百二十九章 凌岳不是人",
+      "line_start": 34412,
+      "line_end": 34717,
+      "nonempty_lines": 153,
+      "characters": 8447
+    },
+    {
+      "segment_id": "segment-0204",
+      "heading": "第一百三十章 昊天扬威，新的开始",
+      "line_start": 34718,
+      "line_end": 35007,
+      "nonempty_lines": 145,
+      "characters": 8450
+    },
+    {
+      "segment_id": "segment-0205",
+      "heading": "第一百三十一章 智慧头骨之技，紫极神光",
+      "line_start": 35008,
+      "line_end": 35313,
+      "nonempty_lines": 153,
+      "characters": 8475
+    },
+    {
+      "segment_id": "segment-0206",
+      "heading": "第一百三十二章 八十一锤",
+      "line_start": 35314,
+      "line_end": 35621,
+      "nonempty_lines": 154,
+      "characters": 8460
+    },
+    {
+      "segment_id": "segment-0207",
+      "heading": "第一百三十三章 锤法大成，杀戮之气",
+      "line_start": 35622,
+      "line_end": 36221,
+      "nonempty_lines": 300,
+      "characters": 16887
+    },
+    {
+      "segment_id": "segment-0208",
+      "heading": "第一百三十五章 杀戮之都",
+      "line_start": 36222,
+      "line_end": 36555,
+      "nonempty_lines": 167,
+      "characters": 8488
+    },
+    {
+      "segment_id": "segment-0209",
+      "heading": "第一百三十六章 地狱杀戮场",
+      "line_start": 36556,
+      "line_end": 36839,
+      "nonempty_lines": 142,
+      "characters": 8580
+    },
+    {
+      "segment_id": "segment-0210",
+      "heading": "第一百三十七章 杀戮之王",
+      "line_start": 36840,
+      "line_end": 37111,
+      "nonempty_lines": 136,
+      "characters": 8593
+    },
+    {
+      "segment_id": "segment-0211",
+      "heading": "第一百三十八章 血的祭奠，地狱路",
+      "line_start": 37112,
+      "line_end": 37339,
+      "nonempty_lines": 114,
+      "characters": 7971
+    },
+    {
+      "segment_id": "segment-0212",
+      "heading": "第一百三十九章 暗金三头蝙蝠王",
+      "line_start": 37340,
+      "line_end": 37617,
+      "nonempty_lines": 139,
+      "characters": 8421
+    },
+    {
+      "segment_id": "segment-0213",
+      "heading": "第一百四十章 十首烈阳蛇",
+      "line_start": 37618,
+      "line_end": 38227,
+      "nonempty_lines": 308,
+      "characters": 16903
+    },
+    {
+      "segment_id": "segment-0214",
+      "heading": "第一百四十二章 月轩、叔父",
+      "line_start": 38228,
+      "line_end": 38563,
+      "nonempty_lines": 169,
+      "characters": 8532
+    },
+    {
+      "segment_id": "segment-0215",
+      "heading": "第一百四十三章 铅华洗尽，圆融如意",
+      "line_start": 38564,
+      "line_end": 38851,
+      "nonempty_lines": 145,
+      "characters": 8535
+    },
+    {
+      "segment_id": "segment-0216",
+      "heading": "第一百四十四章 唐三的孕父，十万年蓝银皇",
+      "line_start": 38852,
+      "line_end": 39053,
+      "nonempty_lines": 102,
+      "characters": 8749
+    },
+    {
+      "segment_id": "segment-0217",
+      "heading": "第一百四十五章 孕父的遗物，蓝银皇右腿骨",
+      "line_start": 39054,
+      "line_end": 39353,
+      "nonempty_lines": 150,
+      "characters": 8418
+    },
+    {
+      "segment_id": "segment-0218",
+      "heading": "第一百四十六章 回归昊天宗",
+      "line_start": 39354,
+      "line_end": 39643,
+      "nonempty_lines": 145,
+      "characters": 8466
+    },
+    {
+      "segment_id": "segment-0219",
+      "heading": "第一百四十七章 啸天斗罗",
+      "line_start": 39644,
+      "line_end": 40253,
+      "nonempty_lines": 305,
+      "characters": 16837
+    },
+    {
+      "segment_id": "segment-0220",
+      "heading": "第一百四十九章 第五魂技，蓝银霸王枪",
+      "line_start": 40254,
+      "line_end": 40529,
+      "nonempty_lines": 138,
+      "characters": 8452
+    },
+    {
+      "segment_id": "segment-0221",
+      "heading": "第一百五十章 虚空鬼影迷踪",
+      "line_start": 40530,
+      "line_end": 40809,
+      "nonempty_lines": 140,
+      "characters": 8549
+    },
+    {
+      "segment_id": "segment-0222",
+      "heading": "第一百五十一章 史莱克，再聚首",
+      "line_start": 40810,
+      "line_end": 41101,
+      "nonempty_lines": 147,
+      "characters": 8423
+    },
+    {
+      "segment_id": "segment-0223",
+      "heading": "第一百五十二章 五年来的变化",
+      "line_start": 41102,
+      "line_end": 41423,
+      "nonempty_lines": 162,
+      "characters": 8379
+    },
+    {
+      "segment_id": "segment-0224",
+      "heading": "第一百五十三章 奥斯卡的第六魂环",
+      "line_start": 41424,
+      "line_end": 41691,
+      "nonempty_lines": 135,
+      "characters": 9061
+    },
+    {
+      "segment_id": "segment-0225",
+      "heading": "第一百五十四章 蓝银领域真正的威力",
+      "line_start": 41692,
+      "line_end": 42178,
+      "nonempty_lines": 246,
+      "characters": 16914
+    },
+    {
+      "segment_id": "segment-0226",
+      "heading": "第一百五十六章 猎魂，灭门",
+      "line_start": 42179,
+      "line_end": 42415,
+      "nonempty_lines": 119,
+      "characters": 8330
+    },
+    {
+      "segment_id": "segment-0227",
+      "heading": "第一百五十七章 再遇胡列昭",
+      "line_start": 42416,
+      "line_end": 42635,
+      "nonempty_lines": 110,
+      "characters": 8656
+    },
+    {
+      "segment_id": "segment-0228",
+      "heading": "第一百五十八章 成功潜伏",
+      "line_start": 42636,
+      "line_end": 42891,
+      "nonempty_lines": 128,
+      "characters": 8395
+    },
+    {
+      "segment_id": "segment-0229",
+      "heading": "第一百五十九章 凌岳，我的爱人，终再相见",
+      "line_start": 42892,
+      "line_end": 43127,
+      "nonempty_lines": 118,
+      "characters": 8345
+    },
+    {
+      "segment_id": "segment-0230",
+      "heading": "第一百六十章 森林死战",
+      "line_start": 43128,
+      "line_end": 43399,
+      "nonempty_lines": 136,
+      "characters": 8449
+    },
+    {
+      "segment_id": "segment-0231",
+      "heading": "第一百六十一章 同样的命运，唐三的十万年魂环",
+      "line_start": 43400,
+      "line_end": 43933,
+      "nonempty_lines": 267,
+      "characters": 17168
+    },
+    {
+      "segment_id": "segment-0232",
+      "heading": "第一百六十三章 进化，八蛛矛",
+      "line_start": 43934,
+      "line_end": 44161,
+      "nonempty_lines": 114,
+      "characters": 8504
+    },
+    {
+      "segment_id": "segment-0233",
+      "heading": "第一百六十四章 皇室秘辛",
+      "line_start": 44162,
+      "line_end": 44391,
+      "nonempty_lines": 115,
+      "characters": 8523
+    },
+    {
+      "segment_id": "segment-0234",
+      "heading": "第一百六十五章 八蛛矛进化铠甲的缘由",
+      "line_start": 44392,
+      "line_end": 44639,
+      "nonempty_lines": 124,
+      "characters": 8485
+    },
+    {
+      "segment_id": "segment-0235",
+      "heading": "第一百六十六章 奥斯卡归来，复制镜像肠",
+      "line_start": 44640,
+      "line_end": 44907,
+      "nonempty_lines": 134,
+      "characters": 8431
+    },
+    {
+      "segment_id": "segment-0236",
+      "heading": "第一百六十七章 奥斯卡，宁荣辉",
+      "line_start": 44908,
+      "line_end": 45165,
+      "nonempty_lines": 129,
+      "characters": 8527
+    },
+    {
+      "segment_id": "segment-0237",
+      "heading": "第一百六十八章 唐门，力之一族",
+      "line_start": 45166,
+      "line_end": 45591,
+      "nonempty_lines": 213,
+      "characters": 16970
+    },
+    {
+      "segment_id": "segment-0238",
+      "heading": "第一百七十章 猥琐三贱客",
+      "line_start": 45592,
+      "line_end": 45811,
+      "nonempty_lines": 110,
+      "characters": 8449
+    },
+    {
+      "segment_id": "segment-0239",
+      "heading": "第一百七十一章 御之一族",
+      "line_start": 45812,
+      "line_end": 46063,
+      "nonempty_lines": 126,
+      "characters": 8474
+    },
+    {
+      "segment_id": "segment-0240",
+      "heading": "第一百七十二章 对阵，与板甲巨犀比防御",
+      "line_start": 46064,
+      "line_end": 46279,
+      "nonempty_lines": 108,
+      "characters": 8482
+    },
+    {
+      "segment_id": "segment-0241",
+      "heading": "第一百七十三章 破防，乱披风之威",
+      "line_start": 46280,
+      "line_end": 46541,
+      "nonempty_lines": 131,
+      "characters": 8444
+    },
+    {
+      "segment_id": "segment-0242",
+      "heading": "第一百七十四章 御之一族入唐门",
+      "line_start": 46542,
+      "line_end": 46749,
+      "nonempty_lines": 104,
+      "characters": 8442
+    },
+    {
+      "segment_id": "segment-0243",
+      "heading": "第一百七十五章 鬼影迷踪斗纯敏",
+      "line_start": 46750,
+      "line_end": 47171,
+      "nonempty_lines": 211,
+      "characters": 16750
+    },
+    {
+      "segment_id": "segment-0244",
+      "heading": "第一百七十七章 水晶血龙参",
+      "line_start": 47172,
+      "line_end": 47409,
+      "nonempty_lines": 119,
+      "characters": 8496
+    },
+    {
+      "segment_id": "segment-0245",
+      "heading": "第一百七十八章 唐三VS杨无敌",
+      "line_start": 47410,
+      "line_end": 47655,
+      "nonempty_lines": 123,
+      "characters": 8479
+    },
+    {
+      "segment_id": "segment-0246",
+      "heading": "第一百七十九章 唐三第六魂技：虚无、爆杀裂岳锁摔",
+      "line_start": 47656,
+      "line_end": 47891,
+      "nonempty_lines": 118,
+      "characters": 8396
+    },
+    {
+      "segment_id": "segment-0247",
+      "heading": "第一百八十章 复活，凌岳，二分之一",
+      "line_start": 47892,
+      "line_end": 48109,
+      "nonempty_lines": 109,
+      "characters": 8261
+    },
+    {
+      "segment_id": "segment-0248",
+      "heading": "第一百八十一章 五年的差距，一挑三",
+      "line_start": 48110,
+      "line_end": 48339,
+      "nonempty_lines": 115,
+      "characters": 8475
+    },
+    {
+      "segment_id": "segment-0249",
+      "heading": "第一百八十二章 四元素学院的来意",
+      "line_start": 48340,
+      "line_end": 48799,
+      "nonempty_lines": 230,
+      "characters": 17032
+    },
+    {
+      "segment_id": "segment-0250",
+      "heading": "第一百八十四章 神匠楼高",
+      "line_start": 48800,
+      "line_end": 49229,
+      "nonempty_lines": 215,
+      "characters": 16973
+    },
+    {
+      "segment_id": "segment-0251",
+      "heading": "第一百八十六章 寒心铁精与深海沉银",
+      "line_start": 49230,
+      "line_end": 49491,
+      "nonempty_lines": 131,
+      "characters": 8404
+    },
+    {
+      "segment_id": "segment-0252",
+      "heading": "第一百八十七章 月黑风高杀人夜",
+      "line_start": 49492,
+      "line_end": 49927,
+      "nonempty_lines": 218,
+      "characters": 16844
+    },
+    {
+      "segment_id": "segment-0253",
+      "heading": "第一百八十九章 唐门五堂",
+      "line_start": 49928,
+      "line_end": 50323,
+      "nonempty_lines": 198,
+      "characters": 16893
+    },
+    {
+      "segment_id": "segment-0254",
+      "heading": "第一百九十一章 刺豚、蛇矛、破魂枪",
+      "line_start": 50324,
+      "line_end": 50481,
+      "nonempty_lines": 79,
+      "characters": 8414
+    },
+    {
+      "segment_id": "segment-0255",
+      "heading": "第一百九十二章 杀神领域VS天使领域",
+      "line_start": 50482,
+      "line_end": 50645,
+      "nonempty_lines": 82,
+      "characters": 8420
+    },
+    {
+      "segment_id": "segment-0256",
+      "heading": "第一百九十三章 自创魂技，乱披风之舞",
+      "line_start": 50646,
+      "line_end": 50827,
+      "nonempty_lines": 91,
+      "characters": 8430
+    },
+    {
+      "segment_id": "segment-0257",
+      "heading": "第一百九十四章 凌岳，复活，四分之一",
+      "line_start": 50828,
+      "line_end": 51067,
+      "nonempty_lines": 120,
+      "characters": 8452
+    },
+    {
+      "segment_id": "segment-0258",
+      "heading": "第一百九十五章 六块，魂骨，天使神装",
+      "line_start": 51068,
+      "line_end": 51245,
+      "nonempty_lines": 89,
+      "characters": 8470
+    },
+    {
+      "segment_id": "segment-0259",
+      "heading": "第一百九十六章 九十九级的封号斗罗",
+      "line_start": 51246,
+      "line_end": 51617,
+      "nonempty_lines": 186,
+      "characters": 16827
+    },
+    {
+      "segment_id": "segment-0260",
+      "heading": "第一百九十八章 三位绝世斗罗的来历",
+      "line_start": 51618,
+      "line_end": 51827,
+      "nonempty_lines": 105,
+      "characters": 8442
+    },
+    {
+      "segment_id": "segment-0261",
+      "heading": "第一百九十九章 唐三和凌岳的幸福，订婚",
+      "line_start": 51828,
+      "line_end": 52051,
+      "nonempty_lines": 112,
+      "characters": 8390
+    },
+    {
+      "segment_id": "segment-0262",
+      "heading": "第二百章 重聚，史莱克七怪",
+      "line_start": 52052,
+      "line_end": 52289,
+      "nonempty_lines": 119,
+      "characters": 8470
+    },
+    {
+      "segment_id": "segment-0263",
+      "heading": "第二百零一章 镇国之宝赠唐三，瀚海乾坤罩",
+      "line_start": 52290,
+      "line_end": 52511,
+      "nonempty_lines": 111,
+      "characters": 8501
+    },
+    {
+      "segment_id": "segment-0264",
+      "heading": "第二百零二章 瀚海乾坤罩",
+      "line_start": 52512,
+      "line_end": 52729,
+      "nonempty_lines": 109,
+      "characters": 8424
+    },
+    {
+      "segment_id": "segment-0265",
+      "heading": "第二百零三章 暗影猎手",
+      "line_start": 52730,
+      "line_end": 53159,
+      "nonempty_lines": 215,
+      "characters": 16770
+    },
+    {
+      "segment_id": "segment-0266",
+      "heading": "第二百零五章 嗜血狂化之飓风右腿",
+      "line_start": 53160,
+      "line_end": 53395,
+      "nonempty_lines": 118,
+      "characters": 8401
+    },
+    {
+      "segment_id": "segment-0267",
+      "heading": "第二百零六章 瀚海大斗魂场",
+      "line_start": 53396,
+      "line_end": 53635,
+      "nonempty_lines": 120,
+      "characters": 8440
+    },
+    {
+      "segment_id": "segment-0268",
+      "heading": "第二百零七章 不要崇拜哥，哥只是个传说",
+      "line_start": 53636,
+      "line_end": 53847,
+      "nonempty_lines": 106,
+      "characters": 8458
+    },
+    {
+      "segment_id": "segment-0269",
+      "heading": "第二百零八章 海上航行",
+      "line_start": 53848,
+      "line_end": 54061,
+      "nonempty_lines": 107,
+      "characters": 7996
+    },
+    {
+      "segment_id": "segment-0270",
+      "heading": "第二百零九章 魔鲸海域",
+      "line_start": 54062,
+      "line_end": 54291,
+      "nonempty_lines": 115,
+      "characters": 8372
+    },
+    {
+      "segment_id": "segment-0271",
+      "heading": "第二百一十章 超级十万年，海中霸主",
+      "line_start": 54292,
+      "line_end": 54727,
+      "nonempty_lines": 218,
+      "characters": 16876
+    },
+    {
+      "segment_id": "segment-0272",
+      "heading": "第二百一十二章 神医拜师",
+      "line_start": 54728,
+      "line_end": 54979,
+      "nonempty_lines": 126,
+      "characters": 8426
+    },
+    {
+      "segment_id": "segment-0273",
+      "heading": "第二百一十三章 火辣辣的紫珍川",
+      "line_start": 54980,
+      "line_end": 55201,
+      "nonempty_lines": 111,
+      "characters": 8381
+    },
+    {
+      "segment_id": "segment-0274",
+      "heading": "第二百一十四章 主人，要性服务么？",
+      "line_start": 55202,
+      "line_end": 55441,
+      "nonempty_lines": 120,
+      "characters": 8418
+    },
+    {
+      "segment_id": "segment-0275",
+      "heading": "第二百一十五章 供奉海神的海神岛",
+      "line_start": 55442,
+      "line_end": 55651,
+      "nonempty_lines": 105,
+      "characters": 8284
+    },
+    {
+      "segment_id": "segment-0276",
+      "heading": "第二百一十六章 避水乾坤罩",
+      "line_start": 55652,
+      "line_end": 55837,
+      "nonempty_lines": 93,
+      "characters": 8417
+    },
+    {
+      "segment_id": "segment-0277",
+      "heading": "第二百一十七章 海马圣柱，黑级六考",
+      "line_start": 55838,
+      "line_end": 56255,
+      "nonempty_lines": 209,
+      "characters": 16747
+    },
+    {
+      "segment_id": "segment-0278",
+      "heading": "第二百一十九章 海神九考，三叉戟烙印",
+      "line_start": 56256,
+      "line_end": 56413,
+      "nonempty_lines": 79,
+      "characters": 8389
+    },
+    {
+      "segment_id": "segment-0279",
+      "heading": "第二百二十章 海神之光",
+      "line_start": 56414,
+      "line_end": 56619,
+      "nonempty_lines": 103,
+      "characters": 8367
+    },
+    {
+      "segment_id": "segment-0280",
+      "heading": "第二百二十一章 海神之光的奥秘",
+      "line_start": 56620,
+      "line_end": 56847,
+      "nonempty_lines": 114,
+      "characters": 8451
+    },
+    {
+      "segment_id": "segment-0281",
+      "heading": "第二百二十二章 神赐魂环",
+      "line_start": 56848,
+      "line_end": 57025,
+      "nonempty_lines": 89,
+      "characters": 8284
+    },
+    {
+      "segment_id": "segment-0282",
+      "heading": "第二百二十三章 天使与罗刹",
+      "line_start": 57026,
+      "line_end": 57247,
+      "nonempty_lines": 111,
+      "characters": 8401
+    },
+    {
+      "segment_id": "segment-0283",
+      "heading": "第二百二十四章 十万年，唐三的第七魂环",
+      "line_start": 57248,
+      "line_end": 57689,
+      "nonempty_lines": 221,
+      "characters": 16981
+    },
+    {
+      "segment_id": "segment-0284",
+      "heading": "第二百二十六章 穿越，双倍，海神之光",
+      "line_start": 57690,
+      "line_end": 57899,
+      "nonempty_lines": 105,
+      "characters": 8406
+    },
+    {
+      "segment_id": "segment-0285",
+      "heading": "第二百二十七章 唐三的底牌，进化的杀神领域之技",
+      "line_start": 57900,
+      "line_end": 58087,
+      "nonempty_lines": 94,
+      "characters": 8267
+    },
+    {
+      "segment_id": "segment-0286",
+      "heading": "第二百二十八章 奥斯卡猥琐的第七魂技",
+      "line_start": 58088,
+      "line_end": 58283,
+      "nonempty_lines": 98,
+      "characters": 8262
+    },
+    {
+      "segment_id": "segment-0287",
+      "heading": "第二百二十九章 十万年，魔魂大白鲨之王",
+      "line_start": 58284,
+      "line_end": 58451,
+      "nonempty_lines": 84,
+      "characters": 8293
+    },
+    {
+      "segment_id": "segment-0288",
+      "heading": "第二百三十章 莽撞的魔魂大白鲨之王",
+      "line_start": 58452,
+      "line_end": 58617,
+      "nonempty_lines": 83,
+      "characters": 8311
+    },
+    {
+      "segment_id": "segment-0289",
+      "heading": "第二百三十一章 邪火凤凰的武魂真身",
+      "line_start": 58618,
+      "line_end": 59029,
+      "nonempty_lines": 206,
+      "characters": 16612
+    },
+    {
+      "segment_id": "segment-0290",
+      "heading": "第二百三十三章 凤凰领域",
+      "line_start": 59030,
+      "line_end": 59187,
+      "nonempty_lines": 79,
+      "characters": 8280
+    },
+    {
+      "segment_id": "segment-0291",
+      "heading": "第二百三十四章 第三考，潮汐炼体",
+      "line_start": 59188,
+      "line_end": 59397,
+      "nonempty_lines": 105,
+      "characters": 8404
+    },
+    {
+      "segment_id": "segment-0292",
+      "heading": "第二百三十五章 紫极魔瞳的最终境界，浩瀚",
+      "line_start": 59398,
+      "line_end": 59595,
+      "nonempty_lines": 99,
+      "characters": 8374
+    },
+    {
+      "segment_id": "segment-0293",
+      "heading": "第二百三十六章 第四考，鲨鲸之战",
+      "line_start": 59596,
+      "line_end": 59803,
+      "nonempty_lines": 104,
+      "characters": 8419
+    },
+    {
+      "segment_id": "segment-0294",
+      "heading": "第二百三十七章 巧杀邪魔虎鲸",
+      "line_start": 59804,
+      "line_end": 59995,
+      "nonempty_lines": 96,
+      "characters": 8365
+    },
+    {
+      "segment_id": "segment-0295",
+      "heading": "第二百三十八章 唐三的第八魂环",
+      "line_start": 59996,
+      "line_end": 60431,
+      "nonempty_lines": 218,
+      "characters": 16922
+    },
+    {
+      "segment_id": "segment-0296",
+      "heading": "第二百四十章 第五考，挑战，封号斗罗",
+      "line_start": 60432,
+      "line_end": 60621,
+      "nonempty_lines": 95,
+      "characters": 8437
+    },
+    {
+      "segment_id": "segment-0297",
+      "heading": "第二百四十一章 海马圣柱之战",
+      "line_start": 60622,
+      "line_end": 60827,
+      "nonempty_lines": 103,
+      "characters": 8386
+    },
+    {
+      "segment_id": "segment-0298",
+      "heading": "第二百四十二章 控制！邪眸白虎VS海之矛",
+      "line_start": 60828,
+      "line_end": 60997,
+      "nonempty_lines": 85,
+      "characters": 8401
+    },
+    {
+      "segment_id": "segment-0299",
+      "heading": "第二百四十三章 再现，凌岳献祭的时刻",
+      "line_start": 60998,
+      "line_end": 61229,
+      "nonempty_lines": 116,
+      "characters": 8384
+    },
+    {
+      "segment_id": "segment-0300",
+      "heading": "第二百四十四章 挑战，海星圣柱",
+      "line_start": 61230,
+      "line_end": 61411,
+      "nonempty_lines": 91,
+      "characters": 8436
+    },
+    {
+      "segment_id": "segment-0301",
+      "heading": "第二百四十五章 海魔君，人鱼王子？",
+      "line_start": 61412,
+      "line_end": 61771,
+      "nonempty_lines": 180,
+      "characters": 16835
+    },
+    {
+      "segment_id": "segment-0302",
+      "heading": "第二百四十七章 海龙斗罗",
+      "line_start": 61772,
+      "line_end": 61975,
+      "nonempty_lines": 102,
+      "characters": 8389
+    },
+    {
+      "segment_id": "segment-0303",
+      "heading": "第二百四十八章 控鹤擒龙，昊天飞锤",
+      "line_start": 61976,
+      "line_end": 62151,
+      "nonempty_lines": 88,
+      "characters": 8360
+    },
+    {
+      "segment_id": "segment-0304",
+      "heading": "第二百四十九章 第六考，海神斗罗的攻击",
+      "line_start": 62152,
+      "line_end": 62347,
+      "nonempty_lines": 98,
+      "characters": 8407
+    },
+    {
+      "segment_id": "segment-0305",
+      "heading": "第二百五十章 海神斗罗，无限接近于神的实力",
+      "line_start": 62348,
+      "line_end": 62527,
+      "nonempty_lines": 90,
+      "characters": 8455
+    },
+    {
+      "segment_id": "segment-0306",
+      "heading": "第二百五十一章 借势过关，冲破，第六考",
+      "line_start": 62528,
+      "line_end": 62703,
+      "nonempty_lines": 88,
+      "characters": 8402
+    },
+    {
+      "segment_id": "segment-0307",
+      "heading": "第二百五十二章 海神神诋，成神之路",
+      "line_start": 62704,
+      "line_end": 63077,
+      "nonempty_lines": 187,
+      "characters": 16230
+    },
+    {
+      "segment_id": "segment-0308",
+      "heading": "第二百五十四章 海神三叉戟，重十万八千斤",
+      "line_start": 63078,
+      "line_end": 63269,
+      "nonempty_lines": 96,
+      "characters": 8383
+    },
+    {
+      "segment_id": "segment-0309",
+      "heading": "第二百五十五章 四年来的收获与分别",
+      "line_start": 63270,
+      "line_end": 63477,
+      "nonempty_lines": 104,
+      "characters": 8393
+    },
+    {
+      "segment_id": "segment-0310",
+      "heading": "第二百五十六章 武魂帝国",
+      "line_start": 63478,
+      "line_end": 63663,
+      "nonempty_lines": 93,
+      "characters": 8377
+    },
+    {
+      "segment_id": "segment-0311",
+      "heading": "第二百五十七章 海神三叉戟之威",
+      "line_start": 63664,
+      "line_end": 63853,
+      "nonempty_lines": 95,
+      "characters": 8390
+    },
+    {
+      "segment_id": "segment-0312",
+      "heading": "第二百五十八章 再现，杀戮之王",
+      "line_start": 63854,
+      "line_end": 64053,
+      "nonempty_lines": 100,
+      "characters": 8448
+    },
+    {
+      "segment_id": "segment-0313",
+      "heading": "第二百五十九章 杀戮之王？曾祖？",
+      "line_start": 64054,
+      "line_end": 64421,
+      "nonempty_lines": 184,
+      "characters": 16694
+    },
+    {
+      "segment_id": "segment-0314",
+      "heading": "第二百六十一章 唐三与比比宸的第一次交手",
+      "line_start": 64422,
+      "line_end": 64603,
+      "nonempty_lines": 91,
+      "characters": 8447
+    },
+    {
+      "segment_id": "segment-0315",
+      "heading": "第二百六十二章 海神的技能，黄金十三戟",
+      "line_start": 64604,
+      "line_end": 64791,
+      "nonempty_lines": 94,
+      "characters": 8398
+    },
+    {
+      "segment_id": "segment-0316",
+      "heading": "第二百六十三章 献祭！森林之王，唐三九环",
+      "line_start": 64792,
+      "line_end": 64971,
+      "nonempty_lines": 90,
+      "characters": 8490
+    },
+    {
+      "segment_id": "segment-0317",
+      "heading": "第二百六十四章 复活之地，落日森林",
+      "line_start": 64972,
+      "line_end": 65167,
+      "nonempty_lines": 98,
+      "characters": 8399
+    },
+    {
+      "segment_id": "segment-0318",
+      "heading": "第二百六十五章 复活吧，我的爱人",
+      "line_start": 65168,
+      "line_end": 65399,
+      "nonempty_lines": 116,
+      "characters": 8420
+    },
+    {
+      "segment_id": "segment-0319",
+      "heading": "第二百六十六章 蓝银领域之终极进化，海纳百川",
+      "line_start": 65400,
+      "line_end": 65793,
+      "nonempty_lines": 197,
+      "characters": 16794
+    },
+    {
+      "segment_id": "segment-0320",
+      "heading": "第二百六十八章 铁汉柔情",
+      "line_start": 65794,
+      "line_end": 65983,
+      "nonempty_lines": 95,
+      "characters": 8496
+    },
+    {
+      "segment_id": "segment-0321",
+      "heading": "第二百六十九章 重返昊天宗",
+      "line_start": 65984,
+      "line_end": 66249,
+      "nonempty_lines": 133,
+      "characters": 8380
+    },
+    {
+      "segment_id": "segment-0322",
+      "heading": "第二百七十章 泰坦苍穹破与天青迟钝神爪",
+      "line_start": 66250,
+      "line_end": 66449,
+      "nonempty_lines": 100,
+      "characters": 8436
+    },
+    {
+      "segment_id": "segment-0323",
+      "heading": "第二百七十一章 宗门首席，昊天令",
+      "line_start": 66450,
+      "line_end": 66669,
+      "nonempty_lines": 110,
+      "characters": 8412
+    },
+    {
+      "segment_id": "segment-0324",
+      "heading": "第二百七十二章 神匠遗物，绝世暗器",
+      "line_start": 66670,
+      "line_end": 66873,
+      "nonempty_lines": 102,
+      "characters": 8326
+    },
+    {
+      "segment_id": "segment-0325",
+      "heading": "第二百七十三章 唐家军，九十三级，帝师",
+      "line_start": 66874,
+      "line_end": 67289,
+      "nonempty_lines": 208,
+      "characters": 16924
+    },
+    {
+      "segment_id": "segment-0326",
+      "heading": "第二百七十五章 七怪，守护，补给线",
+      "line_start": 67290,
+      "line_end": 67501,
+      "nonempty_lines": 106,
+      "characters": 8411
+    },
+    {
+      "segment_id": "segment-0327",
+      "heading": "第二百七十六章 唐三的第九魂技",
+      "line_start": 67502,
+      "line_end": 67751,
+      "nonempty_lines": 125,
+      "characters": 8511
+    },
+    {
+      "segment_id": "segment-0328",
+      "heading": "第二百七十七章 天青寂灭雷霆",
+      "line_start": 67752,
+      "line_end": 67954,
+      "nonempty_lines": 102,
+      "characters": 8366
+    },
+    {
+      "segment_id": "segment-0329",
+      "heading": "第二百七十八章 再战比比宸，唐家军初显威",
+      "line_start": 67955,
+      "line_end": 68154,
+      "nonempty_lines": 100,
+      "characters": 8312
+    },
+    {
+      "segment_id": "segment-0330",
+      "heading": "第二百七十九章 紫极魔瞳之修罗魔光",
+      "line_start": 68155,
+      "line_end": 68362,
+      "nonempty_lines": 104,
+      "characters": 8302
+    },
+    {
+      "segment_id": "segment-0331",
+      "heading": "第二百八十章 计定总攻",
+      "line_start": 68363,
+      "line_end": 68718,
+      "nonempty_lines": 178,
+      "characters": 16641
+    },
+    {
+      "segment_id": "segment-0332",
+      "heading": "第二百八十二章 唐门绝顶，佛怒唐莲",
+      "line_start": 68719,
+      "line_end": 68870,
+      "nonempty_lines": 76,
+      "characters": 8355
+    },
+    {
+      "segment_id": "segment-0333",
+      "heading": "第二百八十三章 六大供奉，巅峰斗罗",
+      "line_start": 68871,
+      "line_end": 69048,
+      "nonempty_lines": 89,
+      "characters": 8329
+    },
+    {
+      "segment_id": "segment-0334",
+      "heading": "第二百八十四章 击溃，九十六级的供奉兄弟",
+      "line_start": 69049,
+      "line_end": 69214,
+      "nonempty_lines": 83,
+      "characters": 8312
+    },
+    {
+      "segment_id": "segment-0335",
+      "heading": "第二百八十五章 真正的昊天锤，完全状态的昊天斗罗",
+      "line_start": 69215,
+      "line_end": 69388,
+      "nonempty_lines": 87,
+      "characters": 8343
+    },
+    {
+      "segment_id": "segment-0336",
+      "heading": "第二百八十六章 昊天宗神技，大须弥锤",
+      "line_start": 69389,
+      "line_end": 69586,
+      "nonempty_lines": 99,
+      "characters": 8268
+    },
+    {
+      "segment_id": "segment-0337",
+      "heading": "第二百八十七章 天使第九考，传承神诋",
+      "line_start": 69587,
+      "line_end": 70002,
+      "nonempty_lines": 208,
+      "characters": 16418
+    },
+    {
+      "segment_id": "segment-0338",
+      "heading": "第二百八十九章 聪明绝顶的超级魂兽",
+      "line_start": 70003,
+      "line_end": 70184,
+      "nonempty_lines": 91,
+      "characters": 8507
+    },
+    {
+      "segment_id": "segment-0339",
+      "heading": "第二百九十章 返老还童之战，昊天锤第四魂环",
+      "line_start": 70185,
+      "line_end": 70350,
+      "nonempty_lines": 83,
+      "characters": 8386
+    },
+    {
+      "segment_id": "segment-0340",
+      "heading": "第二百九十一章 神级进化，八蛛矛",
+      "line_start": 70351,
+      "line_end": 70500,
+      "nonempty_lines": 75,
+      "characters": 8345
+    },
+    {
+      "segment_id": "segment-0341",
+      "heading": "第二百九十二章 九万年！千钧蚁皇三兄弟",
+      "line_start": 70501,
+      "line_end": 70658,
+      "nonempty_lines": 79,
+      "characters": 8487
+    },
+    {
+      "segment_id": "segment-0342",
+      "heading": "第二百九十三章 昆虫魂兽的克星，神级八蛛矛",
+      "line_start": 70659,
+      "line_end": 70828,
+      "nonempty_lines": 85,
+      "characters": 8309
+    },
+    {
+      "segment_id": "segment-0343",
+      "heading": "第二百九十四章 宁为玉碎，不为瓦全",
+      "line_start": 70829,
+      "line_end": 71166,
+      "nonempty_lines": 169,
+      "characters": 16848
+    },
+    {
+      "segment_id": "segment-0344",
+      "heading": "第二百九十六章 第十魂环，神级魂环",
+      "line_start": 71167,
+      "line_end": 71340,
+      "nonempty_lines": 87,
+      "characters": 8409
+    },
+    {
+      "segment_id": "segment-0345",
+      "heading": "第二百九十七章 大须弥锤之奥义：炸环",
+      "line_start": 71341,
+      "line_end": 71490,
+      "nonempty_lines": 75,
+      "characters": 8322
+    },
+    {
+      "segment_id": "segment-0346",
+      "heading": "第二百九十八章 绝对压制，大须弥昊天锤",
+      "line_start": 71491,
+      "line_end": 71652,
+      "nonempty_lines": 81,
+      "characters": 8300
+    },
+    {
+      "segment_id": "segment-0347",
+      "heading": "第二百九十九章 唐门第一，观音有泪",
+      "line_start": 71653,
+      "line_end": 71824,
+      "nonempty_lines": 86,
+      "characters": 8464
+    },
+    {
+      "segment_id": "segment-0348",
+      "heading": "第三百章 太阳圣剑",
+      "line_start": 71825,
+      "line_end": 71994,
+      "nonempty_lines": 85,
+      "characters": 8261
+    },
+    {
+      "segment_id": "segment-0349",
+      "heading": "第三百零一章 大地中的神级追杀",
+      "line_start": 71995,
+      "line_end": 72354,
+      "nonempty_lines": 180,
+      "characters": 16874
+    },
+    {
+      "segment_id": "segment-0350",
+      "heading": "第三百零三章 目标，深海魔鲸王",
+      "line_start": 72355,
+      "line_end": 72516,
+      "nonempty_lines": 81,
+      "characters": 8297
+    },
+    {
+      "segment_id": "segment-0351",
+      "heading": "第三百零四章 战斗吧！深海魔鲸王",
+      "line_start": 72517,
+      "line_end": 72684,
+      "nonempty_lines": 84,
+      "characters": 8398
+    },
+    {
+      "segment_id": "segment-0352",
+      "heading": "第三百零五章 一线之差的神，百万年魂兽",
+      "line_start": 72685,
+      "line_end": 72850,
+      "nonempty_lines": 83,
+      "characters": 8370
+    },
+    {
+      "segment_id": "segment-0353",
+      "heading": "第三百零六章 唐三VS深海魔鲸王",
+      "line_start": 72851,
+      "line_end": 73024,
+      "nonempty_lines": 87,
+      "characters": 8479
+    },
+    {
+      "segment_id": "segment-0354",
+      "heading": "第三百零七章 灭杀魔鲸王，变异的杀神领域",
+      "line_start": 73025,
+      "line_end": 73200,
+      "nonempty_lines": 88,
+      "characters": 8355
+    },
+    {
+      "segment_id": "segment-0355",
+      "heading": "第三百零八章 百万年魂环与百万年魂骨",
+      "line_start": 73201,
+      "line_end": 73569,
+      "nonempty_lines": 185,
+      "characters": 16745
+    },
+    {
+      "segment_id": "segment-0356",
+      "heading": "第三百一十章 两个传承选择，海神还是修罗神？",
+      "line_start": 73570,
+      "line_end": 73743,
+      "nonempty_lines": 87,
+      "characters": 8476
+    },
+    {
+      "segment_id": "segment-0357",
+      "heading": "第三百一十一章 传承开始，献祭，海神斗罗",
+      "line_start": 73744,
+      "line_end": 73949,
+      "nonempty_lines": 103,
+      "characters": 8477
+    },
+    {
+      "segment_id": "segment-0358",
+      "heading": "第三百一十二章 海神与修罗神",
+      "line_start": 73950,
+      "line_end": 74137,
+      "nonempty_lines": 94,
+      "characters": 8413
+    },
+    {
+      "segment_id": "segment-0359",
+      "heading": "第三百一十三章 魂骨剥离，海神八翼",
+      "line_start": 74138,
+      "line_end": 74315,
+      "nonempty_lines": 89,
+      "characters": 8393
+    },
+    {
+      "segment_id": "segment-0360",
+      "heading": "第三百一十四章 爱之一字，心灵感应的救赎",
+      "line_start": 74316,
+      "line_end": 74507,
+      "nonempty_lines": 96,
+      "characters": 8215
+    },
+    {
+      "segment_id": "segment-0361",
+      "heading": "第三百一十五章 海神神装",
+      "line_start": 74508,
+      "line_end": 74897,
+      "nonempty_lines": 195,
+      "characters": 16121
+    },
+    {
+      "segment_id": "segment-0362",
+      "heading": "第三百一十七章 海神VS天使神",
+      "line_start": 74898,
+      "line_end": 75071,
+      "nonempty_lines": 87,
+      "characters": 8237
+    },
+    {
+      "segment_id": "segment-0363",
+      "heading": "第三百一十八章 碧波、海神、无尽蔚蓝",
+      "line_start": 75072,
+      "line_end": 75247,
+      "nonempty_lines": 88,
+      "characters": 8457
+    },
+    {
+      "segment_id": "segment-0364",
+      "heading": "第三百一十九章 食神与九彩神君",
+      "line_start": 75248,
+      "line_end": 75467,
+      "nonempty_lines": 110,
+      "characters": 8418
+    },
+    {
+      "segment_id": "segment-0365",
+      "heading": "第三百二十章 七怪封号与复苏的修罗神之力",
+      "line_start": 75468,
+      "line_end": 75647,
+      "nonempty_lines": 90,
+      "characters": 8423
+    },
+    {
+      "segment_id": "segment-0366",
+      "heading": "第三百二十一章 凌岳的选择，魔剑入体",
+      "line_start": 75648,
+      "line_end": 75847,
+      "nonempty_lines": 100,
+      "characters": 8286
+    },
+    {
+      "segment_id": "segment-0367",
+      "heading": "第三百二十二章 嘉陵关，双神降临",
+      "line_start": 75848,
+      "line_end": 76205,
+      "nonempty_lines": 179,
+      "characters": 16485
+    },
+    {
+      "segment_id": "segment-0368",
+      "heading": "第三百二十四章超级版融合技。幽冥白虎",
+      "line_start": 76206,
+      "line_end": 76351,
+      "nonempty_lines": 73,
+      "characters": 8175
+    },
+    {
+      "segment_id": "segment-0369",
+      "heading": "第三百二十五章 六怪发威，兵临城下",
+      "line_start": 76352,
+      "line_end": 76519,
+      "nonempty_lines": 84,
+      "characters": 8354
+    },
+    {
+      "segment_id": "segment-0370",
+      "heading": "第三百二十六章 九宝无敌神光",
+      "line_start": 76520,
+      "line_end": 76665,
+      "nonempty_lines": 73,
+      "characters": 8426
+    },
+    {
+      "segment_id": "segment-0371",
+      "heading": "第三百二十七章 满城尽是绿幽幽",
+      "line_start": 76666,
+      "line_end": 76829,
+      "nonempty_lines": 82,
+      "characters": 8368
+    },
+    {
+      "segment_id": "segment-0372",
+      "heading": "第三百二十八章 太阳天使",
+      "line_start": 76830,
+      "line_end": 77011,
+      "nonempty_lines": 91,
+      "characters": 8238
+    },
+    {
+      "segment_id": "segment-0373",
+      "heading": "第三百二十九章 罗刹神现",
+      "line_start": 77012,
+      "line_end": 77419,
+      "nonempty_lines": 204,
+      "characters": 16629
+    },
+    {
+      "segment_id": "segment-0374",
+      "heading": "第三百三十一章 海神陨落",
+      "line_start": 77420,
+      "line_end": 77649,
+      "nonempty_lines": 115,
+      "characters": 8345
+    },
+    {
+      "segment_id": "segment-0375",
+      "heading": "第三百三十二章 完美融合之复活神光",
+      "line_start": 77650,
+      "line_end": 77835,
+      "nonempty_lines": 93,
+      "characters": 8257
+    },
+    {
+      "segment_id": "segment-0376",
+      "heading": "第三百三十三章 神魂归位，海神归来",
+      "line_start": 77836,
+      "line_end": 78061,
+      "nonempty_lines": 113,
+      "characters": 8319
+    },
+    {
+      "segment_id": "segment-0377",
+      "heading": "第三百三十四章 最终决战",
+      "line_start": 78062,
+      "line_end": 78249,
+      "nonempty_lines": 94,
+      "characters": 8212
+    },
+    {
+      "segment_id": "segment-0378",
+      "heading": "第三百三十五章 完美融合之双神战双神",
+      "line_start": 78250,
+      "line_end": 78433,
+      "nonempty_lines": 92,
+      "characters": 8282
+    },
+    {
+      "segment_id": "segment-0379",
+      "heading": "第三百三十六章 大结局，最后一个条件（全书完）",
+      "line_start": 78434,
+      "line_end": 78708,
+      "nonempty_lines": 138,
+      "characters": 8006
+    }
+  ]
+}

@@ -23,3 +23,9 @@ book/*
 !book/.gitkeep
 inspirations/*
 !inspirations/.gitkeep
+
+# 用户明确指定纳入版本库的灵感知识包；其它 inspirations 仍保持本地。
+!inspirations/https-github-com-cloudliu1008-distill-novels-2/
+!inspirations/https-github-com-cloudliu1008-distill-novels-2/**
+inspirations/https-github-com-cloudliu1008-distill-novels-2/**/__pycache__/
+inspirations/https-github-com-cloudliu1008-distill-novels-2/**/*.pyc
