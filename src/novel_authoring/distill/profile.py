@@ -9,6 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from novel_authoring.db.database import Database
+from novel_authoring.distill.models import DistillScope
 from novel_authoring.distill.service import latest_distill_reference
 from novel_authoring.edition import resolve_edition_id
 from novel_authoring.storage.layout import BookLayout
@@ -62,7 +63,7 @@ def export_book_profile(
     edition = BookLayout(book_root(database, book_id).parent).for_book(book_id).edition(
         selected_edition
     )
-    reference = latest_distill_reference(edition)
+    reference = latest_distill_reference(edition, scope=DistillScope.SELF_BOOK)
     profile_root = _profile_root(database, book_id)
     if reference is None:
         return {

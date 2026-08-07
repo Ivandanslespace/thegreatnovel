@@ -18,6 +18,7 @@ from novel_authoring.distill.models import (
     DistillScope,
     EvidenceMappingStatus,
     LiteraryArc,
+    RuntimeRecallCandidate,
     ThemeQuestion,
 )
 from novel_authoring.distill.package import (
@@ -37,6 +38,7 @@ from novel_authoring.distill.service import (
     latest_distill_reference,
     latest_preparation,
     prepare_book_sources,
+    refresh_distill_registry_summary,
 )
 
 __all__ = [
@@ -52,6 +54,7 @@ __all__ = [
     "DistillationPackageManifest",
     "EvidenceMappingStatus",
     "LiteraryArc",
+    "RuntimeRecallCandidate",
     "ThemeQuestion",
     "CraftControl",
     "ContinuityCandidate",
@@ -61,6 +64,7 @@ __all__ = [
     "discover_sources",
     "import_distill_result",
     "latest_distill_reference",
+    "refresh_distill_registry_summary",
     "latest_preparation",
     "map_evidence",
     "map_evidence_batch",

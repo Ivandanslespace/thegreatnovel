@@ -46,6 +46,30 @@ Canon Kernel 只由可回溯原文证据、作者指令或显式批准事件驱�
 
 公式的职责是发现失衡、分配注意力和给候选方案排序；公式无权直接创造事实，也无权代替作者决定小说的意义。
 
+## Distillation Knowledge Layer（Phase 4）
+
+Distill Skill 不是 Canon，也不是 Runtime State。它是版本化、带 Scope 和 Evidence Mapping 的
+软知识包：`SELF_BOOK` 可以为当前 selected Edition 提供软理解；`EXTERNAL_REFERENCE` 只能迁移
+抽象机制、Craft Control 和中性风格变量；`COMPARATIVE_REFERENCE` 只能使用明确标注的
+`synthesis`、`transferable_principle`、`craft_control`。Literary Arc 是文学理解，不是
+Initialization Processing Arc，不得自动写入 runtime thread、Canon 或固定未来大纲。
+
+Runtime 消费必须分层：
+
+```text
+Source-Derived Baseline + Canon Projection Delta
+        → Effective Runtime State（只读合成）
+Hard Constraints / Earned Surface
+        + Distillation Soft Context
+        + Warnings
+        → Candidate / Draft / Validator 的 purpose-specific Context Router
+```
+
+Canon Projection Delta 只在运行时视图中覆盖旧 baseline，不修改 baseline 文件；Distill 观察只能
+生成 recall-only 线索，必须由 selected Edition Source/作者复核后才能建立新的 Baseline version。
+前向新颖性必须声明引入事件、因果来源、commit 后状态和冲突检查；未在当前边界建立的状态不得
+以 retroactive unsupported invention 形式伪装成既有事实。
+
 ---
 
 # 1. 不可妥协的核心循环

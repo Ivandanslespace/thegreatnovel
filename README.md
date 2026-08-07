@@ -80,11 +80,34 @@ preparation 重新映射到当前 Edition 的 chapter/source span；`novel disti
 `library/<book_id>/book_profil/`，外部参考不会覆盖它。Literary Arc 是 Distill 的文学结构观察，
 不是 Initialization Processing Arc。
 
+Phase 4 将发布结果正式作为 Distillation Knowledge Package 使用：
+
+- `SELF_BOOK` 绑定 selected Edition 的 effective content，可被 Candidate、Draft 和软校验按证据召回；
+- `EXTERNAL_REFERENCE` 只能提供抽象机制、Craft Control 和中性风格变量；
+- `COMPARATIVE_REFERENCE` 只路由显式 `synthesis`、`transferable_principle`、`craft_control`；
+- `latest_self_book.json` 与外部/比较参考 `references.json` 分离，外部发布不会覆盖当前书的 SELF_BOOK 或 `book_profil`；
+- Literary Arc、Craft Control、Continuity Candidate、Character Voice Profile、Theme Question 都带 subject/entity、章节范围、runtime use 等最小路由元数据；章节范围使用闭区间 overlap，未知范围软包含。
+
+Runtime Router 返回五层：`hard_constraints`、`effective_runtime_state`、`earned_surface`、
+`distillation_soft_context`、`warnings`。Effective Runtime State 是 source-derived Baseline
+与只读 Canon Projection Delta 的合成视图，Projection 对同标识旧 baseline 记录覆盖，但不修改
+baseline 文件，也不把 Distill 写入 Canon。`Earned Surface` 额外保留 availability、costs、
+constraints、last_confirmed，并提供 `actionable_knowledge`。
+
+候选合同支持 `CONTINUITY_ACTIVE_THREAD`、`EARNED_OPPORTUNITY`、`FORWARD_EXPANSION` 三种
+lens，以及 `EXISTING_RUNTIME`、`SOURCE_EARNED`、`FORWARD_NOVELTY`、`AUTHOR_DIRECTED`、
+`DISTILLED_INSPIRATION` provenance。`FORWARD_NOVELTY` 必须声明 introduction event、causal
+source、commit 后的新状态和 conflicts checked；retroactive unsupported invention 会被拒绝。
+`novel runtime-baseline recall` 只输出 recall-only 线索，`novel runtime-baseline hydrate`
+只接受 Source/作者复核后的 `RuntimeBaselineInput`，不会自动把 Distill 变成 Runtime。
+
 Phase 3 还提供独立的 Source-Derived Runtime Baseline：
 
 ```powershell
 & $Novel runtime-baseline build --book-id my-book --input .\baseline-input.json --boundary-chapter 50
 & $Novel runtime-baseline inspect --book-id my-book
+& $Novel runtime-baseline recall --book-id my-book
+& $Novel runtime-baseline hydrate --book-id my-book --input .\source-review.json
 ```
 
 Baseline 位于 `editions/<edition_id>/analysis/runtime_baseline/versions/`，只保存经过
@@ -93,6 +116,9 @@ selected Edition source evidence 验证的 `SOURCE_VERIFIED` / `SOURCE_PARTIAL` 
 Canon Projection 派生，Distill Observation 只能提供检索/验证提示，不能直接产生能力、物品或
 资源。候选规划、草稿和十项校验通过 Context Router 分别读取 hard boundary、earned/payoff
 surface 与对应九维软控制。
+
+Phase 4 的独立多点盲测汇总位于 `benchmark/phase4_summary.md`；每个 20/35/50/75 边界均使用
+独立 Book、独立 preparation/package/baseline，先封存两章生成与十项 Validator，再揭示真值。
 
 ## 能力
 

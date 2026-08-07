@@ -421,7 +421,7 @@ def create_distill_handoff(
     scope = _request_scope(mode, prepared)
     base_reference = None
     if mode == "update":
-        base_reference = latest_distill_reference(edition)
+        base_reference = latest_distill_reference(edition, scope=scope)
         if base_reference is None:
             raise DistillError("update 模式需要当前 edition 已发布的 distill skill")
     distill_id = stable_id(
@@ -578,30 +578,31 @@ def import_distill_result(database: Database, book_id: str, handoff_id: str) -> 
     )
     latest_path = edition.distill / "latest.json"
     latest_path.parent.mkdir(parents=True, exist_ok=True)
-    latest_path.write_text(
-        json_dumps(
-            {
-                "schema_version": "distill-latest-v1",
-                "distill_id": distill_id,
-                "skill_root": str(destination),
-                "published_at": published_at,
-                "scope": request.get("scope"),
-                "book_id": book_id,
-                "edition_id": str(row["edition_id"]),
-                "dimensions": request.get("dimensions", []),
-                "depth": request.get("depth"),
-                "package_root": str(destination / "machine"),
-                "machine_manifest": str(destination / "machine" / "package.json"),
-                "usage": "REFERENCE_ONLY",
-                "mapping_summary": package_summary.get("mapping_summary", {}),
-                "mapping_reason_summary": package_summary.get(
-                    "mapping_reason_summary", {}
-                ),
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+    previous_reference = _read_reference_pointer(latest_path, None)
+    latest_reference = {
+        "schema_version": "distill-latest-v1",
+        "distill_id": distill_id,
+        "skill_root": str(destination),
+        "published_at": published_at,
+        "scope": request.get("scope"),
+        "scope_id": request.get("scope_id", book_id),
+        "book_id": book_id,
+        "edition_id": str(row["edition_id"]),
+        "dimensions": request.get("dimensions", []),
+        "depth": request.get("depth"),
+        "package_root": str(destination / "machine"),
+        "machine_manifest": str(destination / "machine" / "package.json"),
+        "usage": "REFERENCE_ONLY",
+        "mapping_summary": package_summary.get("mapping_summary", {}),
+        "mapping_reason_summary": package_summary.get(
+            "mapping_reason_summary", {}
+        ),
+    }
+    latest_path.write_text(json_dumps(latest_reference, indent=2) + "\n", encoding="utf-8")
+    _update_scope_registry(
+        edition,
+        latest_reference,
+        previous_reference=previous_reference,
     )
     profile_result: dict[str, object] | None = None
     if str(request.get("scope")) == DistillScope.SELF_BOOK.value:
@@ -642,13 +643,85 @@ def import_distill_result(database: Database, book_id: str, handoff_id: str) -> 
     }
 
 
-def latest_distill_reference(edition: EditionPaths) -> dict[str, Any] | None:
-    latest_path = edition.distill / "latest.json"
-    if not latest_path.is_file():
+def _reference_pointer_path(edition: EditionPaths, scope: DistillScope | str | None) -> Path:
+    if str(scope or "") == DistillScope.SELF_BOOK.value:
+        return edition.distill / "latest_self_book.json"
+    if scope is not None:
+        return edition.distill / "references.json"
+    return edition.distill / "latest.json"
+
+
+def _read_reference_pointer(path: Path, scope: DistillScope | str | None) -> dict[str, Any] | None:
+    if not path.is_file():
         return None
     try:
-        value = json.loads(latest_path.read_text(encoding="utf-8"))
+        value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if isinstance(value, dict) and isinstance(value.get("references"), list):
+        candidates = [
+            item
+            for item in value["references"]
+            if isinstance(item, dict)
+            and (scope is None or str(item.get("scope")) == str(scope))
+        ]
+        if not candidates:
+            return None
+        return dict(candidates[-1])
+    return dict(value) if isinstance(value, dict) else None
+
+
+def _update_scope_registry(
+    edition: EditionPaths,
+    latest_reference: dict[str, Any],
+    *,
+    previous_reference: dict[str, Any] | None = None,
+) -> None:
+    """Maintain separate SELF_BOOK and external/comparative registries."""
+
+    scope = str(latest_reference.get("scope") or "")
+    if scope == DistillScope.SELF_BOOK.value:
+        (edition.distill / "latest_self_book.json").write_text(
+            json_dumps(latest_reference, indent=2) + "\n", encoding="utf-8"
+        )
+        return
+    self_pointer = edition.distill / "latest_self_book.json"
+    if (
+        not self_pointer.is_file()
+        and previous_reference is not None
+        and str(previous_reference.get("scope")) == DistillScope.SELF_BOOK.value
+    ):
+        self_pointer.write_text(
+            json_dumps(previous_reference, indent=2) + "\n", encoding="utf-8"
+        )
+    registry_path = edition.distill / "references.json"
+    existing = _read_reference_pointer(registry_path, None) or {}
+    values = existing.get("references", []) if isinstance(existing, dict) else []
+    references = [item for item in values if isinstance(item, dict)]
+    references = [
+        item
+        for item in references
+        if str(item.get("distill_id")) != str(latest_reference["distill_id"])
+    ]
+    references.append(dict(latest_reference))
+    registry_path.write_text(
+        json_dumps(
+            {"schema_version": "distill-reference-registry-v1", "references": references},
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def latest_distill_reference(
+    edition: EditionPaths, scope: DistillScope | str | None = None
+) -> dict[str, Any] | None:
+    latest_path = _reference_pointer_path(edition, scope)
+    value = _read_reference_pointer(latest_path, scope)
+    if value is None and scope is not None:
+        value = _read_reference_pointer(edition.distill / "latest.json", scope)
+    if value is None:
         return None
     if not isinstance(value, dict):
         return None
@@ -684,7 +757,7 @@ def latest_distill_reference(edition: EditionPaths) -> dict[str, Any] | None:
         or request.get("scope")
         or DistillScope.EXTERNAL_REFERENCE.value
     )
-    return {
+    reference = {
         "distill_id": str(value.get("distill_id", "")),
         "scope": str(scope),
         "book_id": str(value.get("book_id") or published.get("book_id") or ""),
@@ -702,6 +775,45 @@ def latest_distill_reference(edition: EditionPaths) -> dict[str, Any] | None:
         "mapping_reason_summary": mapping_reasons,
         "profile_root": str(edition.root.parents[1] / "book_profil"),
     }
+    if scope is not None and str(reference["scope"]) != str(scope):
+        return None
+    return reference
+
+
+def refresh_distill_registry_summary(
+    edition: EditionPaths,
+    distill_id: str,
+    *,
+    mapping_summary: dict[str, int],
+    mapping_reason_summary: dict[str, int],
+) -> None:
+    """Refresh mapping summaries in every scope-aware pointer for one package."""
+
+    paths = [
+        edition.distill / "latest.json",
+        edition.distill / "latest_self_book.json",
+        edition.distill / "references.json",
+    ]
+    for path in paths:
+        if not path.is_file():
+            continue
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+        changed = False
+        if isinstance(value, dict) and isinstance(value.get("references"), list):
+            for item in value["references"]:
+                if isinstance(item, dict) and str(item.get("distill_id")) == distill_id:
+                    item["mapping_summary"] = mapping_summary
+                    item["mapping_reason_summary"] = mapping_reason_summary
+                    changed = True
+        elif isinstance(value, dict) and str(value.get("distill_id")) == distill_id:
+            value["mapping_summary"] = mapping_summary
+            value["mapping_reason_summary"] = mapping_reason_summary
+            changed = True
+        if changed:
+            path.write_text(json_dumps(value, indent=2) + "\n", encoding="utf-8")
 
 
 __all__ = [
@@ -712,6 +824,7 @@ __all__ = [
     "create_distill_handoff",
     "import_distill_result",
     "latest_distill_reference",
+    "refresh_distill_registry_summary",
     "latest_preparation",
     "parse_dimensions",
     "prepare_book_sources",

@@ -12,7 +12,10 @@ import typer
 from novel_authoring.cli.legacy import LibraryRoot, _book_database, _emit, app
 from novel_authoring.runtime_baseline import (
     RuntimeBaselineError,
+    RuntimeHydrationError,
     build_runtime_baseline,
+    discover_runtime_recall_candidates,
+    hydrate_runtime_baseline,
     latest_runtime_baseline,
     load_earned_surface,
 )
@@ -118,6 +121,57 @@ def runtime_baseline_inspect_command(
             ]
         )
     )
+
+
+@runtime_baseline_app.command("recall")
+def runtime_baseline_recall_command(
+    book_id: str = typer.Option(..., "--book-id"),
+    edition_id: str | None = typer.Option(None, "--edition-id"),
+    limit: int = typer.Option(24, "--limit", min=1),
+    workspace: Path = typer.Option(Path("workspace"), "--workspace"),
+    library_root: LibraryRoot = None,
+) -> None:
+    """列出 Distill 发现但尚未进入 Runtime Baseline 的 recall-only 线索。"""
+
+    try:
+        database = _book_database(workspace, book_id, library_root)
+        candidates = discover_runtime_recall_candidates(
+            database,
+            book_id,
+            edition_id=edition_id,
+            limit=limit,
+        )
+    except (RuntimeBaselineError, RuntimeHydrationError, OSError, ValueError, RuntimeError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+    _emit({"book_id": book_id, "edition_id": edition_id, "recall_candidates": [
+        item.model_dump(mode="json") for item in candidates
+    ]})
+
+
+@runtime_baseline_app.command("hydrate")
+def runtime_baseline_hydrate_command(
+    book_id: str = typer.Option(..., "--book-id"),
+    input_path: Path = typer.Option(..., "--input", exists=True, file_okay=True),
+    edition_id: str | None = typer.Option(None, "--edition-id"),
+    boundary_chapter: int | None = typer.Option(None, "--boundary-chapter", min=0),
+    workspace: Path = typer.Option(Path("workspace"), "--workspace"),
+    library_root: LibraryRoot = None,
+) -> None:
+    """消费经过 Source/作者复核的 input，发布新的 Baseline version。"""
+
+    try:
+        result = hydrate_runtime_baseline(
+            _book_database(workspace, book_id, library_root),
+            book_id,
+            input_path,
+            edition_id=edition_id,
+            boundary_chapter=boundary_chapter,
+        )
+    except (RuntimeBaselineError, RuntimeHydrationError, OSError, ValueError, RuntimeError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=3) from exc
+    _emit(result)
 
 
 __all__ = ["runtime_baseline_app"]

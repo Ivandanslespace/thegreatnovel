@@ -80,6 +80,24 @@ class DistilledEvidence(BaseModel):
         return self
 
 
+class RuntimeRecallCandidate(BaseModel):
+    """A Distill lead that still requires source verification before hydration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    candidate_id: str = Field(min_length=1)
+    category: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    statement: str = Field(min_length=1)
+    dimension: str = Field(min_length=1)
+    observation_id: str = Field(min_length=1)
+    source_scope: DistillScope
+    evidence: list[DistilledEvidence] = Field(default_factory=list)
+    subject_ids: list[str] = Field(default_factory=list)
+    rationale: str = Field(min_length=1)
+    status: str = "RECALL_ONLY"
+
+
 class DistilledObservation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -140,6 +158,11 @@ class LiteraryArc(BaseModel):
     theme_questions: list[str] = Field(default_factory=list)
     representative_segments: list[str] = Field(default_factory=list)
     evidence: list[DistilledEvidence] = Field(default_factory=list)
+    chapter_range: list[int] | None = None
+    subject_ids: list[str] = Field(default_factory=list)
+    related_entity_ids: list[str] = Field(default_factory=list)
+    runtime_uses: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
 
 
 class CraftControl(BaseModel):
@@ -152,6 +175,11 @@ class CraftControl(BaseModel):
     recommended_behavior: str = Field(min_length=1)
     risks: list[str] = Field(default_factory=list)
     evidence: list[DistilledEvidence] = Field(default_factory=list)
+    subject_ids: list[str] = Field(default_factory=list)
+    related_entity_ids: list[str] = Field(default_factory=list)
+    chapter_range: list[int] | None = None
+    runtime_uses: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
 
 
 class ContinuityCandidate(BaseModel):
@@ -166,6 +194,11 @@ class ContinuityCandidate(BaseModel):
         ContinuityVerificationStatus.UNVERIFIED
     )
     runtime_resolution: str = Field(min_length=1)
+    subject_ids: list[str] = Field(default_factory=list)
+    related_entity_ids: list[str] = Field(default_factory=list)
+    chapter_range: list[int] | None = None
+    runtime_uses: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
 
 
 class CharacterVoiceProfile(BaseModel):
@@ -176,6 +209,11 @@ class CharacterVoiceProfile(BaseModel):
     voice_markers: list[str] = Field(default_factory=list)
     dialogue_controls: list[str] = Field(default_factory=list)
     evidence: list[DistilledEvidence] = Field(default_factory=list)
+    subject_ids: list[str] = Field(default_factory=list)
+    related_entity_ids: list[str] = Field(default_factory=list)
+    chapter_range: list[int] | None = None
+    runtime_uses: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
 
 
 class ThemeQuestion(BaseModel):
@@ -185,6 +223,11 @@ class ThemeQuestion(BaseModel):
     question: str = Field(min_length=1)
     competing_answers: list[str] = Field(default_factory=list)
     evidence: list[DistilledEvidence] = Field(default_factory=list)
+    subject_ids: list[str] = Field(default_factory=list)
+    related_entity_ids: list[str] = Field(default_factory=list)
+    chapter_range: list[int] | None = None
+    runtime_uses: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
 
 
 class DistillationPackageManifest(BaseModel):
@@ -223,6 +266,7 @@ __all__ = [
     "DistilledEvidence",
     "DistilledInformationClass",
     "DistilledObservation",
+    "RuntimeRecallCandidate",
     "DistillationPackageManifest",
     "EvidenceMappingStatus",
     "LiteraryArc",

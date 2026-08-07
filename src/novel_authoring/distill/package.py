@@ -346,6 +346,12 @@ def _parse_arcs(findings: list[_Finding]) -> list[LiteraryArc]:
                 theme_questions=[],
                 representative_segments=[item.segment_id for item in ordered],
                 evidence=evidence,
+                chapter_range=finding.observation.chapter_range,
+                subject_ids=list(finding.observation.subject_ids)
+                or list(finding.observation.related_entity_ids),
+                related_entity_ids=list(finding.observation.related_entity_ids),
+                runtime_uses=list(finding.observation.runtime_uses),
+                tags=list(finding.observation.tags),
             )
         )
     return arcs
@@ -375,6 +381,11 @@ def _parse_controls(findings: list[_Finding]) -> list[CraftControl]:
                 recommended_behavior=recommended,
                 risks=risks,
                 evidence=list(finding.observation.evidence),
+                subject_ids=list(finding.observation.subject_ids),
+                related_entity_ids=list(finding.observation.related_entity_ids),
+                chapter_range=finding.observation.chapter_range,
+                runtime_uses=list(finding.observation.runtime_uses),
+                tags=list(finding.observation.tags),
             )
         )
     return controls
@@ -400,6 +411,11 @@ def _parse_candidates(findings: list[_Finding]) -> list[ContinuityCandidate]:
                 evidence=list(finding.observation.evidence),
                 verification_status=ContinuityVerificationStatus.UNVERIFIED,
                 runtime_resolution="进入 review queue；不得自动写入 Canon",
+                subject_ids=list(finding.observation.subject_ids),
+                related_entity_ids=list(finding.observation.related_entity_ids),
+                chapter_range=finding.observation.chapter_range,
+                runtime_uses=list(finding.observation.runtime_uses),
+                tags=list(finding.observation.tags),
             )
         )
     return candidates
@@ -420,6 +436,11 @@ def _parse_voice_profiles(findings: list[_Finding]) -> list[CharacterVoiceProfil
                 voice_markers=markers,
                 dialogue_controls=controls,
                 evidence=list(finding.observation.evidence),
+                subject_ids=list(finding.observation.subject_ids) or [section.title],
+                related_entity_ids=list(finding.observation.related_entity_ids),
+                chapter_range=finding.observation.chapter_range,
+                runtime_uses=list(finding.observation.runtime_uses),
+                tags=list(finding.observation.tags),
             )
         )
     return profiles
@@ -439,6 +460,11 @@ def _parse_theme_questions(findings: list[_Finding]) -> list[ThemeQuestion]:
                 question=question,
                 competing_answers=answers,
                 evidence=list(finding.observation.evidence),
+                subject_ids=list(finding.observation.subject_ids),
+                related_entity_ids=list(finding.observation.related_entity_ids),
+                chapter_range=finding.observation.chapter_range,
+                runtime_uses=list(finding.observation.runtime_uses),
+                tags=list(finding.observation.tags),
             )
         )
     return questions

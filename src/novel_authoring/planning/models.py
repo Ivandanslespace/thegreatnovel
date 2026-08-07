@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from novel_authoring.domain.models import ContinuationMode, NarrativeFunction
 from novel_authoring.metrics.gates import HardGateInput
@@ -75,6 +76,60 @@ class CandidateScoreInputs(BaseModel):
     future_damage: float = Field(ge=0, le=100)
 
 
+class CandidateLens(StrEnum):
+    CONTINUITY_ACTIVE_THREAD = "CONTINUITY_ACTIVE_THREAD"
+    EARNED_OPPORTUNITY = "EARNED_OPPORTUNITY"
+    FORWARD_EXPANSION = "FORWARD_EXPANSION"
+
+
+class NoveltyProvenance(StrEnum):
+    EXISTING_RUNTIME = "EXISTING_RUNTIME"
+    SOURCE_EARNED = "SOURCE_EARNED"
+    FORWARD_NOVELTY = "FORWARD_NOVELTY"
+    AUTHOR_DIRECTED = "AUTHOR_DIRECTED"
+    DISTILLED_INSPIRATION = "DISTILLED_INSPIRATION"
+
+
+class NoveltyBoundary(StrEnum):
+    FORWARD_CANON_COMPATIBLE = "FORWARD_CANON_COMPATIBLE"
+    RETROACTIVE_UNSUPPORTED_INVENTION = "RETROACTIVE_UNSUPPORTED_INVENTION"
+
+
+class NoveltyDeclaration(BaseModel):
+    """Provenance for a candidate's new state or creative opportunity."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provenance: NoveltyProvenance
+    novelty_boundary: NoveltyBoundary = NoveltyBoundary.FORWARD_CANON_COMPATIBLE
+    introduction_event: str = ""
+    causal_source: str = ""
+    new_state_if_committed: str = ""
+    conflicts_checked: list[str] = Field(default_factory=list)
+    retroactive_claim: bool = False
+
+    @model_validator(mode="after")
+    def validate_forward_boundary(self) -> NoveltyDeclaration:
+        if self.provenance is NoveltyProvenance.FORWARD_NOVELTY:
+            if self.retroactive_claim:
+                raise ValueError("FORWARD_NOVELTY 不得声明为 retroactive invention")
+            missing = [
+                name
+                for name, value in {
+                    "introduction_event": self.introduction_event,
+                    "causal_source": self.causal_source,
+                    "new_state_if_committed": self.new_state_if_committed,
+                }.items()
+                if not value.strip()
+            ]
+            if missing:
+                raise ValueError(
+                    "FORWARD_NOVELTY 必须提供 introduction_event、causal_source、"
+                    f"new_state_if_committed：{', '.join(missing)}"
+                )
+        return self
+
+
 class CandidateProposal(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -111,6 +166,20 @@ class CandidateProposal(BaseModel):
     score_inputs: CandidateScoreInputs
     score_evidence: dict[str, list[str]]
     gate_input: HardGateInput
+    lens: CandidateLens = CandidateLens.CONTINUITY_ACTIVE_THREAD
+    novelty_provenance: list[NoveltyDeclaration] = Field(default_factory=list)
+    wildcard: bool = False
+
+    @model_validator(mode="after")
+    def reject_retroactive_invention(self) -> CandidateProposal:
+        if any(
+            item.novelty_boundary is NoveltyBoundary.RETROACTIVE_UNSUPPORTED_INVENTION
+            for item in self.novelty_provenance
+        ):
+            raise ValueError(
+                "候选不得把未在 selected Edition 建立的状态声明为 retroactive invention"
+            )
+        return self
 
 
 class CandidateOutput(BaseModel):
@@ -158,3 +227,5 @@ class ChapterContract(BaseModel):
     ending_state: str
     commit_updates: list[str] = Field(min_length=1)
     rhythm_constraints: dict[str, Any] = Field(default_factory=dict)
+    lens: CandidateLens = CandidateLens.CONTINUITY_ACTIVE_THREAD
+    novelty_provenance: list[NoveltyDeclaration] = Field(default_factory=list)

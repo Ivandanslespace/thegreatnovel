@@ -15,7 +15,9 @@ from novel_authoring.metrics.formulas import candidate_score, narrative_debt, th
 from novel_authoring.metrics.gates import evaluate_hard_gates
 from novel_authoring.planning.aggregates import build_planning_aggregate
 from novel_authoring.planning.boundary import PlanningError, _workspace, build_boundary_packet
+from novel_authoring.planning.diagnostics import diagnose_candidate_portfolio
 from novel_authoring.planning.models import CandidateOutput, CandidateProposal, ThreadPriority
+from novel_authoring.runtime_baseline import load_earned_surface
 from novel_authoring.storage.operations import ensure_operation, find_operation
 from novel_authoring.utils import json_dumps, sha256_bytes, stable_id, utc_now
 
@@ -244,6 +246,10 @@ def prepare_candidate_task(
             f"Boundary Packet: `{boundary['markdown_path']}`",
             "",
             "必须提交恰好三个结构真正不同的候选；不得只换怪物、资源、地点或社会反馈名词。",
+            "候选应分别考虑 CONTINUITY_ACTIVE_THREAD、EARNED_OPPORTUNITY、FORWARD_EXPANSION；"
+            "这是三种推理 lens，不是固定配额。",
+            "所有 FORWARD_NOVELTY 必须填写 introduction_event、causal_source、"
+            "new_state_if_committed、conflicts_checked；不得把未来状态倒写成既有事实。",
             "每个候选先填写硬门证据，再填写评分输入与来源；Python 将重新计算门禁、结构差异和总分。",
             "候选只处于 CANDIDATE，不得写正文或升级为 CANON。",
             "",
@@ -364,6 +370,18 @@ def import_candidate_output(
         raise PlanningError(f"候选 output.json 不符合合同：{exc}") from exc
     if output.task_id != task_id:
         raise PlanningError("候选 output task_id 不匹配")
+    earned_surface = load_earned_surface(
+        database, book_id, edition_id=selected_edition
+    )
+    portfolio = diagnose_candidate_portfolio(
+        output.candidates,
+        earned_surface=earned_surface,
+    )
+    portfolio_path = path.parent / "portfolio_diagnostics.json"
+    portfolio_path.write_text(
+        json_dumps(portfolio.model_dump(mode="json"), indent=2) + "\n",
+        encoding="utf-8",
+    )
     differences: dict[str, list[int]] = {candidate.local_id: [] for candidate in output.candidates}
     for left, right in combinations(output.candidates, 2):
         count = _difference_count(left, right)
@@ -477,6 +495,7 @@ def import_candidate_output(
                 "evidence": item["score_evidence"],
                 "structural_difference_counts": differences[candidate.local_id],
                 "reason": reason,
+                "portfolio_diagnostics": portfolio.model_dump(mode="json"),
             }
             connection.execute(
                 """
@@ -532,4 +551,6 @@ def import_candidate_output(
         ],
         "boundary_packet_id": metadata["boundary_packet_id"],
         "aggregate_id": aggregate_id or None,
+        "portfolio_diagnostics": portfolio.model_dump(mode="json"),
+        "portfolio_diagnostics_path": str(portfolio_path),
     }

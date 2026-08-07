@@ -122,6 +122,8 @@ def build_chapter_contract(
         ending_state=candidate.ending_state,
         commit_updates=candidate.commit_updates,
         rhythm_constraints=rhythm_constraints,
+        lens=candidate.lens,
+        novelty_provenance=candidate.novelty_provenance,
     )
     contract_json = json_dumps(contract.model_dump(mode="json"), indent=2)
     contract_hash = sha256_bytes(contract_json.encode())

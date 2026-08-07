@@ -521,7 +521,9 @@ def create_handoff(
     if canonical_layout and not distill_handoff:
         from novel_authoring.distill.service import latest_distill_reference
 
-        distill_reference = latest_distill_reference(edition_paths)
+        distill_reference = latest_distill_reference(
+            edition_paths, scope="SELF_BOOK"
+        )
     task = {
         "handoff_id": handoff_id,
         "task_type": handoff_type.value,

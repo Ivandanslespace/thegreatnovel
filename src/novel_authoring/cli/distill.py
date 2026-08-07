@@ -27,6 +27,7 @@ from novel_authoring.distill.service import (
     latest_distill_reference,
     latest_preparation,
     prepare_book_sources,
+    refresh_distill_registry_summary,
 )
 from novel_authoring.utils import json_dumps
 
@@ -296,6 +297,12 @@ def distill_map_evidence_command(
                 latest_path.write_text(
                     json_dumps(latest, indent=2) + "\n", encoding="utf-8"
                 )
+        refresh_distill_registry_summary(
+            edition,
+            selected_id,
+            mapping_summary=summary["mapping_summary"],
+            mapping_reason_summary=summary.get("mapping_reason_summary", {}),
+        )
         summary.update({"distill_id": selected_id, "package_root": str(root / "machine")})
     except (DistillError, DistillationPackageError, OSError, ValueError, RuntimeError) as exc:
         typer.echo(str(exc), err=True)

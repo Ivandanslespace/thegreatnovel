@@ -190,12 +190,32 @@ def test_book_profil_self_export_stale_cleanup_and_external_isolation(tmp_path: 
     assert manifest["scope"] == "SELF_BOOK"
     assert (profile / "worldbuilding.md").is_file()
     assert (profile / "plot.md").is_file()
+    registry_root = (
+        tmp_path
+        / "library"
+        / "phase3-book"
+        / "editions"
+        / "base"
+        / "analysis"
+        / "distill"
+    )
+    self_pointer = json.loads(
+        (registry_root / "latest_self_book.json").read_text(encoding="utf-8")
+    )
+    assert self_pointer["distill_id"] == first["distill_id"]
 
     external = tmp_path / "external.md"
     external.write_text("## 第一章\n外部参考。\n", encoding="utf-8")
-    _publish_distill(database, "phase3-book", prepared, "style", external=external)
+    external_result = _publish_distill(
+        database, "phase3-book", prepared, "style", external=external
+    )
     after_external = json.loads((profile / "profile_manifest.json").read_text(encoding="utf-8"))
     assert after_external["distill_id"] == first["distill_id"]
+    references = json.loads((registry_root / "references.json").read_text(encoding="utf-8"))
+    assert any(
+        item["distill_id"] == external_result["distill_id"]
+        for item in references["references"]
+    )
 
     _publish_distill(database, "phase3-book", prepared, "worldbuilding")
     assert (profile / "worldbuilding.md").is_file()

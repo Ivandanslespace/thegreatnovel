@@ -135,6 +135,11 @@ class EarnedEntry(BaseModel):
     source_entry_id: str | None = None
     projection_record_id: str | None = None
     evidence: list[BaselineEvidence] = Field(default_factory=list)
+    attributes: dict[str, str] = Field(default_factory=dict)
+    availability: str = "AVAILABLE"
+    costs: list[str] = Field(default_factory=list)
+    constraints: list[str] = Field(default_factory=list)
+    last_confirmed: int | None = Field(default=None, ge=0)
 
 
 class AvailablePayoff(BaseModel):
@@ -169,8 +174,44 @@ class EarnedSurface(BaseModel):
     relationship_leverage: list[EarnedEntry] = Field(default_factory=list)
     institutional_authority: list[EarnedEntry] = Field(default_factory=list)
     open_setups: list[EarnedEntry] = Field(default_factory=list)
+    actionable_knowledge: list[EarnedEntry] = Field(default_factory=list)
     available_payoffs: list[AvailablePayoff] = Field(default_factory=list)
     hard_unknowns: list[str] = Field(default_factory=list)
+
+
+class RuntimeStateRecord(BaseModel):
+    """A non-CANON runtime record after baseline and projection composition."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    record_id: str = Field(min_length=1)
+    category: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    statement: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    source: str = Field(min_length=1)
+    baseline_entry_id: str | None = None
+    projection_record_id: str | None = None
+    attributes: dict[str, str] = Field(default_factory=dict)
+    evidence: list[BaselineEvidence] = Field(default_factory=list)
+    last_confirmed: int | None = Field(default=None, ge=0)
+
+
+class EffectiveRuntimeState(BaseModel):
+    """Read-only composition of a source baseline and the Canon projection delta."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    state_id: str = Field(min_length=1)
+    book_id: str = Field(min_length=1)
+    edition_id: str = Field(min_length=1)
+    baseline_id: str = Field(min_length=1)
+    projection_event_seq: int = Field(ge=0)
+    projection_hash: str = ""
+    created_at: str = Field(min_length=1)
+    records: dict[str, list[RuntimeStateRecord]] = Field(default_factory=dict)
+    hard_unknowns: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 __all__ = [
@@ -180,8 +221,10 @@ __all__ = [
     "BaselineStatus",
     "EarnedEntry",
     "EarnedSurface",
+    "EffectiveRuntimeState",
     "RuntimeBaseline",
     "RuntimeBaselineEntry",
     "RuntimeBaselineInput",
     "RuntimeBaselineManifest",
+    "RuntimeStateRecord",
 ]
