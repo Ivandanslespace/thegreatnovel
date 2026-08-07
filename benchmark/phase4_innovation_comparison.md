@@ -6,7 +6,7 @@
 
 - 在结构层面，四个边界都成功提供了三种候选 Lens：`CONTINUITY_ACTIVE_THREAD`、`EARNED_OPPORTUNITY`、`FORWARD_EXPANSION`。
 - 在治理层面，四个边界都产生了一个 `FORWARD_NOVELTY`，带有 causal source、introduction event、new state、conflicts checked，并且没有 retroactive claim。
-- 在生成正文层面，四个 `generated/chapter_*.md` 去除边界数字后完全相同，长度均为 181 个字符；因此不能据此宣称 20、35、50、75 章产生了不同的文学创新。
+- 在生成正文层面，四个测试实际生成的 8 个 `generated/chapter_*.md` 去除边界数字后只有 1 种正文模板，长度均为 181 个字符；因此不能据此宣称 20、35、50、75 章产生了不同的文学创新。
 - 隐藏真值只在 generation snapshot 之后读取。它们展示了四个边界原本可能出现的不同剧情方向，但不应被当作生成阶段已经命中的内容。
 
 所以，本轮的准确结论是：
