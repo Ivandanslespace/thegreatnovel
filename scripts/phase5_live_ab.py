@@ -1380,7 +1380,7 @@ def _collect_draft(state: dict[str, Any], *, chapter_offset: int) -> None:
     for book in _ordered_books(state):
         ordinal = int(book["boundary"]) + chapter_offset
         chapter = book["chapters"][str(ordinal)]
-        if chapter.get("draft_import"):
+        if chapter.get("draft_import") and chapter.get("validation", {}).get("passed"):
             continue
         _visible_and_hidden_audit(state, book)
         task = chapter[field]
@@ -1430,7 +1430,7 @@ def _collect_draft(state: dict[str, Any], *, chapter_offset: int) -> None:
                 book,
                 chapter=ordinal,
                 contract=ChapterContract.model_validate_json(
-                    Path(str(book["contract"]["path"])).read_text(encoding="utf-8")
+                    Path(str(chapter["contract"]["path"])).read_text(encoding="utf-8")
                 ),
                 draft=draft_output,
             )
