@@ -4,6 +4,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from novel_authoring.atlas.models import AtlasGraph, InformationStatus
 from novel_authoring.atlas.service import latest_atlas
 from novel_authoring.canon.projection import rebuild_projection
 from novel_authoring.db.database import Database
@@ -61,6 +62,84 @@ def _fact_conflicts(projection: Any) -> list[dict[str, Any]]:
         for key, facts in groups.items()
         if len({fact["object_json"] for fact in facts}) > 1
     ]
+
+
+def atlas_soft_thread_rows(
+    database: Database, book_id: str, edition_id: str
+) -> list[dict[str, Any]]:
+    """Expose initialized Atlas threads as planning-only context.
+
+    Existing long-form books may have a validated Story Atlas before they
+    have any author-declared runtime thread rows. These rows are deliberately
+    marked ``ATLAS_SOFT`` and are never persisted to ``threads`` or Canon.
+    They only keep Boundary/Candidate Planning from treating a usable Atlas
+    as an empty story.
+    """
+    atlas = latest_atlas(database, book_id, edition_id)
+    if atlas is None:
+        return []
+    graph_path = Path(str(atlas["artifact_root"])) / "graphs" / "plot_threads.json"
+    try:
+        graph = AtlasGraph.model_validate_json(graph_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    with database.connect() as connection:
+        chapter_rows = connection.execute(
+            "SELECT chapter_id, ordinal FROM chapters WHERE book_id=?",
+            (book_id,),
+        ).fetchall()
+    chapter_ordinals = {str(row["chapter_id"]): int(row["ordinal"]) for row in chapter_rows}
+    rows: list[dict[str, Any]] = []
+    for node in graph.nodes:
+        if node.lifecycle_status != "ACTIVE":
+            continue
+        if node.information_status not in {
+            InformationStatus.CANON,
+            InformationStatus.AUTHOR_INTENT,
+            InformationStatus.APPROVED_OUTLINE,
+            InformationStatus.INFERENCE,
+        }:
+            continue
+        evidence_chapters = [
+            chapter_ordinals[chapter_id]
+            for chapter_id in node.evidence.chapter_ids
+            if chapter_id in chapter_ordinals
+        ]
+        confidence = float(node.confidence) if isinstance(node.confidence, float) else 0.5
+        importance = min(1.0, max(0.1, confidence))
+        progress = float(node.payload.get("progress", 0.2))
+        rows.append(
+            {
+                "thread_id": node.node_id,
+                "goal": f"{node.name}：{node.description}",
+                "stakes": node.payload.get("stakes", ""),
+                "phase": "active",
+                "introduced_chapter": min(evidence_chapters, default=0),
+                "last_advanced_chapter": max(evidence_chapters, default=0),
+                "importance": importance,
+                "reader_visibility": min(1.0, max(0.1, importance)),
+                "progress": min(1.0, max(0.0, progress)),
+                "status": "ATLAS_SOFT",
+                "source_span_id": (
+                    node.evidence.source_span_ids[0]
+                    if node.evidence.source_span_ids
+                    else ""
+                ),
+                "payload_json": json_dumps(
+                    {
+                        "atlas_soft": True,
+                        "atlas_id": str(atlas["atlas_id"]),
+                        "atlas_version": int(atlas["atlas_version"]),
+                        "node_type": node.node_type,
+                        "information_status": node.information_status.value,
+                        "constraint_level": node.constraint_level.value,
+                        "horizon": node.horizon.value,
+                        "evidence": node.evidence.model_dump(mode="json"),
+                    }
+                ),
+            }
+        )
+    return sorted(rows, key=lambda row: (-float(row["importance"]), str(row["thread_id"])))
 
 
 def _markdown(packet: ContinuationBoundaryPacket) -> str:
@@ -259,6 +338,8 @@ def build_boundary_packet(
             thread_rows.sort(
                 key=lambda row: (-float(row["importance"]), str(row["thread_id"]))
             )
+        if not thread_rows:
+            thread_rows = atlas_soft_thread_rows(database, book_id, selected_edition)
         fts_query = _fts_query([str(row["goal"]) for row in thread_rows[:3]])
         relevant_source_rows: list[Any] = []
         if fts_query is not None:

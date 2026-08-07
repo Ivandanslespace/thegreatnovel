@@ -18,7 +18,12 @@ from novel_authoring.edition import edition_workspace, resolve_edition_id
 from novel_authoring.metrics.formulas import candidate_score, narrative_debt, thread_need
 from novel_authoring.metrics.gates import evaluate_hard_gates
 from novel_authoring.planning.aggregates import build_planning_aggregate
-from novel_authoring.planning.boundary import PlanningError, _workspace, build_boundary_packet
+from novel_authoring.planning.boundary import (
+    PlanningError,
+    _workspace,
+    atlas_soft_thread_rows,
+    build_boundary_packet,
+)
 from novel_authoring.planning.diagnostics import (
     build_narrative_portfolio_snapshot,
     diagnose_candidate_portfolio,
@@ -72,6 +77,7 @@ def rank_threads(
         from novel_authoring.canon.projection import rebuild_projection
 
         projection = rebuild_projection(database, book_id, edition_id=edition_id, persist=False)
+    atlas_rows = atlas_soft_thread_rows(database, book_id, edition_id)
     with database.connect() as connection:
         current_ordinal = _current_ordinal(connection, book_id, edition_id)
         if projection is None:
@@ -85,6 +91,8 @@ def rank_threads(
                 """,
                 (book_id, edition_id),
             ).fetchall()
+            if not rows:
+                rows = atlas_rows
         else:
             rows = []
             for thread_id, value in projection.threads.items():
@@ -101,6 +109,8 @@ def rank_threads(
                 if str(item["phase"]) not in {"resolved", "closed"}:
                     rows.append(item)
             rows.sort(key=lambda row: (-float(row["importance"]), str(row["thread_id"])))
+            if not rows:
+                rows = atlas_rows
         priorities: list[ThreadPriority] = []
         for row in rows:
             payload = json.loads(str(row["payload_json"]))
