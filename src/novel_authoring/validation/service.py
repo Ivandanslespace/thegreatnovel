@@ -6,7 +6,11 @@ from pydantic import ValidationError
 
 from novel_authoring.canon.projection import rebuild_projection
 from novel_authoring.config import Settings, load_settings
-from novel_authoring.context.router import ContextPurpose, route_runtime_context
+from novel_authoring.context.router import (
+    ContextPurpose,
+    RuntimeContextRequest,
+    route_runtime_context,
+)
 from novel_authoring.contracts.draft import DraftOutput
 from novel_authoring.db.database import Database
 from novel_authoring.domain.models import DraftStatus
@@ -30,6 +34,7 @@ def validate_draft(
     settings: Settings | None = None,
     *,
     edition_id: str | None = None,
+    include_runtime_state: bool = True,
 ) -> ValidationBundle:
     database.initialize()
     selected_edition = resolve_edition_id(database, book_id, edition_id)
@@ -68,6 +73,10 @@ def validate_draft(
         book_id,
         edition_id=selected_edition,
         purpose=ContextPurpose.VALIDATION,
+        request=RuntimeContextRequest(
+            purpose=ContextPurpose.VALIDATION,
+            include_runtime_state=include_runtime_state,
+        ),
     )
     context = ValidationContext(
         draft=draft,

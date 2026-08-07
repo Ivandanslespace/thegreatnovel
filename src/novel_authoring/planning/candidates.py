@@ -8,7 +8,11 @@ from typing import Any
 from pydantic import ValidationError
 
 from novel_authoring.config import Settings
-from novel_authoring.context.router import ContextPurpose, route_runtime_context
+from novel_authoring.context.router import (
+    ContextPurpose,
+    RuntimeContextRequest,
+    route_runtime_context,
+)
 from novel_authoring.db.database import Database
 from novel_authoring.edition import edition_workspace, resolve_edition_id
 from novel_authoring.metrics.formulas import candidate_score, narrative_debt, thread_need
@@ -165,6 +169,7 @@ def prepare_candidate_task(
     settings: Settings,
     *,
     edition_id: str | None = None,
+    include_runtime_state: bool = True,
 ) -> dict[str, object]:
     selected_edition = resolve_edition_id(database, book_id, edition_id)
     boundary = build_boundary_packet(
@@ -179,6 +184,10 @@ def prepare_candidate_task(
         book_id,
         edition_id=selected_edition,
         purpose=ContextPurpose.CANDIDATE_PLANNING,
+        request=RuntimeContextRequest(
+            purpose=ContextPurpose.CANDIDATE_PLANNING,
+            include_runtime_state=include_runtime_state,
+        ),
         boundary=boundary_payload,
     )
     threads = rank_threads(database, book_id, settings, edition_id=selected_edition)
@@ -301,6 +310,7 @@ def prepare_candidate_task(
         "schema_sha256": sha256_bytes(schema_json.encode()),
         "created_at": utc_now(),
         "runtime_context": runtime_context.model_dump(mode="json"),
+        "include_runtime_state": include_runtime_state,
     }
     (task_dir / "input.md").write_text(input_text, encoding="utf-8")
     (task_dir / "schema.json").write_text(schema_json + "\n", encoding="utf-8")
@@ -333,6 +343,7 @@ def import_candidate_output(
     output_path: Path | None = None,
     *,
     edition_id: str | None = None,
+    include_runtime_state: bool = True,
 ) -> dict[str, object]:
     database.initialize()
     workspace = _workspace(database, book_id)
@@ -370,8 +381,10 @@ def import_candidate_output(
         raise PlanningError(f"候选 output.json 不符合合同：{exc}") from exc
     if output.task_id != task_id:
         raise PlanningError("候选 output task_id 不匹配")
-    earned_surface = load_earned_surface(
-        database, book_id, edition_id=selected_edition
+    earned_surface = (
+        load_earned_surface(database, book_id, edition_id=selected_edition)
+        if include_runtime_state
+        else None
     )
     portfolio = diagnose_candidate_portfolio(
         output.candidates,

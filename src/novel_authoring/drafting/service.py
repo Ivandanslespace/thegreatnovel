@@ -5,7 +5,11 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from novel_authoring.context.router import ContextPurpose, route_runtime_context
+from novel_authoring.context.router import (
+    ContextPurpose,
+    RuntimeContextRequest,
+    route_runtime_context,
+)
 from novel_authoring.contracts.draft import DraftOutput
 from novel_authoring.db.database import Database
 from novel_authoring.domain.models import DraftStatus
@@ -27,6 +31,7 @@ def prepare_draft_task(
     contract_id: str,
     *,
     edition_id: str | None = None,
+    include_runtime_state: bool = True,
 ) -> dict[str, object]:
     database.initialize()
     selected_edition = resolve_edition_id(database, book_id, edition_id)
@@ -75,6 +80,10 @@ def prepare_draft_task(
         book_id,
         edition_id=selected_edition,
         purpose=ContextPurpose.DRAFT,
+        request=RuntimeContextRequest(
+            purpose=ContextPurpose.DRAFT,
+            include_runtime_state=include_runtime_state,
+        ),
         boundary=boundary_payload,
     )
     schema_json = json_dumps(DraftOutput.model_json_schema(), indent=2)
@@ -139,6 +148,7 @@ def prepare_draft_task(
         "schema_sha256": sha256_bytes(schema_json.encode()),
         "created_at": utc_now(),
         "runtime_context": runtime_context.model_dump(mode="json"),
+        "include_runtime_state": include_runtime_state,
     }
     (task_dir / "input.md").write_text(input_text, encoding="utf-8")
     (task_dir / "schema.json").write_text(schema_json + "\n", encoding="utf-8")

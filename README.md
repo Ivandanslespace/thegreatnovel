@@ -120,6 +120,14 @@ surface 与对应九维软控制。
 Phase 4 的独立多点盲测汇总位于 `benchmark/phase4_summary.md`；每个 20/35/50/75 边界均使用
 独立 Book、独立 preparation/package/baseline，先封存两章生成与十项 Validator，再揭示真值。
 
+Phase 5 的真实 Codex A/B 盲测汇总位于 `benchmark/phase5_real_generation_ab.md`，编排脚本为
+`scripts/phase5_real_generation_ab.py`。它在 35/50/75 三个可见边界分别创建 Distill-only
+（A）与 Distill + Runtime Fused（B）两个隔离 Book，连续生成 N+1/N+2，并保存
+`codex_context_manifest`、候选、合同、草稿、十项校验、`anti_leak_audit` 和
+`template_diagnostics`。A 的 Router 请求显式关闭 `include_runtime_state`，B 才加载
+Runtime Baseline、Effective Runtime、Earned Surface 和 recall；隐藏章节在所有生成工件
+关闭后才读取。该 benchmark 只产生未批准草稿，不创建正式续章或 Canon Commit。
+
 ## 能力
 
 - UTF-8、UTF-8-SIG、GB18030 与中文 Windows 路径；
@@ -315,6 +323,10 @@ uv run --no-sync novel --help
 ```
 
 测试只使用合成小说和固定 agent output，不调用 Codex 或远程模型。真实 `book` 只执行扫描、导入和哈希复核，不自动生成续写。
+
+Phase 5 benchmark 是单独的真实 Codex 桌面端语义验收例外：它仍通过 Local File Handoff
+执行，不调用 API、Codex CLI 或 subprocess；其输出写入被忽略的隔离
+`library/phase5-real-*`，最终报告只提交审计摘要和编排脚本。
 
 ## 版本化改写
 

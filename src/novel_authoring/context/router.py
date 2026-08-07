@@ -51,6 +51,7 @@ class RuntimeContextRequest(BaseModel):
     chapter_range: list[int] | None = None
     runtime_uses: list[str] = Field(default_factory=list)
     reference_scope: str | None = None
+    include_runtime_state: bool = True
 
 
 class RuntimeContextBundle(BaseModel):
@@ -61,6 +62,7 @@ class RuntimeContextBundle(BaseModel):
     edition_id: str
     hard_boundary: dict[str, object]
     hard_constraints: dict[str, object] = Field(default_factory=dict)
+    runtime_state_enabled: bool = True
     effective_runtime_state: EffectiveRuntimeState | None = None
     earned_surface: EarnedSurface | None = None
     observations: list[DistilledObservation] = Field(default_factory=list)
@@ -291,16 +293,24 @@ def route_runtime_context(
         database, book_id, edition_id=selected_edition, persist=False
     )
     hard_boundary = dict(boundary or projection.model_dump(mode="json"))
-    earned = load_earned_surface(database, book_id, edition_id=selected_edition)
-    effective = load_effective_runtime_state(
-        database, book_id, edition_id=selected_edition
+    runtime_state_enabled = selected_request.include_runtime_state
+    earned = (
+        load_earned_surface(database, book_id, edition_id=selected_edition)
+        if runtime_state_enabled
+        else None
+    )
+    effective = (
+        load_effective_runtime_state(database, book_id, edition_id=selected_edition)
+        if runtime_state_enabled
+        else None
     )
     bundle = RuntimeContextBundle(
         request=selected_request,
         book_id=book_id,
         edition_id=selected_edition,
         hard_boundary=hard_boundary,
-        hard_constraints=dict(hard_boundary),
+        hard_constraints=dict(hard_boundary) if runtime_state_enabled else {},
+        runtime_state_enabled=runtime_state_enabled,
         effective_runtime_state=effective,
         earned_surface=earned,
     )
@@ -333,12 +343,13 @@ def route_runtime_context(
             "mapping_summary",
         }
     }
-    bundle.baseline_recall_candidates = discover_runtime_recall_candidates(
-        database,
-        book_id,
-        edition_id=selected_edition,
-        reference=reference,
-    )
+    if runtime_state_enabled:
+        bundle.baseline_recall_candidates = discover_runtime_recall_candidates(
+            database,
+            book_id,
+            edition_id=selected_edition,
+            reference=reference,
+        )
     package_root = Path(str(reference.get("package_root", ""))).expanduser().resolve()
     if not package_root.is_dir():
         bundle.warnings.append("Distill Package machine root 不存在")
