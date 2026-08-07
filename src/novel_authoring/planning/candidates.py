@@ -20,6 +20,10 @@ from novel_authoring.metrics.gates import evaluate_hard_gates
 from novel_authoring.planning.aggregates import build_planning_aggregate
 from novel_authoring.planning.boundary import PlanningError, _workspace, build_boundary_packet
 from novel_authoring.planning.diagnostics import diagnose_candidate_portfolio
+from novel_authoring.planning.innovation import (
+    InnovationControl,
+    resolve_innovation_control,
+)
 from novel_authoring.planning.models import CandidateOutput, CandidateProposal, ThreadPriority
 from novel_authoring.runtime_baseline import load_earned_surface
 from novel_authoring.storage.operations import ensure_operation, find_operation
@@ -170,13 +174,22 @@ def prepare_candidate_task(
     *,
     edition_id: str | None = None,
     include_runtime_state: bool = True,
+    innovation_control: InnovationControl | None = None,
+    innovation_source: str | None = None,
 ) -> dict[str, object]:
+    selected_innovation = innovation_control
+    selected_source = innovation_source or "book_default"
+    if selected_innovation is None:
+        selected_innovation, selected_source = resolve_innovation_control(
+            database, book_id
+        )
     selected_edition = resolve_edition_id(database, book_id, edition_id)
     boundary = build_boundary_packet(
         database,
         book_id,
         recent_full_chapters=settings.recent_full_chapters,
         edition_id=selected_edition,
+        innovation_control=selected_innovation,
     )
     boundary_payload = json.loads(Path(str(boundary["json_path"])).read_text(encoding="utf-8"))
     runtime_context = route_runtime_context(
@@ -224,6 +237,7 @@ def prepare_candidate_task(
             "threads": [item.model_dump(mode="json") for item in threads],
             "metrics": [dict(row) for row in metric_rows],
             "runtime_context": runtime_context.model_dump(mode="json"),
+            "innovation_control": selected_innovation.model_dump(mode="json"),
         }
     )
     task_id = stable_id("plan", seed, sha256_bytes(schema_json.encode()))
@@ -257,10 +271,18 @@ def prepare_candidate_task(
             "必须提交恰好三个结构真正不同的候选；不得只换怪物、资源、地点或社会反馈名词。",
             "候选应分别考虑 CONTINUITY_ACTIVE_THREAD、EARNED_OPPORTUNITY、FORWARD_EXPANSION；"
             "这是三种推理 lens，不是固定配额。",
+            "当前 InnovationControl 的 creative-distance guidance："
+            f"{selected_innovation.creative_distance_guidance}",
+            "当前 soft lens tendency："
+            f"{selected_innovation.lens_tendency_guidance}；这不是配额，也不是 Score Bonus。",
             "所有 FORWARD_NOVELTY 必须填写 introduction_event、causal_source、"
             "new_state_if_committed、conflicts_checked；不得把未来状态倒写成既有事实。",
             "每个候选先填写硬门证据，再填写评分输入与来源；Python 将重新计算门禁、结构差异和总分。",
             "候选只处于 CANDIDATE，不得写正文或升级为 CANON。",
+            "每个候选必须填写 innovation_preview：creative_distance、主要方向、"
+            "打开的 future branches、meaningful/cosmetic 判断与 integration_cost。"
+            "Preview 是作者可读计划，不是 Candidate Score，也不放松任何 hard gate。",
+            "AUTO 方向只提供推荐；若候选实际走向不同方向，必须在 Preview 中如实标注。",
             "",
             "## 三条优先线程",
             "",
@@ -287,6 +309,11 @@ def prepare_candidate_task(
                         Path(str(boundary["json_path"])).read_text(encoding="utf-8")
                     ).get("hook_diagnostics", {}),
                     "runtime_context": runtime_context.model_dump(mode="json"),
+                    "innovation_control": selected_innovation.model_dump(mode="json"),
+                    "innovation_source": selected_source,
+                    "innovation_recommendation": boundary_payload.get(
+                        "innovation_diagnostics", {}
+                    ),
                 },
                 indent=2,
             ),
@@ -311,6 +338,9 @@ def prepare_candidate_task(
         "created_at": utc_now(),
         "runtime_context": runtime_context.model_dump(mode="json"),
         "include_runtime_state": include_runtime_state,
+        "innovation_control": selected_innovation.model_dump(mode="json"),
+        "innovation_source": selected_source,
+        "innovation_recommendation": boundary_payload.get("innovation_diagnostics", {}),
     }
     (task_dir / "input.md").write_text(input_text, encoding="utf-8")
     (task_dir / "schema.json").write_text(schema_json + "\n", encoding="utf-8")
@@ -381,6 +411,11 @@ def import_candidate_output(
         raise PlanningError(f"候选 output.json 不符合合同：{exc}") from exc
     if output.task_id != task_id:
         raise PlanningError("候选 output task_id 不匹配")
+    expected_innovation = InnovationControl.model_validate(
+        metadata.get("innovation_control", {})
+    )
+    if output.innovation_control is not None and output.innovation_control != expected_innovation:
+        raise PlanningError("候选 output 的 innovation_control 与任务冻结值不一致")
     earned_surface = (
         load_earned_surface(database, book_id, edition_id=selected_edition)
         if include_runtime_state

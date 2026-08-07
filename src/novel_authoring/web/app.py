@@ -578,6 +578,14 @@ def create_app(
                     (str(row["contract_id"]),),
                 ).fetchone()
                 draft["contract"] = None if contract is None else dict(contract)
+                try:
+                    draft["contract_payload"] = (
+                        {}
+                        if contract is None
+                        else json.loads(str(contract["contract_json"] or "{}"))
+                    )
+                except ValueError:
+                    draft["contract_payload"] = {"raw": contract["contract_json"]}
                 rhythm = connection.execute(
                     "SELECT snapshot_json FROM rhythm_diagnostic_snapshots "
                     "WHERE book_id=? AND edition_id=? ORDER BY as_of_chapter DESC, "

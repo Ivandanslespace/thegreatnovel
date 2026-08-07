@@ -4,6 +4,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from novel_authoring.planning.innovation import (
+    InnovationControl,
+    InnovationDirectionAlignment,
+    InnovationTrace,
+)
+
 StateChangeKind = Literal[
     "fact",
     "timeline",
@@ -55,5 +61,7 @@ class DraftOutput(BaseModel):
     promises_paid: list[str] = Field(default_factory=list)
     new_major_hooks: int = Field(default=0, ge=0)
     structure_tags: list[str] = Field(default_factory=list)
+    innovation_control: InnovationControl | None = None
+    innovation_trace: InnovationTrace | None = None
+    direction_alignment: InnovationDirectionAlignment | None = None
     notes: list[str] = Field(default_factory=list)
-

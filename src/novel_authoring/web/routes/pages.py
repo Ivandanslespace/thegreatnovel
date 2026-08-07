@@ -9,6 +9,7 @@ from novel_authoring.initialization.service import latest_initialization
 from novel_authoring.metrics.registry import load_registry
 from novel_authoring.metrics.segments import list_segments, rebuild_segments
 from novel_authoring.metrics.service import MetricsAssembler, ObservationResolver
+from novel_authoring.planning.innovation import load_book_innovation_control
 from novel_authoring.web.routes.jobs import list_handoffs
 
 
@@ -384,4 +385,10 @@ def dashboard_context(database: Any, book_id: str) -> dict[str, Any]:
 
 
 def workflow_context(database: Any, book_id: str) -> dict[str, Any]:
-    return {"book_id": book_id, "handoffs": list_handoffs(database, book_id)}
+    return {
+        "book_id": book_id,
+        "handoffs": list_handoffs(database, book_id),
+        "innovation_default": load_book_innovation_control(database, book_id).model_dump(
+            mode="json"
+        ),
+    }

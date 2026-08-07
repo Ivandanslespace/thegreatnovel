@@ -20,6 +20,7 @@ from novel_authoring.config import load_settings
 from novel_authoring.db.database import Database
 from novel_authoring.edition import edition_chapters, resolve_edition_id
 from novel_authoring.metrics.registry import load_registry
+from novel_authoring.planning.innovation import InnovationControl, resolve_innovation_control
 from novel_authoring.storage.layout import BookLayout
 from novel_authoring.storage.manifest import authority_path, manifest_hash
 from novel_authoring.utils import json_dumps, sha256_bytes, stable_id, utc_now
@@ -78,6 +79,7 @@ class BatchPlan(BaseModel):
     config_hash: str
     author_directives_hash: str
     metric_bundle_hash: str
+    innovation_control: InnovationControl = Field(default_factory=InnovationControl)
     chunks: list[BatchChunkPlan]
 
     @model_validator(mode="after")
@@ -131,6 +133,8 @@ class BatchProvisionalState(BaseModel):
     config_hash: str = ""
     author_directives_hash: str = ""
     metric_bundle_hash: str = ""
+    innovation_control: InnovationControl = Field(default_factory=InnovationControl)
+    innovation_source: str = "book_default"
     last_checkpoint_ordinal: int = Field(default=0, ge=0)
     provisional_events: list[dict[str, Any]] = Field(default_factory=list)
     provisional_facts: list[dict[str, Any]] = Field(default_factory=list)
@@ -394,6 +398,7 @@ def _batch_plan(
     config_hash: str,
     author_directives_hash: str,
     metric_bundle_hash: str,
+    innovation_control: InnovationControl,
 ) -> BatchPlan:
     chunks: list[BatchChunkPlan] = []
     remaining = target
@@ -445,6 +450,7 @@ def _batch_plan(
         config_hash=config_hash,
         author_directives_hash=author_directives_hash,
         metric_bundle_hash=metric_bundle_hash,
+        innovation_control=innovation_control,
         chunks=chunks,
     )
 
@@ -458,6 +464,7 @@ def create_batch(
     atlas_id: str | None = None,
     chunk_size: int = 5,
     checkpoint_interval: int = 10,
+    innovation_control: InnovationControl | None = None,
 ) -> dict[str, Any]:
     if target_chapter_count <= 0:
         raise BatchError("Batch 目标章节数必须大于 0")
@@ -465,6 +472,10 @@ def create_batch(
         raise BatchError("chunk_size/checkpoint_interval 必须大于 0")
     database.initialize()
     selected = resolve_edition_id(database, book_id, edition_id)
+    selected_innovation = innovation_control
+    innovation_source = "operation_override" if innovation_control is not None else "book_default"
+    if selected_innovation is None:
+        selected_innovation, innovation_source = resolve_innovation_control(database, book_id)
     base_event_seq, base_hash, current, effective_content_hash = _anchor(
         database, book_id, selected
     )
@@ -535,6 +546,8 @@ def create_batch(
         "canon_committed": False,
         "canon_commit_id": None,
         "last_checkpoint_ordinal": current,
+        "innovation_control": selected_innovation.model_dump(mode="json"),
+        "innovation_source": innovation_source,
     }
     current_hash = _state_hash(state)
     plan = _batch_plan(
@@ -556,6 +569,7 @@ def create_batch(
         config_hash,
         directives_hash,
         metric_bundle_hash,
+        selected_innovation,
     )
     root = _batch_root(database, book_id, selected, batch_id)
     root.mkdir(parents=True, exist_ok=False)

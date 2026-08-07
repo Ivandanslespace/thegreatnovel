@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from novel_authoring.metrics.models import MetricComponentStatus, ObservationSourceKind
+from novel_authoring.planning.innovation import InnovationFocus, InnovationLevel
 
 
 class AuthorInputRequest(BaseModel):
@@ -34,6 +35,9 @@ class HandoffRequest(BaseModel):
     requested_stage: str
     edition_id: str | None = None
     require_complete_metrics: bool = False
+    innovation_level: InnovationLevel | None = None
+    innovation_focus: list[InnovationFocus] | None = None
+    save_as_book_default: bool = False
 
 
 class RetractRequest(BaseModel):

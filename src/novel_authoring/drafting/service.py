@@ -116,6 +116,12 @@ def prepare_draft_task(
             "",
             "严格依据下面的 Boundary Packet 与 Chapter Contract 写正文。",
             "正文不得声明新事实已自动进入正史；state_changes 必须逐项给出正文短证据。",
+            "按 Chapter Contract 中冻结的 InnovationControl 执行；它只改变创作距离，"
+            "不改变 Canon、Timeline、Knowledge、Capability、Resource、Approval 或 "
+            "Edition hard gates。",
+            f"Creative-distance guidance：{contract.innovation_control.creative_distance_guidance}",
+            "Lens tendency："
+            f"{contract.innovation_control.lens_tendency_guidance}；不得把它写成 Score Bonus。",
             "只写 output.json，不要修改 book；系统会把合法正文导入 drafts。",
             "",
             "## Continuation Boundary Packet",
@@ -133,6 +139,15 @@ def prepare_draft_task(
             "```json",
             json_dumps(runtime_context.model_dump(mode="json"), indent=2),
             "```",
+            "",
+            (
+                "本次是 Planning-only Runtime 消融：Draft 阶段不得读取 raw Runtime Baseline、"
+                "Earned Surface 或 Effective Runtime 表；只使用 Contract、最近正文和 "
+                "style/dialogue/narrative controls。"
+                if not include_runtime_state
+                else "本次是 Full Runtime Draft：Runtime 只能影响角色行动和规划兑现，"
+                "不得把工程字段写进小说正文。"
+            ),
         ]
     )
     metadata = {
@@ -149,6 +164,9 @@ def prepare_draft_task(
         "created_at": utc_now(),
         "runtime_context": runtime_context.model_dump(mode="json"),
         "include_runtime_state": include_runtime_state,
+        "runtime_ablation": "FULL_RUNTIME" if include_runtime_state else "PLANNING_ONLY",
+        "raw_runtime_tables_loaded": include_runtime_state,
+        "innovation_control": contract.innovation_control.model_dump(mode="json"),
     }
     (task_dir / "input.md").write_text(input_text, encoding="utf-8")
     (task_dir / "schema.json").write_text(schema_json + "\n", encoding="utf-8")
@@ -209,6 +227,19 @@ def import_draft_output(
         raise DraftWorkflowError(f"Draft output 不符合合同：{exc}") from exc
     if output.task_id != task_id or output.contract_id != metadata["contract_id"]:
         raise DraftWorkflowError("Draft output 的 task_id/contract_id 不匹配")
+    contract_row = None
+    with database.connect() as connection:
+        contract_row = connection.execute(
+            "SELECT contract_json FROM chapter_contracts WHERE contract_id=? AND book_id=?",
+            (output.contract_id, book_id),
+        ).fetchone()
+    if contract_row is not None:
+        contract = ChapterContract.model_validate_json(str(contract_row["contract_json"]))
+        expected = contract.innovation_control
+        if output.innovation_control is not None and output.innovation_control != expected:
+            raise DraftWorkflowError(
+                "Draft output 的 innovation_control 与 Chapter Contract 不一致"
+            )
     content = output.prose_markdown.strip() + "\n"
     content_hash = sha256_bytes(content.encode())
     draft_id = stable_id("draft", output.contract_id, str(metadata["revision"]), content_hash)

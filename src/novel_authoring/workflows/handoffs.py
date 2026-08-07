@@ -20,6 +20,10 @@ from novel_authoring.metrics.registry import load_registry
 from novel_authoring.metrics.service import MetricsAssembler
 from novel_authoring.planning.aggregates import build_planning_aggregate
 from novel_authoring.planning.batch import get_batch_plan, get_batch_projection
+from novel_authoring.planning.innovation import (
+    InnovationControl,
+    resolve_innovation_control,
+)
 from novel_authoring.storage.layout import BookLayout
 from novel_authoring.storage.manifest import authority_path, manifest_hash
 from novel_authoring.utils import json_dumps, sha256_bytes, sha256_file, stable_id, utc_now
@@ -347,6 +351,8 @@ def create_handoff(
     atlas_id: str | None = None,
     batch_id: str | None = None,
     distill_request: dict[str, Any] | None = None,
+    innovation_control: InnovationControl | None = None,
+    innovation_source: str | None = None,
 ) -> dict[str, Any]:
     database.initialize()
     selected = resolve_edition_id(database, book_id, edition_id)
@@ -364,6 +370,21 @@ def create_handoff(
     edition_status = None if edition_row is None else str(edition_row["status"])
     initialization_handoff = handoff_type is HandoffType.NOVEL_INITIALIZATION
     distill_handoff = handoff_type is HandoffType.NOVEL_DISTILLATION
+    selected_innovation: InnovationControl | None = None
+    requested_innovation_source = innovation_source
+    innovation_source = ""
+    if handoff_type in {
+        HandoffType.CONTINUATION,
+        HandoffType.REVISION,
+        HandoffType.BATCH_CONTINUATION,
+    }:
+        if innovation_control is not None:
+            selected_innovation = innovation_control
+            innovation_source = requested_innovation_source or "operation_override"
+        else:
+            selected_innovation, innovation_source = resolve_innovation_control(
+                database, book_id
+            )
     if initialization_handoff or distill_handoff:
         # Initialization and distill are upstream analysis handoffs. They must
         # not require a planning aggregate or a completed metric run.
@@ -453,6 +474,9 @@ def create_handoff(
         if not batch_plan_path.is_file():
             raise HandoffWorkflowError("Batch plan 文件不存在")
         batch_plan_hash = sha256_file(batch_plan_path)
+        if innovation_control is None:
+            selected_innovation = batch_plan.innovation_control
+            innovation_source = "batch_frozen"
     else:
         batch_projection = None
         batch_plan = None
@@ -550,6 +574,12 @@ def create_handoff(
         "readiness_status": readiness_status,
         "batch_id": batch_id,
         "batch_plan_hash": batch_plan_hash,
+        "innovation_control": (
+            None
+            if selected_innovation is None
+            else selected_innovation.model_dump(mode="json")
+        ),
+        "innovation_source": innovation_source or None,
         "atlas_output_directory": str(atlas_output_directory),
         "atlas_required_artifacts": [
             "atlas_manifest.json",
@@ -691,6 +721,15 @@ def create_handoff(
             " 当前 edition 还有一个已发布的 distill_reference；只能读取其抽象写作控制，"
             "不得把来源事实当作 Canon。"
         )
+    if selected_innovation is not None:
+        atlas_instruction += (
+            f" 本次 InnovationControl={json_dumps(selected_innovation.model_dump(mode='json'))}；"
+            f"creative-distance guidance={selected_innovation.creative_distance_guidance}；"
+            f"lens tendency={selected_innovation.lens_tendency_guidance}；"
+            "只控制 creative distance 与 future branch surface，绝不放松 Canon、Timeline、"
+            "Knowledge、Capability、Resource、Author Directive、Approval 或 Edition hard gates。"
+            "三个 Candidate Lens 必须全部保留。"
+        )
     prompt = (
         "$process-novel-handoff\n\n"
         "请先使用仓库内的 $process-novel-handoff Skill，领取并验证 "
@@ -722,6 +761,8 @@ def create_handoff(
         "readiness_status": task["readiness_status"],
         "batch_id": task["batch_id"],
         "batch_plan_hash": task["batch_plan_hash"],
+        "innovation_control": task["innovation_control"],
+        "innovation_source": task["innovation_source"],
         "atlas_required_artifacts": task["atlas_required_artifacts"],
         "effective_content_sha256": task["effective_content_sha256"],
         "edition_status": edition_status,

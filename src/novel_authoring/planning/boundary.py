@@ -14,6 +14,12 @@ from novel_authoring.edition import (
     resolve_edition_id,
 )
 from novel_authoring.ingest.service import verify_sources
+from novel_authoring.planning.innovation import (
+    InnovationControl,
+    InnovationDiagnostics,
+    recommend_innovation_focus,
+    resolve_innovation_control,
+)
 from novel_authoring.planning.models import (
     BoundaryChapter,
     ContinuationBoundaryPacket,
@@ -99,6 +105,12 @@ def _markdown(packet: ContinuationBoundaryPacket) -> str:
         "伏笔动作队列": packet.hook_diagnostics,
         "Story Atlas anchor": packet.story_atlas_anchor,
         "Batch anchor": packet.batch_anchor,
+        "Innovation Control": packet.innovation_control.model_dump(mode="json"),
+        "Innovation diagnostics": (
+            None
+            if packet.innovation_diagnostics is None
+            else packet.innovation_diagnostics.model_dump(mode="json")
+        ),
         "警告": packet.warnings,
     }
     for title, value in sections.items():
@@ -132,6 +144,7 @@ def build_boundary_packet(
     recent_full_chapters: int = 3,
     edition_id: str | None = None,
     batch_id: str | None = None,
+    innovation_control: InnovationControl | None = None,
 ) -> dict[str, object]:
     database.initialize()
     workspace_root = _workspace(database, book_id)
@@ -139,6 +152,11 @@ def build_boundary_packet(
     if not verification["ok"]:
         raise PlanningError("源文件 SHA-256 校验失败，禁止建立续写边界")
     selected_edition = resolve_edition_id(database, book_id, edition_id)
+    selected_innovation = innovation_control
+    if selected_innovation is None:
+        selected_innovation, _ = resolve_innovation_control(
+            database, book_id
+        )
     workspace = edition_workspace(database, book_id, selected_edition)
     projection = rebuild_projection(database, book_id, edition_id=selected_edition)
     conflicts = _fact_conflicts(projection)
@@ -379,6 +397,25 @@ def build_boundary_packet(
         warnings.append("更早章节尚无结构化摘要；当前仅依赖 Canon Projection 与最近原文")
     if replaced_ids:
         warnings.append("改写章节的旧摘要已从本 edition 边界排除；请重新生成 edition 摘要")
+    recommendation = recommend_innovation_focus(
+        active_threads=[dict(row) for row in thread_rows],
+        relationships=projection.relationships,
+        capabilities=projection.capabilities,
+        recent_structures=[dict(row) for row in structure_rows],
+        open_setups=list(projection.promises.values()),
+        available_payoffs=list(projection.payoffs.values()),
+    )
+    innovation_diagnostics = InnovationDiagnostics(
+        window_chapters=[int(row["ordinal"]) for row in recent_rows],
+        recent_pattern_distance=recommendation.pattern_distance,
+        repeated_patterns=[
+            str(item.get("pattern"))
+            for item in [dict(row) for row in structure_rows[:5]]
+            if item.get("pattern")
+        ],
+        open_novelty_debt=[],
+        recommendation=recommendation,
+    )
     packet_seed = json_dumps(
         {
             "book_id": book_id,
@@ -400,6 +437,8 @@ def build_boundary_packet(
             "hook_diagnostics": hook_diagnostics,
             "story_atlas_anchor": atlas_anchor,
             "batch_anchor": batch_anchor,
+            "innovation_control": selected_innovation.model_dump(mode="json"),
+            "innovation_diagnostics": innovation_diagnostics.model_dump(mode="json"),
             },
         }
     )
@@ -448,6 +487,8 @@ def build_boundary_packet(
         hook_diagnostics=hook_diagnostics,
         story_atlas_anchor=atlas_anchor,
         batch_anchor=batch_anchor,
+        innovation_control=selected_innovation,
+        innovation_diagnostics=innovation_diagnostics,
         warnings=warnings,
     )
     packet_json = json_dumps(packet.model_dump(mode="json"), indent=2)

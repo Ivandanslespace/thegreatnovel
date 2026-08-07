@@ -104,12 +104,33 @@
   }
 
   document.querySelectorAll("form[data-api-form]").forEach(function (form) {
+    form.querySelectorAll('[data-innovation-auto]').forEach(function (auto) {
+      auto.addEventListener("change", function () {
+        if (!auto.checked) return;
+        form.querySelectorAll('input[name="innovation_focus"]:not([data-innovation-auto])').forEach(function (item) {
+          item.checked = false;
+        });
+      });
+    });
+    form.querySelectorAll('input[name="innovation_focus"]:not([data-innovation-auto])').forEach(function (item) {
+      item.addEventListener("change", function () {
+        if (item.checked) {
+          const auto = form.querySelector('[data-innovation-auto]');
+          if (auto) auto.checked = false;
+        }
+      });
+    });
     form.addEventListener("submit", function (event) {
       event.preventDefault();
       const formData = new FormData(form);
       const payload = {};
       formData.forEach(function (value, key) {
         if (key === "evidence_segment_ids") return;
+        if (key === "innovation_focus") {
+          if (!Array.isArray(payload[key])) payload[key] = [];
+          payload[key].push(String(value));
+          return;
+        }
         payload[key] = value;
       });
       const evidenceSegments = Array.from(form.querySelectorAll('[data-evidence-segment]:checked')).slice(0, 2);

@@ -84,6 +84,10 @@ from novel_authoring.planning.batch import (
 from novel_authoring.planning.boundary import PlanningError, build_boundary_packet
 from novel_authoring.planning.candidates import import_candidate_output, prepare_candidate_task
 from novel_authoring.planning.contracts import build_chapter_contract
+from novel_authoring.planning.innovation import (
+    parse_focus_option,
+    resolve_innovation_control,
+)
 from novel_authoring.revision import (
     REVISION_APPROVAL_PHRASE,
     RevisionWorkflowError,
@@ -879,17 +883,28 @@ def boundary_build_command(
     config: ConfigPath = None,
     edition_id: EditionId = None,
     batch_id: Annotated[Optional[str], typer.Option("--batch-id")] = None,
+    innovation_level: Annotated[Optional[str], typer.Option("--innovation-level")] = None,
+    innovation_focus: Annotated[Optional[str], typer.Option("--innovation-focus")] = None,
+    save_as_book_default: Annotated[bool, typer.Option("--save-as-book-default")] = False,
 ) -> None:
     """在任何正文步骤之前建立并保存续写边界包。"""
     settings = load_settings(config)
     database = Database(workspace.resolve() / safe_book_id(book_id) / "state.sqlite3")
     try:
+        control, _source = resolve_innovation_control(
+            database,
+            book_id,
+            level=innovation_level,
+            focus=parse_focus_option(innovation_focus),
+            save_as_book_default=save_as_book_default,
+        )
         result = build_boundary_packet(
             database,
             book_id,
             recent_full_chapters=settings.recent_full_chapters,
             edition_id=edition_id,
             batch_id=batch_id,
+            innovation_control=control,
         )
     except (PlanningError, OSError, ValueError) as exc:
         typer.echo(str(exc), err=True)
@@ -905,6 +920,9 @@ def plan_next_command(
     task_id: Annotated[Optional[str], typer.Option("--task-id")] = None,
     output: Annotated[Optional[Path], typer.Option("--output")] = None,
     edition_id: EditionId = None,
+    innovation_level: Annotated[Optional[str], typer.Option("--innovation-level")] = None,
+    innovation_focus: Annotated[Optional[str], typer.Option("--innovation-focus")] = None,
+    save_as_book_default: Annotated[bool, typer.Option("--save-as-book-default")] = False,
 ) -> None:
     """准备三个候选任务，或验证、评分并导入候选 output.json。"""
     settings = load_settings(config)
@@ -913,8 +931,24 @@ def plan_next_command(
         if task_id is None:
             if output is not None:
                 raise PlanningError("提供 --output 时必须同时提供 --task-id")
-            result = prepare_candidate_task(database, book_id, settings, edition_id=edition_id)
+            control, source = resolve_innovation_control(
+                database,
+                book_id,
+                level=innovation_level,
+                focus=parse_focus_option(innovation_focus),
+                save_as_book_default=save_as_book_default,
+            )
+            result = prepare_candidate_task(
+                database,
+                book_id,
+                settings,
+                edition_id=edition_id,
+                innovation_control=control,
+                innovation_source=source,
+            )
         else:
+            if innovation_level is not None or innovation_focus is not None or save_as_book_default:
+                raise PlanningError("候选 import 使用任务创建时冻结的 InnovationControl")
             result = import_candidate_output(
                 database,
                 book_id,
@@ -1212,10 +1246,23 @@ def revision_create_command(
     workspace: Workspace = Path("workspace"),
     library_root: LibraryRoot = None,
     campaign_id: Annotated[Optional[str], typer.Option("--campaign-id")] = None,
+    innovation_level: Annotated[Optional[str], typer.Option("--innovation-level")] = None,
+    innovation_focus: Annotated[Optional[str], typer.Option("--innovation-focus")] = None,
+    save_as_book_default: Annotated[bool, typer.Option("--save-as-book-default")] = False,
 ) -> None:
     """校验并持久化 RevisionSpec。"""
     database = _book_database(workspace, book_id, library_root)
     try:
+        focus = parse_focus_option(innovation_focus)
+        control = None
+        if innovation_level is not None or focus is not None or save_as_book_default:
+            control, _source = resolve_innovation_control(
+                database,
+                book_id,
+                level=innovation_level,
+                focus=focus,
+                save_as_book_default=save_as_book_default,
+            )
         _emit(
             create_revision_campaign(
                 database,
@@ -1223,6 +1270,7 @@ def revision_create_command(
                 spec,
                 edition_id=edition_id,
                 campaign_id=campaign_id,
+                innovation_control=control,
             )
         )
     except (RevisionWorkflowError, OSError, ValueError) as exc:
@@ -2287,17 +2335,32 @@ def batch_create_command(
     atlas_id: Optional[str] = typer.Option(None, "--atlas-id"),
     chunk_size: int = typer.Option(5, "--chunk-size"),
     checkpoint_interval: int = typer.Option(10, "--checkpoint-interval"),
+    innovation_level: Annotated[Optional[str], typer.Option("--innovation-level")] = None,
+    innovation_focus: Annotated[Optional[str], typer.Option("--innovation-focus")] = None,
+    save_as_book_default: Annotated[bool, typer.Option("--save-as-book-default")] = False,
 ) -> None:
     try:
+        database = _book_database(workspace, book_id)
+        focus = parse_focus_option(innovation_focus)
+        control = None
+        if innovation_level is not None or focus is not None or save_as_book_default:
+            control, _source = resolve_innovation_control(
+                database,
+                book_id,
+                level=innovation_level,
+                focus=focus,
+                save_as_book_default=save_as_book_default,
+            )
         _emit(
             create_batch(
-                _book_database(workspace, book_id),
+                database,
                 book_id,
                 target_chapter_count=target_chapter_count,
                 edition_id=edition_id,
                 atlas_id=atlas_id,
                 chunk_size=chunk_size,
                 checkpoint_interval=checkpoint_interval,
+                innovation_control=control,
             )
         )
     except Exception as exc:
@@ -2379,9 +2442,20 @@ def workflow_continuation_command(
     book_id: BookId = typer.Option(...), requested_stage: str = typer.Option("DRAFT_AND_VALIDATE", "--stage"),
     workspace: Workspace = Path("workspace"), edition_id: EditionId = None,
     library_root: LibraryRoot = None,
+    innovation_level: Annotated[Optional[str], typer.Option("--innovation-level")] = None,
+    innovation_focus: Annotated[Optional[str], typer.Option("--innovation-focus")] = None,
+    save_as_book_default: Annotated[bool, typer.Option("--save-as-book-default")] = False,
 ) -> None:
     try:
-        _emit(create_continuation_handoff(_book_database(workspace, book_id, library_root), book_id, edition_id=edition_id, requested_stage=requested_stage))
+        database = _book_database(workspace, book_id, library_root)
+        control, source = resolve_innovation_control(
+            database,
+            book_id,
+            level=innovation_level,
+            focus=parse_focus_option(innovation_focus),
+            save_as_book_default=save_as_book_default,
+        )
+        _emit(create_continuation_handoff(database, book_id, edition_id=edition_id, requested_stage=requested_stage, innovation_control=control, innovation_source=source))
     except (HandoffWorkflowError, ValueError, OSError) as exc:
         typer.echo(str(exc), err=True); raise typer.Exit(code=3) from exc
 
@@ -2391,9 +2465,20 @@ def workflow_revision_command(
     book_id: BookId = typer.Option(...), requested_stage: str = typer.Option("DRAFT_SELECTED_UNITS", "--stage"),
     workspace: Workspace = Path("workspace"), edition_id: EditionId = None,
     library_root: LibraryRoot = None,
+    innovation_level: Annotated[Optional[str], typer.Option("--innovation-level")] = None,
+    innovation_focus: Annotated[Optional[str], typer.Option("--innovation-focus")] = None,
+    save_as_book_default: Annotated[bool, typer.Option("--save-as-book-default")] = False,
 ) -> None:
     try:
-        _emit(create_revision_handoff(_book_database(workspace, book_id, library_root), book_id, edition_id=edition_id, requested_stage=requested_stage))
+        database = _book_database(workspace, book_id, library_root)
+        control, source = resolve_innovation_control(
+            database,
+            book_id,
+            level=innovation_level,
+            focus=parse_focus_option(innovation_focus),
+            save_as_book_default=save_as_book_default,
+        )
+        _emit(create_revision_handoff(database, book_id, edition_id=edition_id, requested_stage=requested_stage, innovation_control=control, innovation_source=source))
     except (HandoffWorkflowError, ValueError, OSError) as exc:
         typer.echo(str(exc), err=True); raise typer.Exit(code=3) from exc
 

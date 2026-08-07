@@ -32,6 +32,10 @@ from novel_authoring.edition import (
     resolve_edition_id,
 )
 from novel_authoring.ingest.service import verify_sources
+from novel_authoring.planning.innovation import (
+    InnovationControl,
+    load_book_innovation_control,
+)
 from novel_authoring.revision.models import (
     ImpactAuditDecision,
     ImpactAuditOutput,
@@ -150,8 +154,12 @@ def _campaign_row(database: Database, book_id: str, campaign_id: str) -> sqlite3
 def _spec_from_campaign(row: sqlite3.Row) -> RevisionSpec:
     try:
         raw = json.loads(str(row["target_scope_json"]))
+        innovation_payload = None
         if isinstance(raw, dict) and "_spec" in raw:
             raw = raw["_spec"]
+        if isinstance(raw, dict):
+            raw = dict(raw)
+            innovation_payload = raw.pop("_innovation_control", None)
         return RevisionSpec(
             campaign_name=str(row["campaign_name"]),
             revision_kind=cast(Any, str(row["revision_kind"])),
@@ -167,6 +175,7 @@ def _spec_from_campaign(row: sqlite3.Row) -> RevisionSpec:
             propagation_rules=json.loads(str(row["propagation_rules_json"])),
             style_policy=json.loads(str(row["style_policy_json"])),
             completion_policy=json.loads(str(row["completion_policy_json"])),
+            innovation_control=InnovationControl.model_validate(innovation_payload or {}),
         )
     except (TypeError, ValueError, ValidationError, json.JSONDecodeError) as exc:
         raise RevisionWorkflowError("campaign 的 RevisionSpec 持久化内容无效") from exc
@@ -235,6 +244,7 @@ def create_revision_campaign(
     *,
     edition_id: str | None = None,
     campaign_id: str | None = None,
+    innovation_control: InnovationControl | None = None,
 ) -> dict[str, object]:
     """Create a campaign.  Supports both ``(book, spec, edition_id=...)`` and
     the convenient ``(book, edition_id, spec)`` calling convention.
@@ -247,8 +257,14 @@ def create_revision_campaign(
     else:
         spec_value = spec_or_edition
     spec = _load_spec(spec_value)
+    if innovation_control is not None:
+        spec = spec.model_copy(update={"innovation_control": innovation_control})
     database.initialize()
     ensure_base_edition(database, book_id)
+    if innovation_control is None and "innovation_control" not in spec.model_fields_set:
+        spec = spec.model_copy(
+            update={"innovation_control": load_book_innovation_control(database, book_id)}
+        )
     selected_edition = resolve_edition_id(database, book_id, edition_id)
     edition = get_edition(database, book_id, selected_edition)
     if edition.status is EditionStatus.ARCHIVED:
@@ -268,6 +284,7 @@ def create_revision_campaign(
     spec_schema_path = root / "revision_spec.schema.json"
     _write_json(spec_schema_path, RevisionSpec.model_json_schema())
     target_wrapper = spec.target_scope.model_dump(mode="json")
+    target_wrapper["_innovation_control"] = spec.innovation_control.model_dump(mode="json")
     campaign_event_seq, campaign_projection_hash = _edition_projection_anchor(
         database, book_id, selected_edition
     )
@@ -342,6 +359,7 @@ def create_revision_campaign(
         "base_event_seq": edition.base_event_seq,
         "base_projection_hash": edition.base_projection_hash,
         "source_manifest_sha256": edition.source_manifest_sha256,
+        "innovation_control": spec.innovation_control.model_dump(mode="json"),
     }
 
 
@@ -1035,6 +1053,7 @@ def build_revision_plan(database: Database, book_id: str, campaign_id: str) -> d
         "base_projection_hash": _campaign_anchor(row)[1],
         "units": [unit.model_dump(mode="json") for unit in units],
         "dependency_order": [unit.unit_id for unit in units],
+        "innovation_control": spec.innovation_control.model_dump(mode="json"),
         "created_at": utc_now(),
     }
     plan_path = root / "revision_plan.json"
@@ -1052,6 +1071,7 @@ def build_revision_plan(database: Database, book_id: str, campaign_id: str) -> d
             "campaign_id": campaign_id,
             "input": str(plan_path),
             "schema": "RevisionUnit[]",
+            "innovation_control": spec.innovation_control.model_dump(mode="json"),
         },
     )
     return {
@@ -1073,6 +1093,8 @@ def prepare_revision_draft_task(
         str(_campaign_row(database, book_id, campaign_id)["edition_id"]),
         campaign_id,
     )
+    campaign = _campaign_row(database, book_id, campaign_id)
+    innovation_control = _spec_from_campaign(campaign).innovation_control
     with database.connect() as connection:
         row = connection.execute(
             "SELECT * FROM revision_units WHERE campaign_id=? AND unit_id=?", (campaign_id, unit_id)
@@ -1137,6 +1159,7 @@ def prepare_revision_draft_task(
         "plan_sha256": plan_hash,
         "allowed_revision_numbers": [1, 2, 3],
         "output_must_be": "REVISION_DRAFT",
+        "innovation_control": innovation_control.model_dump(mode="json"),
     }
     _write_json(task_path, task)
     return {
@@ -1178,6 +1201,11 @@ def import_revision_draft(
         raise RevisionWorkflowError("Revision Draft task 文件不可读") from exc
     if output.task_id != str(task_data.get("task_id")):
         raise RevisionWorkflowError("草稿 task_id 与任务文件不一致")
+    expected_innovation = InnovationControl.model_validate(
+        task_data.get("innovation_control", {})
+    )
+    if output.innovation_control is not None and output.innovation_control != expected_innovation:
+        raise RevisionWorkflowError("Revision Draft 的 innovation_control 与任务冻结值不一致")
     for field in ("packet_sha256", "plan_sha256", "schema_sha256"):
         supplied = str(getattr(output, field, ""))
         expected = str(task_data.get(field, ""))

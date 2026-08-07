@@ -33,6 +33,15 @@
       <section><h3>Candidate / selected</h3><ul>{% for candidate in draft.candidates %}<li><code>{{ candidate.candidate_id }}</code> · rank {{ candidate.rank }} · {{ candidate.primary_function }} · {{ candidate.selection_status }}</li>{% else %}<li>暂无候选。</li>{% endfor %}</ul><p>Selected Candidate：<code>{{ draft.candidate_id or '—' }}</code></p><h3>Chapter Contract</h3><pre>{{ draft.contract|tojson(indent=2) }}</pre></section>
       <section><h3>Rhythm diagnostics</h3><pre>{{ draft.rhythm|tojson(indent=2) }}</pre><h3>Promise changes / debt</h3><pre>{{ draft.promises|tojson(indent=2) }}</pre><h3>State Changes</h3><pre>{{ draft.state_changes|tojson(indent=2) }}</pre></section>
     </div>
+    <section class="panel-subsection"><h3>Innovation Control（作者设置 / 实际结果）</h3>
+      <p class="muted">InnovationControl 只改变 creative distance 与 future branch surface，不放松 Canon、Timeline、Knowledge、Capability、Resource 或 Approval hard gates。</p>
+      <pre>{{ {
+        "requested": draft.output.get("innovation_control"),
+        "candidate_preview": draft.contract_payload.get("innovation_preview"),
+        "realized_trace": draft.output.get("innovation_trace"),
+        "direction_alignment": draft.output.get("direction_alignment")
+      }|tojson(indent=2) }}</pre>
+    </section>
     <details class="approval-preview"><summary>Approval Preview（只读）</summary><pre>{{ draft.approval_preview|tojson(indent=2) }}</pre><p class="muted">批准前仍需作者当前明确确认；当前页面不会运行 <code>novel approve</code>。</p></details>
   </article>
   {% else %}<section class="panel"><p>暂无草稿。</p></section>{% endfor %}

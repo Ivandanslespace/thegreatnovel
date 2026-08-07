@@ -5,6 +5,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from novel_authoring.contracts.draft import DraftStateChange
+from novel_authoring.planning.innovation import (
+    InnovationControl,
+    InnovationDirectionAlignment,
+    InnovationTrace,
+)
 
 
 class RevisionTargetScope(BaseModel):
@@ -70,6 +75,7 @@ class RevisionSpec(BaseModel):
     propagation_rules: list[str] = Field(default_factory=list)
     style_policy: dict[str, Any] = Field(default_factory=dict)
     completion_policy: dict[str, Any] = Field(default_factory=dict)
+    innovation_control: InnovationControl = Field(default_factory=InnovationControl)
 
 
 class ChangeMapItem(BaseModel):
@@ -218,6 +224,9 @@ class RevisionDraftOutput(BaseModel):
     stale_reference_checks: list[dict[str, Any]] = Field(default_factory=list)
     character_fit_inputs: dict[str, float] = Field(default_factory=dict)
     style_fit_inputs: dict[str, float] = Field(default_factory=dict)
+    innovation_control: InnovationControl | None = None
+    innovation_trace: InnovationTrace | None = None
+    direction_alignment: InnovationDirectionAlignment | None = None
     notes: list[str] = Field(default_factory=list)
     adult_consent: "AdultConsentDeclaration | None" = None  # noqa: UP037
 

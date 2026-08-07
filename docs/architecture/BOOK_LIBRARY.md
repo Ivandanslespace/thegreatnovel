@@ -80,3 +80,29 @@ Phase 5.1 将真实语义边界与历史 fixture 分开：
 - 默认边界为 50/75，A 为 `include_runtime_state=false`，B 为 true；可选 C 仅在 50 的 Candidate Planning 打开 Runtime，Draft 关闭，以检验 Runtime 是否应主要影响规划；
 - hidden truth 由 `benchmark/phase5_live_hidden/` controller 独立持有，不进入 Book、task、prompt、context manifest 或 Skill input。只有两章 Candidate/Contract/Draft/Validator 全部关闭并写入 `generation_closed=true, truth_revealed=false` 后，`evaluate` 才可读取它；
 - N+2 通过真实 N+1 `VALIDATED_DRAFT` 与 `BatchProvisionalState` 建立新 operation input，不能从 `1..N` 独立重置；所有结果仍停在 `VALIDATED_DRAFT`，不改变 Canon、Edition、Atlas 或 Approval。
+
+## InnovationControl 与 Runtime 消融
+
+`InnovationControl` 是 shared Pydantic 合同，供单章 continuation、Batch Continuation 和 Revision/Rewrite
+共用。它包含 `InnovationLevel`（MINIMAL/LOW/MEDIUM/HIGH/BOLD）和互斥的 `InnovationFocus`（AUTO 或
+显式方向）。Book default 写在 `book.yaml` 的 `innovation` 节；CLI/Web operation override 只冻结到本次
+handoff，除非作者显式保存，不回写 Book default。`ContinuationMode` 仍负责 faithful continuation、
+constrained innovation、explicit revision 等事实政策，不能被 InnovationControl 替换。
+
+三个 Candidate Lens 在所有 level 都保留。level 改变的是搜索宽度、creative distance 和 future branch
+surface，不能变成 Candidate Score bonus，也不能降低 hard gates。`CandidateInnovationPreview` 描述预期
+分支；`InnovationTrace` 与 `InnovationDirectionAlignment` 在真实 Candidate/Draft 输出后记录 realized
+结果。Meaningful novelty 必须改变未来选择、关系、资源流、世界知识、风险拓扑、角色目标、读者问题或
+可用策略；只改名而不改变状态的是 cosmetic novelty。新增实体、线程、规则、组织、地点或资源系统会
+带来 LOW/MEDIUM/HIGH integration cost，属于软诊断和未来 Narrative Debt，不是自动 blocker。
+
+`scripts/phase6_innovation_control.py` 固定 60→61/62，比较 L1 MINIMAL+AUTO、L3 MEDIUM+AUTO、L5
+BOLD+AUTO、MEDIUM+RELATIONSHIP、MEDIUM+WORLD，并保留 C（Candidate 使用 Runtime，Draft 使用
+Planning-only Runtime）消融。Context Equality Gate 忽略 Book/operation/control 等 identity 字段，比较
+visible source、Distill soft context、Runtime、Earned Surface、author directive 和 recent window；除
+InnovationControl 外出现实质差异时标记 `EXPERIMENT_CONFOUNDED`。hidden truth 只在所有变体 generation
+closed 后读取。
+
+Web 候选/草稿审核页同时展示 requested control、candidate preview、realized trace 和 direction alignment。
+这些字段是作者校准信息，不是 Canon、Runtime State 或 Approval 事实；Literary Arc 仍不等于
+Initialization Processing Arc。

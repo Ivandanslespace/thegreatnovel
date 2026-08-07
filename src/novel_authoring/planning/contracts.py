@@ -6,6 +6,7 @@ from novel_authoring.db.database import Database
 from novel_authoring.domain.models import ContinuationMode
 from novel_authoring.edition import edition_workspace, resolve_edition_id
 from novel_authoring.planning.boundary import PlanningError
+from novel_authoring.planning.innovation import InnovationControl
 from novel_authoring.planning.models import CandidateProposal, ChapterContract
 from novel_authoring.storage.layout import BookLayout
 from novel_authoring.storage.operations import book_root, find_operation
@@ -52,6 +53,9 @@ def build_chapter_contract(
         (boundary_dir / f"{packet_id}.json").read_text(encoding="utf-8")
     )
     candidate = CandidateProposal.model_validate_json(str(row["plan_json"]))
+    innovation_control = InnovationControl.model_validate(
+        task_metadata.get("innovation_control", {})
+    )
     next_chapter = int(boundary_json["current_position"]["next_chapter"])
     rhythm_diagnostics = dict(boundary_json.get("rhythm_diagnostics", {}))
     rhythm_constraints: dict[str, object] = {}
@@ -124,6 +128,8 @@ def build_chapter_contract(
         rhythm_constraints=rhythm_constraints,
         lens=candidate.lens,
         novelty_provenance=candidate.novelty_provenance,
+        innovation_control=innovation_control,
+        innovation_preview=candidate.innovation_preview,
     )
     contract_json = json_dumps(contract.model_dump(mode="json"), indent=2)
     contract_hash = sha256_bytes(contract_json.encode())

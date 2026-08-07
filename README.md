@@ -147,6 +147,32 @@ uv run --no-sync python scripts/phase5_live_ab.py evaluate --run-label live-v1
 `library/<book_id>/editions/<edition_id>/writing/drafts/*.md`（Phase 5 live 兼容路径为
 `editions/<edition_id>/drafts/*.md`），合同说明见 `benchmark/phase5_1_live_generation_ab.md`。
 
+## Author-Controlled Innovation
+
+`InnovationControl` 与 `ContinuationMode` 分工不同：前者控制合法工作流内部允许离开最显然轨道的
+creative distance，后者仍然控制事实/改写政策。默认是 `MEDIUM + AUTO`；可在单次 continuation、
+Batch 或 revision 上覆盖，覆盖不会修改本书默认值，除非显式要求保存：
+
+```powershell
+& $Novel plan-next --book-id my-book --innovation-level high --innovation-focus relationship,world
+& $Novel workflow continuation --book-id my-book --innovation-level high --innovation-focus relationship,world
+& $Novel revision create --book-id my-book --edition-id derived-001 --spec .\revision.json --innovation-level bold --innovation-focus plot,character
+```
+
+可用 level 为 `minimal`、`low`、`medium`、`high`、`bold`；focus 为 `auto`、`plot`、`character`、
+`relationship`、`world`、`mechanism`、`narrative_structure`、`style`。`AUTO` 与显式 focus 互斥。
+level 只改变 Candidate 搜索宽度、未来分支表面和 Draft 的创作提示，不是 Score Bonus，也绝不降低
+Canon、Timeline、Knowledge、Capability、Resource、Author Directive、Approval 或 Edition hard gates。
+即使是 `MINIMAL` 仍允许有因果来源的局部 Forward Novelty；`BOLD` 也不能 retroactive invention、
+凭空获得能力或使用 Deus Ex Machina。
+
+每个候选的 `innovation_preview` 是作者可读的计划；正文完成后由 `InnovationTrace` 记录真正的
+realized direction、meaningful/cosmetic novelty、future options 和 integration cost。请求的 level
+不会被当作实际创新结果。Web Continuation/Revision 页面同时显示设置，并明确提示它不会放松连续性检查。
+Phase 6 的真实 Desktop handoff 校准入口是 `scripts/phase6_innovation_control.py`，报告为
+`benchmark/phase6_innovation_control.md`；C 变体用于比较 Full Runtime Draft 与 Planning-only Runtime
+Draft，不能删除或替代既有 Candidate/Contract/Draft/Validator 流程。
+
 ## 能力
 
 - UTF-8、UTF-8-SIG、GB18030 与中文 Windows 路径；

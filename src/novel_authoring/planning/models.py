@@ -7,6 +7,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from novel_authoring.domain.models import ContinuationMode, NarrativeFunction
 from novel_authoring.metrics.gates import HardGateInput
+from novel_authoring.planning.innovation import (
+    CandidateInnovationPreview,
+    InnovationControl,
+    InnovationDiagnostics,
+    InnovationTrace,
+)
 
 
 class BoundaryChapter(BaseModel):
@@ -57,6 +63,8 @@ class ContinuationBoundaryPacket(BaseModel):
     hook_diagnostics: dict[str, Any] = Field(default_factory=dict)
     story_atlas_anchor: dict[str, Any] = Field(default_factory=dict)
     batch_anchor: dict[str, Any] = Field(default_factory=dict)
+    innovation_control: InnovationControl = Field(default_factory=InnovationControl)
+    innovation_diagnostics: InnovationDiagnostics | None = None
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -169,6 +177,7 @@ class CandidateProposal(BaseModel):
     lens: CandidateLens = CandidateLens.CONTINUITY_ACTIVE_THREAD
     novelty_provenance: list[NoveltyDeclaration] = Field(default_factory=list)
     wildcard: bool = False
+    innovation_preview: CandidateInnovationPreview | None = None
 
     @model_validator(mode="after")
     def reject_retroactive_invention(self) -> CandidateProposal:
@@ -187,6 +196,7 @@ class CandidateOutput(BaseModel):
 
     task_id: str
     candidates: list[CandidateProposal] = Field(min_length=3, max_length=3)
+    innovation_control: InnovationControl | None = None
     notes: list[str] = Field(default_factory=list)
 
 
@@ -229,3 +239,6 @@ class ChapterContract(BaseModel):
     rhythm_constraints: dict[str, Any] = Field(default_factory=dict)
     lens: CandidateLens = CandidateLens.CONTINUITY_ACTIVE_THREAD
     novelty_provenance: list[NoveltyDeclaration] = Field(default_factory=list)
+    innovation_control: InnovationControl = Field(default_factory=InnovationControl)
+    innovation_preview: CandidateInnovationPreview | None = None
+    innovation_trace: InnovationTrace | None = None

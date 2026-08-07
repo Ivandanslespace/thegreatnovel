@@ -1,0 +1,18 @@
+<fieldset class="innovation-controls">
+  <legend>创新级别</legend>
+  <label><input type="radio" name="innovation_level" value="minimal" {% if innovation_default.level == 'minimal' %}checked{% endif %}> 最小</label>
+  <label><input type="radio" name="innovation_level" value="low" {% if innovation_default.level == 'low' %}checked{% endif %}> 低</label>
+  <label><input type="radio" name="innovation_level" value="medium" {% if innovation_default.level == 'medium' %}checked{% endif %}> 中（默认）</label>
+  <label><input type="radio" name="innovation_level" value="high" {% if innovation_default.level == 'high' %}checked{% endif %}> 高</label>
+  <label><input type="radio" name="innovation_level" value="bold" {% if innovation_default.level == 'bold' %}checked{% endif %}> 大胆</label>
+  <legend>创新方向</legend>
+  <label><input type="checkbox" name="innovation_focus" value="auto" {% if 'auto' in innovation_default.focus %}checked{% endif %} data-innovation-auto> 自动</label>
+  <label><input type="checkbox" name="innovation_focus" value="plot" {% if 'plot' in innovation_default.focus %}checked{% endif %}> 剧情</label>
+  <label><input type="checkbox" name="innovation_focus" value="character" {% if 'character' in innovation_default.focus %}checked{% endif %}> 人物</label>
+  <label><input type="checkbox" name="innovation_focus" value="relationship" {% if 'relationship' in innovation_default.focus %}checked{% endif %}> 关系</label>
+  <label><input type="checkbox" name="innovation_focus" value="world" {% if 'world' in innovation_default.focus %}checked{% endif %}> 世界</label>
+  <label><input type="checkbox" name="innovation_focus" value="mechanism" {% if 'mechanism' in innovation_default.focus %}checked{% endif %}> 机制</label>
+  <label><input type="checkbox" name="innovation_focus" value="narrative_structure" {% if 'narrative_structure' in innovation_default.focus %}checked{% endif %}> 叙事结构</label>
+  <label><input type="checkbox" name="innovation_focus" value="style" {% if 'style' in innovation_default.focus %}checked{% endif %}> 表达</label>
+  <p class="muted">该设置不会放松 Canon / Timeline / Knowledge 等连续性检查。</p>
+</fieldset>

@@ -91,6 +91,10 @@ class BookRegistry:
         normalized.setdefault("current_atlas_id", None)
         normalized.setdefault("current_initialization_id", None)
         normalized.setdefault("latest_export", "editions/base/exports/latest")
+        normalized.setdefault(
+            "innovation",
+            {"level": "medium", "focus": ["auto"]},
+        )
         with paths.book_yaml.open("w", encoding="utf-8", newline="\n") as handle:
             yaml.safe_dump(normalized, handle, allow_unicode=True, sort_keys=False)
         return paths.book_yaml
