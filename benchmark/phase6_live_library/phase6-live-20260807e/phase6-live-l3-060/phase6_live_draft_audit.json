@@ -1,0 +1,56 @@
+{
+  "schema_version": "phase6-live-draft-audit-v1",
+  "run_label": "phase6-live-20260807e",
+  "benchmark_variant": "L3",
+  "innovation_control": {
+    "level": "medium",
+    "focus": ["auto"]
+  },
+  "book_id": "phase6-live-l3-060",
+  "edition_id": "base",
+  "visible_boundary": 60,
+  "source": "book/测试小说.md",
+  "distill": {
+    "handoff_id": "handoff_22142cb8aa497ab8e28a80ae",
+    "distill_id": "distill_8b053f0cb3113e99d9578bb5",
+    "scope": "SELF_BOOK",
+    "dimensions": ["worldbuilding", "characters", "plot", "style", "narrative", "dialogue", "pacing", "themes", "continuity"],
+    "mapping_summary": {"EXACT": 1, "PARTIAL": 0, "UNMAPPED": 0, "CONFLICTING": 0}
+  },
+  "generation": {
+    "generation_closed": true,
+    "truth_revealed": false,
+    "canon_committed": false,
+    "edition_activated": false,
+    "hidden_truth_loaded": false
+  },
+  "chapters": [
+    {
+      "ordinal": 61,
+      "candidate_operation_id": "plan_4c3a2cfaf4b5364cbe6bbec5",
+      "contract_id": "contract_c570a77e41c12fa3d270eca2",
+      "draft_operation_id": "draft-task_df90bea31670b18117d38065",
+      "draft_id": "draft_a9f5761f3be79b90f5d1bc7d",
+      "input_context_manifest": "chapter_061_draft.json",
+      "draft_artifact": "editions/base/drafts/draft_a9f5761f3be79b90f5d1bc7d.md",
+      "generation_timestamp": "2026-08-07T18:23:55.9713+02:00",
+      "validation": {"passed": true, "validator_count": 10}
+    },
+    {
+      "ordinal": 62,
+      "candidate_operation_id": "phase6-live-candidate_0cbacc1d998d50863cf52ca6",
+      "contract_id": "phase6-live-contract_b67f600da8890e117e87d936",
+      "draft_operation_id": "draft-task_9a485e6d0efa0e91598281cc",
+      "draft_id": "draft_ebc43ca9ba8d82b49e13a0d4",
+      "input_context_manifest": "chapter_062_draft.json",
+      "draft_artifact": "editions/base/drafts/draft_ebc43ca9ba8d82b49e13a0d4.md",
+      "generation_timestamp": "2026-08-07T18:28:48.6775+02:00",
+      "validation": {"passed": true, "validator_count": 10}
+    }
+  ],
+  "discarded_retry_drafts": [
+    "draft_5fac20fd64d73bd6966952a2",
+    "draft_f5b174818b0a75aec4feda4c"
+  ],
+  "audit_note": "第61章经历了结构化合同字段修正后的重试；仅 draft_a9f5761f3be79b90f5d1bc7d 为最终有效版本。未上传失败重试正文。"
+}

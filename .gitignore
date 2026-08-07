@@ -23,6 +23,7 @@ benchmark/live_phase5/
 benchmark/phase5_live_hidden/
 benchmark/phase6_live/
 benchmark/phase6_live_hidden/
+benchmark/phase6_live_library/
 library/phase6-live-*
 
 # auditable subset for personal-original-root-cause-candidate

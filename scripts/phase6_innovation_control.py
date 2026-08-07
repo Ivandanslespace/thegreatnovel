@@ -288,6 +288,7 @@ def _distill_augment(
         file_hashes = context.get("file_hashes", {})
         if isinstance(file_hashes, dict):
             file_hashes["task.json"] = sha256_file(task_path)
+            file_hashes["prompt.md"] = sha256_file(task_path.parent / "prompt.md")
             context["file_hashes"] = file_hashes
         context["phase6"] = {
             "variant": book["variant"],
@@ -558,6 +559,7 @@ def _prepare_run(
     hidden_root: Path | None = None,
     library_root: Path | None = None,
     include_c: bool = True,
+    only_variant: str | None = None,
 ) -> dict[str, Any]:
     source = source.resolve()
     if not source.is_file():
@@ -583,6 +585,11 @@ def _prepare_run(
     ]
     if include_c:
         controls.append(("C", InnovationControl(level=InnovationLevel.MEDIUM), True, False))
+    if only_variant is not None:
+        normalized_variant = only_variant.strip().upper()
+        controls = [item for item in controls if item[0] == normalized_variant]
+        if not controls:
+            raise Phase6Error(f"未知 Phase 6 variant：{only_variant}")
     specs = [
         {
             "key": key,
@@ -1483,6 +1490,7 @@ def _parser() -> argparse.ArgumentParser:
     prepare.add_argument("--run-label", default="v1")
     prepare.add_argument("--source", type=Path, default=SOURCE)
     prepare.add_argument("--skip-c", action="store_true")
+    prepare.add_argument("--variant", default=None, help="只准备一个变体；用于单变体真实 draft acceptance")
     prepare.add_argument("--controller-root", type=Path, default=None)
     prepare.add_argument("--hidden-root", type=Path, default=None)
     prepare.add_argument("--library-root", type=Path, default=None)
@@ -1497,7 +1505,7 @@ def main() -> None:
     args = _parser().parse_args()
     try:
         if args.command == "prepare":
-            result = _prepare_run(run_label=str(args.run_label), source=Path(args.source), controller_root=args.controller_root, hidden_root=args.hidden_root, library_root=args.library_root, include_c=not bool(args.skip_c))
+            result = _prepare_run(run_label=str(args.run_label), source=Path(args.source), controller_root=args.controller_root, hidden_root=args.hidden_root, library_root=args.library_root, include_c=not bool(args.skip_c), only_variant=args.variant)
         else:
             state = _load_state(str(args.run_label), controller_root=args.controller_root)
             if args.command == "status":
