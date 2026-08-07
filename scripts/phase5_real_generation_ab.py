@@ -1,12 +1,14 @@
-"""Run the Phase 5 real Codex Distill-only vs fused A/B benchmark.
+"""Run the historical Phase 5 semantic-fixture A/B benchmark.
 
-The harness creates six isolated Book Libraries at boundaries 35, 50 and 75.
-It freezes only visible chapters, runs a real Windows Codex semantic handoff
-for the nine Distill dimensions, then executes the existing candidate,
-contract, draft and Validator contracts.  The semantic outputs in this file
-are benchmark-specific Codex-authored prose/analysis fixtures; the Python
-side only freezes inputs, validates contracts, records context and computes
-structural diagnostics.  Hidden chapters are opened only in ``_evaluate``.
+SEMANTIC_FIXTURE_AB / NOT_LIVE_GENERATION_BENCHMARK
+
+The harness creates six isolated Book Libraries at boundaries 35, 50 and 75
+and preserves the historical handoff-shaped deterministic fixture baseline.
+Its semantic outputs are benchmark-specific Codex-authored prose/analysis
+fixtures, not results returned by a live READY_FOR_CODEX operation.  They are
+retained as a deterministic historical baseline and must not be used to claim
+that a live Codex Desktop handoff generated the literary results.  Hidden
+chapters are opened only in ``_evaluate``.
 
 This benchmark never calls an API, subprocess, Codex CLI, approval workflow,
 Canon commit, Edition activation, or source-file writer.
@@ -306,7 +308,7 @@ def _publish_codex_distill(
                 "# Phase 5 Codex Distillation Knowledge Layer",
                 "",
                 f"- Source scope: `SELF_BOOK` for `{book_id}` at visible boundary `{boundary}`.",
-                "- Semantic executor: Windows Codex desktop using the frozen preparation input.",
+                "- Semantic executor: historical Codex-authored fixture using the frozen preparation input; no live handoff claim.",
                 "- Runtime use: soft understanding only; no observation is Canon or a capability grant.",
                 "- Evidence policy: every textual observation points to a frozen source segment and line range.",
                 "- Originality boundary: this package stores abstractions, controls and locators, not source paragraphs.",
@@ -1771,12 +1773,12 @@ def _report(states: list[dict[str, Any]], source_unchanged: bool, run_label: str
     lines = [
         "# Phase 5 Real Generation A/B Benchmark",
         "",
-        "本报告记录真实 Windows Codex 桌面语义工作流的 Distill-only（A）与 Distill + Runtime Fused（B）对照。每个 boundary/variant 都是独立 Book；生成阶段只读取可见章节、冻结的 SELF_BOOK Distill Package、最近章节和指定运行时层。隐藏的 N+1/N+2 在全部候选、合同、草稿与十项校验关闭后才揭示。",
+        "本报告记录历史确定性 fixture 对 Distill-only（A）与 Distill + Runtime Fused（B）边界的对照。它保留独立 Book、可见边界、Runtime 隔离和 hidden truth 延后揭示的测试形状，但不是 READY_FOR_CODEX handoff 的现场生成结果。",
         "",
         "## Experimental Integrity",
         "",
         f"- Run label: `{run_label}`",
-        "- Semantic executor: Windows Codex desktop; no API, subprocess or Codex CLI.",
+        "- Semantic executor: historical Codex-authored fixture; no live handoff claim; no API, subprocess or Codex CLI.",
         "- A: `include_runtime_state=false`; Runtime Baseline / Earned Surface / EffectiveRuntimeState / baseline recall 不进入上下文消费。",
         "- B: `include_runtime_state=true`; Runtime Baseline、Effective Runtime、Earned Surface、Actionable Knowledge 与 Router context 可被显式消费。",
         "- Both: visible source + recent full chapters + SELF_BOOK Distill + neutral author instruction; no hidden future text.",
@@ -1842,7 +1844,7 @@ def _report(states: list[dict[str, Any]], source_unchanged: bool, run_label: str
             "## Answers to the eight evaluation questions",
             "",
             "1. **A 与 B 的候选是否结构不同？** 是。两组均经过三候选合同与结构差异门；B 的选择倾向 EARNED_OPPORTUNITY，A 在边界上保留更多 forward/continuity 组合。",
-            "2. **A 与 B 的正文是否真正不同？** 是，12 份真实正文保存了不同的场景锚点、能力使用方式和关系动作；pairwise diagnostics 作为证据，未被当作文风分数。",
+            "2. **A 与 B 的 fixture 正文是否不同？** 是，12 份历史 fixture 正文保存了不同的场景锚点、能力使用方式和关系动作；pairwise diagnostics 作为确定性回归证据，未被当作文风分数或 Live Codex 证明。",
             "3. **B 是否真的使用 Runtime，而不是只改变 prompt？** 是。B 的 context manifest 记录 `runtime_state_enabled=true`、Effective Runtime/Earned Surface IDs 与 runtime usage；A 的对应字段为空且经过 anti-leak audit。",
             "4. **B 是否更安全？** 在本次盲测中，B 的安全收益来自条件化能力与成本记录；两组都必须通过十项 Validator，不能把 B PASS 解释为自动正确。",
             "5. **B 是否更有 forward creativity？** 需要逐章人工判断。若 B 只把能力名词插入模板，属于 false innovation；本报告保留独立九维审阅与模板信号，不宣称单一数值结论。",

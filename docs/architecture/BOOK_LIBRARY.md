@@ -58,3 +58,12 @@ Phase 5 的 A/B 入口还使用 `RuntimeContextRequest.include_runtime_state`：
 hard boundary 与 Distill soft context，B 才取 Effective Runtime/Earned Surface。两组都
 通过同一 Candidate/Contract/Draft/十项 Validator 流程，生成阶段没有 hidden future、Canon
 写入、Edition activation 或作者 approval。
+
+Phase 5.1 将真实语义边界与历史 fixture 分开：
+
+- `scripts/phase5_real_generation_ab.py` 是 `SEMANTIC_FIXTURE_AB / NOT_LIVE_GENERATION_BENCHMARK`，其中的文学文本只用于历史确定性回归；
+- `scripts/phase5_live_ab.py` 只实现 `PREPARE → Codex Desktop READY_FOR_CODEX → COLLECT → EVALUATE`，不得在 Python literal 中生成 Distill finding、候选、合同文学内容或正文；
+- Distill 使用正式 `NOVEL_DISTILLATION` handoff；Candidate/Draft 使用现有 canonical `operations/<operation_id>/input|output` 文件合同。报告同时保存 workflow `handoff_id` 与 Candidate/Draft `operation_id/task_id`，不伪造不存在的 handoff；
+- 默认边界为 50/75，A 为 `include_runtime_state=false`，B 为 true；可选 C 仅在 50 的 Candidate Planning 打开 Runtime，Draft 关闭，以检验 Runtime 是否应主要影响规划；
+- hidden truth 由 `benchmark/phase5_live_hidden/` controller 独立持有，不进入 Book、task、prompt、context manifest 或 Skill input。只有两章 Candidate/Contract/Draft/Validator 全部关闭并写入 `generation_closed=true, truth_revealed=false` 后，`evaluate` 才可读取它；
+- N+2 通过真实 N+1 `VALIDATED_DRAFT` 与 `BatchProvisionalState` 建立新 operation input，不能从 `1..N` 独立重置；所有结果仍停在 `VALIDATED_DRAFT`，不改变 Canon、Edition、Atlas 或 Approval。

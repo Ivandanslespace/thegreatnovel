@@ -17,6 +17,10 @@ library/*
 !library/.gitkeep
 !library/README.md
 
+# Phase 5.1 live benchmark controller state and hidden truth stay local.
+benchmark/live_phase5/
+benchmark/phase5_live_hidden/
+
 # auditable subset for personal-original-root-cause-candidate
 !library/personal-original-root-cause-candidate/
 library/personal-original-root-cause-candidate/*

@@ -120,13 +120,30 @@ surface 与对应九维软控制。
 Phase 4 的独立多点盲测汇总位于 `benchmark/phase4_summary.md`；每个 20/35/50/75 边界均使用
 独立 Book、独立 preparation/package/baseline，先封存两章生成与十项 Validator，再揭示真值。
 
-Phase 5 的真实 Codex A/B 盲测汇总位于 `benchmark/phase5_real_generation_ab.md`，编排脚本为
-`scripts/phase5_real_generation_ab.py`。它在 35/50/75 三个可见边界分别创建 Distill-only
-（A）与 Distill + Runtime Fused（B）两个隔离 Book，连续生成 N+1/N+2，并保存
-`codex_context_manifest`、候选、合同、草稿、十项校验、`anti_leak_audit` 和
-`template_diagnostics`。A 的 Router 请求显式关闭 `include_runtime_state`，B 才加载
-Runtime Baseline、Effective Runtime、Earned Surface 和 recall；隐藏章节在所有生成工件
-关闭后才读取。该 benchmark 只产生未批准草稿，不创建正式续章或 Canon Commit。
+Phase 5 的历史结果位于 `benchmark/phase5_real_generation_ab.md`，脚本
+`scripts/phase5_real_generation_ab.py` 已明确标记为
+`SEMANTIC_FIXTURE_AB / NOT_LIVE_GENERATION_BENCHMARK`：其中的九维分析、候选和正文是
+确定性 Codex-authored fixture，不能当作真实 handoff 生成证明。
+
+Phase 5.1 的真实 Live benchmark 使用 `scripts/phase5_live_ab.py`，执行：
+
+```powershell
+uv run --no-sync python scripts/phase5_live_ab.py prepare --run-label live-v1
+# Windows Codex Desktop 按 benchmark/live_phase5/WORK_QUEUE.md 处理 READY_FOR_CODEX
+uv run --no-sync python scripts/phase5_live_ab.py status --run-label live-v1
+uv run --no-sync python scripts/phase5_live_ab.py collect --run-label live-v1
+uv run --no-sync python scripts/phase5_live_ab.py evaluate --run-label live-v1
+```
+
+默认只做 50/75 两个边界的 A/B 四个独立 Book。`prepare` 只冻结 `1..N`、创建
+`NOVEL_DISTILLATION` 和 Candidate/Draft file operations；Python 不生成九维语义、候选、合同
+文学内容或正文。Distill 必须由 `$process-novel-handoff` → `$distill-novels` 完成；Candidate
+和 Draft 必须由对应 READY operation 的 Codex Desktop 文件合同完成。`collect` 严格拒绝未完成
+阶段、导入/校验真实输出，并在 N+1 完成后把其正文与 `BatchProvisionalState` 传给 N+2。
+`evaluate` 是唯一读取 controller-owned hidden truth 的命令。可选 `--include-c` 在 50 boundary
+增加 Candidate-only Runtime ablation；运行产物位于被忽略的 `benchmark/live_phase5/`、
+`benchmark/phase5_live_hidden/` 和 `library/phase5-live-*`，合同说明见
+`benchmark/phase5_1_live_generation_ab.md`。
 
 ## 能力
 
@@ -324,9 +341,10 @@ uv run --no-sync novel --help
 
 测试只使用合成小说和固定 agent output，不调用 Codex 或远程模型。真实 `book` 只执行扫描、导入和哈希复核，不自动生成续写。
 
-Phase 5 benchmark 是单独的真实 Codex 桌面端语义验收例外：它仍通过 Local File Handoff
-执行，不调用 API、Codex CLI 或 subprocess；其输出写入被忽略的隔离
-`library/phase5-real-*`，最终报告只提交审计摘要和编排脚本。
+Phase 5.1 live benchmark 是单独的真实 Codex 桌面端语义验收例外：它仍通过 Local File
+Handoff 执行，不调用 API、Codex CLI 或 subprocess；其输出写入被忽略的隔离
+`library/phase5-live-*` 和 controller 目录。自动测试只检查 prepare/collect/evaluate 的
+状态门、A/B Runtime 隔离、hidden path 隔离、N+2 provisional 依赖和 Canon 不变，不调用 Codex。
 
 ## 版本化改写
 
