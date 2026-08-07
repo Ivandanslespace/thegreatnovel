@@ -16,6 +16,10 @@ from novel_authoring.domain.models import DraftStatus
 from novel_authoring.edition import edition_workspace, resolve_edition_id
 from novel_authoring.planning.boundary import _workspace
 from novel_authoring.planning.models import ChapterContract
+from novel_authoring.planning.rewards import (
+    calculate_realized_innovation_reward,
+    detect_semantic_policy_leak,
+)
 from novel_authoring.storage.layout import BookLayout
 from novel_authoring.storage.operations import book_root, ensure_operation, find_operation
 from novel_authoring.utils import json_dumps, sha256_bytes, stable_id, utc_now
@@ -122,6 +126,13 @@ def prepare_draft_task(
             f"Creative-distance guidance：{contract.innovation_control.creative_distance_guidance}",
             "Lens tendency："
             f"{contract.innovation_control.lens_tendency_guidance}；不得把它写成 Score Bonus。",
+            "Canon、Timeline、Knowledge、Capability、Resource 与 Approval 的硬约束由系统内核、"
+            "Chapter Contract 和 Validator 负责；正文只写人物如何感知、选择、行动及其后果，"
+            "不解释这些治理规则。",
+            "本章至少让一个重要状态发生可读的改变；未知可以保留，但若核心谜团继续悬置，"
+            "必须推进或兑现另一条 SHORT/MID 线程。",
+            "避免连续使用‘谨慎试探—暂不下结论—保留退路—撤回’的审计型叙事，"
+            "除非当前 Narrative Portfolio 明确需要这种节奏。",
             "只写 output.json，不要修改 book；系统会把合法正文导入 drafts。",
             "",
             "## Continuation Boundary Packet",
@@ -228,11 +239,24 @@ def import_draft_output(
     if output.task_id != task_id or output.contract_id != metadata["contract_id"]:
         raise DraftWorkflowError("Draft output 的 task_id/contract_id 不匹配")
     contract_row = None
+    candidate_plan_row = None
     with database.connect() as connection:
         contract_row = connection.execute(
             "SELECT contract_json FROM chapter_contracts WHERE contract_id=? AND book_id=?",
             (output.contract_id, book_id),
         ).fetchone()
+        if contract_row is not None:
+            contract_payload = json.loads(str(contract_row["contract_json"]))
+            candidate_plan_row = connection.execute(
+                "SELECT plan_json, score_json FROM candidate_plans "
+                "WHERE book_id=? AND candidate_id=? AND edition_id=?",
+                (
+                    book_id,
+                    str(contract_payload.get("candidate_id", "")),
+                    selected_edition,
+                ),
+            ).fetchone()
+    realized_reward_payload: dict[str, object] | None = None
     if contract_row is not None:
         contract = ChapterContract.model_validate_json(str(contract_row["contract_json"]))
         expected = contract.innovation_control
@@ -240,6 +264,34 @@ def import_draft_output(
             raise DraftWorkflowError(
                 "Draft output 的 innovation_control 与 Chapter Contract 不一致"
             )
+        if output.innovation_trace is not None:
+            base_score = 0.0
+            expected_reward = 0.0
+            if candidate_plan_row is not None:
+                score_payload = json.loads(str(candidate_plan_row["score_json"] or "{}"))
+                base_score = float(score_payload.get("base_candidate_score", 0))
+                expected_reward = float(
+                    score_payload.get("innovation_reward_breakdown", {})
+                    .get("capped_innovation_reward", 0)
+                )
+            realized = calculate_realized_innovation_reward(
+                output.innovation_trace,
+                expected,
+                base_candidate_score=base_score,
+                portfolio=contract.narrative_portfolio,
+            )
+            realized_reward_payload = {
+                "expected_capped_reward": expected_reward,
+                "realized": realized.model_dump(mode="json"),
+                "innovation_underdelivery": {
+                    "status": (
+                        "INNOVATION_UNDERDELIVERY"
+                        if realized.capped_innovation_reward + 0.5 < expected_reward
+                        else "CLEAR"
+                    ),
+                    "warning_only": True,
+                },
+            }
     content = output.prose_markdown.strip() + "\n"
     content_hash = sha256_bytes(content.encode())
     draft_id = stable_id("draft", output.contract_id, str(metadata["revision"]), content_hash)
@@ -287,6 +339,10 @@ def import_draft_output(
         "status": DraftStatus.DRAFT.value,
         "revision": int(metadata["revision"]),
         "content_sha256": content_hash,
+        "semantic_policy_leak": detect_semantic_policy_leak(
+            output.prose_markdown
+        ).model_dump(mode="json"),
+        "realized_innovation_reward": realized_reward_payload,
     }
 
 

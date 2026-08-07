@@ -14,6 +14,7 @@ from novel_authoring.edition import (
     resolve_edition_id,
 )
 from novel_authoring.ingest.service import verify_sources
+from novel_authoring.planning.diagnostics import build_narrative_portfolio_snapshot
 from novel_authoring.planning.innovation import (
     InnovationControl,
     InnovationDiagnostics,
@@ -416,6 +417,22 @@ def build_boundary_packet(
         open_novelty_debt=[],
         recommendation=recommendation,
     )
+    narrative_portfolio = build_narrative_portfolio_snapshot(
+        active_threads=[dict(row) for row in thread_rows],
+        promises=projection.promises,
+        current_chapter=total,
+        snapshot_id=stable_id(
+            "portfolio",
+            book_id,
+            selected_edition,
+            str(projection.through_event_seq),
+            projection.sha256(),
+        ),
+        consecutive_deferrals=int(hook_diagnostics.get("consecutive_deferrals", 0)),
+    )
+    innovation_diagnostics = innovation_diagnostics.model_copy(
+        update={"portfolio_snapshot": narrative_portfolio}
+    )
     packet_seed = json_dumps(
         {
             "book_id": book_id,
@@ -439,6 +456,7 @@ def build_boundary_packet(
             "batch_anchor": batch_anchor,
             "innovation_control": selected_innovation.model_dump(mode="json"),
             "innovation_diagnostics": innovation_diagnostics.model_dump(mode="json"),
+            "narrative_portfolio": narrative_portfolio.model_dump(mode="json"),
             },
         }
     )
@@ -489,6 +507,7 @@ def build_boundary_packet(
         batch_anchor=batch_anchor,
         innovation_control=selected_innovation,
         innovation_diagnostics=innovation_diagnostics,
+        narrative_portfolio=narrative_portfolio,
         warnings=warnings,
     )
     packet_json = json_dumps(packet.model_dump(mode="json"), indent=2)

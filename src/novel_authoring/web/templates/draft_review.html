@@ -30,7 +30,7 @@
       </section>
     </div>
     <div class="review-grid">
-      <section><h3>Candidate / selected</h3><ul>{% for candidate in draft.candidates %}<li><code>{{ candidate.candidate_id }}</code> · rank {{ candidate.rank }} · {{ candidate.primary_function }} · {{ candidate.selection_status }}</li>{% else %}<li>暂无候选。</li>{% endfor %}</ul><p>Selected Candidate：<code>{{ draft.candidate_id or '—' }}</code></p><h3>Chapter Contract</h3><pre>{{ draft.contract|tojson(indent=2) }}</pre></section>
+      <section><h3>Candidate / selected</h3><ul>{% for candidate in draft.candidates %}<li><code>{{ candidate.candidate_id }}</code> · rank {{ candidate.rank }} · {{ candidate.primary_function }} · {{ candidate.selection_status }} · final {{ candidate.score_payload.get('final_selection_score', candidate.score_payload.get('score', '—')) }} · innovation reward {{ candidate.score_payload.get('innovation_reward_breakdown', {}).get('capped_innovation_reward', '—') }}</li>{% else %}<li>暂无候选。</li>{% endfor %}</ul><p>Selected Candidate：<code>{{ draft.candidate_id or '—' }}</code></p><h3>Chapter Contract</h3><pre>{{ draft.contract|tojson(indent=2) }}</pre></section>
       <section><h3>Rhythm diagnostics</h3><pre>{{ draft.rhythm|tojson(indent=2) }}</pre><h3>Promise changes / debt</h3><pre>{{ draft.promises|tojson(indent=2) }}</pre><h3>State Changes</h3><pre>{{ draft.state_changes|tojson(indent=2) }}</pre></section>
     </div>
     <section class="panel-subsection"><h3>Innovation Control（作者设置 / 实际结果）</h3>

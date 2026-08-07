@@ -173,6 +173,14 @@ Phase 6 的真实 Desktop handoff 校准入口是 `scripts/phase6_innovation_con
 `benchmark/phase6_innovation_control.md`；C 变体用于比较 Full Runtime Draft 与 Planning-only Runtime
 Draft，不能删除或替代既有 Candidate/Contract/Draft/Validator 流程。
 
+Phase 6.2 增加 `benchmark/phase6_2_narrative_portfolio_reward.md` 中的 Innovation Reward 与
+Multi-Horizon Narrative Portfolio。候选先通过既有 Hard Gates，再保留 `base_candidate_score`
+并计算 `final_selection_score`；创新元素、元素协同、跨 SHORT/MID/LONG 协同、Earned
+Recombination、payoff、new debt、integration cost 和 over-deferral 都有结构化审计字段。
+`PAYOFF_READY` 线程不能被免费延后；Draft 的 expected/realized shortfall 只产生
+`INNOVATION_UNDERDELIVERY` soft warning，不会改变十项 Validator。Phase 6.2 不把 Innovation
+Level 变成 Score Bonus，不把 Portfolio、Reward 或 Narrative Delta 写入 Canon。
+
 ## 能力
 
 - UTF-8、UTF-8-SIG、GB18030 与中文 Windows 路径；

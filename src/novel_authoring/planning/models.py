@@ -9,9 +9,11 @@ from novel_authoring.domain.models import ContinuationMode, NarrativeFunction
 from novel_authoring.metrics.gates import HardGateInput
 from novel_authoring.planning.innovation import (
     CandidateInnovationPreview,
+    InnovationCommitments,
     InnovationControl,
     InnovationDiagnostics,
     InnovationTrace,
+    NarrativePortfolioSnapshot,
 )
 
 
@@ -65,6 +67,7 @@ class ContinuationBoundaryPacket(BaseModel):
     batch_anchor: dict[str, Any] = Field(default_factory=dict)
     innovation_control: InnovationControl = Field(default_factory=InnovationControl)
     innovation_diagnostics: InnovationDiagnostics | None = None
+    narrative_portfolio: NarrativePortfolioSnapshot | None = None
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -241,4 +244,8 @@ class ChapterContract(BaseModel):
     novelty_provenance: list[NoveltyDeclaration] = Field(default_factory=list)
     innovation_control: InnovationControl = Field(default_factory=InnovationControl)
     innovation_preview: CandidateInnovationPreview | None = None
+    innovation_commitments: InnovationCommitments = Field(
+        default_factory=InnovationCommitments
+    )
+    narrative_portfolio: NarrativePortfolioSnapshot | None = None
     innovation_trace: InnovationTrace | None = None

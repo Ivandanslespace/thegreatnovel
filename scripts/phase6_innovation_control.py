@@ -54,9 +54,11 @@ from novel_authoring.planning.candidates import (
 )
 from novel_authoring.planning.contracts import build_chapter_contract
 from novel_authoring.planning.innovation import (
+    CandidateInnovationPreview,
     InnovationControl,
     InnovationFocus,
     InnovationLevel,
+    NarrativePortfolioSnapshot,
     assess_innovation_alignment,
     build_experiment_context_fingerprint,
     classify_novelty,
@@ -64,6 +66,10 @@ from novel_authoring.planning.innovation import (
     estimate_integration_cost,
 )
 from novel_authoring.planning.models import CandidateOutput, ChapterContract
+from novel_authoring.planning.rewards import (
+    calculate_realized_innovation_reward,
+    detect_semantic_policy_leak,
+)
 from novel_authoring.storage.library import LibraryAddOptions, add_book
 from novel_authoring.storage.operations import ensure_operation
 from novel_authoring.utils import json_dumps, sha256_file, stable_id, utc_now
@@ -679,6 +685,9 @@ def _candidate_directive(book: dict[str, Any], chapter: int) -> str:
             f"soft lens tendency：{control_model.lens_tendency_guidance}。",
             "请由当前 Windows Codex Desktop 实际提出恰好三个具体小说事件候选。三个 Candidate Lens（CONTINUITY_ACTIVE_THREAD、EARNED_OPPORTUNITY、FORWARD_EXPANSION）必须全部保留；InnovationControl 只改变搜索宽度和未来分支表面，不放松任何 hard gate。",
             "每个候选必须填写作者可读 innovation_preview：creative distance、主要方向、打开的 future branches、meaningful/cosmetic、integration cost、earned asset 使用。不得使用占位符，不得把请求 level 冒充 realized level。",
+            "每个候选还必须尽量填写 expected_innovation_elements、element synergies、SHORT/MID/LONG horizon roles、payoffs、new debts 与 before/after NarrativeDelta；只有存在共同因果链时才填写 synergy。",
+            "Python 会在 Hard Gates 通过后独立计算 InnovationRewardBreakdown；不要把预估 reward 当成事实，也不能用它覆盖 Canon、Timeline、Knowledge、Capability、Resource 或 Approval。",
+            "如果一个 PAYOFF_READY 或 overdue debt 被继续延后，必须在候选中说明代价与替代推进；不要只叠加新问题。",
             "不得写正文、不得把 hidden truth 当作已知事实、不得修改 book/、Canon、Edition 或 Approval。",
         ]
     )
@@ -694,6 +703,9 @@ def _draft_directive(book: dict[str, Any], chapter: int) -> str:
             f"本次冻结 InnovationControl={json_dumps(book['innovation_control'])}；它只控制 creative distance，不放松 Canon、Timeline、Knowledge、Capability、Resource、Author Directive、Approval 或 Edition hard gates。",
             f"creative-distance guidance：{control_model.creative_distance_guidance}",
             f"soft lens tendency：{control_model.lens_tendency_guidance}；它不是候选配额或分数奖励。",
+            "系统内核、Chapter Contract 和 Validator 已处理硬约束；正文只写人物如何感知、选择、行动及后果，不解释治理规则。",
+            "本章至少让一个重要状态发生可读改变；未知可以保留，但若核心谜团继续悬置，必须推进或兑现另一条 SHORT/MID 线程。",
+            "避免连续使用谨慎试探—暂不下结论—保留退路—撤回的审计型叙事，除非 Narrative Portfolio 明确需要。",
             "正文必须是自然场景化小说，不得出现 Runtime、Baseline、Earned Surface、Canon、Projection、Validator、Distill、thread_status、resource_cost、character_boundary、融合层等工程术语，也不得写测试说明、合同复述或字段清单。",
             "请在 output.json 中提供真实 InnovationTrace 与 DirectionAlignment；requested 与 realized 必须分开填写，不能根据 requested level 伪造 realized 结果。",
             "不得修改 book/、Canon、Edition 或 Approval。",
@@ -879,6 +891,33 @@ def _provisional_contract(
     control: InnovationControl,
 ) -> ChapterContract:
     values = base_contract.model_dump(mode="python")
+    preview = CandidateInnovationPreview.model_validate(selected["innovation_preview"])
+    values["innovation_commitments"] = {
+        "expected_innovation_elements": [
+            item.model_dump(mode="json") for item in preview.expected_innovation_elements
+        ],
+        "expected_element_synergies": [
+            item.model_dump(mode="json") for item in preview.expected_element_synergies
+        ],
+        "expected_horizon_roles": {
+            key: [item.value for item in horizon_roles]
+            for key, horizon_roles in preview.expected_horizon_roles.items()
+        },
+        "expected_cross_horizon_synergies": [
+            item.model_dump(mode="json")
+            for item in preview.expected_cross_horizon_synergies
+        ],
+        "expected_payoffs": [item.model_dump(mode="json") for item in preview.expected_payoffs],
+        "expected_new_debts": [item.model_dump(mode="json") for item in preview.expected_new_debts],
+        "expected_future_options_opened": preview.future_options_opened,
+        "minimum_meaningful_delta": (
+            preview.expected_narrative_delta.model_dump(mode="json")
+            if preview.expected_narrative_delta is not None
+            else None
+        ),
+        "soft_contract": True,
+        "hard_gate_exception": False,
+    }
     values.update(
         {
             "contract_id": stable_id("phase6-live-contract", str(base_contract.contract_id), selected_id, str(chapter)),
@@ -1024,6 +1063,55 @@ def _collect_candidate(state: dict[str, Any], *, chapter_offset: int) -> None:
         chapter["draft_task"] = _prepare_draft(state, book, chapter=ordinal, contract_id=str(contract.contract_id))
 
 
+def _audit_realized_innovation(
+    book: dict[str, Any],
+    chapter: dict[str, Any],
+    draft_output: DraftOutput,
+) -> dict[str, Any]:
+    if draft_output.innovation_trace is None:
+        raise Phase6Error("Draft 缺少 InnovationTrace，无法计算 realized reward")
+    candidate_import = chapter.get("candidate_import", {})
+    selected_id = str(candidate_import.get("selected_candidate_id", ""))
+    selected = next(
+        (
+            item
+            for item in candidate_import.get("candidates", [])
+            if str(item.get("candidate_id", "")) == selected_id
+        ),
+        {},
+    )
+    portfolio_raw = candidate_import.get("narrative_portfolio_snapshot", {})
+    portfolio = NarrativePortfolioSnapshot.model_validate(portfolio_raw)
+    control = InnovationControl.model_validate(book["innovation_control"])
+    base_score = float(selected.get("base_score", selected.get("score", 0)))
+    realized_reward = calculate_realized_innovation_reward(
+        draft_output.innovation_trace,
+        control,
+        base_candidate_score=base_score,
+        portfolio=portfolio,
+    )
+    expected_breakdown = selected.get("innovation_reward_breakdown", {})
+    expected_capped = float(expected_breakdown.get("capped_innovation_reward", 0))
+    realized_capped = realized_reward.capped_innovation_reward
+    return {
+        "expected_innovation_reward": expected_breakdown,
+        "realized_innovation_reward": realized_reward.model_dump(mode="json"),
+        "innovation_underdelivery": {
+            "status": (
+                "INNOVATION_UNDERDELIVERY"
+                if realized_capped + 0.5 < expected_capped
+                else "CLEAR"
+            ),
+            "expected_capped_reward": expected_capped,
+            "realized_capped_reward": realized_capped,
+            "warning_only": True,
+        },
+        "semantic_policy_leak": detect_semantic_policy_leak(
+            draft_output.prose_markdown
+        ).model_dump(mode="json"),
+    }
+
+
 def _collect_draft(state: dict[str, Any], *, chapter_offset: int) -> None:
     ordinal = BOUNDARY + chapter_offset
     _require_outputs(state, "draft_task", f"N+{chapter_offset} draft")
@@ -1045,7 +1133,8 @@ def _collect_draft(state: dict[str, Any], *, chapter_offset: int) -> None:
         validation = validate_draft(_db(book), str(book["book_id"]), str(imported["draft_id"]), load_settings(), edition_id="base", include_runtime_state=bool(book["draft_runtime"]))
         validation_path = Path(str(book["benchmark_root"])) / "validation" / f"chapter_{ordinal:03d}.json"
         _write_json(validation_path, validation.model_dump(mode="json"))
-        chapter["draft_import"] = {**imported, **_record(output_path, task.get("prepared_at")), "output_path": str(output_path), "input_context_manifest": task["context_manifest"], "prose_markdown": draft_output.prose_markdown, "innovation_trace": draft_output.innovation_trace.model_dump(mode="json"), "direction_alignment": draft_output.direction_alignment.model_dump(mode="json")}
+        innovation_audit = _audit_realized_innovation(book, chapter, draft_output)
+        chapter["draft_import"] = {**imported, **_record(output_path, task.get("prepared_at")), "output_path": str(output_path), "input_context_manifest": task["context_manifest"], "prose_markdown": draft_output.prose_markdown, "innovation_trace": draft_output.innovation_trace.model_dump(mode="json"), "direction_alignment": draft_output.direction_alignment.model_dump(mode="json"), **innovation_audit}
         chapter["validation"] = {"path": str(validation_path), "passed": validation.passed, "validator_count": len(validation.reports), "payload": validation.model_dump(mode="json")}
         if not validation.passed:
             raise Phase6Error(f"{book['book_id']} 第 {ordinal} 章 Validator 未通过；generation 不能关闭")
@@ -1334,7 +1423,7 @@ def _innovation_results(book: dict[str, Any]) -> list[dict[str, Any]]:
             new_mechanisms=trace.get("new_mechanisms", []),
             future_options_opened=trace.get("future_options_opened", []),
         )
-        results.append({"chapter": int(ordinal), "requested_level": trace.get("requested_level"), "requested_focus": trace.get("requested_focus"), "realized_level": trace.get("realized_level"), "realized_directions": trace.get("realized_directions", []), "alignment": alignment.model_dump(mode="json"), "forward_novelties": trace.get("forward_novelties", []), "earned_recombinations": trace.get("earned_recombinations", []), "new_entities": trace.get("new_entities", []), "new_relationship_states": trace.get("new_relationship_states", []), "new_world_elements": trace.get("new_world_elements", []), "new_mechanisms": trace.get("new_mechanisms", []), "meaningful_state_changes": trace.get("meaningful_state_changes", []), "future_options_opened": trace.get("future_options_opened", []), "future_options_closed": trace.get("future_options_closed", []), "novelty_quality": meaningful.value, "integration_cost_reported": trace.get("integration_cost"), "integration_cost_estimated": estimated_cost.value, "recent_pattern_distance": trace.get("recent_pattern_distance"), "candidate_preview": chapter.get("candidate_preview", [])})
+        results.append({"chapter": int(ordinal), "requested_level": trace.get("requested_level"), "requested_focus": trace.get("requested_focus"), "realized_level": trace.get("realized_level"), "realized_directions": trace.get("realized_directions", []), "alignment": alignment.model_dump(mode="json"), "forward_novelties": trace.get("forward_novelties", []), "earned_recombinations": trace.get("earned_recombinations", []), "new_entities": trace.get("new_entities", []), "new_relationship_states": trace.get("new_relationship_states", []), "new_world_elements": trace.get("new_world_elements", []), "new_mechanisms": trace.get("new_mechanisms", []), "meaningful_state_changes": trace.get("meaningful_state_changes", []), "future_options_opened": trace.get("future_options_opened", []), "future_options_closed": trace.get("future_options_closed", []), "realized_elements": trace.get("realized_elements", []), "realized_synergies": trace.get("realized_synergies", []), "realized_horizon_effects": trace.get("realized_horizon_effects", {}), "realized_payoffs": trace.get("realized_payoffs", []), "realized_new_debt": trace.get("realized_new_debt", []), "narrative_delta": trace.get("realized_narrative_delta"), "novelty_quality": meaningful.value, "integration_cost_reported": trace.get("integration_cost"), "integration_cost_estimated": estimated_cost.value, "recent_pattern_distance": trace.get("recent_pattern_distance"), "candidate_preview": chapter.get("candidate_preview", []), "expected_innovation_reward": chapter.get("draft_import", {}).get("expected_innovation_reward", {}), "realized_innovation_reward": chapter.get("draft_import", {}).get("realized_innovation_reward", {}), "innovation_underdelivery": chapter.get("draft_import", {}).get("innovation_underdelivery", {}), "semantic_policy_leak": chapter.get("draft_import", {}).get("semantic_policy_leak", {})})
     return results
 
 
@@ -1354,6 +1443,24 @@ def _evaluate_book(state: dict[str, Any], book: dict[str, Any]) -> dict[str, Any
         "generation": {"closed": book["generation_closed"], "validated": all(bool(item.get("validation", {}).get("passed")) for item in book["chapters"].values()), "validator_counts": [item.get("validation", {}).get("validator_count") for item in book["chapters"].values()]},
         "innovation": _innovation_results(book),
         "system_language_leak": {"status": "SYSTEM_LANGUAGE_LEAK" if _system_language_leaks(book) else "CLEAR", "findings": _system_language_leaks(book)},
+        "semantic_policy_leak": {
+            "status": "SEMANTIC_POLICY_LEAK"
+            if any(
+                item.get("semantic_policy_leak", {}).get("status")
+                == "SEMANTIC_POLICY_LEAK"
+                for item in _innovation_results(book)
+            )
+            else "CLEAR",
+            "findings": [
+                {
+                    "chapter": item["chapter"],
+                    **item.get("semantic_policy_leak", {}),
+                }
+                for item in _innovation_results(book)
+                if item.get("semantic_policy_leak", {}).get("status")
+                == "SEMANTIC_POLICY_LEAK"
+            ],
+        },
         "safety": _safety(book),
         "truth_reference": {"revealed_after_generation_closed": True, "token_overlap_auxiliary_only": truth_overlap},
         "pattern_distance": [item.get("recent_pattern_distance") for item in _innovation_results(book)],

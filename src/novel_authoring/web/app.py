@@ -564,15 +564,20 @@ def create_app(
                     except ValueError:
                         item["report"] = {"raw": item.get("report_json", "")}
                     draft["validation_reports"].append(item)
-                draft["candidates"] = [
-                    dict(candidate)
-                    for candidate in connection.execute(
-                        "SELECT candidate_id, rank, primary_thread_id, primary_function, "
-                        "selection_status, status FROM candidate_plans "
-                        "WHERE book_id=? AND edition_id=? ORDER BY rank, created_at",
-                        (_check_id(path_book_id), _check_id(edition_id)),
-                    ).fetchall()
-                ]
+                draft["candidates"] = []
+                for candidate_row in connection.execute(
+                    "SELECT candidate_id, rank, primary_thread_id, primary_function, "
+                    "selection_status, status, score_json FROM candidate_plans "
+                    "WHERE book_id=? AND edition_id=? ORDER BY rank, created_at",
+                    (_check_id(path_book_id), _check_id(edition_id)),
+                ).fetchall():
+                    candidate = dict(candidate_row)
+                    try:
+                        score_payload = json.loads(str(candidate.get("score_json") or "{}"))
+                    except ValueError:
+                        score_payload = {}
+                    candidate["score_payload"] = score_payload
+                    draft["candidates"].append(candidate)
                 contract = connection.execute(
                     "SELECT * FROM chapter_contracts WHERE contract_id=?",
                     (str(row["contract_id"]),),

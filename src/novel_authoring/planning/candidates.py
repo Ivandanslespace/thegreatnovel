@@ -19,12 +19,17 @@ from novel_authoring.metrics.formulas import candidate_score, narrative_debt, th
 from novel_authoring.metrics.gates import evaluate_hard_gates
 from novel_authoring.planning.aggregates import build_planning_aggregate
 from novel_authoring.planning.boundary import PlanningError, _workspace, build_boundary_packet
-from novel_authoring.planning.diagnostics import diagnose_candidate_portfolio
+from novel_authoring.planning.diagnostics import (
+    build_narrative_portfolio_snapshot,
+    diagnose_candidate_portfolio,
+)
 from novel_authoring.planning.innovation import (
     InnovationControl,
+    NarrativePortfolioSnapshot,
     resolve_innovation_control,
 )
 from novel_authoring.planning.models import CandidateOutput, CandidateProposal, ThreadPriority
+from novel_authoring.planning.rewards import calculate_candidate_innovation_reward
 from novel_authoring.runtime_baseline import load_earned_surface
 from novel_authoring.storage.operations import ensure_operation, find_operation
 from novel_authoring.utils import json_dumps, sha256_bytes, stable_id, utc_now
@@ -192,6 +197,24 @@ def prepare_candidate_task(
         innovation_control=selected_innovation,
     )
     boundary_payload = json.loads(Path(str(boundary["json_path"])).read_text(encoding="utf-8"))
+    frozen_portfolio = boundary_payload.get("narrative_portfolio")
+    narrative_portfolio = (
+        NarrativePortfolioSnapshot.model_validate(frozen_portfolio)
+        if frozen_portfolio is not None
+        else build_narrative_portfolio_snapshot(
+            active_threads=boundary_payload.get("active_threads", []),
+            promises=boundary_payload.get("promises", {}),
+            current_chapter=int(
+                boundary_payload.get("current_position", {}).get("last_canon_chapter", 0)
+            ),
+            snapshot_id=f"portfolio-{book_id}-{selected_edition}-{boundary['packet_id']}",
+            consecutive_deferrals=int(
+                boundary_payload.get("hook_diagnostics", {}).get(
+                    "consecutive_deferrals", 0
+                )
+            ),
+        )
+    )
     runtime_context = route_runtime_context(
         database,
         book_id,
@@ -238,6 +261,7 @@ def prepare_candidate_task(
             "metrics": [dict(row) for row in metric_rows],
             "runtime_context": runtime_context.model_dump(mode="json"),
             "innovation_control": selected_innovation.model_dump(mode="json"),
+            "narrative_portfolio": narrative_portfolio.model_dump(mode="json"),
         }
     )
     task_id = stable_id("plan", seed, sha256_bytes(schema_json.encode()))
@@ -282,6 +306,13 @@ def prepare_candidate_task(
             "每个候选必须填写 innovation_preview：creative_distance、主要方向、"
             "打开的 future branches、meaningful/cosmetic 判断与 integration_cost。"
             "Preview 是作者可读计划，不是 Candidate Score，也不放松任何 hard gate。",
+            "在 Preview 中优先填写结构化 expected_innovation_elements：每项说明 focus、"
+            "meaningful/cosmetic、magnitude、causal_source、state before/after、"
+            "horizon roles 与 forward introduction；只有存在共同因果链时才填写 synergy。",
+            "同时说明 SHORT/MID/LONG 的 payoff、expected_new_debts 与 expected_narrative_delta。"
+            "Python 会独立重算 InnovationRewardBreakdown，不接受 agent 自报的 reward 作为事实。",
+            "先检查 Narrative Portfolio 中 PAYOFF_READY 与 overdue debt；"
+            "不要为了打开新问题而免费延宕已成熟问题。",
             "AUTO 方向只提供推荐；若候选实际走向不同方向，必须在 Preview 中如实标注。",
             "",
             "## 三条优先线程",
@@ -314,6 +345,7 @@ def prepare_candidate_task(
                     "innovation_recommendation": boundary_payload.get(
                         "innovation_diagnostics", {}
                     ),
+                    "narrative_portfolio": narrative_portfolio.model_dump(mode="json"),
                 },
                 indent=2,
             ),
@@ -341,6 +373,7 @@ def prepare_candidate_task(
         "innovation_control": selected_innovation.model_dump(mode="json"),
         "innovation_source": selected_source,
         "innovation_recommendation": boundary_payload.get("innovation_diagnostics", {}),
+        "narrative_portfolio_snapshot": narrative_portfolio.model_dump(mode="json"),
     }
     (task_dir / "input.md").write_text(input_text, encoding="utf-8")
     (task_dir / "schema.json").write_text(schema_json + "\n", encoding="utf-8")
@@ -425,6 +458,27 @@ def import_candidate_output(
         output.candidates,
         earned_surface=earned_surface,
     )
+    portfolio_raw = metadata.get(
+        "narrative_portfolio_snapshot", metadata.get("narrative_portfolio")
+    )
+    if portfolio_raw:
+        try:
+            narrative_portfolio = NarrativePortfolioSnapshot.model_validate(portfolio_raw)
+        except ValidationError as exc:
+            raise PlanningError(f"候选任务的 Narrative Portfolio Snapshot 无效：{exc}") from exc
+    else:
+        narrative_portfolio = build_narrative_portfolio_snapshot(
+            active_threads=[],
+            promises={},
+            current_chapter=0,
+            snapshot_id=f"legacy-portfolio-{task_id}",
+        )
+    boundary_path = metadata.get("boundary_path")
+    boundary_payload = (
+        json.loads(Path(str(boundary_path)).read_text(encoding="utf-8"))
+        if boundary_path and Path(str(boundary_path)).is_file()
+        else {}
+    )
     portfolio_path = path.parent / "portfolio_diagnostics.json"
     portfolio_path.write_text(
         json_dumps(portfolio.model_dump(mode="json"), indent=2) + "\n",
@@ -459,13 +513,29 @@ def import_candidate_output(
         score_evidence["structural_diversity"] = [
             f"与另外两案的结构差异维度数：{differences[candidate.local_id]}"
         ]
-        score = candidate_score(inputs, settings.metrics["candidate_score"]) if gate.passed else 0
+        base_score = (
+            candidate_score(inputs, settings.metrics["candidate_score"])
+            if gate.passed
+            else 0
+        )
+        reward = calculate_candidate_innovation_reward(
+            candidate,
+            expected_innovation,
+            base_candidate_score=base_score,
+            portfolio=narrative_portfolio,
+            recent_structures=boundary_payload.get("recent_structures", []),
+            eligible=gate.passed,
+            ineligibility_reasons=gate.hard_failures,
+        )
         evaluated.append(
             {
                 "candidate": candidate,
                 "candidate_id": stable_id("candidate", task_id, candidate.local_id),
                 "gate": gate,
-                "score": score,
+                "score": base_score,
+                "base_score": base_score,
+                "final_selection_score": reward.final_selection_score,
+                "reward": reward,
                 "inputs": inputs,
                 "score_evidence": score_evidence,
                 "diversity": diversity,
@@ -473,17 +543,17 @@ def import_candidate_output(
         )
     passed = sorted(
         (item for item in evaluated if item["gate"].passed),
-        key=lambda item: (-float(item["score"]), str(item["candidate_id"])),
+        key=lambda item: (-float(item["final_selection_score"]), str(item["candidate_id"])),
     )
     if not passed:
         raise PlanningError("三个候选全部未通过硬门")
     selected_id = str(passed[0]["candidate_id"])
-    best_score = float(passed[0]["score"])
+    best_score = float(passed[0]["final_selection_score"])
     tie_delta = float(settings.metrics["candidate_score"]["tie_delta"])
     same_choice_band = [
         str(item["candidate_id"])
         for item in passed
-        if best_score - float(item["score"]) < tie_delta
+        if best_score - float(item["final_selection_score"]) < tie_delta
     ]
     ranking = {str(item["candidate_id"]): index for index, item in enumerate(passed, 1)}
     aggregate_id = str(metadata.get("aggregate_id") or "")
@@ -539,11 +609,15 @@ def import_candidate_output(
             )
             score_json = {
                 "score": item["score"],
+                "base_candidate_score": item["base_score"],
+                "final_selection_score": item["reward"].final_selection_score,
+                "innovation_reward_breakdown": item["reward"].model_dump(mode="json"),
                 "inputs": item["inputs"],
                 "evidence": item["score_evidence"],
                 "structural_difference_counts": differences[candidate.local_id],
                 "reason": reason,
                 "portfolio_diagnostics": portfolio.model_dump(mode="json"),
+                "narrative_portfolio_snapshot": narrative_portfolio.model_dump(mode="json"),
             }
             connection.execute(
                 """
@@ -586,6 +660,9 @@ def import_candidate_output(
                 "candidate_id": item["candidate_id"],
                 "title": item["candidate"].title,
                 "score": item["score"],
+                "base_score": item["base_score"],
+                "final_selection_score": item["reward"].final_selection_score,
+                "innovation_reward_breakdown": item["reward"].model_dump(mode="json"),
                 "passed": item["gate"].passed,
                 "selection_status": "SELECTED"
                 if item["candidate_id"] == selected_id
@@ -601,4 +678,5 @@ def import_candidate_output(
         "aggregate_id": aggregate_id or None,
         "portfolio_diagnostics": portfolio.model_dump(mode="json"),
         "portfolio_diagnostics_path": str(portfolio_path),
+        "narrative_portfolio_snapshot": narrative_portfolio.model_dump(mode="json"),
     }

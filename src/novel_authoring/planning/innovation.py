@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -62,6 +62,319 @@ class PatternDistance(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+
+
+class InnovationMagnitude(StrEnum):
+    LOCAL = "LOCAL"
+    SUBSTANTIAL = "SUBSTANTIAL"
+    MAJOR = "MAJOR"
+
+
+class NarrativeHorizon(StrEnum):
+    SHORT = "SHORT"
+    MID = "MID"
+    LONG = "LONG"
+
+
+class NarrativeThreadLifecycle(StrEnum):
+    SETUP = "SETUP"
+    DEVELOPING = "DEVELOPING"
+    PAYOFF_READY = "PAYOFF_READY"
+    PARTIALLY_PAID = "PARTIALLY_PAID"
+    RESOLVED = "RESOLVED"
+    DORMANT = "DORMANT"
+
+
+class NarrativeDebtStatus(StrEnum):
+    OPEN = "OPEN"
+    ADVANCED = "ADVANCED"
+    PAYOFF_READY = "PAYOFF_READY"
+    RESOLVED = "RESOLVED"
+    OVERDUE = "OVERDUE"
+
+
+class PayoffExtent(StrEnum):
+    PARTIAL = "PARTIAL"
+    FULL = "FULL"
+
+
+class InnovationElement(BaseModel):
+    """One explicit, forward-facing unit of creative change.
+
+    This is an expected or realized planning observation, never a Canon event.
+    ``causal_source`` and ``evidence_or_forward_introduction`` deliberately
+    allow an empty value so a soft diagnostic can report an orphaned element
+    instead of silently inventing provenance.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    element_id: str = Field(pattern=r"^[A-Za-z0-9._-]+$")
+    focus: InnovationFocus
+    description: str
+    novelty_type: NoveltyQuality = NoveltyQuality.MEANINGFUL_NOVELTY
+    magnitude: InnovationMagnitude = InnovationMagnitude.LOCAL
+    causal_source: str = ""
+    state_before: str = ""
+    state_after_if_realized: str = ""
+    future_options_opened: list[str] = Field(default_factory=list)
+    future_options_closed: list[str] = Field(default_factory=list)
+    horizon_roles: list[NarrativeHorizon] = Field(default_factory=list)
+    evidence_or_forward_introduction: str = ""
+
+    @model_validator(mode="after")
+    def validate_focus(self) -> InnovationElement:
+        if self.focus is InnovationFocus.AUTO:
+            raise ValueError("InnovationElement 必须使用显式 InnovationFocus")
+        return self
+
+
+class InnovationSynergy(BaseModel):
+    """A causal interaction between innovation elements."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    synergy_id: str = Field(pattern=r"^[A-Za-z0-9._-]+$")
+    element_ids: list[str] = Field(min_length=2)
+    focuses: list[InnovationFocus] = Field(min_length=2)
+    causal_link: str
+    joint_state_change: str
+    future_option_effect: str
+    reward: float = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def validate_synergy(self) -> InnovationSynergy:
+        if len(set(self.element_ids)) != len(self.element_ids):
+            raise ValueError("InnovationSynergy element_ids 不得重复")
+        if InnovationFocus.AUTO in self.focuses:
+            raise ValueError("InnovationSynergy 不得使用 AUTO focus")
+        return self
+
+
+class CrossHorizonSynergy(BaseModel):
+    """A causal chain that changes more than one narrative horizon."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    synergy_id: str = Field(pattern=r"^[A-Za-z0-9._-]+$")
+    element_ids: list[str] = Field(min_length=2)
+    horizons: list[NarrativeHorizon] = Field(min_length=2)
+    causal_link: str
+    joint_state_change: str
+    future_option_effect: str
+    reward: float = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def validate_horizons(self) -> CrossHorizonSynergy:
+        if len(set(self.element_ids)) != len(self.element_ids):
+            raise ValueError("CrossHorizonSynergy element_ids 不得重复")
+        if len(set(self.horizons)) != len(self.horizons):
+            raise ValueError("CrossHorizonSynergy horizons 不得重复")
+        return self
+
+
+class EarnedRecombination(BaseModel):
+    """Reuse of an earned asset in a genuinely new context."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    recombination_id: str = Field(pattern=r"^[A-Za-z0-9._-]+$")
+    description: str
+    magnitude: InnovationMagnitude = InnovationMagnitude.LOCAL
+    causal_source: str = ""
+    earned_asset_ids: list[str] = Field(default_factory=list)
+    new_strategy: str = ""
+    reward: float = Field(default=0, ge=0)
+
+
+class ExpectedNarrativeDebt(BaseModel):
+    """A new question/promise intentionally opened by a candidate."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    debt_id: str = Field(pattern=r"^[A-Za-z0-9._-]+$")
+    question_or_promise: str
+    horizon: NarrativeHorizon
+    source_event: str
+    expected_payoff_window: str
+    magnitude: InnovationMagnitude = InnovationMagnitude.LOCAL
+
+
+class NarrativeDebt(BaseModel):
+    """A current open question or promise in the rolling portfolio."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    debt_id: str = Field(pattern=r"^[A-Za-z0-9._-]+$")
+    question_or_promise: str
+    horizon: NarrativeHorizon
+    opened_chapter: int = Field(ge=0)
+    source_event: str
+    expected_payoff_window: str
+    maturity: str = "developing"
+    status: NarrativeDebtStatus = NarrativeDebtStatus.OPEN
+    last_advanced: int = Field(default=0, ge=0)
+
+
+class NarrativePayoff(BaseModel):
+    """A full or partial payoff of an existing narrative debt."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    payoff_id: str = Field(pattern=r"^[A-Za-z0-9._-]+$")
+    description: str
+    horizon: NarrativeHorizon
+    extent: PayoffExtent = PayoffExtent.FULL
+    debt_id: str | None = None
+    evidence_or_forward_introduction: str = ""
+
+
+class NarrativeThreadState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    thread_id: str = Field(pattern=r"^[A-Za-z0-9._-]+$")
+    name: str = ""
+    horizon: NarrativeHorizon = NarrativeHorizon.MID
+    lifecycle: NarrativeThreadLifecycle = NarrativeThreadLifecycle.DEVELOPING
+    maturity: float | None = Field(default=None, ge=0, le=1)
+    maturity_note: str = ""
+    opened_chapter: int = Field(default=0, ge=0)
+    last_advanced: int = Field(default=0, ge=0)
+    debt_ids: list[str] = Field(default_factory=list)
+
+
+class NarrativePortfolioSnapshot(BaseModel):
+    """The soft, multi-horizon state supplied before Candidate Planning."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    snapshot_id: str = Field(pattern=r"^[A-Za-z0-9._-]+$")
+    current_chapter: int = Field(ge=0)
+    short_threads: list[NarrativeThreadState] = Field(default_factory=list)
+    mid_threads: list[NarrativeThreadState] = Field(default_factory=list)
+    long_threads: list[NarrativeThreadState] = Field(default_factory=list)
+    narrative_debts: list[NarrativeDebt] = Field(default_factory=list)
+    payoff_ready_thread_ids: list[str] = Field(default_factory=list)
+    overdue_debt_ids: list[str] = Field(default_factory=list)
+    consecutive_deferrals: int = Field(default=0, ge=0)
+    warnings: list[str] = Field(default_factory=list)
+
+    @property
+    def all_threads(self) -> list[NarrativeThreadState]:
+        return [*self.short_threads, *self.mid_threads, *self.long_threads]
+
+
+class NarrativeDelta(BaseModel):
+    """The meaningful before/after state change of a candidate or draft."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    state_before: str
+    state_after: str
+    description: str
+    meaningful: bool = False
+    irreversible_changes: list[str] = Field(default_factory=list)
+    questions_answered: list[str] = Field(default_factory=list)
+    questions_partially_paid: list[str] = Field(default_factory=list)
+    questions_materially_advanced: list[str] = Field(default_factory=list)
+    new_questions_opened: list[str] = Field(default_factory=list)
+
+
+class InnovationCommitments(BaseModel):
+    """Soft commitments frozen into a Chapter Contract."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    expected_innovation_elements: list[InnovationElement] = Field(default_factory=list)
+    expected_element_synergies: list[InnovationSynergy] = Field(default_factory=list)
+    expected_horizon_roles: dict[str, list[NarrativeHorizon]] = Field(default_factory=dict)
+    expected_cross_horizon_synergies: list[CrossHorizonSynergy] = Field(default_factory=list)
+    expected_payoffs: list[NarrativePayoff] = Field(default_factory=list)
+    expected_new_debts: list[ExpectedNarrativeDebt] = Field(default_factory=list)
+    expected_future_options_opened: list[str] = Field(default_factory=list)
+    minimum_meaningful_delta: NarrativeDelta | None = None
+    soft_contract: Literal[True] = True
+    hard_gate_exception: Literal[False] = False
+
+
+class InnovationRewardLine(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    item_id: str
+    reward: float = Field(ge=0)
+    reason: str
+
+
+class QuestionBalance(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    answered: int = Field(default=0, ge=0)
+    partially_paid: int = Field(default=0, ge=0)
+    materially_advanced: int = Field(default=0, ge=0)
+    newly_opened: int = Field(default=0, ge=0)
+    over_deferred: bool = False
+    penalty: float = Field(default=0, ge=0)
+
+
+class NarrativePatternDiagnostic(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    repeated: bool = False
+    primary_function: str = ""
+    scene_topology: str = ""
+    ending_mode: str = ""
+    question_payoff_pattern: str = ""
+    risk_resolution_pattern: str = ""
+    evidence: list[str] = Field(default_factory=list)
+    penalty: float = Field(default=0, ge=0)
+
+
+class SemanticPolicyLeakDiagnostic(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["CLEAR", "SEMANTIC_POLICY_LEAK"] = "CLEAR"
+    categories: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    repeated_count: int = Field(default=0, ge=0)
+    penalty: float = Field(default=0, ge=0)
+
+
+class InnovationRewardBreakdown(BaseModel):
+    """Auditable reward components applied only after Hard Gates pass."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    requested_level: InnovationLevel
+    level_multiplier: float = Field(ge=0)
+    reward_cap: float = Field(ge=0)
+    innovation_elements: list[InnovationElement] = Field(default_factory=list)
+    element_rewards: list[InnovationRewardLine] = Field(default_factory=list)
+    element_synergies: list[InnovationSynergy] = Field(default_factory=list)
+    element_synergy_reward: float = Field(default=0, ge=0)
+    cross_horizon_synergies: list[CrossHorizonSynergy] = Field(default_factory=list)
+    cross_horizon_reward: float = Field(default=0, ge=0)
+    earned_recombinations: list[EarnedRecombination] = Field(default_factory=list)
+    earned_recombination_reward: float = Field(default=0, ge=0)
+    payoffs: list[NarrativePayoff] = Field(default_factory=list)
+    payoff_reward: float = Field(default=0, ge=0)
+    answer_and_expand_reward: float = Field(default=0, ge=0)
+    focus_alignment_reward: float = Field(default=0, ge=0)
+    new_narrative_debt_cost: float = Field(default=0, ge=0)
+    overdue_debt_penalty: float = Field(default=0, ge=0)
+    integration_cost_penalty: float = Field(default=0, ge=0)
+    cosmetic_penalty: float = Field(default=0, ge=0)
+    orphan_penalty: float = Field(default=0, ge=0)
+    repetition_penalty: float = Field(default=0, ge=0)
+    over_deferral_penalty: float = Field(default=0, ge=0)
+    raw_innovation_reward: float = Field(default=0, ge=0)
+    scaled_innovation_reward: float = Field(default=0, ge=0)
+    capped_innovation_reward: float = Field(default=0, ge=0)
+    base_candidate_score: float = 0
+    final_selection_score: float = 0
+    question_balance: QuestionBalance = Field(default_factory=QuestionBalance)
+    narrative_delta: NarrativeDelta | None = None
+    eligible: bool = True
+    ineligibility_reasons: list[str] = Field(default_factory=list)
 
 
 class InnovationControl(BaseModel):
@@ -176,6 +489,15 @@ class CandidateInnovationPreview(BaseModel):
     integration_cost: IntegrationCost = IntegrationCost.LOW
     novelty_quality: NoveltyQuality = NoveltyQuality.MEANINGFUL_NOVELTY
     uses_earned_assets: list[str] = Field(default_factory=list)
+    expected_innovation_elements: list[InnovationElement] = Field(default_factory=list)
+    expected_element_synergies: list[InnovationSynergy] = Field(default_factory=list)
+    expected_horizon_roles: dict[str, list[NarrativeHorizon]] = Field(default_factory=dict)
+    expected_cross_horizon_synergies: list[CrossHorizonSynergy] = Field(default_factory=list)
+    expected_earned_recombinations: list[EarnedRecombination] = Field(default_factory=list)
+    expected_payoffs: list[NarrativePayoff] = Field(default_factory=list)
+    expected_new_debts: list[ExpectedNarrativeDebt] = Field(default_factory=list)
+    expected_narrative_delta: NarrativeDelta | None = None
+    expected_innovation_reward: InnovationRewardBreakdown | None = None
 
     @model_validator(mode="after")
     def validate_directions(self) -> CandidateInnovationPreview:
@@ -207,6 +529,17 @@ class InnovationTrace(BaseModel):
     novelty_quality: list[NoveltyQuality] = Field(default_factory=list)
     integration_cost: IntegrationCost = IntegrationCost.LOW
     recent_pattern_distance: PatternDistance = PatternDistance.MEDIUM
+    realized_elements: list[InnovationElement] = Field(default_factory=list)
+    realized_synergies: list[InnovationSynergy] = Field(default_factory=list)
+    realized_horizon_effects: dict[str, list[str]] = Field(default_factory=dict)
+    realized_payoffs: list[NarrativePayoff] = Field(default_factory=list)
+    realized_new_debt: list[NarrativeDebt] = Field(default_factory=list)
+    realized_narrative_delta: NarrativeDelta | None = None
+    realized_innovation_reward: InnovationRewardBreakdown | None = None
+    questions_answered: list[str] = Field(default_factory=list)
+    questions_partially_paid: list[str] = Field(default_factory=list)
+    questions_materially_advanced: list[str] = Field(default_factory=list)
+    new_questions_opened: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_trace_focus(self) -> InnovationTrace:
@@ -238,6 +571,9 @@ class InnovationDiagnostics(BaseModel):
     repeated_patterns: list[str] = Field(default_factory=list)
     open_novelty_debt: list[str] = Field(default_factory=list)
     recommendation: InnovationRecommendation | None = None
+    portfolio_snapshot: NarrativePortfolioSnapshot | None = None
+    question_balance: QuestionBalance = Field(default_factory=QuestionBalance)
+    semantic_policy_leak: SemanticPolicyLeakDiagnostic | None = None
 
 
 class ExperimentContextFingerprint(BaseModel):
@@ -635,17 +971,37 @@ def estimate_integration_cost(
 __all__ = [
     "AlignmentJudgment",
     "CandidateInnovationPreview",
+    "CrossHorizonSynergy",
+    "EarnedRecombination",
+    "ExpectedNarrativeDebt",
     "ExperimentContextFingerprint",
     "InnovationControl",
     "InnovationDiagnostics",
     "InnovationDirectionAlignment",
+    "InnovationElement",
     "InnovationFocus",
+    "InnovationCommitments",
     "InnovationLevel",
+    "InnovationMagnitude",
     "InnovationRecommendation",
+    "InnovationRewardBreakdown",
+    "InnovationRewardLine",
     "InnovationTrace",
     "IntegrationCost",
+    "NarrativeDebt",
+    "NarrativeDebtStatus",
+    "NarrativeDelta",
+    "NarrativeHorizon",
+    "NarrativePatternDiagnostic",
+    "NarrativePayoff",
+    "NarrativePortfolioSnapshot",
+    "NarrativeThreadLifecycle",
+    "NarrativeThreadState",
     "NoveltyQuality",
+    "PayoffExtent",
     "PatternDistance",
+    "QuestionBalance",
+    "SemanticPolicyLeakDiagnostic",
     "build_experiment_context_fingerprint",
     "assess_innovation_alignment",
     "classify_novelty",

@@ -70,6 +70,25 @@ Canon Projection Delta 只在运行时视图中覆盖旧 baseline，不修改 ba
 前向新颖性必须声明引入事件、因果来源、commit 后状态和冲突检查；未在当前边界建立的状态不得
 以 retroactive unsupported invention 形式伪装成既有事实。
 
+## Innovation Reward 与 Multi-Horizon Portfolio（Phase 6.2）
+
+`InnovationControl` 只控制合法工作流内部的 creative distance；它不改变 Canon、Timeline、
+Knowledge、Capability、Resource、Author Directive、Approval 或 Edition hard gates。候选必须
+先通过这些硬门，才可以保留既有 `base_candidate_score`，并用结构化 `InnovationElement`、
+`InnovationSynergy`、Earned Recombination、payoff、future option 和 integration cost 计算
+`final_selection_score`。Level multiplier 和 reward cap 只作用于有因果来源的
+`MEANINGFUL_NOVELTY`，不得变成自动 Score Bonus；Hard Gate 失败的候选永远不可选。
+
+Candidate Planning 还必须冻结 `NarrativePortfolioSnapshot`：SHORT（约 1–3 章）、MID（约
+4–15 章）和 LONG（约 15–60+ 章）分别管理短期兑现、中期推进和长期开放设计空间。
+`PAYOFF_READY` 与 overdue debt 不能被无代价延宕；新问题必须与现有问题的回答、部分兑现或
+实质推进形成 Question Balance。Portfolio、Reward、Narrative Delta 和 realized InnovationTrace
+都是软理解或审计数据，不得直接写入 Canon、Runtime State 或批准事件。
+
+正文生成必须通过 Governance-to-Prose Firewall：系统内核、Chapter Contract 和 Validator
+负责规则，人物行动负责文学表达。反复出现的治理型“暂不确认—保留退路—等待验证”只产生
+`SEMANTIC_POLICY_LEAK` 软诊断，不成为正文的固定模板，也不改变既有十项 Validator。
+
 ---
 
 # 1. 不可妥协的核心循环

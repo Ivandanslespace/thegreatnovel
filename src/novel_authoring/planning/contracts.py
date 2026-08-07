@@ -6,7 +6,11 @@ from novel_authoring.db.database import Database
 from novel_authoring.domain.models import ContinuationMode
 from novel_authoring.edition import edition_workspace, resolve_edition_id
 from novel_authoring.planning.boundary import PlanningError
-from novel_authoring.planning.innovation import InnovationControl
+from novel_authoring.planning.innovation import (
+    InnovationCommitments,
+    InnovationControl,
+    NarrativePortfolioSnapshot,
+)
 from novel_authoring.planning.models import CandidateProposal, ChapterContract
 from novel_authoring.storage.layout import BookLayout
 from novel_authoring.storage.operations import book_root, find_operation
@@ -56,6 +60,12 @@ def build_chapter_contract(
     innovation_control = InnovationControl.model_validate(
         task_metadata.get("innovation_control", {})
     )
+    portfolio_raw = task_metadata.get("narrative_portfolio_snapshot")
+    narrative_portfolio = (
+        NarrativePortfolioSnapshot.model_validate(portfolio_raw)
+        if portfolio_raw is not None
+        else None
+    )
     next_chapter = int(boundary_json["current_position"]["next_chapter"])
     rhythm_diagnostics = dict(boundary_json.get("rhythm_diagnostics", {}))
     rhythm_constraints: dict[str, object] = {}
@@ -81,6 +91,19 @@ def build_chapter_contract(
         "batch_anchor": boundary_json.get("batch_anchor", {}),
     }
     contract_id = stable_id("contract", json_dumps(contract_seed))
+    innovation_commitments = InnovationCommitments()
+    if candidate.innovation_preview is not None:
+        preview = candidate.innovation_preview
+        innovation_commitments = InnovationCommitments(
+            expected_innovation_elements=preview.expected_innovation_elements,
+            expected_element_synergies=preview.expected_element_synergies,
+            expected_horizon_roles=preview.expected_horizon_roles,
+            expected_cross_horizon_synergies=preview.expected_cross_horizon_synergies,
+            expected_payoffs=preview.expected_payoffs,
+            expected_new_debts=preview.expected_new_debts,
+            expected_future_options_opened=preview.future_options_opened,
+            minimum_meaningful_delta=preview.expected_narrative_delta,
+        )
     contract = ChapterContract(
         contract_id=contract_id,
         chapter=next_chapter,
@@ -130,6 +153,8 @@ def build_chapter_contract(
         novelty_provenance=candidate.novelty_provenance,
         innovation_control=innovation_control,
         innovation_preview=candidate.innovation_preview,
+        innovation_commitments=innovation_commitments,
+        narrative_portfolio=narrative_portfolio,
     )
     contract_json = json_dumps(contract.model_dump(mode="json"), indent=2)
     contract_hash = sha256_bytes(contract_json.encode())

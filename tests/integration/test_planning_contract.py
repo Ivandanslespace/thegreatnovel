@@ -300,8 +300,13 @@ def test_boundary_candidate_ranking_and_contract(tmp_path: Path) -> None:
             "recent_structures",
             "style_profiles",
             "author_directives",
+            "narrative_portfolio",
         ]
     ) <= packet.keys()
+    assert packet["narrative_portfolio"]["snapshot_id"]
+    assert packet["innovation_diagnostics"]["portfolio_snapshot"] == packet[
+        "narrative_portfolio"
+    ]
     assert len(planned["candidates"]) == 3
     assert len(planned["same_choice_band"]) == 2
     assert sum(item["selection_status"] == "SELECTED" for item in planned["candidates"]) == 1
