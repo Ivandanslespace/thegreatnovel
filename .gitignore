@@ -12,7 +12,8 @@ build/
 workspace/*/
 !workspace/.gitkeep
 
-# canonical Book Library：仅上传用户指定书目的可审计产物；运行数据库、原始来源、导出和其它书目仍保持本地。
+# canonical Book Library：draft 正文在完成任务时由续写流程显式上传；其余运行数据库、
+# 原始来源、导出和其它书目仍保持本地。
 library/*
 !library/.gitkeep
 !library/README.md

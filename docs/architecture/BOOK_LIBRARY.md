@@ -31,6 +31,19 @@ library/<book_id>/
 CLI/Web 的 `--library-root` 解析路径，不再手工拼接书库目录。不会使用 symlink 替代真实
 目录迁移。
 
+### 外部审计版 Draft 持久化
+
+`library/<book_id>/editions/<edition_id>/writing/drafts/*.md` 是外部审计工件，所有生成的
+draft 正文（包括 VALIDATED_DRAFT、修订历史和失败后保留的历史正文）都必须在任务结束时由
+续写流程显式加入 Git。改写 draft 使用 `writing/revisions/` 下的正文文件，也遵循同一规则。
+Phase 5 live 的兼容路径 `editions/<edition_id>/drafts/*.md` 同样必须显式上传。
+
+数据库、operations、合同、validation JSON、缓存、source 副本和 hidden truth 不因该规则
+进入 Git。`library/` 默认仍被 `.gitignore` 忽略，以避免历史运行文件被批量纳入；上传 draft
+时使用精确路径的 `git add -f`。Draft 仍然不是 Canon：完成十项校验后，必须先确认
+`canon_committed=false`、`edition_activated=false`，再在当前开发分支 commit 和 push，供外部审计；
+未经作者明确批准不得运行 `novel approve`。
+
 ## 边界
 
 Book Library 只收敛存储位置，不改变 V2 宪法、指标公式、Atlas 证据语义、Canon 事件或

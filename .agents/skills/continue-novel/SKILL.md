@@ -154,6 +154,19 @@ Boundary Packet 中的 `rhythm_features`、`rhythm_diagnostics` 与 `hook_diagno
 
 没有当前用户的精确批准语时就在这里结束。
 
+### 8.1 外部审计 Git 交付
+
+所有新生成的 draft 正文都必须保留为可审计 Git 工件。完成导入和十项校验后：
+
+1. 确认 draft 文件位于 `library/<book_id>/editions/<edition_id>/writing/drafts/`；改写 draft
+   位于对应 `writing/revisions/`；历史 benchmark 兼容路径也必须保留；
+2. 由于 `library/` 默认被忽略，使用精确 draft 路径执行 `git add -f`，只 stage 本次 draft 正文
+   及明确需要的审计文档；不 stage `book/`、`audit/`、Canon、数据库、operations、hidden truth
+   或其它运行时缓存；
+3. 在当前永久分支提交并推送，最终报告提供 draft 绝对路径、commit 和远端状态。
+
+Draft 上传不等于批准，不改变 Canon、Edition active state 或 Approval 流程。
+
 ### 9. 显式批准
 
 只有当前用户明确说“批准写入正史”时才运行：

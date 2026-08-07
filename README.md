@@ -141,9 +141,11 @@ uv run --no-sync python scripts/phase5_live_ab.py evaluate --run-label live-v1
 和 Draft 必须由对应 READY operation 的 Codex Desktop 文件合同完成。`collect` 严格拒绝未完成
 阶段、导入/校验真实输出，并在 N+1 完成后把其正文与 `BatchProvisionalState` 传给 N+2。
 `evaluate` 是唯一读取 controller-owned hidden truth 的命令。可选 `--include-c` 在 50 boundary
-增加 Candidate-only Runtime ablation；运行产物位于被忽略的 `benchmark/live_phase5/`、
-`benchmark/phase5_live_hidden/` 和 `library/phase5-live-*`，合同说明见
-`benchmark/phase5_1_live_generation_ab.md`。
+增加 Candidate-only Runtime ablation；controller、hidden truth、数据库和 operations 仍位于被忽略的
+`benchmark/live_phase5/`、`benchmark/phase5_live_hidden/` 和 `library/phase5-live-*`。最终 draft
+正文是外部审计工件，完成校验后由续写流程显式上传到 Git，路径为
+`library/<book_id>/editions/<edition_id>/writing/drafts/*.md`（Phase 5 live 兼容路径为
+`editions/<edition_id>/drafts/*.md`），合同说明见 `benchmark/phase5_1_live_generation_ab.md`。
 
 ## 能力
 
