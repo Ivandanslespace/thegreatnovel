@@ -22,7 +22,7 @@ from novel_authoring.planning.rewards import (
 )
 from novel_authoring.storage.layout import BookLayout
 from novel_authoring.storage.operations import book_root, ensure_operation, find_operation
-from novel_authoring.utils import json_dumps, sha256_bytes, stable_id, utc_now
+from novel_authoring.utils import json_dumps, sha256_bytes, sha256_file, stable_id, utc_now
 
 
 class DraftWorkflowError(RuntimeError):
@@ -384,6 +384,84 @@ def show_draft(
             }
             for report in reports
         ],
+    }
+
+
+def save_draft_content(
+    database: Database,
+    book_id: str,
+    draft_id: str,
+    content: str,
+    *,
+    edition_id: str | None = None,
+    expected_content_sha256: str | None = None,
+) -> dict[str, object]:
+    """Persist an author edit while keeping the draft outside Canon.
+
+    Saving invalidates validation reports and returns the draft to ``DRAFT``.
+    It never changes chapters, events, projections, editions, or approval state.
+    """
+
+    selected_edition = edition_id or resolve_edition_id(database, book_id, edition_id)
+    with database.connect() as connection:
+        row = connection.execute(
+            "SELECT * FROM drafts WHERE book_id=? AND draft_id=? AND edition_id=?",
+            (book_id, draft_id, selected_edition),
+        ).fetchone()
+        if row is None:
+            raise DraftWorkflowError(f"草稿不存在：{draft_id}")
+        if row["status"] in {
+            DraftStatus.AUTHOR_APPROVED.value,
+            DraftStatus.CANON_COMMITTED.value,
+        }:
+            raise DraftWorkflowError("已批准或已提交草稿不可直接编辑")
+        if (
+            expected_content_sha256 is not None
+            and str(row["content_sha256"]) != expected_content_sha256
+        ):
+            raise DraftWorkflowError("草稿已被其他操作修改，请重新加载后再保存")
+
+        draft_path = Path(str(row["file_path"])).expanduser().resolve()
+        edition_root = edition_workspace(database, book_id, selected_edition).resolve()
+        drafts_root = (edition_root / "drafts").resolve()
+        if drafts_root not in draft_path.parents:
+            raise DraftWorkflowError("草稿路径不在当前 edition 的 drafts 目录")
+        if not content.strip():
+            raise DraftWorkflowError("Draft 正文不能为空")
+
+        normalized = content if content.endswith("\n") else content + "\n"
+        draft_path.write_text(normalized, encoding="utf-8")
+        content_hash = sha256_file(draft_path)
+        output = json.loads(str(row["output_json"] or "{}"))
+        if not isinstance(output, dict):
+            output = {}
+        output["prose_markdown"] = normalized.rstrip("\n")
+        connection.execute(
+            """
+            UPDATE drafts
+            SET content_sha256=?, status=?, output_json=?, validation_run_id=NULL,
+                version=version+1
+            WHERE book_id=? AND draft_id=? AND edition_id=?
+            """,
+            (
+                content_hash,
+                DraftStatus.DRAFT.value,
+                json_dumps(output),
+                book_id,
+                draft_id,
+                selected_edition,
+            ),
+        )
+        connection.execute(
+            "DELETE FROM validation_reports WHERE book_id=? AND draft_id=?",
+            (book_id, draft_id),
+        )
+    return {
+        "draft_id": draft_id,
+        "edition_id": selected_edition,
+        "status": DraftStatus.DRAFT.value,
+        "content_sha256": content_hash,
+        "validation_invalidated": True,
     }
 
 

@@ -29,6 +29,13 @@ class AuthorInputRequest(BaseModel):
     evidence_links: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class DraftContentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    content: str = Field(min_length=1)
+    expected_content_sha256: str | None = None
+
+
 class HandoffRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

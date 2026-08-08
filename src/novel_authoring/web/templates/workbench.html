@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{{ book.title }} · Novel Authoring Workbench</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body class="workbench-body">
+  <header class="wb-topbar">
+    <a class="wb-brand" href="/">Novel Authoring Workbench</a>
+    <div class="wb-breadcrumb" data-wb-breadcrumb>
+      <span>{{ book.title }}</span><span>/</span><span>{{ edition.display_name }}</span>
+      {% if selected_chapter_anchor %}<span>/</span><span>第{{ selected_chapter_anchor }}章</span>{% endif %}
+    </div>
+    <div class="wb-top-actions">
+      <span class="wb-status-chip wb-status-{{ (selected_draft.display_status if selected_draft else 'SOURCE')|lower }}">
+        {{ selected_draft.display_status if selected_draft else 'SOURCE' }}
+      </span>
+      <a class="wb-top-link" href="/books/{{ book_id }}/workflow">工作流</a>
+      <a class="wb-top-link" href="/books/{{ book_id }}/jobs">Handoff</a>
+      <button class="wb-top-link" type="button" data-toggle-pane="left">隐藏左栏</button>
+      <button class="wb-top-link" type="button" data-toggle-pane="right">隐藏右栏</button>
+    </div>
+  </header>
+
+  <main class="wb-shell" data-workbench-shell
+        data-book-id="{{ book_id }}" data-edition-id="{{ edition_id }}">
+    <aside class="wb-pane wb-left-pane" data-pane="left" aria-label="小说结构与知识树">
+      <div class="wb-pane-header">
+        <div>
+          <p class="wb-kicker">创作空间</p>
+          <h1>{{ book.title }}</h1>
+        </div>
+        <button class="wb-icon-button" type="button" data-toggle-pane="left" aria-label="折叠左栏">‹</button>
+      </div>
+      <label class="wb-select-label">Edition
+        <select data-edition-select data-book-id="{{ book_id }}"
+                onchange="window.location.href='/books/{{ book_id }}/editions/' + encodeURIComponent(this.value) + '/workbench'">
+          {% for item in editions %}
+          <option value="{{ item.edition_id }}"{% if item.edition_id == edition_id %} selected{% endif %}>
+            {{ item.display_name }} · {{ item.status }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <nav class="wb-tree" aria-label="Workbench Explorer">
+        <a class="wb-tree-root wb-workbench-link{% if selected_node == 'overview' %} is-selected{% endif %}"
+           href="/books/{{ book_id }}/editions/{{ edition_id }}/workbench?node=overview"
+           data-workbench-navigation>⌂ <span>概览</span></a>
+
+        <details open{% if selected_node == 'worldbuilding' %} class="is-active-branch"{% endif %}>
+          <summary>世界观</summary>
+          <a class="wb-tree-item wb-workbench-link{% if selected_node == 'worldbuilding' %} is-selected{% endif %}"
+             href="/books/{{ book_id }}/editions/{{ edition_id }}/workbench?node=worldbuilding"
+             data-workbench-navigation><span class="wb-tree-icon">◇</span>总览
+             {% if profile_items[0].available %}<span class="wb-availability">SELF_BOOK</span>{% endif %}</a>
+        </details>
+
+        <details open{% if selected_node == 'characters' %} class="is-active-branch"{% endif %}>
+          <summary>人物</summary>
+          <a class="wb-tree-item wb-workbench-link{% if selected_node == 'characters' %} is-selected{% endif %}"
+             href="/books/{{ book_id }}/editions/{{ edition_id }}/workbench?node=characters"
+             data-workbench-navigation><span class="wb-tree-icon">♙</span>人物画像
+             {% if profile_items[1].available %}<span class="wb-availability">SELF_BOOK</span>{% endif %}</a>
+        </details>
+
+        <details open{% if selected_node == 'plot' %} class="is-active-branch"{% endif %}>
+          <summary>剧情</summary>
+          <a class="wb-tree-item wb-workbench-link{% if selected_node == 'plot' %} is-selected{% endif %}"
+             href="/books/{{ book_id }}/editions/{{ edition_id }}/workbench?node=plot"
+             data-workbench-navigation><span class="wb-tree-icon">⌁</span>情节因果与伏笔
+             {% if profile_items[2].available %}<span class="wb-availability">SELF_BOOK</span>{% endif %}</a>
+        </details>
+
+        <details open class="wb-body-branch">
+          <summary>正文 <span class="wb-count">{{ chapter_items|length }}</span></summary>
+          <label class="wb-search-label">搜索章节
+            <input type="search" placeholder="标题或序号" data-wb-chapter-search>
+          </label>
+          <div class="wb-chapter-tree" data-wb-chapter-tree>
+            <div class="wb-volume-row"><span>▾</span> 第一卷 <span class="wb-count">{{ chapter_items|length }}</span></div>
+            {% for item in chapter_items %}
+            <a class="wb-chapter-row wb-workbench-link{% if selected_node == 'chapter' and selected_chapter and item.chapter_id == selected_chapter.chapter_id %} is-selected{% endif %}"
+               data-wb-chapter-item
+               href="/books/{{ book_id }}/editions/{{ edition_id }}/workbench?chapter_id={{ item.chapter_id }}&node=chapter"
+               data-workbench-navigation>
+              <span class="wb-chapter-number">{{ item.ordinal }}</span>
+              <span class="wb-chapter-title">{{ item.title }}</span>
+              <span class="wb-mini-status wb-mini-{{ item.status|lower }}">{{ item.status }}</span>
+            </a>
+            {% endfor %}
+            {% for item in draft_items %}
+            <a class="wb-chapter-row wb-draft-row wb-workbench-link{% if selected_draft and item.draft_id == selected_draft.draft_id %} is-selected{% endif %}"
+               data-wb-chapter-item
+               href="/books/{{ book_id }}/editions/{{ edition_id }}/workbench?draft_id={{ item.draft_id }}&node=chapter"
+               data-workbench-navigation>
+              <span class="wb-chapter-number">{{ item.ordinal }}</span>
+              <span class="wb-chapter-title">{{ item.title }}</span>
+              <span class="wb-mini-status wb-mini-provisional">{{ item.status }}</span>
+            </a>
+            {% endfor %}
+          </div>
+        </details>
+
+        <details>
+          <summary>连续性账本</summary>
+          <div class="wb-placeholder-tree">章记录 · 人物状态 · 能力 · 资源 · 知识边界 · 伏笔 / Promise · Narrative Debt</div>
+        </details>
+
+        <details open{% if selected_node in ['style', 'narrative', 'dialogue', 'pacing', 'themes', 'continuity'] %} class="is-active-branch"{% endif %}>
+          <summary>分析 <span class="wb-count">{{ profile_items|length }}</span></summary>
+          {% for item in profile_items %}
+          <a class="wb-tree-item wb-workbench-link{% if selected_node == item.id %} is-selected{% endif %}"
+             href="/books/{{ book_id }}/editions/{{ edition_id }}/workbench?node={{ item.id }}"
+             data-workbench-navigation><span class="wb-tree-icon">·</span>{{ item.label }}
+             {% if item.available %}<span class="wb-availability">MD</span>{% else %}<span class="wb-availability is-missing">空</span>{% endif %}</a>
+          {% endfor %}
+        </details>
+
+        <details>
+          <summary>改写</summary>
+          <div class="wb-placeholder-tree">Revision Workspace 将复用 Edition / Revision architecture。</div>
+        </details>
+        <details>
+          <summary>技能 / References</summary>
+          <div class="wb-placeholder-tree">技能调用和引用素材将在后续切片接入。</div>
+        </details>
+      </nav>
+      <div class="wb-left-footer">
+        <span>状态</span><strong>{{ book_status }}</strong>
+        <span class="wb-readonly-note">章节点击只改变 selected_chapter_anchor，不改变数据库。</span>
+      </div>
+    </aside>
+
+    <div class="wb-resizer" data-resizer="left" role="separator" aria-label="调整左栏宽度"></div>
+
+    <section class="wb-pane wb-center-pane" data-pane="center" aria-label="AI Authoring Workspace">
+      <div class="wb-center-toolbar">
+        <div class="wb-mode-tabs" role="tablist" aria-label="AI 工作模式">
+          <button type="button" class="is-active" data-wb-mode>续写</button>
+          <button type="button" data-wb-mode>改写</button>
+          <button type="button" data-wb-mode>规划</button>
+          <button type="button" data-wb-mode>分析</button>
+          <button type="button" data-wb-mode>连续性审查</button>
+        </div>
+        <span class="wb-anchor-chip">selected_chapter_anchor · {{ selected_chapter_anchor or '—' }}</span>
+      </div>
+
+      <div class="wb-center-scroll">
+        {% if selected_node in ['worldbuilding', 'characters', 'plot', 'style', 'narrative', 'dialogue', 'pacing', 'themes', 'continuity'] %}
+        <article class="wb-content-card wb-profile-card" data-wb-profile-content>
+          <div class="wb-section-heading">
+            <div><p class="wb-kicker">小说画像 · SELF_BOOK</p><h2>{{ selected_profile.label }}</h2></div>
+            {% if selected_profile.available %}<span class="wb-state-tag wb-state-soft">SOFT INTERPRETATION</span>{% else %}<span class="wb-state-tag wb-state-unknown">UNKNOWN</span>{% endif %}
+          </div>
+          {% if selected_profile.available %}
+          <div class="wb-profile-meta">
+            <span>来源：{{ selected_profile.relative_path }}</span>
+            <span>Distill version：{{ profile_manifest.profile_version or '—' }}</span>
+            <span>Scope：{{ profile_manifest.scope or 'SELF_BOOK' }}</span>
+          </div>
+          <pre class="wb-markdown-reading">{{ selected_profile.content }}</pre>
+          {% else %}
+          <p class="wb-empty-state">当前 Book 没有 {{ selected_profile.label }} 的 `book_profil` 文件。这里保持空态，不用默认文本填充。</p>
+          {% endif %}
+        </article>
+        {% elif selected_node == 'chapter' and chapter_context %}
+        <article class="wb-content-card wb-chapter-context-card" data-wb-chapter-context>
+          <div class="wb-section-heading">
+            <div><p class="wb-kicker">Chapter Context · 只读时间锚</p><h2>第{{ chapter_context.chapter_ordinal }}章</h2></div>
+            <div class="wb-heading-tags">
+              <span class="wb-state-tag wb-state-{{ chapter_context.chapter_status|lower }}">{{ chapter_context.chapter_status }}</span>
+              {% if chapter_context.provisional %}<span class="wb-state-tag wb-state-provisional">PROVISIONAL</span>{% else %}<span class="wb-state-tag wb-state-canon">{{ chapter_context.canonical_boundary.status }}</span>{% endif %}
+            </div>
+          </div>
+          <p class="wb-context-explanation">点击章节只改变查询锚点。当前请求不会 rollback current projection、创建 Canon Event、修改 Runtime Baseline 或切换 Edition。</p>
+          <div class="wb-context-tabs" role="tablist">
+            <button type="button" data-wb-context-tab="before">章前</button>
+            <button type="button" class="is-active" data-wb-context-tab="delta">本章变化</button>
+            <button type="button" data-wb-context-tab="after">章后</button>
+          </div>
+          <section class="wb-context-panel" data-wb-context-panel="before" hidden>
+            <h3>第{{ chapter_context.chapter_ordinal }}章 BEFORE_CHAPTER</h3>
+            <p class="wb-context-status">{{ chapter_context.before_state.availability }}</p>
+            {% if chapter_context.before_state.state %}<pre class="wb-json-preview">{{ chapter_context.before_state.state|tojson(indent=2) }}</pre>{% else %}<p class="wb-empty-state">{{ chapter_context.before_state.reason }}</p>{% endif %}
+          </section>
+          <section class="wb-context-panel" data-wb-context-panel="delta">
+            <h3>本章改变了什么？</h3>
+            <p class="wb-context-status">{{ chapter_context.chapter_delta.status }}</p>
+            {% if chapter_context.chapter_delta.changes %}
+            <ul class="wb-change-list">
+              {% for change in chapter_context.chapter_delta.changes[:24] %}
+              <li>
+                <span class="wb-change-kind">{% if change.kind is defined %}{{ change.kind }}{% elif change.payload is defined and change.payload.status is defined %}{{ change.payload.status }}{% else %}CHANGE{% endif %}</span>
+                <span>{% if change.collection is defined %}{{ change.collection }}{% elif change.record_id is defined %}{{ change.record_id }}{% elif change.description is defined %}{{ change.description }}{% elif change.payload is defined and change.payload.description is defined %}{{ change.payload.description }}{% elif change.payload is defined and change.payload.name is defined %}{{ change.payload.name }}{% else %}未命名变化{% endif %}</span>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}<p class="wb-empty-state">{{ chapter_context.chapter_delta.reason or '当前没有可展示的逐章变化。' }}</p>{% endif %}
+            {% if chapter_context.chapter_delta.note %}<p class="wb-context-note">{{ chapter_context.chapter_delta.note }}</p>{% endif %}
+          </section>
+          <section class="wb-context-panel" data-wb-context-panel="after" hidden>
+            <h3>第{{ chapter_context.chapter_ordinal }}章 AFTER_CHAPTER</h3>
+            <p class="wb-context-status">{{ chapter_context.after_state.availability }}</p>
+            {% if chapter_context.after_state.state %}<pre class="wb-json-preview">{{ chapter_context.after_state.state|tojson(indent=2) }}</pre>{% elif chapter_context.after_state.state_changes %}<pre class="wb-json-preview">{{ chapter_context.after_state.state_changes|tojson(indent=2) }}</pre>{% else %}<p class="wb-empty-state">{{ chapter_context.after_state.reason or chapter_context.after_state.note }}</p>{% endif %}
+          </section>
+          <div class="wb-context-summary-grid">
+            <div><span>Source boundary</span><strong>第{{ chapter_context.source_boundary.chapter_ordinal }}章</strong></div>
+            <div><span>Canon boundary</span><strong>第{{ chapter_context.canonical_boundary.chapter_ordinal }}章</strong></div>
+            <div><span>Validation</span><strong>{{ chapter_context.validation.status }}</strong></div>
+            <div><span>本轮状态</span><strong>{% if chapter_context.provisional %}Draft provisional{% else %}Read-only source{% endif %}</strong></div>
+          </div>
+          <details class="wb-raw-context"><summary>查看原始 ChapterContext</summary><pre class="wb-json-preview">{{ chapter_context|tojson(indent=2) }}</pre></details>
+        </article>
+        {% else %}
+        <article class="wb-content-card wb-overview-card">
+          <p class="wb-kicker">作者控制台</p>
+          <h2>世界、人物、剧情与正文，在同一个章节锚点下工作。</h2>
+          <p class="wb-lede">从左侧选择一个知识节点或章节。中间区域将显示作者可读的上下文，右侧保留实际 Markdown 正文。</p>
+          <div class="wb-overview-grid">
+            <div><span>当前 Edition</span><strong>{{ edition_id }}</strong></div>
+            <div><span>Source 章节</span><strong>{{ chapter_items|length }}</strong></div>
+            <div><span>Draft 节点</span><strong>{{ draft_items|length }}</strong></div>
+            <div><span>Distill Profile</span><strong>{{ profile_items|selectattr('available')|list|length }}/{{ profile_items|length }}</strong></div>
+          </div>
+          <div class="wb-overview-note"><strong>时间旅行原则</strong><p>章节浏览是 `projection_as_of(chapter)` 的查询锚点。W0 已把 Source-only 的历史状态缺口显式化，后续会接入 Source Chapter State Projection；当前不会拿最新状态填充历史。</p></div>
+        </article>
+        {% endif %}
+
+        <article class="wb-ai-card">
+          <div class="wb-section-heading"><div><p class="wb-kicker">AI Authoring Workspace</p><h3>下一步准备怎么推进？</h3></div><span class="wb-state-tag wb-state-placeholder">W3 接入</span></div>
+          <p>续写、Candidate、Boundary、Chapter Contract、Validator 和 Innovation Control 将在这里接入现有 application services。本轮保留真实章节上下文，不展示 mock 分数。</p>
+          <div class="wb-ai-input-row"><span class="wb-context-chip">@当前章节</span><span class="wb-context-chip">@世界观</span><input type="text" placeholder="随心输入，输入 / 调用技能，输入 @ 引用素材……" disabled><button type="button" disabled>发送</button></div>
+        </article>
+      </div>
+    </section>
+
+    <div class="wb-resizer" data-resizer="right" role="separator" aria-label="调整右栏宽度"></div>
+
+    <aside class="wb-pane wb-right-pane" data-pane="right" aria-label="正文编辑器">
+      <div class="wb-pane-header wb-editor-header">
+        <div><p class="wb-kicker">当前正文</p><h2>{% if selected_draft %}第{{ selected_draft.target_chapter_ordinal }}章{% elif selected_chapter %}第{{ selected_chapter.ordinal }}章{% else %}正文{% endif %}</h2></div>
+        <button class="wb-icon-button" type="button" data-toggle-pane="right" aria-label="折叠右栏">›</button>
+      </div>
+      <div class="wb-editor-tabs" role="tablist">
+        <button type="button" class="is-active" data-wb-editor-tab="prose">正文</button>
+        <button type="button" data-wb-editor-tab="state">章末状态</button>
+        <button type="button" data-wb-editor-tab="next">下一章接续包</button>
+      </div>
+      <div class="wb-editor-scroll">
+        <div data-wb-editor-prose>
+        {% if selected_draft %}
+        <div class="wb-editor-banner wb-banner-provisional"><span>◌ PROVISIONAL</span><span>{{ selected_draft.display_status }}</span><small>保存后会回到 DRAFT，并需要重新校验。</small></div>
+        <form class="wb-draft-form" method="post" action="/api/books/{{ book_id }}/editions/{{ edition_id }}/drafts/{{ selected_draft.draft_id }}/content" data-wb-draft-form>
+          <input type="hidden" name="expected_content_sha256" value="{{ selected_draft.content_sha256 }}">
+          <textarea class="wb-editor-textarea" name="content" data-wb-editor data-editor-mode="draft" spellcheck="false">{{ selected_draft.content }}</textarea>
+          <div class="wb-editor-footer"><span data-wb-word-count>0 字</span><span>Draft {{ selected_draft.draft_id }}</span><button class="wb-save-button" type="submit">保存草稿</button></div>
+        </form>
+        {% elif selected_chapter %}
+        <div class="wb-editor-banner wb-banner-readonly"><span>✓ SOURCE READ ONLY</span><small>原始章节来自 Book Library，不允许从 Web 覆盖。</small></div>
+        <div class="wb-editor-mode-tabs"><button type="button" class="is-active" data-wb-editor-view="edit">编辑</button><button type="button" data-wb-editor-view="preview">预览</button></div>
+        <div data-wb-editor-panel="edit"><textarea class="wb-editor-textarea" data-wb-editor data-editor-mode="source" readonly spellcheck="false">{{ selected_chapter.content }}</textarea></div>
+        <div data-wb-editor-panel="preview" hidden><pre class="wb-markdown-preview" data-wb-preview>{{ selected_chapter.content }}</pre></div>
+        <div class="wb-editor-footer"><span data-wb-word-count>0 字</span><span>Source content · {{ selected_chapter.content_sha256 }}</span></div>
+        {% else %}
+        <p class="wb-empty-state">从左侧选择章节后，正文会出现在这里。</p>
+        {% endif %}
+        </div>
+
+        <section class="wb-editor-secondary" data-wb-editor-secondary="state" hidden>
+          <h3>章末状态</h3>
+          {% if chapter_context %}<p>{{ chapter_context.after_state.availability }}</p><pre class="wb-json-preview">{{ chapter_context.after_state|tojson(indent=2) }}</pre>{% else %}<p class="wb-empty-state">当前没有 ChapterContext。</p>{% endif %}
+        </section>
+        <section class="wb-editor-secondary" data-wb-editor-secondary="next" hidden>
+          <h3>下一章接续包</h3><p class="wb-empty-state">Boundary Packet 与 Chapter Contract 将在 W3 通过现有服务接入。</p>
+        </section>
+      </div>
+    </aside>
+  </main>
+  <script src="{{ url_for('static', path='app.js') }}" defer></script>
+</body>
+</html>

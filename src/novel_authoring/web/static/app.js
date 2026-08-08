@@ -294,3 +294,184 @@
     });
   });
 }());
+
+(function () {
+  "use strict";
+
+  var layoutKey = "novel-authoring-workbench-layout";
+
+  function csrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.content : "";
+  }
+
+  function readLayout() {
+    try { return JSON.parse(window.localStorage.getItem(layoutKey) || "{}"); } catch (error) { return {}; }
+  }
+
+  function saveLayout(root) {
+    var value = {
+      left: root.style.getPropertyValue("--wb-left"),
+      right: root.style.getPropertyValue("--wb-right"),
+      leftCollapsed: root.classList.contains("is-left-collapsed"),
+      rightCollapsed: root.classList.contains("is-right-collapsed")
+    };
+    try { window.localStorage.setItem(layoutKey, JSON.stringify(value)); } catch (error) { /* local persistence is optional */ }
+  }
+
+  function initLayout(root) {
+    var saved = readLayout();
+    if (saved.left) root.style.setProperty("--wb-left", saved.left);
+    if (saved.right) root.style.setProperty("--wb-right", saved.right);
+    if (saved.leftCollapsed) root.classList.add("is-left-collapsed");
+    if (saved.rightCollapsed) root.classList.add("is-right-collapsed");
+
+    root.querySelectorAll("[data-toggle-pane]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var side = button.dataset.togglePane;
+        root.classList.toggle("is-" + side + "-collapsed");
+        saveLayout(root);
+      });
+    });
+
+    root.querySelectorAll("[data-resizer]").forEach(function (resizer) {
+      resizer.addEventListener("pointerdown", function (event) {
+        if (window.innerWidth < 900) return;
+        event.preventDefault();
+        var side = resizer.dataset.resizer;
+        var move = function (moveEvent) {
+          var maximum = Math.min(window.innerWidth * 0.42, side === "left" ? window.innerWidth - 520 : window.innerWidth * 0.48);
+          if (side === "left") {
+            root.style.setProperty("--wb-left", Math.max(220, Math.min(maximum, moveEvent.clientX)) + "px");
+          } else {
+            var width = window.innerWidth - moveEvent.clientX;
+            root.style.setProperty("--wb-right", Math.max(300, Math.min(maximum, width)) + "px");
+          }
+        };
+        var stop = function () {
+          document.removeEventListener("pointermove", move);
+          document.removeEventListener("pointerup", stop);
+          saveLayout(root);
+        };
+        document.addEventListener("pointermove", move);
+        document.addEventListener("pointerup", stop, { once: true });
+      });
+    });
+  }
+
+  function initContextTabs(root) {
+    root.querySelectorAll("[data-wb-context-tab]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var target = button.dataset.wbContextTab;
+        root.querySelectorAll("[data-wb-context-tab]").forEach(function (item) { item.classList.toggle("is-active", item === button); });
+        root.querySelectorAll("[data-wb-context-panel]").forEach(function (panel) { panel.hidden = panel.dataset.wbContextPanel !== target; });
+      });
+    });
+  }
+
+  function initEditor(root) {
+    root.querySelectorAll("[data-wb-mode]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        root.querySelectorAll("[data-wb-mode]").forEach(function (item) { item.classList.toggle("is-active", item === button); });
+      });
+    });
+    root.querySelectorAll("[data-wb-editor-tab]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var target = button.dataset.wbEditorTab;
+        root.querySelectorAll("[data-wb-editor-tab]").forEach(function (item) { item.classList.toggle("is-active", item === button); });
+        root.querySelectorAll("[data-wb-editor-secondary]").forEach(function (panel) { panel.hidden = panel.dataset.wbEditorSecondary !== target; });
+        var prosePanel = root.querySelector("[data-wb-editor-prose]");
+        if (prosePanel) prosePanel.hidden = target !== "prose";
+      });
+    });
+    root.querySelectorAll("[data-wb-editor-view]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var target = button.dataset.wbEditorView;
+        root.querySelectorAll("[data-wb-editor-view]").forEach(function (item) { item.classList.toggle("is-active", item === button); });
+        root.querySelectorAll("[data-wb-editor-panel]").forEach(function (panel) { panel.hidden = panel.dataset.wbEditorPanel !== target; });
+      });
+    });
+    root.querySelectorAll("[data-wb-editor]").forEach(function (editor) {
+      var counter = root.querySelector("[data-wb-word-count]");
+      var update = function () { if (counter) counter.textContent = Array.from(editor.value || "").length + " 字"; };
+      editor.addEventListener("input", update);
+      update();
+    });
+    root.querySelectorAll("[data-wb-draft-form]").forEach(function (form) {
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var editor = form.querySelector("[name=content]");
+        var expected = form.querySelector("[name=expected_content_sha256]");
+        fetch(form.action, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+          body: JSON.stringify({ content: editor ? editor.value : "", expected_content_sha256: expected ? expected.value : null })
+        }).then(function (response) {
+          return response.json().then(function (body) { return { ok: response.ok, body: body }; });
+        }).then(function (result) {
+          var notice = document.createElement("p");
+          notice.className = result.ok ? "callout" : "callout disputed";
+          notice.textContent = result.ok ? "草稿已保存，验证状态已清空。" : ((result.body.error && result.body.error.message) || "保存失败");
+          form.appendChild(notice);
+          if (result.ok) window.setTimeout(function () { window.location.reload(); }, 500);
+        }).catch(function () {
+          var notice = document.createElement("p");
+          notice.className = "callout disputed";
+          notice.textContent = "请求失败，请刷新后重试。";
+          form.appendChild(notice);
+        });
+      });
+    });
+    var search = root.querySelector("[data-wb-chapter-search]");
+    if (search) search.addEventListener("input", function () {
+      var query = search.value.trim().toLowerCase();
+      root.querySelectorAll("[data-wb-chapter-item]").forEach(function (item) {
+        item.hidden = query && item.textContent.toLowerCase().indexOf(query) === -1;
+      });
+    });
+  }
+
+  function loadWorkbench(link, push) {
+    fetch(link.href, { headers: { Accept: "text/html" } }).then(function (response) {
+      if (!response.ok) throw new Error("Workbench 页面加载失败");
+      return response.text();
+    }).then(function (html) {
+      var parsed = new DOMParser().parseFromString(html, "text/html");
+      var next = parsed.querySelector("[data-workbench-shell]");
+      var current = document.querySelector("[data-workbench-shell]");
+      if (!next || !current) { window.location.href = link.href; return; }
+      current.replaceWith(next);
+      var nextBreadcrumb = parsed.querySelector("[data-wb-breadcrumb]");
+      var currentBreadcrumb = document.querySelector("[data-wb-breadcrumb]");
+      if (nextBreadcrumb && currentBreadcrumb) currentBreadcrumb.replaceWith(nextBreadcrumb);
+      var nextStatus = parsed.querySelector(".wb-top-actions .wb-status-chip");
+      var currentStatus = document.querySelector(".wb-top-actions .wb-status-chip");
+      if (nextStatus && currentStatus) currentStatus.replaceWith(nextStatus);
+      if (parsed.title) document.title = parsed.title;
+      if (push) window.history.pushState({}, "", link.href);
+      initWorkbench();
+    }).catch(function () { window.location.href = link.href; });
+  }
+
+  function initWorkbench() {
+    var root = document.querySelector("[data-workbench-shell]");
+    if (!root) return;
+    initLayout(root);
+    initContextTabs(root);
+    initEditor(root);
+    root.querySelectorAll("[data-workbench-navigation]").forEach(function (link) {
+      link.addEventListener("click", function (event) {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+        event.preventDefault();
+        loadWorkbench(link, true);
+      });
+    });
+  }
+
+  window.addEventListener("popstate", function () {
+    var link = document.createElement("a");
+    link.href = window.location.href;
+    loadWorkbench(link, false);
+  });
+  initWorkbench();
+}());

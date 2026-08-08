@@ -2738,14 +2738,12 @@ def workflow_update_command(
 
 @web_app.command("doctor")
 def web_doctor_command() -> None:
-    try:
-        import fastapi  # noqa: F401
-        import jinja2  # noqa: F401
-        import uvicorn  # noqa: F401
-    except ImportError as exc:
-        _emit({"ok": False, "error": str(exc), "install": "pip install -e '.[web]'"})
-        raise typer.Exit(code=3) from exc
-    _emit({"ok": True, "executor": "Windows Codex desktop client", "bind_default": "127.0.0.1"})
+    from novel_authoring.web.app import web_doctor
+
+    result = web_doctor()
+    _emit(result)
+    if not result.get("ok"):
+        raise typer.Exit(code=3)
 
 
 @demo_app.command("seed-author-workbench")

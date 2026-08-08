@@ -32,6 +32,7 @@ from novel_authoring.atlas.service import (
     record_atlas_action,
 )
 from novel_authoring.db.database import Database
+from novel_authoring.drafting import save_draft_content
 from novel_authoring.edition import edition_chapters, list_editions
 from novel_authoring.initialization import InitializationError, latest_initialization
 from novel_authoring.initialization.metrics import prepare_metric_bootstrap
@@ -68,11 +69,13 @@ from novel_authoring.web.routes.workflow import prepare_continuation, prepare_re
 from novel_authoring.web.schemas import (
     AtlasActionRequest,
     AuthorInputRequest,
+    DraftContentRequest,
     HandoffRequest,
     RecomputeRequest,
     RetractRequest,
     UserResponseRequest,
 )
+from novel_authoring.web.workbench import build_workbench_context
 from novel_authoring.workflows.handoffs import (
     HandoffWorkflowError,
     cancel_handoff,
@@ -94,6 +97,11 @@ def _check_id(value: str) -> str:
             detail={"code": "INVALID_ID", "message": "标识符格式无效", "details": {}},
         )
     return value
+
+
+def _query_id(request: Request, name: str) -> str | None:
+    value = request.query_params.get(name)
+    return _check_id(value) if value else None
 
 
 def _error(exc: Exception) -> JSONResponse:
@@ -367,11 +375,115 @@ def create_app(
                 request,
                 {"run": {"run_id": "", "results": []}, "csrf_token": app.state.csrf_token},
             )
-        context = dashboard_context(
-            _database_for_book(app, str(app.state.book_id)), _check_id(str(app.state.book_id))
+        checked_book = _check_id(str(app.state.book_id))
+        selected_database = _database_for_book(app, checked_book)
+        context = build_workbench_context(
+            selected_database,
+            checked_book,
+            None,
+            chapter_id=_query_id(request, "chapter_id"),
+            draft_id=_query_id(request, "draft_id"),
+            node=request.query_params.get("node", "overview"),
         )
         context["csrf_token"] = app.state.csrf_token
+        return _template(templates, "workbench.html", request, context)
+
+    @app.get(
+        "/books/{path_book_id}/editions/{edition_id}/workbench",
+        response_class=HTMLResponse,
+    )
+    async def workbench_page(
+        request: Request, path_book_id: str, edition_id: str
+    ) -> Any:
+        checked_book = _check_id(path_book_id)
+        checked_edition = _check_id(edition_id)
+        try:
+            context = build_workbench_context(
+                _database_for_book(app, checked_book),
+                checked_book,
+                checked_edition,
+                chapter_id=_query_id(request, "chapter_id"),
+                draft_id=_query_id(request, "draft_id"),
+                node=request.query_params.get("node", "overview"),
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "NOT_FOUND", "message": str(exc), "details": {}},
+            ) from exc
+        context["csrf_token"] = app.state.csrf_token
+        return _template(templates, "workbench.html", request, context)
+
+    @app.get(
+        "/books/{path_book_id}/dashboard",
+        response_class=HTMLResponse,
+        include_in_schema=False,
+    )
+    async def legacy_dashboard_page(request: Request, path_book_id: str) -> Any:
+        checked_book = _check_id(path_book_id)
+        context = dashboard_context(_database_for_book(app, checked_book), checked_book)
+        context["csrf_token"] = app.state.csrf_token
         return _template(templates, "index.html", request, context)
+
+    @app.get("/api/books/{path_book_id}/editions/{edition_id}/workbench")
+    async def workbench_api(
+        request: Request, path_book_id: str, edition_id: str
+    ) -> dict[str, Any]:
+        checked_book = _check_id(path_book_id)
+        checked_edition = _check_id(edition_id)
+        return build_workbench_context(
+            _database_for_book(app, checked_book),
+            checked_book,
+            checked_edition,
+            chapter_id=_query_id(request, "chapter_id"),
+            draft_id=_query_id(request, "draft_id"),
+            node=request.query_params.get("node", "overview"),
+        )
+
+    @app.get(
+        "/api/books/{path_book_id}/editions/{edition_id}/chapters/{chapter_id}/context"
+    )
+    async def chapter_context_projection_api(
+        path_book_id: str, edition_id: str, chapter_id: str
+    ) -> dict[str, Any]:
+        checked_book = _check_id(path_book_id)
+        checked_edition = _check_id(edition_id)
+        context = build_workbench_context(
+            _database_for_book(app, checked_book),
+            checked_book,
+            checked_edition,
+            chapter_id=_check_id(chapter_id),
+            node="chapter",
+        )["chapter_context"]
+        if not isinstance(context, dict):
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "NOT_FOUND", "message": "章节不存在", "details": {}},
+            )
+        return cast(dict[str, Any], context)
+
+    @app.post(
+        "/api/books/{path_book_id}/editions/{edition_id}/drafts/{draft_id}/content"
+    )
+    async def save_draft_content_api(
+        request: Request,
+        path_book_id: str,
+        edition_id: str,
+        draft_id: str,
+        payload: DraftContentRequest,
+    ) -> Any:
+        verify_csrf(request, request.headers.get("X-CSRF-Token"))
+        try:
+            return save_draft_content(
+                _database_for_book(app, _check_id(path_book_id)),
+                _check_id(path_book_id),
+                _check_id(draft_id),
+                payload.content,
+                edition_id=_check_id(edition_id),
+                expected_content_sha256=payload.expected_content_sha256,
+            )
+        except (OSError, ValueError, RuntimeError) as exc:
+            return _error(exc)
 
     @app.get(
         "/books/{path_book_id}/editions/{edition_id}/atlas",
@@ -1186,6 +1298,63 @@ def create_app(
             return _error(exc)
 
     return app
+
+
+def web_doctor() -> dict[str, Any]:
+    """Validate the local Web Workbench surface without opening a server."""
+
+    template_dir = Path(__file__).parent / "templates"
+    static_dir = Path(__file__).parent / "static"
+    checks: dict[str, dict[str, Any]] = {
+        "templates": {
+            "ok": (template_dir / "workbench.html").is_file(),
+            "path": str(template_dir / "workbench.html"),
+        },
+        "static_assets": {
+            "ok": all((static_dir / name).is_file() for name in ("app.js", "style.css")),
+            "paths": [str(static_dir / name) for name in ("app.js", "style.css")],
+        },
+        "frontend": {
+            "ok": True,
+            "mode": "native-javascript-css",
+            "detail": "不需要 Node 或额外 frontend build。",
+        },
+    }
+    try:
+        probe = create_app(
+            Database(Path(".novel-authoring-workbench-doctor.sqlite3")),
+            library_root=Path("library"),
+        )
+        route_paths = {str(route.path) for route in probe.routes if hasattr(route, "path")}
+        required = {
+            "/health",
+            "/",
+            "/books/{path_book_id}/editions/{edition_id}/workbench",
+            "/api/books/{path_book_id}/editions/{edition_id}/workbench",
+            "/api/books/{path_book_id}/editions/{edition_id}/chapters/{chapter_id}/context",
+        }
+        checks["routes"] = {
+            "ok": required.issubset(route_paths),
+            "required": sorted(required),
+            "missing": sorted(required - route_paths),
+        }
+        from fastapi.testclient import TestClient
+
+        health_response = TestClient(probe).get("/health")
+        checks["api_health"] = {
+            "ok": health_response.status_code == 200
+            and health_response.json().get("status") == "ok",
+            "status_code": health_response.status_code,
+        }
+    except (ImportError, RuntimeError, OSError) as exc:
+        checks["routes"] = {"ok": False, "error": str(exc)}
+        checks["api_health"] = {"ok": False, "error": str(exc)}
+    return {
+        "ok": all(bool(item.get("ok")) for item in checks.values()),
+        "executor": "Windows Codex desktop client",
+        "bind_default": "127.0.0.1",
+        "checks": checks,
+    }
 
 
 def serve(
