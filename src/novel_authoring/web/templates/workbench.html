@@ -15,6 +15,16 @@
       {% if selected_chapter_anchor %}<span>/</span><span>第{{ selected_chapter_anchor }}章</span>{% endif %}
     </div>
     <div class="wb-top-actions">
+      <a class="wb-top-link" href="/library">书库 · {{ library_books|length }}</a>
+      {% if library_books %}
+      <label class="wb-library-switcher">切换 session
+        <select aria-label="切换书库 session" onchange="if (this.value) window.location.href=this.value">
+          {% for item in library_books %}
+          <option value="/books/{{ item.book_id }}/editions/{{ item.active_edition_id }}/workbench"{% if item.book_id == book_id %} selected{% endif %}>{{ item.title }} · {{ item.book_id }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
       <span class="wb-status-chip wb-status-{{ (selected_draft.display_status if selected_draft else 'SOURCE')|lower }}">
         {{ selected_draft.display_status if selected_draft else 'SOURCE' }}
       </span>

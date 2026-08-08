@@ -66,6 +66,23 @@ def _edition_row(
     return dict(row)
 
 
+def _base_chapters_without_edition(
+    connection: sqlite3.Connection, book_id: str
+) -> list[dict[str, Any]]:
+    """Read imported base chapters from a deferred library add without mutating it."""
+
+    rows = connection.execute(
+        """
+        SELECT c.*, d.status AS document_status, d.relative_path
+        FROM chapters c JOIN source_documents d ON d.document_id=c.document_id
+        WHERE c.book_id=? AND c.edition_id='base' AND d.status!='GENERATED_CANON'
+        ORDER BY c.ordinal, c.created_at, c.chapter_id
+        """,
+        (book_id,),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def _read_json(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return dict(value)
@@ -520,16 +537,27 @@ def build_workbench_context(
     with database.connect() as connection:
         book = _book_row(connection, book_id)
         selected_edition_id = edition_id or str(book.get("active_edition_id") or "base")
-        edition = _edition_row(connection, book_id, selected_edition_id)
-        editions = [
-            dict(row)
-            for row in connection.execute(
-                "SELECT edition_id, display_name, status, parent_edition_id "
-                "FROM editions WHERE book_id=? ORDER BY created_at, edition_id",
-                (book_id,),
-            ).fetchall()
-        ]
-        raw_chapters = edition_chapters(connection, book_id, selected_edition_id)
+        edition_rows = connection.execute(
+            "SELECT edition_id, display_name, status, parent_edition_id "
+            "FROM editions WHERE book_id=? ORDER BY created_at, edition_id",
+            (book_id,),
+        ).fetchall()
+        editions = [dict(row) for row in edition_rows]
+        if not editions and selected_edition_id == "base":
+            edition = {
+                "edition_id": "base",
+                "display_name": str(book.get("title") or book_id),
+                "status": "ACTIVE",
+                "parent_edition_id": None,
+            }
+            editions = [dict(edition)]
+        else:
+            edition = _edition_row(connection, book_id, selected_edition_id)
+        raw_chapters = (
+            _base_chapters_without_edition(connection, book_id)
+            if not edition_rows and selected_edition_id == "base"
+            else edition_chapters(connection, book_id, selected_edition_id)
+        )
         drafts = _draft_rows(connection, book_id, selected_edition_id)
         selected_chapter, selected_draft = _selected_records(
             raw_chapters,

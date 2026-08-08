@@ -27,14 +27,14 @@
       <a class="button" href="/">作者工作台</a>
     </section>
     <section class="panel">
-      <div class="panel-heading"><h2>导入新书</h2><span class="badge">不会覆盖已有书籍</span></div>
+      <div class="panel-heading"><h2>导入新书</h2><span class="badge">自动发现 {{ library|length }} 个 session</span></div>
       <form class="library-import" data-library-import>
         <label>book_id<input name="book_id" required pattern="[A-Za-z0-9._-]+" placeholder="cable-survival-demo"></label>
         <label>标题<input name="title" placeholder="可选，默认使用 book_id"></label>
         <label>来源文件或目录<input name="source_path" required placeholder="C:\\dev\\小说续写系统\\book\\正文.md"></label>
         <button class="button" type="submit">导入到 canonical library</button>
       </form>
-      <p class="muted" data-library-import-result>Web 与 <code>novel library add</code> 共用同一导入服务：复制来源、建立 SQLite/章节/FTS，并将书籍置为 NEEDS_INITIALIZATION。</p>
+      <p class="muted" data-library-import-result>Web 与 <code>novel library add</code> 共用同一导入服务：复制来源、建立 SQLite/章节/FTS，并将书籍置为 NEEDS_INITIALIZATION。目录扫描只认含 <code>book.yaml</code> 的 canonical session；<code>*.input</code> 输入素材不会混入书库。</p>
     </section>
     <section class="library-grid" aria-label="书籍列表">
       {% for book in library %}
@@ -44,7 +44,7 @@
         <p class="muted path-line">source · {{ book.source_root }}</p>
         <p class="muted">来源文件 {{ book.source_files|length }} 个 · latest export {% if book.latest_export_available %}可用{% else %}未生成{% endif %}</p>
         {% if book.legacy_locations %}<p class="muted">保留旧位置 {{ book.legacy_locations|length }} 个</p>{% endif %}
-        <div class="actions"><a class="button" href="/library/{{ book.book_id }}/paths">查看路径</a>{% if book.latest_export_available %}<a class="button" href="/library/{{ book.book_id }}/export/latest/">打开 latest</a>{% endif %}<a class="button" href="/books/{{ book.book_id }}/editions/{{ book.active_edition_id }}/atlas">Story Atlas</a></div>
+        <div class="actions"><a class="button primary" href="/books/{{ book.book_id }}/editions/{{ book.active_edition_id }}/workbench">打开 Workbench</a><a class="button" href="/library/{{ book.book_id }}/paths">查看路径</a>{% if book.latest_export_available %}<a class="button" href="/library/{{ book.book_id }}/export/latest/">打开 latest</a>{% endif %}<a class="button" href="/books/{{ book.book_id }}/editions/{{ book.active_edition_id }}/atlas">Story Atlas</a></div>
       </article>
       {% else %}
       <section class="panel"><h2>书库为空</h2><p class="muted">使用上面的导入表单建立第一本书。</p></section>

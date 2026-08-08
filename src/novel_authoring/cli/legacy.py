@@ -2760,7 +2760,8 @@ def demo_seed_author_workbench_command(
 
 @web_app.command("serve")
 def web_serve_command(
-    book_id: BookId = typer.Option(...), workspace: Workspace = Path("workspace"),
+    book_id: Annotated[Optional[BookId], typer.Option("--book-id")] = None,
+    workspace: Workspace = Path("workspace"),
     host: str = typer.Option("127.0.0.1", "--host"), port: int = typer.Option(8765, "--port"),
     allow_remote: bool = typer.Option(False, "--allow-remote"),
     library_root: LibraryRoot = None,
@@ -2768,13 +2769,22 @@ def web_serve_command(
     try:
         from novel_authoring.web.app import serve
 
+        selected_library_root: Path | None
+        if book_id is None:
+            layout = BookLayout.default() if library_root is None else BookLayout(library_root)
+            selected_library_root = layout.library_root
+            selected_database = Database(workspace.resolve() / ".auto-workbench.sqlite3")
+        else:
+            selected_library_root = library_root
+            selected_database = _book_database(workspace, book_id, library_root)
+
         serve(
-            _book_database(workspace, book_id, library_root),
+            selected_database,
             host=host,
             port=port,
             allow_remote=allow_remote,
             book_id=book_id,
-            library_root=library_root,
+            library_root=selected_library_root,
         )
     except (ValueError, RuntimeError, OSError) as exc:
         typer.echo(str(exc), err=True); raise typer.Exit(code=3) from exc

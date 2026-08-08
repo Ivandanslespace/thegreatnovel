@@ -193,6 +193,8 @@ th, td { padding: .6rem; border-bottom: 1px solid var(--line); text-align: left;
 .wb-top-actions { display: flex; align-items: center; gap: .35rem; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
 .wb-top-link { border: 0; padding: .25rem .45rem; color: #667085; background: transparent; text-decoration: none; font-size: .78rem; cursor: pointer; }
 .wb-top-link:hover { color: #344054; background: #f2f4f7; border-radius: 6px; }
+.wb-library-switcher { display: inline-flex; align-items: center; gap: .3rem; color: #667085; font-size: .7rem; }
+.wb-library-switcher select { max-width: 220px; border: 1px solid #d0d5dd; border-radius: 6px; padding: .25rem .35rem; color: #344054; background: #fff; font-size: .7rem; }
 .wb-status-chip, .wb-state-tag, .wb-mini-status, .wb-availability, .wb-anchor-chip { display: inline-flex; align-items: center; gap: .2rem; border: 1px solid #e5e7eb; border-radius: 999px; padding: .16rem .48rem; color: #667085; background: #fafafa; font-size: .68rem; line-height: 1.2; white-space: nowrap; }
 .wb-status-canon, .wb-state-canon, .wb-mini-canon { color: #176b4d; border-color: #b8ddcb; background: #f0faf5; }
 .wb-status-source, .wb-state-source, .wb-mini-source { color: #667085; }

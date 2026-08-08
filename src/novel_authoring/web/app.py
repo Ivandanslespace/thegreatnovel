@@ -168,6 +168,14 @@ def _library_payload(layout: BookLayout, registry: BookRegistry) -> list[dict[st
     return payload
 
 
+def _library_books_for_app(app: Any) -> list[dict[str, Any]]:
+    root = app.state.library_root
+    if root is None:
+        return []
+    layout = BookLayout(root)
+    return _library_payload(layout, BookRegistry(layout))
+
+
 def _library_paths_payload(
     layout: BookLayout, book_id: str, edition_id: str = "base"
 ) -> dict[str, Any]:
@@ -369,12 +377,7 @@ def create_app(
     @app.get("/", response_class=HTMLResponse)
     async def home(request: Request) -> Any:
         if app.state.book_id is None:
-            return _template(
-                templates,
-                "missing.html",
-                request,
-                {"run": {"run_id": "", "results": []}, "csrf_token": app.state.csrf_token},
-            )
+            return RedirectResponse(url="/library", status_code=307)
         checked_book = _check_id(str(app.state.book_id))
         selected_database = _database_for_book(app, checked_book)
         context = build_workbench_context(
@@ -386,6 +389,7 @@ def create_app(
             node=request.query_params.get("node", "overview"),
         )
         context["csrf_token"] = app.state.csrf_token
+        context["library_books"] = _library_books_for_app(app)
         return _template(templates, "workbench.html", request, context)
 
     @app.get(
@@ -412,6 +416,7 @@ def create_app(
                 detail={"code": "NOT_FOUND", "message": str(exc), "details": {}},
             ) from exc
         context["csrf_token"] = app.state.csrf_token
+        context["library_books"] = _library_books_for_app(app)
         return _template(templates, "workbench.html", request, context)
 
     @app.get(
@@ -504,10 +509,12 @@ def create_app(
         atlas_view: str = "overview",
     ) -> Any:
         try:
+            checked_book = _check_id(path_book_id)
+            checked_edition = _check_id(edition_id)
             context = atlas_context(
-                database,
-                _check_id(path_book_id),
-                _check_id(edition_id),
+                _database_for_book(app, checked_book),
+                checked_book,
+                checked_edition,
                 view=_check_id(atlas_view),
                 status=request.query_params.get("status"),
                 horizon=request.query_params.get("horizon"),
@@ -533,7 +540,9 @@ def create_app(
         context = {
             "book_id": checked_book,
             "edition_id": checked_edition,
-            "initialization": latest_initialization(database, checked_book, checked_edition),
+            "initialization": latest_initialization(
+                _database_for_book(app, checked_book), checked_book, checked_edition
+            ),
             "csrf_token": app.state.csrf_token,
         }
         return _template(templates, "initialization.html", request, context)
@@ -565,8 +574,9 @@ def create_app(
     async def missing_page(request: Request, path_book_id: str, edition_id: str) -> Any:
         book = _check_id(path_book_id)
         edition = _check_id(edition_id)
-        database.initialize()
-        with database.connect() as connection:
+        selected_database = _database_for_book(app, book)
+        selected_database.initialize()
+        with selected_database.connect() as connection:
             edition_rows = edition_chapters(connection, book, edition)
         chapter = edition_rows[-1] if edition_rows else None
         if chapter is None:
@@ -576,11 +586,11 @@ def create_app(
                 request,
                 {"run": {"run_id": "", "results": []}, "csrf_token": app.state.csrf_token},
             )
-        run = MetricsAssembler(database).rebuild(
+        run = MetricsAssembler(selected_database).rebuild(
             book, edition_id=edition, scope_type="CHAPTER", scope_id=str(chapter["chapter_id"])
         )
         segments = list_segments(
-            database,
+            selected_database,
             book,
             edition_id=edition,
             chapter_id=str(chapter["chapter_id"]),
@@ -619,15 +629,20 @@ def create_app(
 
     @app.get("/books/{path_book_id}/workflow", response_class=HTMLResponse)
     async def workflow_page(request: Request, path_book_id: str) -> Any:
-        context = workflow_context(database, _check_id(path_book_id))
-        context["edition_id"] = home_context(database, _check_id(path_book_id))["edition_id"]
+        checked_book = _check_id(path_book_id)
+        selected_database = _database_for_book(app, checked_book)
+        context = workflow_context(selected_database, checked_book)
+        context["edition_id"] = home_context(selected_database, checked_book)["edition_id"]
         context["csrf_token"] = app.state.csrf_token
         return _template(templates, "workflow.html", request, context)
 
     @app.get("/books/{path_book_id}/jobs", response_class=HTMLResponse)
     async def jobs_page(request: Request, path_book_id: str) -> Any:
         checked = _check_id(path_book_id)
-        context = {"book_id": checked, "handoffs": list_handoffs(database, checked)}
+        context = {
+            "book_id": checked,
+            "handoffs": list_handoffs(_database_for_book(app, checked), checked),
+        }
         context["csrf_token"] = app.state.csrf_token
         return _template(templates, "jobs.html", request, context)
 
@@ -635,8 +650,9 @@ def create_app(
         "/books/{path_book_id}/editions/{edition_id}/draft-review", response_class=HTMLResponse
     )
     async def draft_review_page(request: Request, path_book_id: str, edition_id: str) -> Any:
-        database.initialize()
-        with database.connect() as connection:
+        selected_database = _database_for_book(app, _check_id(path_book_id))
+        selected_database.initialize()
+        with selected_database.connect() as connection:
             rows = connection.execute(
                 "SELECT * FROM drafts "
                 "WHERE book_id=? AND edition_id=? ORDER BY created_at DESC",
@@ -793,13 +809,17 @@ def create_app(
     @app.get("/api/books/{path_book_id}/editions/{edition_id}/atlas")
     @app.get("/api/books/{path_book_id}/editions/{edition_id}/story-atlas")
     async def atlas_overview_api(path_book_id: str, edition_id: str) -> dict[str, Any]:
+        checked_book = _check_id(path_book_id)
         return public_atlas_overview(
-            database, _check_id(path_book_id), _check_id(edition_id)
+            _database_for_book(app, checked_book), checked_book, _check_id(edition_id)
         )
 
     @app.get("/api/books/{path_book_id}/editions/{edition_id}/initialization")
     async def initialization_api(path_book_id: str, edition_id: str) -> dict[str, Any] | None:
-        return latest_initialization(database, _check_id(path_book_id), _check_id(edition_id))
+        checked_book = _check_id(path_book_id)
+        return latest_initialization(
+            _database_for_book(app, checked_book), checked_book, _check_id(edition_id)
+        )
 
     @app.post("/api/books/{path_book_id}/editions/{edition_id}/initialization")
     async def initialization_handoff_api(
@@ -807,9 +827,10 @@ def create_app(
     ) -> Any:
         verify_csrf(request, request.headers.get("X-CSRF-Token"))
         try:
+            checked_book = _check_id(path_book_id)
             return create_initialization_handoff(
-                database,
-                _check_id(path_book_id),
+                _database_for_book(app, checked_book),
+                checked_book,
                 edition_id=_check_id(edition_id),
                 requested_stage="NOVEL_INITIALIZATION",
             )
@@ -822,15 +843,18 @@ def create_app(
     async def atlas_visual_api(path_book_id: str, edition_id: str, visual_name: str) -> Response:
         if not re.fullmatch(r"[A-Za-z0-9._-]+\.svg", visual_name):
             raise HTTPException(status_code=400, detail="visual name 无效")
+        checked_book = _check_id(path_book_id)
+        checked_edition = _check_id(edition_id)
+        selected_database = _database_for_book(app, checked_book)
         overview = get_atlas_overview(
-            database, _check_id(path_book_id), _check_id(edition_id)
+            selected_database, checked_book, checked_edition
         )
         index = overview.get("index") or {}
         raw_root = str(index.get("artifact_root") or "")
         if not raw_root:
             raise HTTPException(status_code=404, detail="visual 不存在")
         try:
-            base = atlas_root(database, _check_id(path_book_id), _check_id(edition_id)).resolve()
+            base = atlas_root(selected_database, checked_book, checked_edition).resolve()
             root = Path(raw_root).resolve()
         except (AtlasError, OSError, ValueError) as exc:
             raise HTTPException(status_code=404, detail="visual 不存在") from exc
@@ -843,15 +867,18 @@ def create_app(
 
     @app.get("/api/books/{path_book_id}/editions/{edition_id}/atlas/reports")
     async def atlas_reports_api(path_book_id: str, edition_id: str) -> dict[str, str]:
+        checked_book = _check_id(path_book_id)
+        checked_edition = _check_id(edition_id)
+        selected_database = _database_for_book(app, checked_book)
         overview = get_atlas_overview(
-            database, _check_id(path_book_id), _check_id(edition_id)
+            selected_database, checked_book, checked_edition
         )
         index = overview.get("index") or {}
         raw_root = str(index.get("artifact_root") or "")
         if not raw_root:
             return {}
         try:
-            base = atlas_root(database, _check_id(path_book_id), _check_id(edition_id)).resolve()
+            base = atlas_root(selected_database, checked_book, checked_edition).resolve()
             root = Path(raw_root).resolve()
         except (AtlasError, OSError, ValueError) as exc:
             raise HTTPException(status_code=404, detail="Atlas reports 不存在") from exc
@@ -882,9 +909,10 @@ def create_app(
         try:
             if graph_type not in GRAPH_TYPES:
                 raise AtlasError(f"不支持的 Atlas graph_type：{graph_type}")
+            checked_book = _check_id(path_book_id)
             return atlas_graph_view(
-                database,
-                _check_id(path_book_id),
+                _database_for_book(app, checked_book),
+                checked_book,
                 _check_id(edition_id),
                 graph_type,
                 status=status,
@@ -906,9 +934,10 @@ def create_app(
         path_book_id: str, edition_id: str, graph_type: str, entry_id: str
     ) -> dict[str, Any]:
         try:
+            checked_book = _check_id(path_book_id)
             return atlas_entry_detail(
-                database,
-                _check_id(path_book_id),
+                _database_for_book(app, checked_book),
+                checked_book,
                 _check_id(edition_id),
                 graph_type,
                 _check_id(entry_id),
@@ -921,8 +950,9 @@ def create_app(
 
     @app.get("/api/books/{path_book_id}/editions/{edition_id}/atlas/history")
     async def atlas_history_api(path_book_id: str, edition_id: str) -> dict[str, Any]:
+        checked_book = _check_id(path_book_id)
         overview = public_atlas_overview(
-            database, _check_id(path_book_id), _check_id(edition_id)
+            _database_for_book(app, checked_book), checked_book, _check_id(edition_id)
         )
         return {"history": overview.get("history", [])}
 
@@ -935,6 +965,7 @@ def create_app(
     ) -> Any:
         verify_csrf(request, None)
         try:
+            checked_book = _check_id(path_book_id)
             action = AtlasAction.model_validate(
                 {
                     "action_type": payload.action_type,
@@ -944,8 +975,8 @@ def create_app(
                 }
             )
             return record_atlas_action(
-                database,
-                _check_id(path_book_id),
+                _database_for_book(app, checked_book),
+                checked_book,
                 _check_id(edition_id),
                 action,
                 atlas_id=payload.expected_atlas_id,
@@ -1008,7 +1039,10 @@ def create_app(
         try:
             checked_book = _check_id(path_book_id)
             checked_edition = _check_id(edition_id)
-            initialization = latest_initialization(database, checked_book, checked_edition)
+            selected_database = _database_for_book(app, checked_book)
+            initialization = latest_initialization(
+                selected_database, checked_book, checked_edition
+            )
             if not initialization:
                 raise ValueError("尚未创建初始化包，无法准备语义指标任务")
             manifest = initialization.get("manifest") or {}
@@ -1016,7 +1050,7 @@ def create_app(
             if not initialization_id:
                 raise ValueError("初始化 manifest 缺少 initialization_id")
             return prepare_metric_bootstrap(
-                database,
+                selected_database,
                 checked_book,
                 edition_id=checked_edition,
                 initialization_id=initialization_id,
@@ -1034,9 +1068,10 @@ def create_app(
                 status_code=400,
                 detail={"code": "MISSING_SCOPE_ID", "message": "需要 scope_id"},
             )
+        checked_book = _check_id(path_book_id)
         return metric_history(
-            database,
-            _check_id(path_book_id),
+            _database_for_book(app, checked_book),
+            checked_book,
             _check_id(edition_id),
             scope_type,
             _check_id(scope_id),
@@ -1054,9 +1089,10 @@ def create_app(
                 status_code=400,
                 detail={"code": "MISSING_SCOPE_ID", "message": "需要 scope_id"},
             )
+        checked_book = _check_id(path_book_id)
         return observation_history(
-            database,
-            _check_id(path_book_id),
+            _database_for_book(app, checked_book),
+            checked_book,
             _check_id(edition_id),
             scope_type,
             _check_id(scope_id),
@@ -1065,8 +1101,9 @@ def create_app(
     @app.get("/api/books/{path_book_id}/editions/{edition_id}/metrics/missing")
     @app.get("/api/books/{path_book_id}/editions/{edition_id}/missing-inputs")
     async def missing_api(path_book_id: str, edition_id: str, scope_id: str) -> dict[str, Any]:
-        run = MetricsAssembler(database).rebuild(
-            _check_id(path_book_id),
+        checked_book = _check_id(path_book_id)
+        run = MetricsAssembler(_database_for_book(app, checked_book)).rebuild(
+            checked_book,
             edition_id=_check_id(edition_id),
             scope_type="CHAPTER",
             scope_id=_check_id(scope_id),
@@ -1084,22 +1121,26 @@ def create_app(
     async def disputes_api(
         path_book_id: str, edition_id: str, scope_id: str
     ) -> list[dict[str, Any]]:
-        database.initialize()
-        with database.connect() as connection:
+        checked_book = _check_id(path_book_id)
+        checked_edition = _check_id(edition_id)
+        checked_scope = _check_id(scope_id)
+        selected_database = _database_for_book(app, checked_book)
+        selected_database.initialize()
+        with selected_database.connect() as connection:
             rows = connection.execute(
                 "SELECT DISTINCT scope_type, metric_id, component_id "
                 "FROM metric_observations WHERE book_id=? AND edition_id=? AND scope_id=? "
                 "ORDER BY metric_id, component_id",
-                (_check_id(path_book_id), _check_id(edition_id), _check_id(scope_id)),
+                (checked_book, checked_edition, checked_scope),
             ).fetchall()
-        resolver = ObservationResolver(database)
+        resolver = ObservationResolver(selected_database)
         disputes: list[dict[str, Any]] = []
         for row in rows:
             resolution = resolver.resolve(
-                _check_id(path_book_id),
-                _check_id(edition_id),
+                checked_book,
+                checked_edition,
                 str(row["scope_type"]),
-                _check_id(scope_id),
+                checked_scope,
                 str(row["metric_id"]),
                 str(row["component_id"]),
             )
@@ -1120,8 +1161,9 @@ def create_app(
     ) -> Any:
         verify_csrf(request, None)
         try:
+            checked_book = _check_id(path_book_id)
             return save_author_input(
-                database, _check_id(path_book_id), _check_id(edition_id), payload
+                _database_for_book(app, checked_book), checked_book, _check_id(edition_id), payload
             )
         except (MetricConflictError, MetricValidationError, ValueError) as exc:
             return _error(exc)
@@ -1141,9 +1183,10 @@ def create_app(
         try:
             from novel_authoring.metrics.service import AuthorMetricInputService
 
-            return AuthorMetricInputService(database).retract(
+            checked_book = _check_id(path_book_id)
+            return AuthorMetricInputService(_database_for_book(app, checked_book)).retract(
                 _check_id(observation_id),
-                book_id=_check_id(path_book_id),
+                book_id=checked_book,
                 edition_id=_check_id(edition_id),
                 scope_type=payload.scope_type,
                 scope_id=_check_id(payload.scope_id),
@@ -1159,9 +1202,11 @@ def create_app(
     ) -> Any:
         verify_csrf(request, None)
         try:
-            assembler = MetricsAssembler(database)
+            checked_book = _check_id(path_book_id)
+            selected_database = _database_for_book(app, checked_book)
+            assembler = MetricsAssembler(selected_database)
             bundle = assembler.assemble(
-                _check_id(path_book_id),
+                checked_book,
                 edition_id=_check_id(edition_id),
                 scope_type=payload.scope_type,
                 scope_id=_check_id(payload.scope_id),
@@ -1176,7 +1221,7 @@ def create_app(
                 supplied = getattr(payload, field)
                 if supplied is not None and supplied != expected:
                     raise MetricConflictError(f"{field} 已变化，请刷新后重试")
-            resolver = ObservationResolver(database)
+            resolver = ObservationResolver(selected_database)
             for key, expected_id in payload.expected_effective_observation_ids.items():
                 parts = key.split(".", 1)
                 if len(parts) != 2 or not parts[0] or not parts[1]:
@@ -1184,7 +1229,7 @@ def create_app(
                         "expected_effective_observation_ids 的 key 必须是 metric_id.component_id"
                     )
                 current = resolver.resolve(
-                    _check_id(path_book_id),
+                    checked_book,
                     _check_id(edition_id),
                     payload.scope_type,
                     _check_id(payload.scope_id),
@@ -1240,7 +1285,8 @@ def create_app(
     async def handoffs_api(
         path_book_id: str, edition_id: str | None = None
     ) -> list[dict[str, Any]]:
-        return list_handoffs(database, _check_id(path_book_id), edition_id)
+        checked_book = _check_id(path_book_id)
+        return list_handoffs(_database_for_book(app, checked_book), checked_book, edition_id)
 
     @app.post("/api/handoffs/continue")
     @app.post("/api/books/{path_book_id}/handoffs/continuation")
@@ -1252,7 +1298,13 @@ def create_app(
             target_book = path_book_id or app.state.book_id
             if target_book is None:
                 raise HandoffWorkflowError("需要 book_id")
-            return prepare_continuation(database, _check_id(str(target_book)), payload)
+            checked_book = _check_id(str(target_book))
+            selected_database = (
+                _database_for_book(app, checked_book)
+                if path_book_id is not None
+                else database
+            )
+            return prepare_continuation(selected_database, checked_book, payload)
         except (HandoffWorkflowError, ValueError) as exc:
             return _error(exc)
 
@@ -1266,7 +1318,13 @@ def create_app(
             target_book = path_book_id or app.state.book_id
             if target_book is None:
                 raise HandoffWorkflowError("需要 book_id")
-            return prepare_revision(database, _check_id(str(target_book)), payload)
+            checked_book = _check_id(str(target_book))
+            selected_database = (
+                _database_for_book(app, checked_book)
+                if path_book_id is not None
+                else database
+            )
+            return prepare_revision(selected_database, checked_book, payload)
         except (HandoffWorkflowError, ValueError) as exc:
             return _error(exc)
 
@@ -1329,6 +1387,8 @@ def web_doctor() -> dict[str, Any]:
         required = {
             "/health",
             "/",
+            "/library",
+            "/api/library",
             "/books/{path_book_id}/editions/{edition_id}/workbench",
             "/api/books/{path_book_id}/editions/{edition_id}/workbench",
             "/api/books/{path_book_id}/editions/{edition_id}/chapters/{chapter_id}/context",

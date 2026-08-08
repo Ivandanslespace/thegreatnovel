@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from novel_authoring.config import load_settings
 from novel_authoring.db.database import Database
 from novel_authoring.ingest.service import ingest_book
+from novel_authoring.storage.library import LibraryAddOptions, add_book
 from novel_authoring.web.app import create_app, web_doctor
 
 
@@ -227,3 +228,47 @@ def test_web_doctor_checks_native_workbench_surface() -> None:
     assert result["checks"]["frontend"]["mode"] == "native-javascript-css"
     assert result["checks"]["routes"]["missing"] == []
     assert result["checks"]["api_health"]["ok"] is True
+
+
+def test_library_mode_auto_discovers_canonical_sessions_and_opens_each_workbench(
+    tmp_path: Path,
+) -> None:
+    library_root = tmp_path / "library"
+    for book_id in ("session-a", "session-b"):
+        source = tmp_path / f"{book_id}.md"
+        source.write_text(f"第1章 {book_id}\n\n正文。\n", encoding="utf-8")
+        add_book(
+            LibraryAddOptions(
+                book_id=book_id,
+                title=f"标题 {book_id}",
+                source=source,
+                library_root=library_root,
+            )
+        )
+    (library_root / ".raw-input").mkdir(parents=True)
+    (library_root / ".raw-input" / "notes.md").write_text("输入素材", encoding="utf-8")
+
+    app = create_app(Database(tmp_path / "boot.sqlite3"), library_root=library_root)
+    client = TestClient(app)
+
+    root = client.get("/", follow_redirects=False)
+    assert root.status_code == 307
+    assert root.headers["location"] == "/library"
+
+    library = client.get("/api/library")
+    assert library.status_code == 200
+    assert [item["book_id"] for item in library.json()["books"]] == [
+        "session-a",
+        "session-b",
+    ]
+    page = client.get("/library")
+    assert page.status_code == 200
+    assert "标题 session-a" in page.text
+    assert "标题 session-b" in page.text
+    assert ".raw-input" not in page.text
+    assert page.text.count("打开 Workbench") == 2
+
+    workbench = client.get("/books/session-b/editions/base/workbench")
+    assert workbench.status_code == 200
+    assert "标题 session-b" in workbench.text
+    assert "标题 session-a" in workbench.text
